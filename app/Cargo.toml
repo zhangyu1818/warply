@@ -514,6 +514,7 @@ default = [
     "trim_trailing_blank_lines",
     "open_warp_new_settings_modes",
     "settings_file",
+    "directory_tab_colors",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.

@@ -517,7 +517,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::AgentViewBlockContext,
     FeatureFlag::PendingUserQueryIndicator,
     FeatureFlag::QueueSlashCommand,
-    FeatureFlag::DirectoryTabColors,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::RememberFastForwardState,
