@@ -206,3 +206,12 @@ pub enum SessionSource {
 impl Entity for SessionSource {
     type Event = ();
 }
+
+#[derive(Clone)]
+pub struct TabNavigationData {
+    pub pane_group_id: EntityId,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub window_id: WindowId,
+    pub tab_index: usize,
+}

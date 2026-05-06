@@ -695,10 +695,17 @@ impl View {
         result_action: CommandPaletteItemAction,
         ctx: &mut ViewContext<Self>,
     ) {
-        let selected_items_handle = SelectedItems::handle(ctx);
-        selected_items_handle.update(ctx, |selected_items, _ctx| {
-            selected_items.enqueue(result_action.to_summary())
-        });
+        // Tab navigations don't appear in the main command palette to avoid confusion with session
+        // navigations, so they can't evict real recent items from SelectedItems.
+        if !matches!(
+            result_action,
+            CommandPaletteItemAction::NavigateToTab { .. }
+        ) {
+            let selected_items_handle = SelectedItems::handle(ctx);
+            selected_items_handle.update(ctx, |selected_items, _ctx| {
+                selected_items.enqueue(result_action.to_summary())
+            });
+        }
 
         if let CommandPaletteItemAction::AcceptBinding { binding } = &result_action {
             if let Some(action) = &binding.action {
@@ -763,6 +770,19 @@ impl View {
                         root_view_id,
                         "root_view:handle_pane_navigation_event",
                         &pane_view_locator,
+                    );
+                }
+            }
+            CommandPaletteItemAction::NavigateToTab {
+                pane_group_id,
+                window_id,
+            } => {
+                if let Some(root_view_id) = ctx.root_view_id(window_id) {
+                    ctx.dispatch_action_for_view(
+                        window_id,
+                        root_view_id,
+                        "root_view:activate_tab_by_pane_group_id",
+                        &pane_group_id,
                     );
                 }
             }

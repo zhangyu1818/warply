@@ -194,6 +194,7 @@ pub enum CtrlTabBehavior {
     #[default]
     ActivatePrevNextTab,
     CycleMostRecentSession,
+    CycleMostRecentTab,
 }
 
 impl CtrlTabBehavior {
@@ -201,6 +202,7 @@ impl CtrlTabBehavior {
         match self {
             Self::ActivatePrevNextTab => "Activate previous/next tab",
             Self::CycleMostRecentSession => "Cycle most recent session",
+            Self::CycleMostRecentTab => "Cycle most recent tab",
         }
     }
 }
