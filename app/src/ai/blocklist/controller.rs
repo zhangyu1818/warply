@@ -1165,7 +1165,7 @@ impl BlocklistAIController {
         }
 
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-            history.set_active_conversation_id(conversation_id, self.terminal_view_id, ctx);
+            history.mark_active_conversation_id(conversation_id, self.terminal_view_id, ctx);
         });
 
         if !FeatureFlag::AgentView.is_enabled() && trigger == FollowUpTrigger::Auto {
@@ -1648,8 +1648,8 @@ impl BlocklistAIController {
             stream_id: response_stream_id.clone(),
         });
         if !is_passive_request {
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                history_model.set_active_conversation_id(
+            history_model.update(ctx, |history_model, ctx| {
+                history_model.mark_active_conversation_id(
                     conversation_id,
                     self.terminal_view_id,
                     ctx,

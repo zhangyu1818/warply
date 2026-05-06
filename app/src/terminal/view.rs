@@ -194,7 +194,7 @@ use crate::identity::LocalIdentityProvider;
 use crate::object_ids::{ObjectUid, SyncId};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::persistence::{self, FinishedCommandMetadata};
-use crate::safe_warn;
+use crate::{safe_error, safe_warn};
 #[cfg(feature = "local_fs")]
 use crate::settings::{
     AISettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
@@ -5132,7 +5132,7 @@ impl TerminalView {
                     .conversation_id_for_action(action_id, ctx.view_id())
                     .and_then(|id| history_model.conversation(&id))
                 else {
-                    safe_warn!(
+                    safe_error!(
                         safe: ("No conversation ID found for command with ID: {:?}", action_id),
                         full: (
                             "No conversation ID found for requested command: ID: {:?}, command: \
