@@ -1898,15 +1898,12 @@ impl Input {
                 AgentInputFooterEvent::SelectFile => {
                     me.select_image(ctx);
                 }
-                AgentInputFooterEvent::OpenRichInput | AgentInputFooterEvent::HideRichInput => {
-                    ctx.emit(Event::Escape);
-                }
-                // WriteToPty, InsertIntoCLIRichInput, ToggleCodeReviewPane, and ToggleFileExplorer
-                // are handled by UseAgentToolbar's subscription, not here.
                 AgentInputFooterEvent::WriteToPty(_)
                 | AgentInputFooterEvent::InsertIntoCLIRichInput(_)
                 | AgentInputFooterEvent::ToggleCodeReviewPane(_)
-                | AgentInputFooterEvent::ToggleFileExplorer(_) => {}
+                | AgentInputFooterEvent::ToggleFileExplorer(_)
+                | AgentInputFooterEvent::OpenRichInput
+                | AgentInputFooterEvent::HideRichInput => {}
                 AgentInputFooterEvent::ToggledChipMenu { open } => {
                     me.handle_prompt_event(&PromptDisplayEvent::ToggleMenu { open: *open }, ctx);
                 }
