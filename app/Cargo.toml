@@ -515,6 +515,7 @@ default = [
     "open_warp_new_settings_modes",
     "settings_file",
     "directory_tab_colors",
+    "configurable_context_window",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
