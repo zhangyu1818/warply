@@ -159,6 +159,8 @@ pub enum CodeViewAction {
     ToggleMaximized,
     #[cfg(feature = "local_fs")]
     CopyFilePath,
+    #[cfg(feature = "local_fs")]
+    RevealInFinder,
     DragOverIndex {
         target: usize,
         drag_position: RectF,
@@ -1875,10 +1877,20 @@ impl CodeView {
 
         #[cfg(feature = "local_fs")]
         if self.local_path(ctx).is_some() {
+            let reveal_label = if cfg!(target_os = "macos") {
+                "Reveal in Finder"
+            } else if cfg!(target_os = "windows") {
+                "Reveal in Explorer"
+            } else {
+                "Reveal in file manager"
+            };
             items.extend([
                 MenuItem::Separator,
                 MenuItemFields::new("Copy file path")
                     .with_on_select_action(CodeViewAction::CopyFilePath)
+                    .into_item(),
+                MenuItemFields::new(reveal_label)
+                    .with_on_select_action(CodeViewAction::RevealInFinder)
                     .into_item(),
             ]);
         }
@@ -2031,6 +2043,12 @@ impl TypedActionView for CodeView {
                 if let Some(path) = self.local_path(ctx) {
                     ctx.clipboard()
                         .write(ClipboardContent::plain_text(path.display().to_string()));
+                }
+            }
+            #[cfg(feature = "local_fs")]
+            CodeViewAction::RevealInFinder => {
+                if let Some(path) = self.local_path(ctx) {
+                    ctx.open_file_path_in_explorer(&path);
                 }
             }
             CodeViewAction::DragOverIndex {
