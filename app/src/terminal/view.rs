@@ -125,7 +125,7 @@ use crate::terminal::view::ssh_remote_server_choice_view::{
     SshRemoteServerChoiceView, SshRemoteServerChoiceViewEvent,
 };
 use crate::terminal::view::ssh_remote_server_failed_banner::{
-    SshRemoteServerFailedBanner, SshRemoteServerFailedBannerEvent, SshRemoteServerFailureKind,
+    SshRemoteServerFailedBanner, SshRemoteServerFailedBannerEvent,
 };
 pub use action::TerminalAction;
 pub use block_banner::{WithinBlockBanner, BLOCK_BANNER_HEIGHT};
@@ -3519,8 +3519,14 @@ impl TerminalView {
                             .unwrap_or((None, None));
                         me.show_ssh_remote_server_failed_banner(
                             *session_id,
-                            SshRemoteServerFailureKind::Launch,
-                            error,
+                            remote_server::transport::UserFacingError {
+                                body: "Failed to start SSH extension".into(),
+                                detail: if error.is_empty() {
+                                    None
+                                } else {
+                                    Some(error.clone())
+                                },
+                            },
                             ctx,
                         );
                     }
@@ -3555,10 +3561,12 @@ impl TerminalView {
                             })
                             .unwrap_or((None, None));
                         if let Err(error) = result {
+                            log::warn!("Remote server install failed: {error:#}");
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
-                                SshRemoteServerFailureKind::BinaryInstall,
-                                error,
+                                error.user_facing_error(
+                                    remote_server::transport::SetupStage::InstallBinary,
+                                ),
                                 ctx,
                             );
                         }
@@ -3580,10 +3588,12 @@ impl TerminalView {
                             })
                             .unwrap_or((None, None));
                         if let Err(error) = result {
+                            log::warn!("Remote server binary check failed: {error:#}");
                             me.show_ssh_remote_server_failed_banner(
                                 *session_id,
-                                SshRemoteServerFailureKind::BinaryCheck,
-                                error,
+                                error.user_facing_error(
+                                    remote_server::transport::SetupStage::CheckBinary,
+                                ),
                                 ctx,
                             );
                         }
@@ -9212,8 +9222,7 @@ impl TerminalView {
     fn show_ssh_remote_server_failed_banner(
         &mut self,
         session_id: SessionId,
-        kind: SshRemoteServerFailureKind,
-        error: &str,
+        error: remote_server::transport::UserFacingError,
         ctx: &mut ViewContext<Self>,
     ) {
         let already_present = self.rich_content_views.iter().any(|view| {
@@ -9227,9 +9236,8 @@ impl TerminalView {
             return;
         }
 
-        let error = error.to_owned();
-        let banner = ctx
-            .add_typed_action_view(|_| SshRemoteServerFailedBanner::new(session_id, kind, error));
+        let banner =
+            ctx.add_typed_action_view(|_| SshRemoteServerFailedBanner::new(session_id, error));
 
         ctx.subscribe_to_view(&banner, move |me, _, event, ctx| match event {
             SshRemoteServerFailedBannerEvent::Dismissed => {
