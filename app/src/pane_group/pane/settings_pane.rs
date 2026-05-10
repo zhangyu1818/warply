@@ -7,10 +7,7 @@ use crate::{
     },
 };
 
-use super::{
-    view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 
 pub struct SettingsPane {
     view: ViewHandle<PaneView<SettingsView>>,
@@ -121,13 +118,6 @@ impl PaneContent for SettingsPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.settings_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

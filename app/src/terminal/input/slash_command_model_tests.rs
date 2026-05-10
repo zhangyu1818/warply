@@ -1,9 +1,9 @@
 use super::SlashCommandEntryState;
-use crate::report_if_error;
+use crate::ai::acp::model::{AcpAgentModel, AcpAgentState};
+use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::search::slash_command_menu::static_commands::commands;
-use crate::settings::AISettings;
+use crate::terminal::input::slash_commands::SlashCommandsEvent;
 use crate::terminal::input::tests::{add_window_with_bootstrapped_terminal, initialize_app};
-use settings::Setting as _;
 use warpui::{App, SingletonEntity as _};
 
 #[test]
@@ -108,47 +108,67 @@ fn test_parse_rename_tab_slash_command_arguments() {
 }
 
 #[test]
-fn test_non_ai_commands_remain_active_when_ai_is_disabled() {
+fn selecting_acp_command_with_input_hint_keeps_editor_open() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let terminal = add_window_with_bootstrapped_terminal(
-            &mut app, None, /* history_file_commands */
-            None,
-        )
-        .await;
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
-        let slash_command_data_source =
-            input.read(&app, |input, _| input.slash_command_data_source.clone());
 
-        // Disable AI globally.
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            report_if_error!(settings.is_any_ai_enabled.set_value(false, ctx));
+        input.update(&mut app, |input, ctx| {
+            input.handle_slash_commands_menu_event(
+                &SlashCommandsEvent::SelectedAcpCommand {
+                    name: "review".to_string(),
+                    description: "Review changes".to_string(),
+                    input_hint: Some("optional task".to_string()),
+                },
+                ctx,
+            );
         });
 
-        slash_command_data_source.read(&app, |data_source, _| {
-            let active_command_names: Vec<&str> = data_source
-                .active_commands()
-                .map(|(_, command)| command.name)
-                .collect();
+        input.read(&app, |input, ctx| {
+            assert_eq!(input.buffer_text(ctx), "/review ");
+        });
+        app.read(|ctx| {
+            assert!(matches!(
+                AcpAgentModel::as_ref(ctx).state(),
+                AcpAgentState::Idle
+            ));
+        });
+    });
+}
 
-            // Commands that don't require AI should still be active.
-            // `/rename-tab` is a good canary because it has no session-context requirements
-            // other than ALWAYS.
-            assert!(
-                active_command_names.contains(&commands::RENAME_TAB.name),
-                "/rename-tab should remain active when AI is off, got: {active_command_names:?}"
-            );
+#[test]
+fn selecting_acp_command_without_input_hint_submits_command() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
 
-            // Commands that require AI should be filtered out.
-            assert!(
-                !active_command_names.contains(&commands::AGENT.name),
-                "/agent should NOT be active when AI is off, got: {active_command_names:?}"
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let terminal_view_id = terminal.read(&app, |terminal, _| terminal.view_id());
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+
+        input.update(&mut app, |input, ctx| {
+            input.handle_slash_commands_menu_event(
+                &SlashCommandsEvent::SelectedAcpCommand {
+                    name: "status".to_string(),
+                    description: "Show status".to_string(),
+                    input_hint: None,
+                },
+                ctx,
             );
-            assert!(
-                !active_command_names.contains(&commands::PLAN.name),
-                "/plan should NOT be active when AI is off, got: {active_command_names:?}"
-            );
+        });
+
+        app.read(|ctx| {
+            assert!(matches!(
+                AcpAgentModel::as_ref(ctx).state(),
+                AcpAgentState::Starting | AcpAgentState::Ready | AcpAgentState::Failed(_)
+            ));
+        });
+        BlocklistAIHistoryModel::handle(&app).read(&app, |history, _| {
+            let conversation = history
+                .active_conversation(terminal_view_id)
+                .expect("ACP command selection should start a conversation");
+            assert!(!conversation.is_empty());
         });
     });
 }

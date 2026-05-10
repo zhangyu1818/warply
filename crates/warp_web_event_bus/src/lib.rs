@@ -12,7 +12,6 @@ use wasm_bindgen::JsCast;
 pub enum WarpEvent {
     LoggedOut,
     SessionJoined,
-    ErrorLogged { error: String },
     OpenOnNative { url: String },
     ThemeBackgroundChanged { color: String },
 }

@@ -1,30 +1,11 @@
-mod apply_diff_model;
-mod diff_application;
-mod telemetry;
-
 use warp_util::file::FileSaveError;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use ai::diff_validation::AIRequestedCodeDiff;
-use futures::{channel::oneshot, future::BoxFuture, FutureExt};
+use futures::channel::oneshot;
 use itertools::Itertools;
-use vec1::{vec1, Vec1};
-use warp_core::send_telemetry_from_ctx;
-use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _, ViewHandle};
-
-use apply_diff_model::ApplyDiffModel;
-pub(crate) use diff_application::apply_edits;
-use diff_application::DiffApplicationError;
-pub(crate) use diff_application::FileReadResult;
-pub(crate) use telemetry::MalformedFinalLineProxyEvent;
-#[allow(unused_imports)]
-pub use telemetry::{EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent};
-pub use telemetry::{
-    EditReceivedEvent, EditResolvedEvent, EditStats, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent,
-};
+use warpui::{Entity, EntityId, ModelContext, SingletonEntity as _, ViewHandle};
 
 use crate::{
     ai::{
@@ -34,41 +15,24 @@ use crate::{
             AIAgentOutputMessageType, AIIdentifiers, RequestFileEditsResult, UpdatedFileContext,
         },
         blocklist::{
-            inline_action::code_diff_view::{
-                CodeDiffView, CodeDiffViewEvent, DiffSessionType, FileDiff,
-            },
-            BlocklistAIPermissions, RequestedEditResolution,
+            inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
+            BlocklistAIPermissions,
         },
-        paths::host_native_absolute_path,
     },
-    safe_warn,
-    terminal::model::session::{active_session::ActiveSession, SessionType},
     BlocklistAIHistoryModel,
 };
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct RequestFileEditsExecutor {
-    active_session: ModelHandle<ActiveSession>,
-    apply_diff_model: ModelHandle<ApplyDiffModel>,
     diff_views: HashMap<AIAgentActionId, ViewHandle<CodeDiffView>>,
-    /// Set of action IDs where diff application failed.
-    diff_application_failures: HashMap<AIAgentActionId, Vec1<DiffApplicationError>>,
     terminal_view_id: EntityId,
 }
 
 impl RequestFileEditsExecutor {
-    pub fn new(
-        active_session: ModelHandle<ActiveSession>,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Self {
-        let apply_diff_model = ctx.add_model(|_| ApplyDiffModel::new(active_session.clone()));
+    pub fn new(terminal_view_id: EntityId) -> Self {
         Self {
-            active_session,
-            apply_diff_model,
             diff_views: HashMap::new(),
-            diff_application_failures: HashMap::new(),
             terminal_view_id,
         }
     }
@@ -104,18 +68,6 @@ impl RequestFileEditsExecutor {
         };
         if latest_exchange.has_passive_request() {
             return false;
-        }
-
-        // Allow "autoexecution" if the diff application failed so that we can continue execution.
-        // This is a terrible hack--but allows us to continue execution and let the LLM potentially recover
-        // from the LLM.
-        // If we don't do this, a failed diff application will block execution of the entire AI conversation
-        // without any possibility of recovery.
-        if self
-            .diff_application_failures
-            .contains_key(&input.action.id)
-        {
-            return true;
         }
 
         BlocklistAIPermissions::as_ref(ctx)
@@ -157,16 +109,7 @@ impl RequestFileEditsExecutor {
             return ActionExecution::NotReady;
         };
 
-        // If diff application failed, early exit.
-        if let Some(errors) = self.diff_application_failures.remove(id) {
-            return ActionExecution::Sync(AIAgentActionResultType::RequestFileEdits(
-                RequestFileEditsResult::DiffApplicationFailed {
-                    error: DiffApplicationError::error_for_conversation(&errors),
-                },
-            ));
-        }
-
-        let identifiers = self
+        let _identifiers = self
             .generate_ai_identifiers(&input.conversation_id, id, ctx)
             .unwrap_or_else(|| AIIdentifiers {
                 client_conversation_id: Some(input.conversation_id),
@@ -211,21 +154,8 @@ impl RequestFileEditsExecutor {
                     return;
                 }
 
-                let passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
+                let _passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
                     .is_entirely_passive_conversation(&input.conversation_id);
-                send_telemetry_from_ctx!(
-                    RequestFileEditsTelemetryEvent::EditResolved(EditResolvedEvent {
-                        identifiers: identifiers.clone(),
-                        response: RequestedEditResolution::Accept,
-                        stats: EditStats {
-                            files_edited: updated_files.len(),
-                            lines_added: diff.lines_added,
-                            lines_removed: diff.lines_removed,
-                        },
-                        passive_diff,
-                    },),
-                    ctx
-                );
 
                 // Build a map of file path → content from the editor buffers.
                 // This avoids re-reading files from disk or the remote server.
@@ -279,133 +209,6 @@ impl RequestFileEditsExecutor {
         })
     }
 
-    pub(super) fn preprocess_action(
-        &mut self,
-        input: PreprocessActionInput,
-        ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        let AIAgentAction {
-            id,
-            action: AIAgentActionType::RequestFileEdits { file_edits, .. },
-            ..
-        } = input.action
-        else {
-            return futures::future::ready(()).boxed();
-        };
-
-        let ai_identifiers = self
-            .generate_ai_identifiers(&input.conversation_id, id, ctx)
-            .unwrap_or_else(|| AIIdentifiers {
-                client_conversation_id: Some(input.conversation_id),
-                ..Default::default()
-            });
-
-        let passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
-            .is_entirely_passive_conversation(&input.conversation_id);
-
-        send_telemetry_from_ctx!(
-            RequestFileEditsTelemetryEvent::EditReceived(EditReceivedEvent {
-                identifiers: ai_identifiers.clone(),
-                unique_files: file_edits.iter().map(|file| file.file()).unique().count(),
-                diffs: file_edits.len(),
-                passive_diff,
-            }),
-            ctx
-        );
-
-        let (tx, rx) = oneshot::channel();
-        let files = file_edits.clone();
-        let id = id.clone();
-
-        let apply_future = self.apply_diff_model.update(ctx, |model, ctx| {
-            model.apply_diffs(files, &ai_identifiers, passive_diff, ctx)
-        });
-
-        ctx.spawn(
-            async move {
-                let applied_diffs = apply_future.await;
-                (applied_diffs, id, tx)
-            },
-            |me, (diffs, id, tx), ctx| {
-                me.on_diffs_applied(diffs, id, tx, ctx);
-            },
-        );
-
-        async {
-            rx.await.ok();
-        }
-        .boxed()
-    }
-
-    fn on_diffs_applied(
-        &mut self,
-        applied_diffs: Result<Vec<AIRequestedCodeDiff>, Vec1<DiffApplicationError>>,
-        id: AIAgentActionId,
-        tx: oneshot::Sender<()>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        tx.send(()).ok();
-
-        let Some(diff_view) = self.diff_views.get(&id) else {
-            log::warn!(
-                "Tried to apply diffs for a RequestFileEdits action without a corresponding diff view"
-            );
-            return;
-        };
-
-        let applied_diffs = match applied_diffs {
-            Ok(diffs) if !diffs.is_empty() => diffs,
-            Ok(_) => {
-                // We didn't generate any diffs--consider this a failure.
-                log::warn!("No diffs generated");
-                self.diff_application_failures
-                    .insert(id, vec1![DiffApplicationError::EmptyDiff]);
-                return;
-            }
-            Err(err) => {
-                safe_warn!(
-                    safe: ("Failed to generate diffs"),
-                    full: ("Failed to generate diffs {err:?}")
-                );
-                self.diff_application_failures.insert(id, err);
-                return;
-            }
-        };
-
-        let current_working_directory = self
-            .active_session
-            .as_ref(ctx)
-            .current_working_directory()
-            .cloned();
-
-        let shell_launch_data = self.active_session.as_ref(ctx).shell_launch_data(ctx);
-
-        let mut diffs = Vec::with_capacity(applied_diffs.len());
-        for diff in applied_diffs {
-            let path = host_native_absolute_path(
-                diff.file_name.as_str(),
-                &shell_launch_data,
-                &current_working_directory,
-            );
-            let file_diff = FileDiff::new(diff.original_content, path, diff.diff_type);
-            diffs.push(file_diff);
-        }
-
-        // Set the session type on the diff view so save/delete/create routes
-        // through the correct FileModel backend.
-        let diff_session_type = match self.active_session.as_ref(ctx).session_type(ctx) {
-            Some(SessionType::WarpifiedRemote {
-                host_id: Some(host_id),
-            }) => DiffSessionType::Remote(host_id.clone()),
-            _ => DiffSessionType::Local,
-        };
-
-        diff_view.update(ctx, |diff_view, ctx| {
-            diff_view.set_diff_session_type(diff_session_type);
-            diff_view.set_candidate_diffs(diffs, ctx);
-        });
-    }
-
     fn generate_ai_identifiers(
         &self,
         conversation_id: &AIConversationId,
@@ -431,10 +234,6 @@ impl RequestFileEditsExecutor {
             client_conversation_id: Some(*conversation_id),
             client_exchange_id: Some(exchange.id),
             server_output_id,
-            server_conversation_id: conversation
-                .server_conversation_token()
-                .cloned()
-                .map(Into::into),
             model_id,
         })
     }

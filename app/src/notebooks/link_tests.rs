@@ -12,9 +12,8 @@ use warp_util::path::LineAndColumnArg;
 use warpui::{App, ModelHandle, WindowId};
 
 use crate::{
-    notebooks::{file::is_markdown_file, link::LinkEvent},
+    notebooks::link::LinkEvent,
     terminal::{model::session::Session, shell::ShellType},
-    util::openable_file_type::FileTarget,
     workspace::ActiveSession,
 };
 
@@ -31,23 +30,19 @@ fn local_directory(path: impl Into<PathBuf>) -> LinkTarget {
 fn local_file(path: impl Into<PathBuf>) -> LinkTarget {
     let path = path.into();
     LinkTarget::LocalFile {
-        is_markdown: is_markdown_file(&path),
         path,
         line_and_column: None,
-        session: TEST_SESSION.clone(),
     }
 }
 
 fn local_file_location(path: impl Into<PathBuf>, line: usize, column: Option<usize>) -> LinkTarget {
     let path = path.into();
     LinkTarget::LocalFile {
-        is_markdown: is_markdown_file(&path),
         path,
         line_and_column: Some(LineAndColumnArg {
             line_num: line,
             column_num: column,
         }),
-        session: TEST_SESSION.clone(),
     }
 }
 
@@ -61,20 +56,12 @@ lazy_static! {
 /// directory's value, not how it was obtained.
 fn init_link_model(app: &mut App, base_directory: Option<&Path>) -> ModelHandle<NotebookLinks> {
     let window_id = WindowId::new();
-    let source = match base_directory {
-        Some(dir) => SessionSource::Target {
-            session: TEST_SESSION.clone(),
-            base_directory: dir.to_owned(),
-        },
-        // File links can't be resolved without a session, even if there's no working directory.
-        None => SessionSource::Active(window_id),
-    };
     app.add_singleton_model(|ctx| {
         let mut session = ActiveSession::default();
         session.set_session_for_test(window_id, TEST_SESSION.clone(), base_directory, None, ctx);
         session
     });
-    app.add_model(|ctx| NotebookLinks::new(source, ctx))
+    app.add_model(|ctx| NotebookLinks::new(SessionSource::Active(window_id), ctx))
 }
 
 async fn resolve(app: &App, links: &ModelHandle<NotebookLinks>, link: &str) -> LinkTarget {
@@ -194,16 +181,11 @@ fn test_open_local_image_uses_system_generic_target() {
         });
 
         match next_link_event(&events) {
-            LinkEvent::OpenFileWithTarget {
-                path,
-                target,
-                line_col,
-            } => {
+            LinkEvent::OpenFile { path, line_col } => {
                 assert_eq!(path, image_path);
-                assert_eq!(target, FileTarget::SystemGeneric);
                 assert_eq!(line_col, None);
             }
-            other => panic!("Expected OpenFileWithTarget event, got {other:?}"),
+            other => panic!("Expected OpenFile event, got {other:?}"),
         }
     });
 }
@@ -390,11 +372,11 @@ fn test_open_markdown_file() {
         let events = events.lock();
         assert_eq!(events.len(), 1);
         match events.first() {
-            Some(LinkEvent::OpenFileNotebook { path, session }) => {
+            Some(LinkEvent::OpenFile { path, line_col }) => {
                 assert_eq!(path, &root.join("README.md"));
-                assert!(Arc::ptr_eq(&TEST_SESSION, session));
+                assert_eq!(line_col, &None);
             }
-            other => panic!("Expected OpenFileNotebook event, got {other:?}"),
+            other => panic!("Expected OpenFile event, got {other:?}"),
         }
     });
 }

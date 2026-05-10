@@ -1,5 +1,3 @@
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 use std::{fmt, future};
 
@@ -19,7 +17,6 @@ use warp_core::{
     channel::{Channel, ChannelState},
     execution_mode,
     operating_system_info::OperatingSystemInfo,
-    report_error,
 };
 
 pub mod headers {
@@ -236,8 +233,7 @@ impl Client {
                     .hostname()
                     .expect("Can't get window hostname");
 
-                // If the request is going to our server, the destination host should be "app.warp.dev" or
-                // "staging.warp.dev". The window hostname should also return the same.
+                // If the request is same-origin, the window hostname should match the destination host.
                 // Note that reqwest's host_str() method is described here: https://docs.rs/reqwest/latest/reqwest/struct.Url.html#method.domain and
                 // gloo's hostname() method refers to this mozilla definition: https://developer.mozilla.org/en-US/docs/Web/API/Location/hostname.
                 window_hostname == dest_host
@@ -382,7 +378,10 @@ impl<'a> RequestBuilder<'a> {
             match serde_json::to_string_pretty(json).map_err(anyhow::Error::from) {
                 Ok(payload) => Some(payload),
                 Err(err) => {
-                    report_error!(err.context("Failed to serialize JSON request payload."));
+                    log::warn!(
+                        "{:#}",
+                        err.context("Failed to serialize JSON request payload.")
+                    );
                     None
                 }
             };
@@ -544,7 +543,10 @@ impl<'a> RequestBuilder<'a> {
             match serde_urlencoded::to_string(form).map_err(anyhow::Error::from) {
                 Ok(payload) => Some(payload),
                 Err(err) => {
-                    report_error!(err.context("Failed to serialize url-encoded form payload"));
+                    log::warn!(
+                        "{:#}",
+                        err.context("Failed to serialize url-encoded form payload")
+                    );
                     None
                 }
             };
@@ -647,49 +649,5 @@ impl Response {
 
     pub fn url(&self) -> &reqwest::Url {
         self.0.url()
-    }
-}
-
-/// Adapter to use our HTTP client wrapper with [`oauth2`]. This is modeled on the [`reqwest`]
-/// implementation of [`oauth2::AsyncHttpClient`].
-impl<'c> oauth2::AsyncHttpClient<'c> for Client {
-    type Error = oauth2::HttpClientError<reqwest::Error>;
-
-    #[cfg(target_arch = "wasm32")]
-    type Future = Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + 'c>>;
-    #[cfg(not(target_arch = "wasm32"))]
-    type Future =
-        Pin<Box<dyn Future<Output = Result<oauth2::HttpResponse, Self::Error>> + Send + Sync + 'c>>;
-
-    fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
-        Box::pin(async move {
-            let include_warp_headers = Self::include_warp_http_headers(request.uri().to_string());
-            let builder = reqwest::RequestBuilder::from_parts(
-                self.wrapped.clone(),
-                request.try_into().map_err(Box::new)?,
-            );
-
-            let response = self
-                .builder(builder, include_warp_headers)
-                .send()
-                .await
-                .map_err(Box::new)?;
-
-            let mut builder = ::http::Response::builder().status(response.status());
-
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                builder = builder.version(response.0.version());
-            }
-
-            for (name, value) in response.0.headers().iter() {
-                builder = builder.header(name, value);
-            }
-
-            let response_body = response.bytes().await.map_err(Box::new)?.to_vec();
-            builder
-                .body(response_body)
-                .map_err(oauth2::HttpClientError::Http)
-        })
     }
 }

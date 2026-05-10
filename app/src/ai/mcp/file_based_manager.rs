@@ -1,12 +1,11 @@
 use super::MCPProvider;
 use super::{FileMCPWatcher, FileMCPWatcherEvent};
 use itertools::Itertools as _;
-use repo_metadata::repositories::DetectedRepositories;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::{
     ai::mcp::{
@@ -47,6 +46,11 @@ impl FileBasedMCPManager {
         }
     }
 
+    #[cfg(test)]
+    pub fn file_based_servers(&self) -> Vec<&TemplatableMCPServerInstallation> {
+        self.file_based_servers.values().collect()
+    }
+
     /// Handle an event from [`FileMCPWatcher`].
     fn handle_watcher_event(&mut self, event: &FileMCPWatcherEvent, ctx: &mut ModelContext<Self>) {
         match event {
@@ -63,35 +67,7 @@ impl FileBasedMCPManager {
             } => {
                 self.remove_servers_for_root_provider(root_path, *provider, ctx);
             }
-            FileMCPWatcherEvent::CloudEnvMcpScanComplete { repo_path } => {
-                self.handle_cloud_environment_scan_complete(repo_path, ctx);
-            }
         }
-    }
-
-    /// Get file-based MCP servers in scope for the given current working directory.
-    pub fn get_servers_for_working_directory(
-        &self,
-        cwd: &Path,
-        app: &AppContext,
-    ) -> Vec<&TemplatableMCPServerInstallation> {
-        let repo_root = DetectedRepositories::as_ref(app).get_root_for_path(cwd);
-        let candidate_roots = [dirs::home_dir(), repo_root];
-
-        let mut servers = Vec::new();
-        for root in candidate_roots.into_iter().flatten() {
-            // Get user and project-scoped MCP servers from all providers for the given cwd.
-            if let Some(provider_map) = self.file_based_servers_by_root.get(&root) {
-                for hash_set in provider_map.values() {
-                    servers.extend(
-                        hash_set
-                            .iter()
-                            .filter_map(|h| self.file_based_servers.get(h)),
-                    );
-                }
-            }
-        }
-        servers
     }
 
     /// Removes all tracked servers for the given `(root_path, provider)` pair,
@@ -140,14 +116,6 @@ impl FileBasedMCPManager {
                 .collect_vec();
             ctx.emit(FileBasedMCPManagerEvent::DespawnServers {
                 installation_uuids: removed_uuids,
-            });
-
-            let removed_hashes = removed_servers
-                .iter()
-                .filter_map(|server| server.hash())
-                .collect_vec();
-            ctx.emit(FileBasedMCPManagerEvent::PurgeCredentials {
-                installation_hashes: removed_hashes,
             });
         }
     }
@@ -311,32 +279,6 @@ impl FileBasedMCPManager {
         }
     }
 
-    fn handle_cloud_environment_scan_complete(
-        &mut self,
-        repo_path: &PathBuf,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Retrieve UUIDs of all file-based MCP servers in the repository.
-        let server_uuids: Vec<Uuid> = self
-            .file_based_servers_by_root
-            .get(repo_path)
-            .map(|provider_map| {
-                provider_map
-                    .values()
-                    .flat_map(|hash_set| hash_set.iter())
-                    .filter_map(|hash| self.file_based_servers.get(hash))
-                    .map(|installation| installation.uuid())
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        // Pass the UUIDs of all detected file-based MCP servers to the AgentDriver.
-        ctx.emit(FileBasedMCPManagerEvent::CloudEnvMcpScanComplete {
-            repo_path: repo_path.clone(),
-            server_uuids,
-        });
-    }
-
     fn handle_file_based_mcp_enabled_change(&mut self, ctx: &mut ModelContext<Self>) {
         // Only global third-party servers are affected by the toggle:
         // - Global Warp servers always spawn regardless of the toggle.
@@ -373,42 +315,6 @@ impl FileBasedMCPManager {
             .iter()
             .find(|(_, server)| server.uuid() == installation_uuid)
             .map(|(hash, _)| *hash)
-    }
-
-    /// Returns all detected file-based MCP server installations.
-    pub fn file_based_servers(&self) -> Vec<&TemplatableMCPServerInstallation> {
-        self.file_based_servers.values().collect()
-    }
-
-    /// Returns the installation with the given UUID, if any.
-    pub fn get_installation_by_uuid(
-        &self,
-        uuid: Uuid,
-    ) -> Option<&TemplatableMCPServerInstallation> {
-        self.file_based_servers
-            .values()
-            .find(|server| server.uuid() == uuid)
-    }
-
-    /// Returns all root paths for the given installation scoped to a specific provider.
-    pub fn directory_paths_for_installation_and_provider(
-        &self,
-        uuid: Uuid,
-        provider: MCPProvider,
-    ) -> Vec<PathBuf> {
-        let Some(hash) = self.get_hash_by_uuid(uuid) else {
-            return vec![];
-        };
-        self.file_based_servers_by_root
-            .iter()
-            .filter(|(_, provider_map)| {
-                provider_map
-                    .get(&provider)
-                    .is_some_and(|hashes| hashes.contains(&hash))
-            })
-            .map(|(root, _)| root.clone())
-            .sorted()
-            .collect()
     }
 
     /// Returns the directory a file-based MCP installation should be spawned from
@@ -452,13 +358,6 @@ pub enum FileBasedMCPManagerEvent {
     },
     DespawnServers {
         installation_uuids: Vec<Uuid>,
-    },
-    PurgeCredentials {
-        installation_hashes: Vec<u64>,
-    },
-    CloudEnvMcpScanComplete {
-        repo_path: PathBuf,
-        server_uuids: Vec<Uuid>,
     },
 }
 

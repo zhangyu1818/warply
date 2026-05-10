@@ -1,55 +1,10 @@
 use super::*;
 
-// -- DisableReason::should_clear_preference tests --
-
-#[test]
-fn should_clear_preference_admin_disabled() {
-    // AdminDisabled always clears, regardless of BYOK status.
-    assert!(DisableReason::AdminDisabled.should_clear_preference(false));
-    assert!(DisableReason::AdminDisabled.should_clear_preference(true));
-}
-
-#[test]
-fn should_clear_preference_unavailable() {
-    assert!(DisableReason::Unavailable.should_clear_preference(false));
-    assert!(DisableReason::Unavailable.should_clear_preference(true));
-}
-
-#[test]
-fn should_not_clear_preference_out_of_requests() {
-    // Transient — never clears.
-    assert!(!DisableReason::OutOfRequests.should_clear_preference(false));
-    assert!(!DisableReason::OutOfRequests.should_clear_preference(true));
-}
-
-#[test]
-fn should_not_clear_preference_provider_outage() {
-    // Transient — never clears.
-    assert!(!DisableReason::ProviderOutage.should_clear_preference(false));
-    assert!(!DisableReason::ProviderOutage.should_clear_preference(true));
-}
-
-#[test]
-fn should_clear_preference_requires_upgrade_without_byok() {
-    // No BYOK key → server will reject → clear.
-    assert!(DisableReason::RequiresUpgrade.should_clear_preference(false));
-}
-
-#[test]
-fn should_not_clear_preference_requires_upgrade_with_byok() {
-    // BYOK key present → server allows → keep.
-    assert!(!DisableReason::RequiresUpgrade.should_clear_preference(true));
-}
-
 #[test]
 fn llm_info_deserializes_without_base_model_name() {
     let raw = r#"{
             "display_name": "gpt-4o",
             "id": "gpt-4o",
-            "usage_metadata": {
-                "request_multiplier": 1,
-                "credit_multiplier": null
-            },
             "description": null,
             "disable_reason": null,
             "vision_supported": false,
@@ -68,27 +23,18 @@ fn llm_info_deserializes_host_configs_as_vec() {
     let raw = r#"{
             "display_name": "gpt-4o",
             "id": "gpt-4o",
-            "usage_metadata": { "request_multiplier": 1, "credit_multiplier": null },
             "provider": "OpenAI",
             "host_configs": [
-                { "enabled": true, "model_routing_host": "DirectApi" },
-                { "enabled": false, "model_routing_host": "AwsBedrock" }
+                { "enabled": true, "model_routing_host": "DirectApi" }
             ]
         }"#;
 
     let info: LLMInfo = serde_json::from_str(raw).expect("should deserialize vec format");
     assert_eq!(info.display_name, "gpt-4o");
-    assert_eq!(info.host_configs.len(), 2);
+    assert_eq!(info.host_configs.len(), 1);
     assert!(
         info.host_configs
             .get(&LLMModelHost::DirectApi)
-            .unwrap()
-            .enabled
-    );
-    assert!(
-        !info
-            .host_configs
-            .get(&LLMModelHost::AwsBedrock)
             .unwrap()
             .enabled
     );
@@ -101,7 +47,6 @@ fn llm_info_round_trip_serializes_and_deserializes() {
             "display_name": "claude-3",
             "base_model_name": "claude-3",
             "id": "claude-3",
-            "usage_metadata": { "request_multiplier": 2, "credit_multiplier": 1.5 },
             "description": "A powerful model",
             "vision_supported": true,
             "provider": "Anthropic",

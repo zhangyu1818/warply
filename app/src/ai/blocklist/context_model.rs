@@ -28,7 +28,7 @@ use crate::{
             AIAgentAttachment, AIAgentContext, ImageContext,
         },
         document::ai_document_model::AIDocumentId,
-        llms::{LLMPreferences, LLMPreferencesEvent},
+        llms::LLMPreferences,
         outline::RepoOutlines,
     },
     terminal::{
@@ -37,7 +37,6 @@ use crate::{
         model_events::{ModelEvent, ModelEventDispatcher},
         TerminalModel,
     },
-    workspaces::user_workspaces::UserWorkspaces,
 };
 
 use super::{
@@ -269,13 +268,11 @@ impl BlocklistAIContextModel {
             }
         });
 
-        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, event, ctx| {
-            if let LLMPreferencesEvent::UpdatedActiveAgentModeLLM = event {
-                let llm_prefs = LLMPreferences::as_ref(ctx);
-                let vision_supported = llm_prefs.vision_supported(ctx, Some(me.terminal_view_id));
-                if !vision_supported {
-                    me.clear_pending_images(ctx);
-                }
+        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _event, ctx| {
+            let llm_prefs = LLMPreferences::as_ref(ctx);
+            let vision_supported = llm_prefs.vision_supported(ctx, Some(me.terminal_view_id));
+            if !vision_supported {
+                me.clear_pending_images(ctx);
             }
         });
 
@@ -418,16 +415,9 @@ impl BlocklistAIContextModel {
     /// If false, excludes these user-specific contexts but includes everything else.
     pub fn pending_context(&self, app: &AppContext, is_user_query: bool) -> Vec<AIAgentContext> {
         let pwd = self.current_pwd();
-        let is_pwd_indexed = if cfg!(feature = "agent_mode_evals") {
-            // In evals, we want to disable file outline based search. Full
-            // source code embedding based context is still available.
-            false
-        } else {
-            UserWorkspaces::as_ref(app).is_codebase_context_enabled(app)
-                && pwd.as_ref().is_some_and(|pwd| {
-                    RepoOutlines::as_ref(app).is_directory_indexed(Path::new(&pwd))
-                })
-        };
+        let is_pwd_indexed = pwd
+            .as_ref()
+            .is_some_and(|pwd| RepoOutlines::as_ref(app).is_directory_indexed(Path::new(&pwd)));
 
         let project_rules = if let Some(pwd) = pwd.clone().and_then(|path| {
             PathBuf::from_str(&path)

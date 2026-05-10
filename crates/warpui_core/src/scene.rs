@@ -440,9 +440,8 @@ impl Scene {
     // to determine whether we should dispatch the event.
     pub fn visible_rect(&self, origin: Point, size: Vector2F) -> Option<RectF> {
         // TODO: Investigate how / when we would pass a z-index that isn't in the scene
-        // This appears to be fairly common, based on adding sentry reporting to it, however it
-        // doesn't seem to dramatically impact app usage. Perhaps it's something that happens on
-        // a view teardown frame?
+        // This appears to be fairly common and doesn't seem to dramatically impact app usage.
+        // Perhaps it's something that happens on a view teardown frame?
         let maybe_layer = match origin.z_index() {
             ZIndex::Normal(index) => self.layers.get(index),
             ZIndex::Overlay(index) => self.overlay_layers.get(index),

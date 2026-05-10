@@ -533,9 +533,6 @@ impl platform::Delegate for AppDelegate {
     }
 
     fn microphone_access_state(&self) -> MicrophoneAccessState {
-        // Note that for voice input, we can actually detect microphone access state
-        // in the course of trying to start voice input, but we don't have a way to do
-        // it at arbitrary times, so we just return NotDetermined here.
         MicrophoneAccessState::NotDetermined
     }
 

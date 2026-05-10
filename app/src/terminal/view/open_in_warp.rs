@@ -15,7 +15,6 @@ use warpui::{
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::{
-    report_if_error,
     terminal::{
         event::UserBlockCompleted,
         general_settings::GeneralSettings,
@@ -208,18 +207,10 @@ impl TerminalView {
                     self.close_open_in_warp_banner(banner_state.id);
                     match banner_state.target.file_type {
                         OpenableFileType::Markdown => {
-                            GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                                report_if_error!(settings
-                                    .open_in_warp_banner_dismissed_for_markdown
-                                    .set_value(true, ctx));
-                            });
+                            GeneralSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
                         }
                         OpenableFileType::Code | OpenableFileType::Text => {
-                            GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                                report_if_error!(settings
-                                    .open_in_warp_banner_dismissed_for_code_and_text
-                                    .set_value(true, ctx));
-                            });
+                            GeneralSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
                         }
                     }
                     ctx.notify();

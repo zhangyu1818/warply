@@ -9,7 +9,8 @@ use crate::{
     ClassificationResult, Context, InputClassifier, InputType,
     parser::parse_query_into_tokens,
     util::{
-        is_installed_binary, is_likely_shell_command, is_one_off_natural_language_word_or_prefix,
+        is_installed_binary, is_likely_cjk_natural_language, is_likely_shell_command,
+        is_one_off_natural_language_word_or_prefix,
     },
 };
 
@@ -46,6 +47,10 @@ impl InputClassifier for HeuristicClassifier {
         if total_word_token_count == 1
             && is_one_off_natural_language_word_or_prefix(&word_tokens[0].to_lowercase())
         {
+            return InputType::AI;
+        }
+
+        if is_likely_cjk_natural_language(&word_tokens) {
             return InputType::AI;
         }
 

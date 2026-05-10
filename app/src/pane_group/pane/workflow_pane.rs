@@ -1,11 +1,7 @@
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView, ShareableLink,
-    ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView};
 use crate::{
     app_state::{LeafContents, WorkflowPaneSnapshot},
-    drive::{items::WarpDriveItemId, OpenWarpDriveObjectSettings},
-    server::ids::SyncId,
+    object_ids::SyncId,
     workflows::{
         manager::{WorkflowManager, WorkflowOpenSource},
         workflow_view::{WorkflowView, WorkflowViewEvent},
@@ -15,7 +11,6 @@ use crate::{
 };
 use anyhow::Context;
 use std::{collections::HashMap, sync::Arc};
-use url::Url;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 pub struct WorkflowPane {
@@ -39,7 +34,6 @@ impl WorkflowPane {
 
     pub fn restore(
         workflow_id: Option<SyncId>,
-        settings: OpenWarpDriveObjectSettings,
         ctx: &mut ViewContext<PaneGroup>,
     ) -> anyhow::Result<Self> {
         let window_id = ctx.window_id();
@@ -49,8 +43,8 @@ impl WorkflowPane {
                 title: None,
                 content: None,
                 owner: UserWorkspaces::as_ref(ctx)
-                    .personal_drive(ctx)
-                    .context("personal drive unavailable")?,
+                    .current_user_owner(ctx)
+                    .context("local identity unavailable")?,
                 initial_folder_id: None,
                 is_for_agent_mode: false,
             },
@@ -60,7 +54,6 @@ impl WorkflowPane {
         Ok(WorkflowManager::handle(ctx).update(ctx, |manager, ctx| {
             manager.create_pane(
                 &source,
-                &settings,
                 WorkflowViewMode::supported_view_mode(workflow_id, ctx),
                 window_id,
                 ctx,
@@ -132,7 +125,6 @@ impl PaneContent for WorkflowPane {
         let workflow_id = self.get_view(app).as_ref(app).workflow_id();
         LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow {
             workflow_id: Some(workflow_id),
-            settings: OpenWarpDriveObjectSettings::default(),
         })
     }
 
@@ -143,27 +135,6 @@ impl PaneContent for WorkflowPane {
     /// Focus this pane's contents.
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.get_view(ctx).update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        self.get_view(ctx).read(ctx, |view, ctx| {
-            if let Some(link) = view.workflow_link(ctx) {
-                if let Ok(parsed_url) = Url::parse(link.as_str()) {
-                    Ok(ShareableLink::Pane { url: parsed_url })
-                } else {
-                    Err(ShareableLinkError::Unexpected(String::from(
-                        "Failed to parse workflow url",
-                    )))
-                }
-            } else {
-                Err(ShareableLinkError::Unexpected(String::from(
-                    "Could not retrieve workflow url from view",
-                )))
-            }
-        })
     }
 
     /// Pane-agnostic state that all panes have.
@@ -184,7 +155,6 @@ fn handle_workflow_event(
 ) {
     match event {
         WorkflowViewEvent::Pane(pane_event) => group.handle_pane_event(pane_id, pane_event, ctx),
-        WorkflowViewEvent::ViewInWarpDrive(id) => view_in_warp_drive(*id, ctx),
         WorkflowViewEvent::RunWorkflow {
             workflow,
             source,
@@ -193,20 +163,7 @@ fn handle_workflow_event(
         WorkflowViewEvent::UpdatedWorkflow(_id) => {
             log::warn!("Updates not yet handled in pane")
         }
-        WorkflowViewEvent::OpenDriveObjectShareDialog {
-            cloud_object_type_and_id,
-            invitee_email,
-            source,
-        } => {
-            ctx.emit(crate::pane_group::Event::OpenDriveObjectShareDialog {
-                cloud_object_type_and_id: *cloud_object_type_and_id,
-                invitee_email: invitee_email.clone(),
-                source: *source,
-            });
-        }
-        WorkflowViewEvent::CreatedWorkflow(_) => {
-            // No op in a pane.
-        }
+        WorkflowViewEvent::CreatedWorkflow(_) => {}
     }
 }
 
@@ -222,8 +179,4 @@ fn run_workflow(
         argument_override,
         workflow_selection_source: WorkflowSelectionSource::WorkflowView,
     });
-}
-
-fn view_in_warp_drive(id: WarpDriveItemId, ctx: &mut ViewContext<PaneGroup>) {
-    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(id))
 }

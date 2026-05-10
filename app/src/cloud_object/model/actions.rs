@@ -4,8 +4,8 @@ use chrono::{DateTime, Duration, Utc};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::{
+    object_ids::{parse_sqlite_id_to_uid, HashedSqliteId, ObjectUid},
     persistence::model::PersistedObjectAction,
-    server::ids::{parse_sqlite_id_to_uid, HashedSqliteId, ObjectUid},
 };
 
 pub enum ObjectActionsEvent {}
@@ -17,11 +17,6 @@ pub enum ObjectActionType {
     Execute,
 }
 
-// In order to convert from a graphql type and from a SQLite read, the action type
-// implements to_string().
-//
-// Temporarily suppress clippy warnings about the `ToString` impl until we
-// move `ObjectType` away from using `std::fmt::Display` for serialization.
 #[allow(clippy::to_string_trait_impl)]
 impl ToString for ObjectActionType {
     fn to_string(&self) -> String {
@@ -45,10 +40,6 @@ impl ObjectActionType {
     }
 }
 
-/// We track object actions, both those that have been sent to the server and not, through this
-/// type. A single ObjectAction represents an object_id, action pair and a subtype that contains data
-/// about the action(s). Each ObjectAction either represents one action or a summary of identical actions
-/// that occurred at different times. We summarize old actions in order to save memory footprint on the client.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObjectAction {
     pub action_type: ObjectActionType,
@@ -107,7 +98,6 @@ impl TryFrom<PersistedObjectAction> for ObjectAction {
                 .ok_or(())?;
             let pending = other.pending.ok_or(())?;
 
-            // The processed_at_timestamp is still None when the action hasn't been synced.
             let processed_at_timestamp = other
                 .processed_at_timestamp
                 .as_ref()
@@ -120,16 +110,12 @@ impl TryFrom<PersistedObjectAction> for ObjectAction {
             }
         };
 
-        // The object_sync_id stored in SQLite is the hashed id that's used to index into the ObjectActions
-        // model.
         let hashed_object_id = other.hashed_object_id;
         let action_type = match other.action.as_str() {
             s if s == ObjectActionType::Execute.to_string() => ObjectActionType::Execute,
             _ => return Err(()),
         };
 
-        // NOTE: This is needed since we only store the sqlite hash, but we need the uid (the second part of the hash)
-        // to index into CloudModel and store the object actions in memory.
         let uid = parse_sqlite_id_to_uid(hashed_object_id.clone())?;
 
         Ok(ObjectAction {
@@ -141,33 +127,18 @@ impl TryFrom<PersistedObjectAction> for ObjectAction {
     }
 }
 
-/// The server communicates the action history of an object via an "ObjectActionHistory" type that
-/// contains the uid, a list of actions (single or bundled), and the timestamp of the most recent action
-/// (which is redundant from the list of actions). We use this type to convert from the graphql layer into
-/// an identical type the sync_queue and update_manager can pass around.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ObjectActionHistory {
-    pub uid: ObjectUid,
-    pub hashed_sqlite_id: HashedSqliteId,
-    pub latest_processed_at_timestamp: DateTime<Utc>,
-    pub actions: Vec<ObjectAction>,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ObjectActionSubtype {
     SingleAction {
         // When the action occurred.
         timestamp: DateTime<Utc>,
 
-        // When the action was processed by the server (used to order actions against eachother).
-        // None if the action has not been synced.
         processed_at_timestamp: Option<DateTime<Utc>>,
 
         // A JSON representation of anything else we might want to track about the action.
         // For example, the exit code of a workflow execution.
         data: Option<String>,
 
-        // Whether or not this action has been successfully synced to the server.
         pending: bool,
     },
     BundledActions {
@@ -186,10 +157,6 @@ pub enum ObjectActionSubtype {
     },
 }
 
-/// A singleton model representing the actions that have occurred on a per-object basis. These
-/// represent actions taken by the user or by teammates. The actions have a pending status that is
-/// true when the server doesn't know about it and is false anytime after the action is successfully
-/// synced.
 pub struct ObjectActions {
     #[allow(dead_code)]
     object_actions_by_id: HashMap<ObjectUid, Vec<ObjectAction>>,
@@ -246,95 +213,6 @@ impl ObjectActions {
         ctx.notify();
 
         action
-    }
-
-    /// Remove the action from the model with the corresponding object_id, timestamp, and pending=true.
-    pub fn remove_pending_action(
-        &mut self,
-        uid: &ObjectUid,
-        timestamp_of_action: &DateTime<Utc>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(actions) = self.object_actions_by_id.get_mut(uid) {
-            // Remove the action that has a matching timestamp and pending=true
-            if let Some(index) = actions.iter().position(|a| {
-                matches!(
-                    &a.action_subtype,
-                    ObjectActionSubtype::SingleAction {
-                        timestamp,
-                        pending: true,
-                        ..
-                    } if timestamp == timestamp_of_action
-                )
-            }) {
-                actions.remove(index);
-            } else {
-                log::warn!(
-                    "Could not find the pending action to remove from the ObjectActions model"
-                )
-            }
-        } else {
-            log::warn!("Could not find the object id in the ObjectActions model")
-        }
-        ctx.notify();
-    }
-
-    /// Get the processed_at_timestamp of the most recent server-synced action we have for a given object. This determines
-    /// whether or not we should accept some update from the server.
-    pub fn get_latest_processed_at_ts(&self, uid: &ObjectUid) -> Option<DateTime<Utc>> {
-        if let Some(actions) = self.object_actions_by_id.get(uid) {
-            actions
-                .iter()
-                .filter_map(|a| match a.action_subtype {
-                    ObjectActionSubtype::SingleAction {
-                        processed_at_timestamp,
-                        pending: false,
-                        ..
-                    } => processed_at_timestamp,
-                    ObjectActionSubtype::BundledActions {
-                        latest_processed_at_timestamp,
-                        ..
-                    } => Some(latest_processed_at_timestamp),
-                    _ => None,
-                })
-                .max()
-        } else {
-            None
-        }
-    }
-
-    /// Takes a list of ObjectActions for a single object from the server and replaces the existing actions
-    /// for this object with the new ones. Any pending actions are persisted so we make sure we don't delete actions
-    /// that are currently in the process of syncing.
-    pub fn overwrite_action_history_for_object(
-        &mut self,
-        uid: &ObjectUid,
-        mut actions: Vec<ObjectAction>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Get the pending actions out of the old set.
-        let old_pending_actions: Vec<ObjectAction> = self
-            .object_actions_by_id
-            .get(uid)
-            .map(|actions| {
-                actions
-                    .iter()
-                    .filter(|a| {
-                        matches!(
-                            a.action_subtype,
-                            ObjectActionSubtype::SingleAction { pending: true, .. }
-                        )
-                    })
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        actions.extend(old_pending_actions);
-
-        self.object_actions_by_id
-            .insert(uid.to_string(), actions.clone());
-        ctx.notify();
     }
 
     /// Returns a time-boxed summary of the number of times this action type has occurred on this object.
@@ -437,33 +315,9 @@ impl ObjectActions {
         ))
     }
 
-    /// Returns all the actions on the objects specified by the parameter hashed_object_ids.
-    /// The return value is a HashMap, which represents a subset of the model, filtered to just the actions
-    /// that occurred on the requested objects.
-    pub fn get_actions_for_objects(
-        &self,
-        uids: Vec<&ObjectUid>,
-    ) -> HashMap<ObjectUid, Vec<ObjectAction>> {
-        uids.iter()
-            .map(|&uid| {
-                let actions_on_this_object = self
-                    .object_actions_by_id
-                    .get(uid)
-                    .cloned()
-                    .unwrap_or_default();
-                (uid.clone(), actions_on_this_object)
-            })
-            .collect()
-    }
-
     pub fn delete_actions_for_object(&mut self, uid: &ObjectUid, ctx: &mut ModelContext<Self>) {
         self.object_actions_by_id.remove(uid);
         ctx.notify()
-    }
-
-    #[cfg(test)]
-    pub fn count_actions_for_object(&mut self, uid: &ObjectUid) -> usize {
-        self.object_actions_by_id.get(uid).map_or(0, |v| v.len())
     }
 }
 

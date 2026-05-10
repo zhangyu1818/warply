@@ -2,7 +2,7 @@ use anyhow::Result;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::manager::SettingsManager;
-use crate::{Setting, SupportedPlatforms, SyncToCloud};
+use crate::{Setting, SupportedPlatforms};
 
 use crate::*;
 
@@ -11,7 +11,6 @@ define_settings_group!(TestSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "test.simple_setting",
     },
@@ -19,7 +18,6 @@ define_settings_group!(TestSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
         storage_key: "KeyIsOverridden",
     },
@@ -27,7 +25,6 @@ define_settings_group!(TestSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "test_section.hierarchy_flag",
     },
@@ -567,39 +564,6 @@ fn test_load_value_resets_explicitly_set_flag() {
     });
 }
 
-#[test]
-fn test_explicit_value_tracking_cloud_sync() {
-    warpui::App::test((), |mut app| async move {
-        app.update(init_and_register_preferences);
-        app.add_singleton_model(|_| SettingsManager::default());
-
-        // Register our TestSettings settings group with the app.
-        TestSettings::register(&mut app);
-
-        // Initially not explicitly set
-        app.read(|ctx| {
-            let settings = TestSettings::as_ref(ctx);
-            assert!(!settings.simple_setting.is_value_explicitly_set());
-        });
-
-        // Set value from cloud sync
-        app.update(|ctx| {
-            TestSettings::handle(ctx).update(ctx, |test_settings, ctx| {
-                let _ = test_settings
-                    .simple_setting
-                    .set_value_from_cloud_sync(true, ctx);
-            });
-        });
-
-        // Should now be marked as explicitly set
-        app.read(|ctx| {
-            let settings = TestSettings::as_ref(ctx);
-            assert!(settings.simple_setting.is_value_explicitly_set());
-            assert!(*settings.simple_setting.value());
-        });
-    });
-}
-
 mod file_transform_tests {
     use settings_value::SettingsValue;
 
@@ -1073,11 +1037,10 @@ fn test_manager_read_local_setting_value_falls_back_when_flag_disabled() {
     });
 }
 
-/// Regression test for the settings sync disappearing on restart bug: when
-/// the TOML settings file is enabled, `read_local_setting_value` must
-/// forward the setting's hierarchy, otherwise values stored under a
-/// section like `[account]` are invisible to the SettingsManager and the
-/// cloud preferences syncer clobbers them with stale cloud state.
+/// Regression test for hierarchy-aware TOML reads: when the TOML settings
+/// file is enabled, `read_local_setting_value` must forward the setting's
+/// hierarchy, otherwise values stored under a section like `[account]` are
+/// invisible to the SettingsManager.
 #[test]
 fn test_manager_read_local_setting_value_respects_hierarchy_with_settings_file() {
     use warpui_extras::user_preferences::toml_backed::TomlBackedUserPreferences;

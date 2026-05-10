@@ -1,4 +1,3 @@
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversation;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::history_model::AIConversationMetadata;
@@ -32,8 +31,6 @@ pub struct ConversationNavigationData {
     /// has been recently closed, and this closure can still be undone. We should still show the conversation
     /// as historical even though the pane group still "exists", as the pane group is still hidden to the user.
     pub is_closed: bool,
-    /// The server-generated conversation token, used to reference this conversation in context tags.
-    pub server_conversation_token: Option<ServerConversationToken>,
 }
 
 impl PartialOrd for ConversationNavigationData {
@@ -94,7 +91,6 @@ impl ConversationNavigationData {
             is_selected,
             is_in_active_pane,
             is_closed,
-            server_conversation_token: conversation.server_conversation_token().cloned(),
         }
     }
 
@@ -112,7 +108,6 @@ impl ConversationNavigationData {
             is_selected: false,
             is_in_active_pane: false,
             is_closed: false,
-            server_conversation_token: metadata.server_conversation_token.clone(),
         }
     }
 

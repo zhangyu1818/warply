@@ -6,7 +6,6 @@
 //! Windows 10/11. It doesn't require admin elevation and is scoped to the
 //! current user, matching the UX of macOS's `SMAppService`.
 
-use crate::report_if_error;
 use crate::terminal::general_settings::GeneralSettings;
 use ::settings::Setting;
 use std::path::{Path, PathBuf};
@@ -62,11 +61,7 @@ pub(super) fn maybe_register_app_as_login_item(ctx: &mut AppContext) {
                     false
                 }
             },
-            |settings, app_added_as_login_item, ctx| {
-                report_if_error!(settings
-                    .app_added_as_login_item
-                    .set_value(app_added_as_login_item, ctx));
-            },
+            |settings, app_added_as_login_item, ctx| {},
         );
     });
 }

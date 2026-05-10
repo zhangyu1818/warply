@@ -1,4 +1,7 @@
-use warp_completer::util::parse_current_commands_and_tokens;
+use warp_completer::{
+    ParsedTokenData, ParsedTokensSnapshot, meta::SpannedItem as _,
+    util::parse_current_commands_and_tokens,
+};
 
 use crate::{Context, test_utils::CompletionContext};
 
@@ -87,6 +90,30 @@ fn test_input_detection() {
         // String tokens with special shell syntax should not be treated as negative NL signal.
         let mut token = mock_parsed_input_token("The type is \"<>\"".to_string()).await;
         token.parsed_tokens[0].token_description = None;
+        assert_eq!(
+            classifier.detect_input_type(token, &context).await,
+            InputType::AI
+        );
+    });
+}
+
+#[test]
+fn test_cjk_input_detection() {
+    futures::executor::block_on(async move {
+        let classifier = HeuristicClassifier;
+        let context = Context {
+            current_input_type: InputType::Shell,
+            is_agent_follow_up: false,
+        };
+        let token = ParsedTokensSnapshot {
+            buffer_text: "你好吗".to_string(),
+            parsed_tokens: vec![ParsedTokenData {
+                token: "你好吗".to_string().spanned_unknown(),
+                token_index: 0,
+                token_description: None,
+            }],
+        };
+
         assert_eq!(
             classifier.detect_input_type(token, &context).await,
             InputType::AI

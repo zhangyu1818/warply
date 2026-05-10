@@ -15,18 +15,17 @@ use crate::{
             json_model::{JsonModel, JsonSerializer},
         },
         GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType, Revision, ServerCloudObject,
+        JsonObjectType,
     },
-    drive::items::{env_var_collection::WarpDriveEnvVarCollection, WarpDriveItem},
+    drive::items::{env_var_collection::LocalObjectEnvVarCollection, LocalObjectItem},
     external_secrets::ExternalSecret,
-    server::{ids::SyncId, sync_queue::QueueItem},
+    object_ids::SyncId,
     terminal::shell::ShellType,
     Appearance, CloudObjectTypeAndId,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EnvVarCollectionType {
-    /// Saved env vars, saved using cloud-sync. Today, we only support cloud
     Cloud(Box<CloudEnvVarCollection>),
 }
 
@@ -111,7 +110,6 @@ fn get_init_command_for_env_var(value: &EnvVarValue, shell_family: ShellFamily) 
     }
 }
 
-/// Defines the data model for a cloud synced collection of environment variables.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct EnvVarCollection {
     // Collection title
@@ -172,26 +170,7 @@ impl StringModel for EnvVarCollection {
         }
     }
 
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &CloudEnvVarCollection,
-    ) -> QueueItem {
-        QueueItem::UpdateEnvVarCollection {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
-    }
-
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
-        None
-    }
-
-    fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {
-        if let ServerCloudObject::EnvVarCollection(server_envvar_collection) = server_cloud_object {
-            return Some(server_envvar_collection.model.clone().string_model);
-        }
         None
     }
 
@@ -203,7 +182,7 @@ impl StringModel for EnvVarCollection {
         true
     }
 
-    fn renders_in_warp_drive(&self) -> bool {
+    fn renders_as_local_object(&self) -> bool {
         true
     }
 
@@ -215,13 +194,13 @@ impl StringModel for EnvVarCollection {
         true
     }
 
-    fn to_warp_drive_item(
+    fn to_local_object_item(
         &self,
         id: SyncId,
         _appearance: &Appearance,
         env_var_collection: &CloudEnvVarCollection,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveEnvVarCollection::new(
+    ) -> Option<Box<dyn LocalObjectItem>> {
+        Some(Box::new(LocalObjectEnvVarCollection::new(
             CloudObjectTypeAndId::GenericStringObject {
                 object_type: GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
                 id,

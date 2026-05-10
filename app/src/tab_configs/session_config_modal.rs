@@ -59,7 +59,7 @@ pub struct SessionConfigModal {
     enable_worktree: bool,
     autogenerate_worktree_branch_name: bool,
     /// When `false`, the session type pill row is hidden and the session type
-    /// defaults to Terminal behind the scenes (used when Oz is disabled).
+    /// defaults to Terminal behind the scenes when agent sessions are unavailable.
     show_session_type_row: bool,
     session_pill_mouse_states: Vec<MouseStateHandle>,
     directory_button_mouse_state: MouseStateHandle,
@@ -88,7 +88,7 @@ impl SessionConfigModal {
         });
 
         let submit_button = ctx.add_view(|ctx| {
-            ActionButton::new("Get Warping", PrimaryTheme)
+            ActionButton::new("Start", PrimaryTheme)
                 .with_full_width(true)
                 .with_keybinding(
                     KeystrokeSource::Fixed(Keystroke::parse("enter").unwrap_or_default()),
@@ -122,13 +122,13 @@ impl SessionConfigModal {
         }
     }
 
-    /// Reconfigures the visible session types based on whether Oz is available.
+    /// Reconfigures the visible session types based on whether agent sessions are available.
     /// Resets the selection to index 0 (the first available type).
-    /// When Oz is disabled, hides the session type row entirely and defaults
+    /// When agent sessions are unavailable, hides the session type row entirely and defaults
     /// to Terminal behind the scenes.
-    pub fn configure(&mut self, show_oz: bool) {
-        self.show_session_type_row = show_oz;
-        self.session_types = session_config_rendering::visible_session_types(show_oz);
+    pub fn configure(&mut self, show_agent: bool) {
+        self.show_session_type_row = show_agent;
+        self.session_types = session_config_rendering::visible_session_types(show_agent);
         self.selected_session_type_index = 0;
         self.session_pill_mouse_states = self
             .session_types

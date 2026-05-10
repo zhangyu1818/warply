@@ -13,9 +13,8 @@ use warpui::{
     Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
-use crate::{terminal::model::terminal_model::ExitReason, ui_components};
+use crate::ui_components;
 
-const FILE_ISSUE_TEXT: &str = "File issue";
 const MORE_INFO_TEXT: &str = "More info";
 
 /// A banner to display when the shell process terminates.
@@ -132,10 +131,7 @@ pub enum TerminationType {
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     PtySpawnFailure { pty_spawn_error: anyhow::Error },
     /// The shell process terminated before we were able to bootstrap.
-    Premature {
-        shell_detail: String,
-        reason: ExitReason,
-    },
+    Premature { shell_detail: String },
 }
 
 impl TerminationType {
@@ -208,20 +204,10 @@ impl TerminationType {
             TerminationType::Premature { .. } => {
                 let ui_builder = inverted_color_ui_builder(appearance);
 
-                handles.resize_with(2, MouseStateHandle::default);
+                handles.resize_with(1, MouseStateHandle::default);
                 vec![
                     ui_builder
-                        .button(ButtonVariant::Text, handles[0].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
-                        })
-                        .finish(),
-                    ui_builder
-                        .button(ButtonVariant::Outlined, handles[1].clone())
+                        .button(ButtonVariant::Outlined, handles[0].clone())
                         .with_text_label(MORE_INFO_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {
@@ -235,7 +221,7 @@ impl TerminationType {
             TerminationType::PtySpawnFailure { pty_spawn_error } => {
                 let ui_builder = inverted_color_ui_builder(appearance);
 
-                handles.resize_with(3, MouseStateHandle::default);
+                handles.resize_with(2, MouseStateHandle::default);
                 let error_str = format!("{pty_spawn_error:#}");
                 vec![
                     ui_builder
@@ -249,17 +235,7 @@ impl TerminationType {
                         })
                         .finish(),
                     ui_builder
-                        .button(ButtonVariant::Text, handles[1].clone())
-                        .with_text_label(FILE_ISSUE_TEXT.to_string())
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "https://github.com/warpdotdev/Warp/issues/new/choose".to_string(),
-                            ));
-                        })
-                        .finish(),
-                    ui_builder
-                        .button(ButtonVariant::Outlined, handles[2].clone())
+                        .button(ButtonVariant::Outlined, handles[1].clone())
                         .with_text_label(MORE_INFO_TEXT.to_string())
                         .build()
                         .on_click(|ctx, _, _| {

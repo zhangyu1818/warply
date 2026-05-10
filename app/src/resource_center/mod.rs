@@ -1,13 +1,6 @@
 use std::collections::HashSet;
 
-use settings::Setting as _;
-
-use crate::{
-    report_if_error, terminal::general_settings::GeneralSettings,
-    util::bindings::trigger_to_keystroke,
-};
-
-use chrono::{DateTime, FixedOffset};
+use crate::{terminal::general_settings::GeneralSettings, util::bindings::trigger_to_keystroke};
 
 mod main_page;
 pub mod utils;
@@ -15,7 +8,7 @@ pub use main_page::{ResourceCenterMainEvent, ResourceCenterMainView};
 mod keybindings_page;
 pub use keybindings_page::KeybindingsView;
 mod section_views;
-pub use section_views::{ChangelogSectionView, ContentSectionView, FeatureSectionView};
+pub use section_views::FeatureSectionView;
 pub mod sections;
 mod view;
 use serde::{Deserialize, Serialize};
@@ -89,15 +82,6 @@ pub enum TipAction {
     CommandSearch,
     AiCommandSearch,
     SaveNewLaunchConfig,
-    WarpAI,
-    // This toggles Warp Drive rather than opening it. This enum can't directly be
-    // renamed because we serialize it into the welcome tips.
-    OpenWarpDrive,
-    Changelog,
-    // Note that this item has been deprecated from the UI and is not in any section.
-    // We are leaving it in this enum to ensure that we don't re-use `Workflows` as a
-    // value. Since old clients will have this value in their user defaults, we want
-    // to prevent future usage of this enum value.
     Workflows,
 }
 
@@ -111,11 +95,6 @@ impl TipAction {
             TipAction::AiCommandSearch => "input:toggle_natural_language_command_search",
             TipAction::ThemePicker => "workspace:show_theme_chooser",
             TipAction::SaveNewLaunchConfig => "workspace:open_launch_config_save_modal",
-            TipAction::WarpAI => "workspace:toggle_ai_assistant",
-            TipAction::OpenWarpDrive => "workspace:toggle_left_panel",
-            // Slash commands are also registered as editable bindings, so callers can look them up here
-            // the same way they do regular app actions.
-            TipAction::Changelog => "/changelog",
             TipAction::Workflows => "input:toggle_workflows",
         }
     }
@@ -169,40 +148,10 @@ impl FeatureItem {
     }
 }
 
-#[derive(Clone, Debug)]
-// Section item that links to an external URL
-pub struct ContentItem {
-    pub title: &'static str,
-    pub description: &'static str,
-    pub url: &'static str,
-    pub button_label: &'static str,
-}
-
-pub enum Section {
-    Feature(FeatureSectionData),
-    Content(ContentSectionData),
-    Changelog(),
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FeatureSectionData {
     pub section_name: FeatureSection,
     pub items: Vec<FeatureItem>,
-}
-
-#[derive(Clone)]
-pub struct ContentSectionData {
-    pub section_name: FeatureSection,
-    pub items: Vec<ContentItem>,
-}
-
-#[derive(Clone)]
-pub struct ChangelogSectionData {
-    pub section_name: FeatureSection,
-    pub date: DateTime<FixedOffset>,
-    pub new_features_markdown: String,
-    pub improvements_markdown: String,
-    pub coming_soon_markdown: String,
 }
 
 #[derive(Default)]
@@ -231,51 +180,37 @@ impl FeatureSectionData {
     }
 }
 
-/// Marks the welcome tip as used, writes their current state to a cloud synced preference.
 pub fn mark_feature_used_and_write_to_user_defaults(
     feature: Tip,
     tips_completed: &mut TipsCompleted,
     ctx: &mut AppContext,
 ) {
     if tips_completed.mark_feature_used(feature) {
-        GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-            report_if_error!(general_settings
-                .welcome_tips_features_used
-                .set_value(tips_completed.features_used.clone(), ctx));
-
-            if tips_completed.skipped_or_completed {
-                report_if_error!(general_settings
-                    .welcome_tips_skipped_or_completed
-                    .set_value(true, ctx));
-            }
-        });
+        GeneralSettings::handle(ctx).update(
+            ctx,
+            |_general_settings, _ctx| {
+                if tips_completed.skipped_or_completed {}
+            },
+        );
     }
 }
 
-/// Updates the model to reflect welcome tips are skipped, writes to user defaults, and sends telemetry.
+/// Updates the model to reflect welcome tips are skipped and writes to user defaults.
 pub fn skip_tips_and_write_to_user_defaults(
     tips_completed: &mut TipsCompleted,
     ctx: &mut AppContext,
 ) {
     tips_completed.skipped_or_completed = true;
-    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-        report_if_error!(general_settings
-            .welcome_tips_skipped_or_completed
-            .set_value(true, ctx));
-    });
+    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
 }
 
-/// Updates the model to reflect welcome tips are skipped, writes to user defaults, and sends telemetry.
+/// Updates the model to reflect welcome tips are completed and writes to user defaults.
 pub fn complete_tips_and_write_to_user_defaults(
     tips_completed: &mut TipsCompleted,
     ctx: &mut AppContext,
 ) {
     tips_completed.skipped_or_completed = true;
-    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-        report_if_error!(general_settings
-            .welcome_tips_skipped_or_completed
-            .set_value(true, ctx));
-    });
+    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
 }
 
 impl TipsCompleted {

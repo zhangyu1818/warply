@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
-use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{Container, Element, Empty, MouseStateHandle};
 use warpui::keymap::Keystroke;
 use warpui::platform::OperatingSystem;
@@ -16,7 +14,6 @@ use crate::ai::agent::{
     AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError,
 };
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
-use crate::ai::blocklist::agent_view::zero_state_block::render_ambient_credits_banner;
 use crate::ai::blocklist::agent_view::{
     agent_view_bg_fill, AgentViewController, AgentViewControllerEvent,
 };
@@ -25,11 +22,6 @@ use crate::ai::blocklist::{
     BlocklistAIInputEvent, BlocklistAIInputModel,
 };
 use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
-use crate::ai::mcp::{
-    templatable_manager::{FigmaMcpStatus, TemplatableMCPServerManagerEvent},
-    TemplatableMCPServerManager,
-};
-use crate::ai::request_usage_model::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::message_bar::attached_context::{
@@ -39,7 +31,7 @@ use crate::terminal::input::message_bar::common::{
     disableable_message_item_color_overrides, render_standard_message_bar,
 };
 use crate::terminal::input::message_bar::{
-    ChipHorizontalAlignment, EmptyMessageProducer, Message, MessageItem, MessageProvider,
+    EmptyMessageProducer, Message, MessageItem, MessageProvider,
 };
 use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashCommandModel};
 use crate::terminal::input::suggestions_mode_model::{
@@ -55,8 +47,6 @@ use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
 use crate::workspace::WorkspaceAction;
 use crate::BlocklistAIHistoryModel;
 
-const FIGMA_ICON_SIZE: f32 = 14.;
-
 #[derive(Clone, Default)]
 pub struct AgentMessageBarMouseStates {
     pub resume_conversation: MouseStateHandle,
@@ -67,10 +57,6 @@ pub struct AgentMessageBarMouseStates {
     pub toggle_conversation_menu: MouseStateHandle,
     pub toggle_code_review: MouseStateHandle,
     pub clear_attached_context: MouseStateHandle,
-    /// Mouse state handle for the "Get Figma MCP" contextual button.
-    pub figma_install_button: MouseStateHandle,
-    /// Mouse state handle for the "Enable Figma MCP" contextual button.
-    pub figma_enable_button: MouseStateHandle,
 }
 
 /// Renders contextual hint text at the bottom of the agent view status bar.
@@ -85,9 +71,6 @@ pub struct AgentMessageBar {
     context_model: ModelHandle<BlocklistAIContextModel>,
     terminal_model: Arc<FairMutex<TerminalModel>>,
     mouse_states: AgentMessageBarMouseStates,
-    /// Whether the word "figma" has been detected in the current input buffer or attached images.
-    /// Only meaningful when `FeatureFlag::FigmaDetection` is enabled.
-    figma_detected: bool,
 }
 
 impl Entity for AgentMessageBar {
@@ -145,7 +128,6 @@ impl AgentMessageBar {
             if empty_state_changed || in_shell_mode {
                 ctx.notify();
             }
-            me.update_figma_detected(ctx);
         });
         ctx.subscribe_to_model(&shortcut_view_model, |_, _, _, ctx| {
             ctx.notify();
@@ -183,39 +165,14 @@ impl AgentMessageBar {
             }
         });
 
-        ctx.subscribe_to_model(&context_model, |me, _, event, ctx| {
+        ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
             if let BlocklistAIContextEvent::UpdatedPendingContext { .. } = event {
-                me.update_figma_detected(ctx);
                 ctx.notify();
             }
         });
 
         ctx.subscribe_to_model(&TabSettings::handle(ctx), |_, _, event, ctx| {
             if matches!(event, TabSettingsChangedEvent::ShowCodeReviewButton { .. }) {
-                ctx.notify();
-            }
-        });
-
-        if FeatureFlag::FigmaDetection.is_enabled() {
-            // When the state of the Figma MCP changes, re-render to update the Figma CTA button.
-            ctx.subscribe_to_model(
-                &TemplatableMCPServerManager::handle(ctx),
-                |_, model, event, ctx| {
-                    if let TemplatableMCPServerManagerEvent::StateChanged { uuid, .. } = event {
-                        if let Some(figma_mcp_uuid) =
-                            model.as_ref(ctx).get_figma_installation_uuid()
-                        {
-                            if uuid == &figma_mcp_uuid {
-                                ctx.notify();
-                            }
-                        }
-                    }
-                },
-            );
-        }
-
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, event, ctx| {
-            if matches!(event, AIRequestUsageModelEvent::RequestUsageUpdated) {
                 ctx.notify();
             }
         });
@@ -231,46 +188,44 @@ impl AgentMessageBar {
             context_model,
             terminal_model,
             mouse_states: AgentMessageBarMouseStates::default(),
-            figma_detected: false,
         }
     }
 }
 
-impl AgentMessageBar {
-    /// Sets `figma_detected` by checking both the current input text and attached images.
-    /// `figma_detected` is `true` when either the text contains "figma" (case-insensitive)
-    /// or any attached image was exported from Figma.
-    fn update_figma_detected(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::FigmaDetection.is_enabled() {
-            return;
-        }
-        let text_has_figma = self
-            .input_buffer_model
-            .as_ref(ctx)
-            .current_value()
-            .to_lowercase()
-            .contains("figma");
-        let image_has_figma = self
-            .context_model
-            .as_ref(ctx)
-            .pending_images()
-            .iter()
-            .any(|image| image.is_figma);
-        let detected = text_has_figma || image_has_figma;
-        if self.figma_detected != detected {
-            self.figma_detected = detected;
-            ctx.notify();
-        }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AgentMessageBarShortcutVisibility {
+    show_conversation_menu: bool,
+    show_code_review: bool,
+}
+
+fn agent_message_bar_shortcut_visibility(
+    has_conversation_been_updated_since_agent_view_entry: bool,
+    show_code_review_button: bool,
+) -> AgentMessageBarShortcutVisibility {
+    AgentMessageBarShortcutVisibility {
+        show_conversation_menu: !has_conversation_been_updated_since_agent_view_entry,
+        show_code_review: show_code_review_button,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::agent_message_bar_shortcut_visibility;
+
+    #[test]
+    fn acp_footer_keeps_generic_shortcuts() {
+        let visibility = agent_message_bar_shortcut_visibility(false, true);
+
+        assert!(visibility.show_conversation_menu);
+        assert!(visibility.show_code_review);
     }
 
-    /// Returns the Figma MCP status if the contextual button area should be rendered
-    /// (i.e. when `FeatureFlag::FigmaDetection` is enabled and "figma" is detected in the input).
-    fn figma_button_status(&self, app: &AppContext) -> Option<FigmaMcpStatus> {
-        if FeatureFlag::FigmaDetection.is_enabled() && self.figma_detected {
-            Some(TemplatableMCPServerManager::as_ref(app).get_figma_mcp_status())
-        } else {
-            None
-        }
+    #[test]
+    fn updated_conversations_hide_conversation_menu_only() {
+        let visibility = agent_message_bar_shortcut_visibility(true, true);
+
+        assert!(!visibility.show_conversation_menu);
+        assert!(visibility.show_code_review);
     }
 }
 
@@ -324,7 +279,7 @@ impl View for AgentMessageBar {
         };
 
         // Ephemeral messages take highest priority.
-        let Some(mut message) = ephemeral_message_model
+        let Some(message) = ephemeral_message_model
             .produce_message(args)
             .or_else(|| BootstrappingMessageProducer.produce_message(args))
             .or_else(|| ForkSlashCommandMessageProducer.produce_message(args))
@@ -339,50 +294,7 @@ impl View for AgentMessageBar {
             return Empty::new().finish();
         };
 
-        // Show credits banner when user has ambient credits remaining.
-        use crate::ai::request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD;
-        let right_element = if cfg!(target_family = "wasm") {
-            None
-        } else if let Some(credits) =
-            AIRequestUsageModel::as_ref(app).ambient_only_credits_remaining()
-        {
-            if credits >= AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD {
-                Some(render_ambient_credits_banner(credits, app))
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        // Append a Figma MCP chip to the message if applicable.
-        match self.figma_button_status(app) {
-            Some(FigmaMcpStatus::NotInstalled) => {
-                message.items.push(figma_chip(
-                    self.mouse_states.figma_install_button.clone(),
-                    "Get Figma MCP",
-                    Some(InputAction::FigmaAddButtonClicked),
-                ));
-            }
-            Some(FigmaMcpStatus::Installed) => {
-                message.items.push(figma_chip(
-                    self.mouse_states.figma_enable_button.clone(),
-                    "Enable Figma MCP",
-                    Some(InputAction::FigmaEnableButtonClicked),
-                ));
-            }
-            Some(FigmaMcpStatus::Enabling) => {
-                message.items.push(
-                    figma_chip(
-                        self.mouse_states.figma_enable_button.clone(),
-                        "Enabling...",
-                        None,
-                    )
-                    .with_is_disabled(true),
-                );
-            }
-            Some(FigmaMcpStatus::Running) | None => {}
-        }
+        let right_element = None;
 
         let message_bar = render_standard_message_bar(message, right_element, app);
         if self.agent_view_controller.as_ref(app).is_inline() {
@@ -443,10 +355,7 @@ struct BootstrappingMessageProducer;
 
 impl MessageProvider<AgentMessageArgs<'_>> for BootstrappingMessageProducer {
     fn produce_message(&self, args: AgentMessageArgs<'_>) -> Option<Message> {
-        if args.terminal_model.block_list().is_bootstrapped()
-            || args.terminal_model.is_dummy_cloud_mode_session()
-            || args.terminal_model.is_shared_ambient_agent_session()
-        {
+        if args.terminal_model.block_list().is_bootstrapped() {
             None
         } else {
             Some(Message::from_text("Starting shell..."))
@@ -565,19 +474,18 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
             .with_is_disabled(!is_buffer_empty),
         );
 
-        let is_cloud_agent = matches!(
-            agent_view_controller.agent_view_state(),
-            AgentViewState::Active { origin, .. } if origin.is_cloud_agent()
-        );
-
         let plan_count = AIDocumentModel::as_ref(app)
             .get_all_documents_for_conversation(active_conversation.id())
             .len();
         let has_plan = plan_count > 0;
         let has_conversation_been_updated_since_agent_view_entry =
             *original_conversation_length != active_conversation.exchange_count();
+        let shortcut_visibility = agent_message_bar_shortcut_visibility(
+            has_conversation_been_updated_since_agent_view_entry,
+            *TabSettings::as_ref(app).show_code_review_button,
+        );
 
-        if !is_cloud_agent && !has_conversation_been_updated_since_agent_view_entry {
+        if shortcut_visibility.show_conversation_menu {
             if let Some(conversations_keystroke) =
                 keybinding_name_to_keystroke(commands::CONVERSATIONS.name, app)
             {
@@ -596,7 +504,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
 
         // Code review only works locally.
         #[cfg(not(target_family = "wasm"))]
-        if !is_cloud_agent && *TabSettings::as_ref(app).show_code_review_button {
+        if shortcut_visibility.show_code_review {
             let code_review_keystroke = if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-shift-+").expect("keystroke should parse")
             } else {
@@ -692,10 +600,7 @@ fn should_fork_from_last_known_good_state(
     active_conversation: &AIConversation,
     terminal_model: &TerminalModel,
 ) -> bool {
-    if terminal_model.is_conversation_transcript_viewer()
-        || terminal_model.shared_session_status().is_viewer()
-        || active_conversation.is_viewing_shared_session()
-    {
+    if terminal_model.is_conversation_transcript_viewer() {
         return false;
     }
 
@@ -711,11 +616,9 @@ fn should_fork_from_last_known_good_state(
     };
 
     match error {
-        RenderableAIError::QuotaLimit
-        | RenderableAIError::ServerOverloaded
+        RenderableAIError::ServerOverloaded
         | RenderableAIError::ContextWindowExceeded(_)
-        | RenderableAIError::InvalidApiKey { .. }
-        | RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { .. } => false,
+        | RenderableAIError::InvalidApiKey { .. } => false,
         RenderableAIError::InternalWarpError => true,
         RenderableAIError::Other {
             will_attempt_resume,
@@ -737,11 +640,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
         let is_fork_family = command_name == commands::FORK.name
             || command_name == commands::FORK_FROM.name
             || command_name == commands::FORK_AND_COMPACT.name;
-        #[cfg(not(target_family = "wasm"))]
-        let is_continue_locally = command_name == commands::CONTINUE_LOCALLY.name;
-        #[cfg(target_family = "wasm")]
-        let is_continue_locally = false;
-        if !is_fork_family && !is_continue_locally {
+        if !is_fork_family {
             return None;
         }
         let modifier_keystroke = if cfg!(target_os = "macos") {
@@ -759,10 +658,7 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
             }
         };
 
-        // `/fork` and `/continue-locally` open in a new pane with Enter and a new tab with
-        // Cmd/Ctrl+Enter. Other fork-like commands open in the current pane with Enter and a new
-        // pane with Cmd/Ctrl+Enter.
-        let primary_to_new_pane = command_name == commands::FORK.name || is_continue_locally;
+        let primary_to_new_pane = command_name == commands::FORK.name;
         let (primary_label, secondary_label) = if primary_to_new_pane {
             (" new pane", " new tab")
         } else {
@@ -885,41 +781,5 @@ impl MessageProvider<AgentMessageArgs<'_>> for ExitBashModeMessageProducer {
             ])
             .with_text_color(text_color),
         )
-    }
-}
-
-/// Creates a `MessageItem::Chip` for a Figma MCP contextual action.
-/// When `action` is `Some`, the chip is interactive and dispatches that action on click.
-/// When `action` is `None`, the chip is returned without an action (caller should disable it).
-fn figma_chip(
-    mouse_state: MouseStateHandle,
-    label: &'static str,
-    action: Option<InputAction>,
-) -> MessageItem {
-    let items = vec![
-        MessageItem::Image {
-            source: AssetSource::Bundled {
-                path: "bundled/svg/figma-colored.svg",
-            },
-            width: FIGMA_ICON_SIZE,
-            height: FIGMA_ICON_SIZE,
-        },
-        MessageItem::text(label),
-    ];
-    if let Some(action) = action {
-        MessageItem::chip(
-            items,
-            move |ctx| ctx.dispatch_typed_action(action.clone()),
-            mouse_state,
-        )
-        .with_horizontal_alignment(ChipHorizontalAlignment::Right)
-    } else {
-        MessageItem::Chip {
-            items,
-            action: Arc::new(|_| {}),
-            mouse_state,
-            disabled: true,
-            horizontal_alignment: ChipHorizontalAlignment::Right,
-        }
     }
 }

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use settings_value::SettingsValue;
 use warp_core::{
     define_settings_group,
-    settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud},
+    settings::{Setting, SupportedPlatforms},
 };
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
@@ -15,7 +15,7 @@ use crate::{
         CloudObject as _,
     },
     drive::CloudObjectTypeAndId,
-    server::ids::SyncId,
+    object_ids::SyncId,
 };
 
 define_settings_group!(WorkflowAliases, settings: [
@@ -23,14 +23,13 @@ define_settings_group!(WorkflowAliases, settings: [
         type: Vec<WorkflowAlias>,
         default: vec![],
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
         storage_key: "WorkflowAliases",
     }
 ]);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, schemars::JsonSchema, SettingsValue)]
-#[schemars(description = "A shortcut alias for a Warp Drive workflow.")]
+#[schemars(description = "A shortcut alias for a workflow.")]
 pub struct WorkflowAlias {
     #[schemars(description = "The alias text that triggers this workflow.")]
     pub alias: String,

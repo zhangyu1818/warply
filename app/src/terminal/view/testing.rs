@@ -32,21 +32,11 @@ impl TerminalView {
         restored_blocks: Option<&[SerializedBlockListItem]>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        Self::new_for_test_with_cloud_mode(tips_model, restored_blocks, false, ctx)
-    }
-
-    #[cfg(test)]
-    pub fn new_for_test_with_cloud_mode(
-        tips_model: ModelHandle<TipsCompleted>,
-        restored_blocks: Option<&[SerializedBlockListItem]>,
-        is_cloud_mode: bool,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
         use pathfinder_geometry::vector::vec2f;
         use warpui::units::{IntoPixels as _, Pixels};
 
         use crate::{
-            server::server_api::ServerApiProvider,
+            http_api::HttpApiProvider,
             terminal::{
                 event_listener::ChannelEventListener, model::block::BlockSize, BlockPadding,
             },
@@ -82,10 +72,10 @@ impl TerminalView {
             warp_prompt_height_lines: WARP_PROMPT_HEIGHT_LINES,
         };
 
-        let server_api = ServerApiProvider::new_for_test().get();
+        let http_api = HttpApiProvider::new_for_test().get();
         let terminal_view_resources = TerminalViewResources {
             tips_completed: tips_model,
-            server_api: server_api.clone(),
+            http_api: http_api.clone(),
             model_event_sender: None,
         };
 
@@ -120,7 +110,6 @@ impl TerminalView {
             None,
             None, // conversation_restoration - not used for test
             None, // inactive_pty_reads_rx - not used for test
-            is_cloud_mode,
             ctx,
         )
     }

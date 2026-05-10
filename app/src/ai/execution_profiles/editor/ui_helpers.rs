@@ -67,8 +67,7 @@ fn nice_step(raw: f64) -> f64 {
 
 use crate::settings_view::{render_input_list, render_separator, InputListItem};
 
-pub const WORKSPACE_OVERRIDE_TOOLTIP_MESSAGE: &str =
-    "This option is enforced by your organization's settings and cannot be customized.";
+pub const DISABLED_AI_OPTION_TOOLTIP_MESSAGE: &str = "Enable AI to customize this option.";
 pub fn render_header_section(
     appearance: &Appearance,
     profile_name_editor: &ViewHandle<EditorView>,
@@ -209,7 +208,7 @@ fn render_permission_row<T: Clone + 'static + std::fmt::Debug + Send + Sync>(
     label: &str,
     dropdown: &ViewHandle<Dropdown<T>>,
     info_text: &str,
-    show_workspace_override_tooltip: bool,
+    show_disabled_tooltip: bool,
     tooltip_mouse_state: MouseStateHandle,
 ) -> Box<dyn Element> {
     let icon_elem = Container::new(
@@ -231,12 +230,8 @@ fn render_permission_row<T: Clone + 'static + std::fmt::Debug + Send + Sync>(
         .with_child(label_elem)
         .finish();
     let dropdown_element = ChildView::new(dropdown).finish();
-    let dropdown_row = if show_workspace_override_tooltip {
-        wrap_disabled_with_workspace_override_tooltip(
-            dropdown_element,
-            tooltip_mouse_state,
-            appearance,
-        )
+    let dropdown_row = if show_disabled_tooltip {
+        wrap_disabled_ai_option_tooltip(dropdown_element, tooltip_mouse_state, appearance)
     } else {
         dropdown_element
     };
@@ -590,16 +585,8 @@ pub fn render_permissions_section(
         }
     }
 
-    if FeatureFlag::WebSearchUI.is_enabled() {
-        column.add_child(
-            Container::new(render_web_search_toggle(appearance, view, profile_data))
-                .with_margin_top(16.)
-                .finish(),
-        );
-    }
-
     column.add_child(
-        Container::new(render_plan_auto_sync_toggle(appearance, view, profile_data))
+        Container::new(render_web_search_toggle(appearance, view, profile_data))
             .with_margin_top(16.)
             .finish(),
     );
@@ -672,7 +659,7 @@ where
 
     let list = render_input_list(None, input_items, editor, appearance);
     let list_element = if !is_editable {
-        wrap_disabled_with_workspace_override_tooltip(list, tooltip_mouse_state, appearance)
+        wrap_disabled_ai_option_tooltip(list, tooltip_mouse_state, appearance)
     } else {
         list
     };
@@ -729,7 +716,7 @@ fn render_command_allowlist_section(
 
     render_list_section(
         "Command allowlist",
-        "Regular expressions to match commands that can be automatically executed by Oz.",
+        "Regular expressions to match commands the agent can automatically execute.",
         &profile_data.command_allowlist,
         &view.command_allowlist_mouse_state_handles,
         Some(&view.command_allowlist_editor),
@@ -750,11 +737,7 @@ fn render_command_denylist_section(
     appearance: &Appearance,
     app: &warpui::AppContext,
 ) -> Box<dyn Element> {
-    use crate::ai::blocklist::BlocklistAIPermissions;
-
     let ai_disabled = !AISettings::as_ref(app).is_any_ai_enabled(app);
-    let org_denylist = BlocklistAIPermissions::get_org_execute_commands_denylist(app);
-    let mut tooltip_idx = 0usize;
 
     let input_items: Vec<InputListItem<ExecutionProfileEditorViewAction>> = profile_data
         .command_denylist
@@ -762,27 +745,14 @@ fn render_command_denylist_section(
         .cloned()
         .zip(view.command_denylist_mouse_state_handles.iter().cloned())
         .rev()
-        .map(|(predicate, mouse_state_handle)| {
-            let is_org = org_denylist.contains(&predicate);
-            let tooltip_mouse_state = if is_org {
-                let handle = view
-                    .command_denylist_tooltip_mouse_state_handles
-                    .get(tooltip_idx)
-                    .cloned();
-                tooltip_idx += 1;
-                handle
-            } else {
-                None
-            };
-            InputListItem {
-                item: predicate.to_string(),
-                mouse_state_handle,
-                on_remove_action: ExecutionProfileEditorViewAction::RemoveFromCommandDenylist {
-                    predicate,
-                },
-                is_disabled: is_org || ai_disabled,
-                tooltip_mouse_state,
-            }
+        .map(|(predicate, mouse_state_handle)| InputListItem {
+            item: predicate.to_string(),
+            mouse_state_handle,
+            on_remove_action: ExecutionProfileEditorViewAction::RemoveFromCommandDenylist {
+                predicate,
+            },
+            is_disabled: ai_disabled,
+            tooltip_mouse_state: None,
         })
         .collect();
 
@@ -795,7 +765,7 @@ fn render_command_denylist_section(
 
     let mut column = Flex::column().with_child(create_section_header(
         "Command denylist",
-        "Regular expressions to match commands that Oz should always ask permission to execute.",
+        "Regular expressions to match commands the agent should always ask permission to execute.",
         appearance,
     ));
     column = column.with_child(list);
@@ -823,7 +793,7 @@ fn render_mcp_allowlist_section(
 
     render_list_section(
         "MCP allowlist",
-        "MCP servers that are allowed to be called by Oz.",
+        "MCP servers the agent can call.",
         &profile_data.mcp_allowlist,
         &view.mcp_allowlist_mouse_state_handles,
         None,
@@ -849,7 +819,7 @@ fn render_mcp_denylist_section(
 
     render_list_section(
         "MCP denylist",
-        "MCP servers that are not allowed to be called by Oz.",
+        "MCP servers the agent cannot call.",
         &profile_data.mcp_denylist,
         &view.mcp_denylist_mouse_state_handles,
         None,
@@ -863,80 +833,6 @@ fn render_mcp_denylist_section(
             .clone(),
     )
 }
-pub fn render_plan_auto_sync_toggle(
-    appearance: &Appearance,
-    view: &ExecutionProfileEditorView,
-    profile_data: &AIExecutionProfile,
-) -> Box<dyn Element> {
-    let icon_size = 16.0;
-    let icon_elem = Container::new(
-        ConstrainedBox::new(
-            Icon::Compass
-                .to_warpui_icon(appearance.theme().active_ui_text_color())
-                .finish(),
-        )
-        .with_width(icon_size)
-        .with_height(icon_size)
-        .finish(),
-    )
-    .with_margin_right(8.)
-    .finish();
-
-    let label_elem = Text::new(
-        "Plan auto-sync".to_string(),
-        appearance.ui_font_family(),
-        13.,
-    )
-    .with_color(appearance.theme().active_ui_text_color().into())
-    .finish();
-
-    let desc_elem = Text::new(
-        "The plans this agent creates will be automatically added and synced to Warp Drive."
-            .to_string(),
-        appearance.ui_font_family(),
-        11.,
-    )
-    .with_color(
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().surface_1())
-            .into(),
-    )
-    .finish();
-
-    let current_value = profile_data.autosync_plans_to_warp_drive;
-    let switch = appearance
-        .ui_builder()
-        .switch(view.plan_auto_sync_switch.clone())
-        .check(current_value)
-        .build()
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(ExecutionProfileEditorViewAction::SetPlanAutoSync {
-                enabled: !current_value,
-            });
-        })
-        .finish();
-
-    let left_content = Flex::column()
-        .with_child(
-            Flex::row()
-                .with_child(icon_elem)
-                .with_child(label_elem)
-                .finish(),
-        )
-        .with_child(desc_elem)
-        .finish();
-
-    Flex::row()
-        .with_main_axis_size(MainAxisSize::Max)
-        .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_spacing(8.)
-        .with_child(Shrinkable::new(1., left_content).finish())
-        .with_child(switch)
-        .finish()
-}
-
 pub fn render_web_search_toggle(
     appearance: &Appearance,
     view: &ExecutionProfileEditorView,
@@ -1010,18 +906,17 @@ pub fn render_web_search_toggle(
         .finish()
 }
 
-pub fn wrap_disabled_with_workspace_override_tooltip(
+pub fn wrap_disabled_ai_option_tooltip(
     child: Box<dyn Element>,
     mouse_state: MouseStateHandle,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    // Wrap the disabled element in a hoverable container that can show tooltips
     Hoverable::new(mouse_state, |state| {
         let mut stack = Stack::new().with_child(child);
         if state.is_hovered() {
             let tooltip = appearance
                 .ui_builder()
-                .tool_tip(WORKSPACE_OVERRIDE_TOOLTIP_MESSAGE.to_string())
+                .tool_tip(DISABLED_AI_OPTION_TOOLTIP_MESSAGE.to_string())
                 .build()
                 .finish();
 

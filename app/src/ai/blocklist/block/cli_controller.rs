@@ -1,10 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::server::telemetry::{CLISubagentControlState, TelemetryEvent};
 use instant::Instant;
 use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
-use warp_core::send_telemetry_from_ctx;
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::blocklist::context_model::block_context_from_terminal_model;
@@ -285,14 +283,6 @@ impl CLISubagentController {
             .is_agent_in_control()
     }
 
-    pub(crate) fn is_agent_in_control_or_tagged_in(&self) -> bool {
-        let terminal_model = self.terminal_model.lock();
-        terminal_model
-            .block_list()
-            .active_block()
-            .is_agent_in_control_or_tagged_in()
-    }
-
     pub fn last_snapshot_at(&self, block_id: &BlockId) -> Option<Instant> {
         self.active_subagents_by_block
             .get(block_id)
@@ -348,15 +338,6 @@ impl CLISubagentController {
             requested_command_action_id: action_id,
             agent_has_control,
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentControlStateChanged {
-                conversation_id,
-                block_id,
-                control_state: CLISubagentControlState::UserInControl,
-            },
-            ctx
-        );
     }
 
     pub fn handoff_active_command_control_to_agent(&self, ctx: &mut ModelContext<Self>) {
@@ -391,30 +372,24 @@ impl CLISubagentController {
             });
         }
 
-        // Trigger an auto-resume of the conversation when handing control to the agent.
         if let Some(conversation_id) = conversation_id {
-            let is_viewing_shared_session = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .is_some_and(|conversation| conversation.is_viewing_shared_session());
-            if !is_viewing_shared_session {
-                let resume_context = {
-                    let terminal_model = self.terminal_model.lock();
-                    block_context_from_terminal_model(&terminal_model, &block_id, false)
-                        .map(Box::new)
-                        .map(AIAgentContext::Block)
-                        .into_iter()
-                        .collect()
-                };
-                self.controller.update(ctx, |controller, ctx| {
-                    controller.resume_conversation(
-                        conversation_id,
-                        /*can_attempt_resume_on_error*/ true,
-                        /*is_auto_resume_after_error*/ false,
-                        resume_context,
-                        ctx,
-                    );
-                });
-            }
+            let resume_context = {
+                let terminal_model = self.terminal_model.lock();
+                block_context_from_terminal_model(&terminal_model, &block_id, false)
+                    .map(Box::new)
+                    .map(AIAgentContext::Block)
+                    .into_iter()
+                    .collect()
+            };
+            self.controller.update(ctx, |controller, ctx| {
+                controller.resume_conversation(
+                    conversation_id,
+                    /*can_attempt_resume_on_error*/ true,
+                    /*is_auto_resume_after_error*/ false,
+                    resume_context,
+                    ctx,
+                );
+            });
         }
 
         ctx.emit(CLISubagentEvent::UpdatedControl {
@@ -427,15 +402,6 @@ impl CLISubagentController {
         if was_transfer_from_agent {
             ctx.emit(CLISubagentEvent::ControlHandedBackAfterTransfer);
         }
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentControlStateChanged {
-                conversation_id,
-                block_id,
-                control_state: CLISubagentControlState::AgentInControl,
-            },
-            ctx
-        );
     }
 
     pub fn toggle_hide_responses(&self, ctx: &mut ModelContext<Self>) {
@@ -444,21 +410,12 @@ impl CLISubagentController {
 
         if active_block.toggle_subagent_response_visibility() {
             let conversation_id = active_block.ai_conversation_id();
-            let block_id = active_block.id().clone();
-            let is_hidden = active_block.should_hide_responses();
+            let _block_id = active_block.id().clone();
+            let _is_hidden = active_block.should_hide_responses();
 
             ctx.emit(CLISubagentEvent::ToggledHideResponses);
 
-            if let Some(conversation_id) = conversation_id {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CLISubagentResponsesToggled {
-                        conversation_id,
-                        block_id,
-                        is_hidden,
-                    },
-                    ctx
-                );
-            }
+            if let Some(_conversation_id) = conversation_id {}
         }
     }
 
@@ -529,7 +486,7 @@ impl CLISubagentController {
                     initial_requested_command_action_id: action_id,
                 });
             }
-            BlocklistAIHistoryEvent::UpgradedTask {
+            BlocklistAIHistoryEvent::PromotedTask {
                 optimistic_id: old_id,
                 server_id: new_id,
                 ..
@@ -545,7 +502,7 @@ impl CLISubagentController {
                     if let Some(block) =
                         terminal_model.block_list_mut().mut_block_from_id(&block_id)
                     {
-                        match block.upgrade_cli_subagent_task_id(new_id.clone()) {
+                        match block.promote_cli_subagent_task_id(new_id.clone()) {
                             Ok(()) => {
                                 if let Some(state) =
                                     self.active_subagents_by_block.get_mut(&block_id)
@@ -555,7 +512,7 @@ impl CLISubagentController {
                             }
                             Err(e) => {
                                 log::error!(
-                                    "Tried to upgrade CLISubagent task ID for non-existent block: {e:?}"
+                                    "Tried to promote CLI subagent task ID for non-existent block: {e:?}"
                                 );
                             }
                         }

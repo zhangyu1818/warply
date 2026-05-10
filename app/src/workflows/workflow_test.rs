@@ -1,6 +1,6 @@
 use crate::{
     cloud_object::model::generic_string_model::GenericStringObjectId,
-    server::ids::{ClientId, HashableId, ServerId, SyncId},
+    object_ids::{ClientId, HashableId, ServerId, SyncId},
     workflows::workflow::{Argument, ArgumentType, Workflow},
 };
 

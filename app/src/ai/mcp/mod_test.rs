@@ -3,6 +3,7 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     use crate::ai::mcp::parsing::normalize_codex_toml_to_json;
     use crate::ai::mcp::parsing::resolve_json;
+    use crate::ai::mcp::templatable_installation::TemplateSecretValue;
     use crate::ai::mcp::{
         CLIServer, JsonTemplate, MCPServer, ParsedTemplatableMCPServerResult, ServerSentEvents,
         StaticEnvVar, StaticHeader, TemplatableMCPServer, TemplatableMCPServerInstallation,
@@ -10,7 +11,6 @@ mod tests {
     };
     use serde_json;
     use std::collections::HashMap;
-    use warp_managed_secrets::ManagedSecretValue;
 
     #[test]
     fn test_mcp_server_config_serialization_excludes_secret_env_values() {
@@ -959,13 +959,13 @@ mod tests {
 
     // --- Runtime handlebars secret resolution tests ---
 
-    fn make_secrets(pairs: Vec<(&str, &str)>) -> HashMap<String, ManagedSecretValue> {
+    fn make_secrets(pairs: Vec<(&str, &str)>) -> HashMap<String, TemplateSecretValue> {
         pairs
             .into_iter()
             .map(|(k, v)| {
                 (
                     k.to_string(),
-                    ManagedSecretValue::RawValue {
+                    TemplateSecretValue {
                         value: v.to_string(),
                     },
                 )

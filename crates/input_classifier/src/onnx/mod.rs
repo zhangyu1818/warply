@@ -14,7 +14,8 @@ use crate::{
     ClassificationResult, Context, InputClassifier, InputType,
     parser::parse_query_into_tokens,
     util::{
-        is_likely_shell_command, is_one_off_natural_language_word, is_one_off_shell_command_keyword,
+        is_likely_cjk_natural_language, is_likely_shell_command, is_one_off_natural_language_word,
+        is_one_off_shell_command_keyword,
     },
 };
 
@@ -96,6 +97,10 @@ impl InputClassifier for OnnxClassifier {
 
             // If the input is a single word and the word is one of a specific set of words, classify it as AI
             if word_tokens.len() == 1 && is_one_off_natural_language_word(&first_word) {
+                return InputType::AI;
+            }
+
+            if is_likely_cjk_natural_language(&word_tokens) {
                 return InputType::AI;
             }
 

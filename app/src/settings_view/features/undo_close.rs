@@ -1,11 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, time::Duration};
+use std::time::Duration;
 
-use settings::{Setting, ToggleableSetting};
 use warpui::{
-    elements::{
-        Container, CrossAxisAlignment, Flex, MainAxisAlignment, MouseStateHandle, ParentElement,
-        Text,
-    },
+    elements::{Container, CrossAxisAlignment, Flex, MainAxisAlignment, ParentElement, Text},
     ui_components::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
@@ -16,12 +12,11 @@ use warpui::{
 use crate::{
     appearance::Appearance,
     editor::{self, EditorView, SingleLineEditorOptions, TextOptions},
-    report_if_error,
     settings_view::{
         features_page::render_group,
-        settings_page::{render_body_item, LocalOnlyIconState, ToggleState},
+        settings_page::{render_body_item, ToggleState},
     },
-    undo_close::{settings::UndoCloseEnabled, UndoCloseSettings},
+    undo_close::UndoCloseSettings,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -38,8 +33,6 @@ pub struct UndoCloseView {
     grace_period_editor: ViewHandle<EditorView>,
     /// Whether or not the grace period value is valid.
     is_grace_period_valid: bool,
-    /// State for the local only icon tooltip.
-    local_only_icon_states: RefCell<HashMap<String, MouseStateHandle>>,
 }
 
 impl UndoCloseView {
@@ -81,7 +74,6 @@ impl UndoCloseView {
         });
         Self {
             switch_state: Default::default(),
-            local_only_icon_states: Default::default(),
             grace_period_editor,
             is_grace_period_valid: true,
         }
@@ -180,12 +172,6 @@ impl View for UndoCloseView {
             .with_child(render_body_item::<Action>(
                 "Enable reopening of closed sessions".into(),
                 None,
-                LocalOnlyIconState::for_setting(
-                    UndoCloseEnabled::storage_key(),
-                    UndoCloseEnabled::sync_to_cloud(),
-                    &mut self.local_only_icon_states.borrow_mut(),
-                    app,
-                ),
                 ToggleState::Enabled,
                 appearance,
                 ui_builder
@@ -216,23 +202,19 @@ impl TypedActionView for UndoCloseView {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut warpui::ViewContext<Self>) {
         match action {
             Action::ToggleUndoCloseEnabled => {
-                UndoCloseSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.enabled.toggle_and_save_value(ctx));
-                })
+                UndoCloseSettings::handle(ctx).update(ctx, |_settings, _ctx| {})
             }
             Action::UpdateGracePeriod => {
                 let grace_period_secs = self
                     .grace_period_editor
                     .read(ctx, |editor, ctx| editor.buffer_text(ctx));
-                let Some(grace_period) = Self::parse_grace_period(&grace_period_secs) else {
+                let Some(_grace_period) = Self::parse_grace_period(&grace_period_secs) else {
                     self.is_grace_period_valid = false;
                     return;
                 };
 
                 self.is_grace_period_valid = true;
-                UndoCloseSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.grace_period.set_value(grace_period, ctx));
-                });
+                UndoCloseSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
             }
         }
     }

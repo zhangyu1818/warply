@@ -1,6 +1,6 @@
-pub mod auth;
 pub mod client;
 pub mod host_id;
+pub mod identity;
 pub mod manager;
 pub mod protocol;
 pub mod repo_metadata_proto;

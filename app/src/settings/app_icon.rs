@@ -2,7 +2,7 @@ use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 use warp_core::{
     channel::{Channel, ChannelState},
-    settings::{macros::define_settings_group, SupportedPlatforms, SyncToCloud},
+    settings::{macros::define_settings_group, SupportedPlatforms},
 };
 
 /// The app icon to use (mac-only).
@@ -127,7 +127,6 @@ define_settings_group!(AppIconSettings, settings: [
         type: AppIcon,
         default: AppIcon::Default,
         supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         storage_key: "AppIcon",
         toml_path: "appearance.icon.app_icon",

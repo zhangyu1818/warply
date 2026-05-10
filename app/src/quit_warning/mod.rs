@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use settings::ToggleableSetting as _;
 use std::fmt::Write;
 use warpui::{
     modals::{AlertDialogWithCallbacks, AppModalCallback, ModalButton},
@@ -9,12 +8,9 @@ use warpui::{
 use crate::{
     code::editor_management::{CodeEditorStatus, CodeEditorSummary},
     pane_group::{CodePane, PaneGroup, PaneId, TerminalPane},
-    report_if_error, send_telemetry_from_app_ctx,
-    server::telemetry::CloseTarget,
     session_management::{RunningSessionSummary, SessionNavigationData},
     terminal::general_settings::GeneralSettings,
     workspace::Workspace,
-    TelemetryEvent,
 };
 
 /// Scope of what's being quit/closed.
@@ -33,7 +29,7 @@ enum QuitScope<'a> {
     EditorTab {
         file_name: Option<String>,
         editor_status: Vec<CodeEditorStatus>,
-    }, // TODO: Include the "log out" confirmation modal too.
+    },
 }
 
 /// Summary of unsaved data and running processes to show the user before they quit.
@@ -50,8 +46,6 @@ pub struct UnsavedStateSummary<'a> {
     /// All terminal sessions in this scope.
     terminal_sessions: Vec<SessionNavigationData>,
 
-    /// The number of live shared sessions.
-    pub shared_sessions: usize,
     /// Whether or not there are unsaved code changes.
     unsaved_code_changes: bool,
 }
@@ -159,47 +153,6 @@ impl QuitScope<'_> {
             Self::EditorTab { .. } => vec![],
         }
     }
-
-    /// Count of shared sessions in this scope.
-    fn shared_sessions(&self, ctx: &AppContext) -> usize {
-        match self {
-            Self::Pane {
-                pane_group,
-                pane_id,
-                ..
-            } => pane_group
-                .terminal_view_from_pane_id(*pane_id, ctx)
-                .filter(|view| view.as_ref(ctx).is_sharing_session())
-                .into_iter()
-                .count(),
-            Self::Tabs(ref tabs) => tabs
-                .iter()
-                .filter_map(|tab| tab.upgrade(ctx))
-                .map(|tab| tab.as_ref(ctx).number_of_shared_sessions(ctx))
-                .sum(),
-            Self::Window(window_id) => ctx
-                .views_of_type::<PaneGroup>(*window_id)
-                .map(|views| {
-                    views
-                        .into_iter()
-                        .map(|view| view.as_ref(ctx).number_of_shared_sessions(ctx))
-                        .sum()
-                })
-                .unwrap_or_default(),
-            Self::App => crate::session_management::num_shared_sessions(ctx),
-            Self::EditorTab { .. } => 0,
-        }
-    }
-
-    fn close_target(&self) -> CloseTarget {
-        match self {
-            Self::Pane { .. } => CloseTarget::Pane,
-            Self::Tabs(_) => CloseTarget::Tab,
-            Self::Window(_) => CloseTarget::Window,
-            Self::App => CloseTarget::App,
-            Self::EditorTab { .. } => CloseTarget::EditorTab,
-        }
-    }
 }
 
 impl UnsavedStateSummary<'static> {
@@ -258,15 +211,12 @@ impl<'a> UnsavedStateSummary<'a> {
         let code_review_views = scope.code_review_views(ctx);
         let code_review_summary = CodeEditorSummary::new(&code_review_views);
 
-        let num_shared_sessions = scope.shared_sessions(ctx);
-
         UnsavedStateSummary {
             scope,
             total_long_running_commands: sessions_summary.long_running_cmds.len(),
             windows_with_long_running_commands: sessions_summary.windows_running().len(),
             tabs_with_long_running_commands: sessions_summary.tabs_running().len(),
             terminal_sessions: sessions,
-            shared_sessions: num_shared_sessions,
             unsaved_code_changes: !code_editor_summary.unsaved_changes.is_empty()
                 || !code_review_summary.unsaved_changes.is_empty(),
         }
@@ -274,9 +224,7 @@ impl<'a> UnsavedStateSummary<'a> {
 
     pub fn should_display_warning(&self, ctx: &AppContext) -> bool {
         *GeneralSettings::as_ref(ctx).show_warning_before_quitting
-            && (self.total_long_running_commands > 0
-                || self.shared_sessions > 0
-                || self.unsaved_code_changes)
+            && (self.total_long_running_commands > 0 || self.unsaved_code_changes)
     }
 
     pub fn running_sessions(&self) -> RunningSessionSummary<'_> {
@@ -320,14 +268,6 @@ impl<'a> UnsavedStateSummary<'a> {
             }
             process_info_text.push_str(scope_suffix);
             info_text_lines.push(process_info_text);
-        }
-
-        if self.shared_sessions > 0 {
-            info_text_lines.push(format!(
-                "You are sharing {} {}{scope_suffix}",
-                self.shared_sessions,
-                pluralize(self.shared_sessions, "session", "sessions")
-            ));
         }
 
         if self.unsaved_code_changes {
@@ -450,15 +390,6 @@ impl<'a> QuitWarningDialog<'a> {
     /// Show the quit warning dialog. This returns `true` if the dialog was shown, and `false` if
     /// the current platform doesn't support showing a modal.
     pub fn show(self, ctx: &mut AppContext) -> bool {
-        send_telemetry_from_app_ctx!(
-            TelemetryEvent::QuitModalShown {
-                running_processes: self.state.total_long_running_commands as u32,
-                shared_sessions: self.state.shared_sessions as u32,
-                modal_for: self.state.scope.close_target()
-            },
-            ctx
-        );
-
         let session_summary = self.state.running_sessions();
         let dialog = self.build();
         // We don't support showing a modal on all platforms.
@@ -503,10 +434,5 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
 
 /// Callback to disable the quit warning modal.
 fn on_disable_warning_modal(ctx: &mut AppContext) {
-    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-        report_if_error!(general_settings
-            .show_warning_before_quitting
-            .toggle_and_save_value(ctx));
-    });
-    send_telemetry_from_app_ctx!(TelemetryEvent::QuitModalDisabled, ctx);
+    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
 }

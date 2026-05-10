@@ -1,37 +1,22 @@
-use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::{
-    AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, UserQueryMode,
-};
-use crate::ai::ambient_agents::AmbientAgentTaskId;
-use chrono::Local;
-use parking_lot::FairMutex;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::pin::pin;
 use std::rc::Rc;
-use std::str::FromStr;
-use std::sync::Arc;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
-use warpui::{
-    notification::UserNotification, platform::WindowStyle, Presenter, WindowInvalidation,
-};
-use warpui::{App, ReadModel};
+use warpui::App;
+use warpui::{notification::UserNotification, Presenter, WindowInvalidation};
 
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
 use crate::ai::blocklist::{
-    agent_view::AgentViewEntryOrigin, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-    InputConfig, InputType, ResponseStreamId,
+    agent_view::AgentViewEntryOrigin, BlocklistAIHistoryModel, InputConfig, InputType,
 };
-use crate::ai::llms::LLMId;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::features::FeatureFlag;
 use crate::pane_group::focus_state::PaneGroupFocusState;
-use crate::pane_group::{pane::PaneStack, BackingView, TerminalPaneId};
-use crate::server::server_api::ai::SpawnAgentRequest;
+use crate::pane_group::{BackingView, TerminalPaneId};
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::{AISettings, AppEditorSettings, WarpPromptSeparator};
 use crate::terminal::alt_screen::should_intercept_mouse;
@@ -52,169 +37,15 @@ use crate::terminal::model::blocks::{insert_block, TotalIndex};
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
-use crate::terminal::view::ambient_agent::AmbientAgentViewModelEvent;
 use crate::terminal::CLIAgent;
 
-use crate::terminal::{MockTerminalManager, TerminalManager, TerminalModel};
+use crate::terminal::{MockTerminalManager, TerminalModel};
 use crate::test_util::terminal::add_window_with_id_and_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 use crate::test_util::{add_window_with_terminal, assert_eventually};
 use crate::view_components::find::FindWithinBlockState;
-use crate::workspace::ToastStack;
 
 use super::*;
-
-fn add_window_with_cloud_mode_terminal(app: &mut App) -> ViewHandle<TerminalView> {
-    let tips_model = app.add_model(|_| Default::default());
-    let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-        TerminalView::new_for_test_with_cloud_mode(tips_model, None, true, ctx)
-    });
-    terminal
-}
-
-fn has_pending_user_query_block(view: &TerminalView) -> bool {
-    let Some(view_id) = view.pending_user_query_view_id else {
-        return false;
-    };
-    view.rich_content_views.iter().any(|rich_content| {
-        rich_content.view_id() == view_id && rich_content.is_pending_user_query()
-    })
-}
-
-fn exchange_with_inputs(inputs: Vec<AIAgentInput>) -> AIAgentExchange {
-    AIAgentExchange {
-        id: AIAgentExchangeId::new(),
-        input: inputs,
-        output_status: AIAgentOutputStatus::Streaming { output: None },
-        added_message_ids: HashSet::new(),
-        start_time: Local::now(),
-        finish_time: None,
-        time_to_first_token_ms: None,
-        working_directory: None,
-        model_id: LLMId::from("test-model"),
-        request_cost: None,
-        coding_model_id: LLMId::from("test-coding-model"),
-        cli_agent_model_id: LLMId::from("test-cli-agent-model"),
-        computer_use_model_id: LLMId::from("test-computer-use-model"),
-        response_initiator: None,
-    }
-}
-
-fn append_exchange_and_handle_event(
-    view: &mut TerminalView,
-    input: AIAgentInput,
-    ctx: &mut ViewContext<TerminalView>,
-) -> (
-    AIConversationId,
-    TaskId,
-    AIAgentExchangeId,
-    ResponseStreamId,
-) {
-    append_exchange_with_inputs_and_handle_event(view, vec![input], ctx)
-}
-
-fn append_exchange_with_inputs_and_handle_event(
-    view: &mut TerminalView,
-    inputs: Vec<AIAgentInput>,
-    ctx: &mut ViewContext<TerminalView>,
-) -> (
-    AIConversationId,
-    TaskId,
-    AIAgentExchangeId,
-    ResponseStreamId,
-) {
-    let history_model = BlocklistAIHistoryModel::handle(ctx);
-    let (conversation_id, task_id, exchange_id, response_stream_id) =
-        history_model.update(ctx, |history_model, ctx| {
-            let conversation_id =
-                history_model.start_new_conversation(view.view_id, false, false, ctx);
-            let task_id = history_model
-                .conversation(&conversation_id)
-                .expect("conversation should exist")
-                .get_root_task_id()
-                .clone();
-            let response_stream_id = ResponseStreamId::new_for_test();
-            let exchange = exchange_with_inputs(inputs);
-            let exchange_id = exchange.id;
-            history_model
-                .conversation_mut(&conversation_id)
-                .expect("conversation should exist")
-                .append_reassigned_exchange(&response_stream_id, exchange, view.view_id, ctx)
-                .expect("exchange should append");
-            (conversation_id, task_id, exchange_id, response_stream_id)
-        });
-
-    view.handle_ai_history_model_event(
-        history_model,
-        &BlocklistAIHistoryEvent::AppendedExchange {
-            exchange_id,
-            task_id: task_id.clone(),
-            terminal_view_id: view.view_id,
-            conversation_id,
-            is_hidden: false,
-            response_stream_id: Some(response_stream_id.clone()),
-        },
-        ctx,
-    );
-    (conversation_id, task_id, exchange_id, response_stream_id)
-}
-
-fn update_exchange_input_and_handle_event(
-    view: &mut TerminalView,
-    conversation_id: AIConversationId,
-    exchange_id: AIAgentExchangeId,
-    response_stream_id: ResponseStreamId,
-    inputs: Vec<AIAgentInput>,
-    ctx: &mut ViewContext<TerminalView>,
-) {
-    let history_model = BlocklistAIHistoryModel::handle(ctx);
-    history_model.update(ctx, |history_model, ctx| {
-        let conversation = history_model
-            .conversation_mut(&conversation_id)
-            .expect("conversation should exist");
-        let mut exchange = conversation
-            .remove_exchange(exchange_id)
-            .expect("exchange should exist");
-        exchange.input = inputs;
-        conversation
-            .append_reassigned_exchange(&response_stream_id, exchange, view.view_id, ctx)
-            .expect("exchange should append");
-    });
-
-    view.handle_ai_history_model_event(
-        history_model,
-        &BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-            exchange_id,
-            terminal_view_id: view.view_id,
-            conversation_id,
-            is_hidden: false,
-        },
-        ctx,
-    );
-}
-
-struct TestTerminalManager {
-    model: Arc<FairMutex<TerminalModel>>,
-    view: ViewHandle<TerminalView>,
-}
-
-impl TerminalManager for TestTerminalManager {
-    fn model(&self) -> Arc<FairMutex<TerminalModel>> {
-        self.model.clone()
-    }
-
-    fn view(&self) -> ViewHandle<TerminalView> {
-        self.view.clone()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
 
 /// Test to verify that blocks created through normal execution
 /// have the correct local status set
@@ -334,9 +165,7 @@ fn submit_cli_agent_rich_input_restores_unlocked_input_config() {
                         should_auto_toggle_input: false,
                         listener: None,
                         remote_host: None,
-                        plugin_version: None,
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -399,9 +228,7 @@ fn unregister_cli_agent_session_restores_unlocked_input_config() {
                         should_auto_toggle_input: false,
                         listener: None,
                         remote_host: None,
-                        plugin_version: None,
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -439,7 +266,7 @@ fn unregister_cli_agent_session_restores_unlocked_input_config() {
 fn clear_buffer_action_in_fullscreen_agent_view_starts_new_conversation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -490,68 +317,6 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
 }
 
 #[test]
-fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
-
-        let parent_terminal = add_window_with_terminal(&mut app, None);
-        let cloud_terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        let parent_view = parent_terminal.clone();
-        let cloud_view = cloud_terminal.clone();
-        let parent_model = parent_terminal.read(&app, |view, _| view.model.clone());
-        let cloud_model = cloud_terminal.read(&app, |view, _| view.model.clone());
-        let pane_stack = app.update(move |ctx| {
-            let parent_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: parent_model,
-                    view: parent_view.clone(),
-                });
-                manager
-            });
-            let cloud_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: cloud_model,
-                    view: cloud_view.clone(),
-                });
-                manager
-            });
-            let pane_stack = ctx.add_model(|ctx| PaneStack::new(parent_manager, parent_view, ctx));
-            pane_stack.update(ctx, |stack, ctx| {
-                stack.push(cloud_manager, cloud_view, ctx);
-            });
-            pane_stack
-        });
-
-        cloud_terminal.update(&mut app, |view, ctx| {
-            view.enter_agent_view_for_new_conversation(None, AgentViewEntryOrigin::CloudAgent, ctx);
-            view.model
-                .lock()
-                .simulate_long_running_block("sleep 10", "running");
-
-            assert!(view.can_pop_nested_cloud_agent_view(ctx));
-            assert_eq!(view.can_exit_agent_view_for_terminal_view(ctx), Ok(()));
-        });
-
-        assert_eq!(
-            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
-            cloud_terminal.id()
-        );
-
-        cloud_terminal.update(&mut app, |view, ctx| {
-            view.handle_input_event(&InputEvent::Escape, ctx);
-        });
-
-        assert_eq!(
-            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
-            parent_terminal.id()
-        );
-    })
-}
-
-#[test]
 fn escape_does_not_exit_local_agent_view_with_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -581,280 +346,6 @@ fn escape_does_not_exit_local_agent_view_with_long_running_command() {
             assert!(view.agent_view_controller().as_ref(ctx).is_active());
         });
     })
-}
-
-#[test]
-fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(ImportedConfigModel::new);
-        FeatureFlag::AgentView.set_enabled(true);
-        FeatureFlag::CloudMode.set_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let nested_terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.read(&app, |view, ctx| {
-            assert!(view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
-        });
-
-        let root_view = terminal.clone();
-        let nested_view = nested_terminal.clone();
-        let root_model = terminal.read(&app, |view, _| view.model.clone());
-        let nested_model = nested_terminal.read(&app, |view, _| view.model.clone());
-        let _pane_stack = app.update(move |ctx| {
-            let root_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: root_model,
-                    view: root_view.clone(),
-                });
-                manager
-            });
-            let nested_manager = ctx.add_model(|_| {
-                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
-                    model: nested_model,
-                    view: nested_view.clone(),
-                });
-                manager
-            });
-            let pane_stack = ctx.add_model(|ctx| PaneStack::new(root_manager, root_view, ctx));
-            pane_stack.update(ctx, |stack, ctx| {
-                stack.push(nested_manager, nested_view, ctx);
-            });
-            pane_stack
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert!(view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
-        });
-
-        nested_terminal.read(&app, |view, ctx| {
-            assert!(!view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
-        });
-    });
-}
-
-#[test]
-fn set_input_mode_agent_does_not_enter_local_agent_from_root_cloud_mode_pane() {
-    use crate::terminal::shared_session::SharedSessionStatus;
-
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
-        FeatureFlag::CloudMode.set_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.enter_setup(ctx);
-                });
-            view.model
-                .lock()
-                .set_shared_session_status(SharedSessionStatus::FinishedViewer);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-            view.handle_action(&TerminalAction::SetInputModeAgent, ctx);
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-        });
-    });
-}
-
-#[test]
-fn pending_cloud_followup_without_ambient_model_restores_prompt() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        app.add_singleton_model(|_| ToastStack);
-        let _flag = FeatureFlag::HandoffCloudCloud.override_enabled(true);
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")
-            .expect("valid task id");
-
-        terminal.update(&mut app, |view, ctx| {
-            view.pending_cloud_followup_task_id = Some(task_id);
-
-            assert!(view.try_submit_pending_cloud_followup("follow up".to_string(), ctx));
-        });
-
-        terminal.read(&app, |view, ctx| {
-            assert_eq!(view.pending_cloud_followup_task_id, None);
-            assert_eq!(view.input.as_ref(ctx).buffer_text(ctx), "follow up");
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_dispatched_agent_inserts_queued_user_query() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
-        let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.spawn_agent_with_request(
-                        SpawnAgentRequest {
-                            prompt: "write the tests".to_string(),
-                            mode: UserQueryMode::Normal,
-                            config: None,
-                            title: None,
-                            team: None,
-                            skill: None,
-                            attachments: vec![],
-                            interactive: None,
-                            parent_run_id: None,
-                            runtime_skills: vec![],
-                            referenced_attachments: vec![],
-                            conversation_id: None,
-                            initial_snapshot_token: None,
-                        },
-                        ctx,
-                    );
-                });
-            view.handle_ambient_agent_event(&AmbientAgentViewModelEvent::DispatchedAgent, ctx);
-
-            assert!(has_pending_user_query_block(view));
-        });
-    });
-}
-
-#[test]
-fn cloud_mode_followup_dispatched_inserts_queued_user_query() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-        let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
-        let _handoff = FeatureFlag::HandoffCloudCloud.override_enabled(true);
-        let _setup_v2 = FeatureFlag::CloudModeSetupV2.override_enabled(true);
-
-        let terminal = add_window_with_cloud_mode_terminal(&mut app);
-        let task_id = AmbientAgentTaskId::from_str("123e4567-e89b-12d3-a456-426614174000")
-            .expect("valid task id");
-
-        terminal.update(&mut app, |view, ctx| {
-            view.ambient_agent_view_model()
-                .expect("cloud mode terminal should have ambient model")
-                .update(ctx, |model, ctx| {
-                    model.enter_viewing_existing_session(task_id, ctx);
-                    model.submit_cloud_followup("follow up".to_string(), ctx);
-                });
-            view.handle_ambient_agent_event(&AmbientAgentViewModelEvent::FollowupDispatched, ctx);
-
-            assert!(has_pending_user_query_block(view));
-        });
-    });
-}
-
-#[test]
-fn pending_cloud_mode_query_waits_for_renderable_user_query_exchange() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.insert_cloud_mode_queued_user_query_block("queued prompt".to_string(), ctx);
-            assert!(has_pending_user_query_block(view));
-
-            append_exchange_and_handle_event(
-                view,
-                AIAgentInput::ResumeConversation {
-                    context: Default::default(),
-                },
-                ctx,
-            );
-            assert!(has_pending_user_query_block(view));
-
-            append_exchange_and_handle_event(
-                view,
-                AIAgentInput::UserQuery {
-                    query: "real prompt".to_string(),
-                    context: Default::default(),
-                    static_query_type: None,
-                    referenced_attachments: Default::default(),
-                    user_query_mode: UserQueryMode::default(),
-                    running_command: None,
-                    intended_agent: None,
-                },
-                ctx,
-            );
-            assert!(!has_pending_user_query_block(view));
-        });
-    });
-}
-
-#[test]
-fn pending_cloud_mode_query_clears_when_streaming_exchange_becomes_renderable() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            view.insert_cloud_mode_queued_user_query_block(
-                "write a poem about rocks".to_string(),
-                ctx,
-            );
-            assert!(has_pending_user_query_block(view));
-
-            let (conversation_id, _, exchange_id, response_stream_id) =
-                append_exchange_with_inputs_and_handle_event(view, vec![], ctx);
-            assert!(has_pending_user_query_block(view));
-
-            update_exchange_input_and_handle_event(
-                view,
-                conversation_id,
-                exchange_id,
-                response_stream_id,
-                vec![AIAgentInput::UserQuery {
-                    query: "write a poem about rocks".to_string(),
-                    context: Default::default(),
-                    static_query_type: None,
-                    referenced_attachments: Default::default(),
-                    user_query_mode: UserQueryMode::Normal,
-                    running_command: None,
-                    intended_agent: None,
-                }],
-                ctx,
-            );
-            assert!(!has_pending_user_query_block(view));
-
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .expect("conversation should exist");
-            let initial_user_query = conversation.initial_user_query();
-            let exchange = conversation
-                .exchange_with_id(exchange_id)
-                .expect("exchange should exist");
-            assert_eq!(
-                exchange.input[0]
-                    .display_user_query(initial_user_query.as_ref())
-                    .as_deref(),
-                Some("/agent write a poem about rocks")
-            );
-        });
-    });
 }
 
 /// Test clearing of session flag state when terminal is cleared
@@ -3334,7 +2825,7 @@ fn test_prompt_context_menu_items_for_agent_toolbelt_flag() {
 fn agent_footer_updates_chip_groups_when_side_assignment_changes() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3515,7 +3006,7 @@ fn test_scroll_position_doesnt_change_when_block_finished() {
 fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3576,7 +3067,7 @@ fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
 fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3658,7 +3149,7 @@ fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_runnin
 fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_setting_disabled() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             let _ = settings
                 .should_render_use_agent_footer_for_user_commands
@@ -3739,32 +3230,6 @@ fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_s
 }
 
 #[test]
-fn test_first_onboarding_block_exists() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        // Testing the onboarding sequence with Settings Import disabled.
-        FeatureFlag::SettingsImport.set_enabled(false);
-        terminal.update(&mut app, |terminal_view, ctx| {
-            terminal_view.handle_action(
-                &TerminalAction::OnboardingFlow(OnboardingVersion::Legacy),
-                ctx,
-            );
-        });
-        terminal.update(&mut app, |terminal_view, ctx| {
-            assert!(terminal_view.block_onboarding_active);
-            // Here we assert that Agentic Suggestions block is the first one. As we modify the sequence, this test will have to be updated.
-            ctx.subscribe_to_model(&History::handle(ctx), move |me, _, event, _| match event {
-                HistoryEvent::Initialized(_) => {
-                    assert!(me.onboarding_agentic_suggestions_block.is_some());
-                }
-            });
-        });
-    })
-}
-
-#[test]
 fn exiting_agent_view_removes_empty_conversations() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -3811,7 +3276,7 @@ fn exiting_agent_view_removes_empty_conversations() {
 fn ctrl_c_exit_agent_view_requires_confirmation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3859,7 +3324,7 @@ fn ctrl_c_exit_agent_view_requires_confirmation() {
 fn ctrl_c_buffer_clear_then_exit_requires_three_presses_in_agent_view() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3917,7 +3382,7 @@ fn ctrl_c_buffer_clear_then_exit_requires_three_presses_in_agent_view() {
 fn terminal_action_ctrl_c_exit_agent_view_requires_confirmation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3979,9 +3444,7 @@ fn submit_rich_input_and_collect_pty_writes(
                     should_auto_toggle_input: false,
                     listener: None,
                     remote_host: None,
-                    plugin_version: None,
                     draft_text: None,
-                    custom_command_prefix: None,
                 },
                 ctx,
             );
@@ -4017,9 +3480,7 @@ fn open_cli_agent_rich_input_for_agent_with_window_id(
                     should_auto_toggle_input: false,
                     listener: None,
                     remote_host: None,
-                    plugin_version: None,
                     draft_text: None,
-                    custom_command_prefix: None,
                 },
                 ctx,
             );
@@ -4235,9 +3696,7 @@ fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
                         should_auto_toggle_input: false,
                         listener: None,
                         remote_host: None,
-                        plugin_version: None,
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4301,9 +3760,7 @@ fn submit_without_auto_dismiss_keeps_rich_input_open() {
                         should_auto_toggle_input: false,
                         listener: None,
                         remote_host: None,
-                        plugin_version: None,
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4363,9 +3820,7 @@ fn submit_with_plugin_and_auto_toggle_keeps_rich_input_open() {
                         should_auto_toggle_input: true,
                         listener: Some(listener),
                         remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4417,9 +3872,7 @@ fn submit_with_plugin_but_auto_toggle_off_respects_auto_dismiss() {
                         should_auto_toggle_input: true,
                         listener: Some(listener),
                         remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4471,9 +3924,7 @@ fn status_blocked_auto_closes_rich_input() {
                         should_auto_toggle_input: true,
                         listener: Some(listener),
                         remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4546,9 +3997,7 @@ fn status_in_progress_auto_opens_rich_input_after_blocked() {
                         should_auto_toggle_input: true,
                         listener: Some(listener),
                         remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -4608,235 +4057,6 @@ fn status_in_progress_auto_opens_rich_input_after_blocked() {
 }
 
 #[test]
-fn cli_session_status_updates_active_child_conversation() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
-            let parent_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, ctx)
-                });
-            let child_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_child_conversation(
-                        view.view_id,
-                        "Agent 2".to_string(),
-                        parent_conversation_id,
-                        ctx,
-                    )
-                });
-
-            view.enter_agent_view(
-                None,
-                Some(child_conversation_id),
-                AgentViewEntryOrigin::ChildAgent,
-                ctx,
-            );
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        custom_command_prefix: None,
-                    },
-                    ctx,
-                );
-            });
-
-            child_conversation_id
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionRequest,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            summary: Some("Approve?".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(
-                conversation.status(),
-                &ConversationStatus::Blocked {
-                    blocked_action: "Approve?".to_string(),
-                }
-            );
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::PermissionReplied,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload::default(),
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::Stop,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            response: Some("Done".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::Success);
-        });
-    })
-}
-
-#[test]
-fn cli_session_status_updates_single_child_conversation_without_agent_view() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        let child_conversation_id = terminal.update(&mut app, |view, ctx| {
-            let parent_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_conversation(view.view_id, false, false, ctx)
-                });
-            let child_conversation_id =
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                    history_model.start_new_child_conversation(
-                        view.view_id,
-                        "Agent 2".to_string(),
-                        parent_conversation_id,
-                        ctx,
-                    )
-                });
-
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.set_session(
-                    view.view_id,
-                    CLIAgentSession {
-                        agent: CLIAgent::Claude,
-                        status: CLIAgentSessionStatus::InProgress,
-                        session_context: CLIAgentSessionContext::default(),
-                        input_state: CLIAgentInputState::Closed,
-                        should_auto_toggle_input: false,
-                        listener: None,
-                        remote_host: None,
-                        plugin_version: None,
-                        draft_text: None,
-                        custom_command_prefix: None,
-                    },
-                    ctx,
-                );
-            });
-
-            child_conversation_id
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::InProgress);
-        });
-
-        terminal.update(&mut app, |view, ctx| {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.update_from_event(
-                    view.view_id,
-                    &CLIAgentEvent {
-                        v: 1,
-                        agent: CLIAgent::Claude,
-                        event: CLIAgentEventType::Stop,
-                        session_id: None,
-                        cwd: None,
-                        project: None,
-                        payload: CLIAgentEventPayload {
-                            response: Some("Done".to_owned()),
-                            ..Default::default()
-                        },
-                    },
-                    ctx,
-                );
-            });
-        });
-
-        terminal.read(&app, |_view, ctx| {
-            let conversation = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .expect("child conversation should exist");
-            assert_eq!(conversation.status(), &ConversationStatus::Success);
-        });
-    })
-}
-
-#[test]
 fn manual_dismiss_disables_auto_toggle_for_session() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -4865,9 +4085,7 @@ fn manual_dismiss_disables_auto_toggle_for_session() {
                         should_auto_toggle_input: true,
                         listener: Some(listener),
                         remote_host: None,
-                        plugin_version: Some("1.0.0".to_owned()),
                         draft_text: None,
-                        custom_command_prefix: None,
                     },
                     ctx,
                 );
@@ -5071,7 +4289,7 @@ fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
         });
 
         terminal.update(&mut app, |view, ctx| {
-            view.on_legacy_prompt_suggestion_generated(
+            view.on_terminal_prompt_suggestion_generated(
                 AgentModePromptSuggestion::Success(PromptSuggestion {
                     id: "suggestion".to_owned(),
                     label: Some("Do something".to_owned()),
@@ -5113,7 +4331,7 @@ fn linear_deeplink_populates_input_as_draft_when_not_in_agent_view() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -5159,7 +4377,7 @@ fn linear_deeplink_does_not_auto_submit_when_already_in_agent_view() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -5239,7 +4457,7 @@ fn linear_deeplink_via_default_entrypoint_does_not_auto_submit_in_fullscreen() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        FeatureFlag::AgentView.set_enabled(true);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 

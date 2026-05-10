@@ -11,8 +11,8 @@ use crate::test::integration_testing::terminal::{
     clear_blocklist_to_remove_bootstrapped_blocks, hover_over_block_zero,
 };
 use crate::test::new_step_with_default_assertions;
-use crate::test::toggle_setting;
 use crate::test::TestStep;
+use settings::Setting;
 use warp::cmd_or_ctrl_shift;
 use warp::integration_testing::terminal::util::current_shell_starter_and_version;
 use warp::integration_testing::terminal::{
@@ -21,17 +21,31 @@ use warp::integration_testing::terminal::{
 };
 use warp::integration_testing::view_getters::single_terminal_view_for_tab;
 
-use warp::settings_view::PrivacyPageAction;
-use warp::settings_view::SettingsAction;
 use warp::terminal::model::index::Point;
 use warp::terminal::model::terminal_model::{BlockIndex, WithinBlock, WithinModel};
+use warp::terminal::safe_mode_settings::{SafeModeSettings, SecretDisplayMode};
 use warp::terminal::shell::ShellType;
 use warp::terminal::GridType;
-use warpui::{async_assert, async_assert_eq};
+use warpui::{async_assert, async_assert_eq, SingletonEntity};
 
 use crate::Builder;
 
 use super::new_builder;
+
+fn enable_secret_redaction_in_blocks() -> TestStep {
+    TestStep::new("Enable secret redaction in blocks").with_action(move |app, _, _| {
+        SafeModeSettings::handle(app).update(app, |settings, ctx| {
+            settings
+                .safe_mode_enabled
+                .set_value(true, ctx)
+                .expect("could not enable secret redaction");
+            settings
+                .secret_display_mode
+                .set_value(SecretDisplayMode::Asterisks, ctx)
+                .expect("could not enable block list secret redaction");
+        });
+    })
+}
 
 // TODO(CORE-2721): Block count / index Failed b/c of in-band generators
 pub fn test_block_filtering_keybinding() -> Builder {
@@ -277,12 +291,7 @@ pub fn test_block_filtering_with_secrets() -> Builder {
         .with_step(initialize_secret_regexes())
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(clear_blocklist_to_remove_bootstrapped_blocks())
-        .with_step(toggle_setting(SettingsAction::PrivacyPageToggle(
-            PrivacyPageAction::ToggleSafeMode,
-        )))
-        .with_step(toggle_setting(SettingsAction::PrivacyPageToggle(
-            PrivacyPageAction::ToggleHideSecretsInBlockList,
-        )))
+        .with_step(enable_secret_redaction_in_blocks())
         .with_step(SecretTestCase::execute_command())
         .with_step(open_block_filter_editor())
         .with_step(SecretTestCase::perform_filter_query())

@@ -1,10 +1,9 @@
 use ai::agent::action_result::AIAgentActionResultType;
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, ModelContext};
 
 use crate::ai::agent::{AIAgentActionType, UseComputerResult};
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct UseComputerExecutor;
 
@@ -55,14 +54,6 @@ impl UseComputerExecutor {
             },
             |res, _ctx| AIAgentActionResultType::UseComputer(res),
         )
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _input: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

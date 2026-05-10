@@ -12,7 +12,7 @@ use crate::test_util::settings::initialize_settings_for_tests;
 fn initialize_app_for_ai_document_tests(app: &mut App) {
     initialize_settings_for_tests(app);
     app.add_singleton_model(|_| Appearance::mock());
-    app.add_singleton_model(|_| CloudModel::new(None, Vec::new(), None));
+    app.add_singleton_model(|_| CloudModel::new(None, Vec::new()));
 }
 
 #[test]

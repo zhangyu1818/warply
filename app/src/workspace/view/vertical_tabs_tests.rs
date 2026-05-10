@@ -53,7 +53,9 @@ fn summary_pane_kind_icons_pick_two_oldest_distinct_pane_kinds() {
             (EntityId::from_usize(20), code_summary_kind("main.rs")),
             (
                 EntityId::from_usize(40),
-                SummaryPaneKind::Notebook { is_plan: false },
+                SummaryPaneKind::Workflow {
+                    is_ai_prompt: false,
+                },
             ),
             (EntityId::from_usize(10), SummaryPaneKind::Terminal),
         ]),
@@ -87,53 +89,14 @@ fn summary_pane_kind_icons_distinguish_agent_terminals_from_plain_terminals() {
                 EntityId::from_usize(20),
                 SummaryPaneKind::CLIAgent {
                     agent: CLIAgent::Claude,
-                    is_ambient: false,
                 },
             ),
-            (
-                EntityId::from_usize(30),
-                SummaryPaneKind::OzAgent { is_ambient: false },
-            ),
+            (EntityId::from_usize(30), SummaryPaneKind::Agent),
         ]),
         Some(SummaryPaneKindIcons::Pair {
             primary: SummaryPaneKind::Terminal,
             secondary: SummaryPaneKind::CLIAgent {
                 agent: CLIAgent::Claude,
-                is_ambient: false,
-            },
-        })
-    );
-}
-
-#[test]
-fn summary_pane_kind_icons_distinguish_ambient_claude_from_local_claude() {
-    // A local Claude session and a cloud-mode Claude session should count as distinct kinds
-    // so they render with different icons (claude.svg vs claude_cloud.svg).
-    assert_eq!(
-        select_summary_pane_kind_icons([
-            (
-                EntityId::from_usize(10),
-                SummaryPaneKind::CLIAgent {
-                    agent: CLIAgent::Claude,
-                    is_ambient: false,
-                },
-            ),
-            (
-                EntityId::from_usize(20),
-                SummaryPaneKind::CLIAgent {
-                    agent: CLIAgent::Claude,
-                    is_ambient: true,
-                },
-            ),
-        ]),
-        Some(SummaryPaneKindIcons::Pair {
-            primary: SummaryPaneKind::CLIAgent {
-                agent: CLIAgent::Claude,
-                is_ambient: false,
-            },
-            secondary: SummaryPaneKind::CLIAgent {
-                agent: CLIAgent::Claude,
-                is_ambient: true,
             },
         })
     );
@@ -142,18 +105,18 @@ fn summary_pane_kind_icons_distinguish_ambient_claude_from_local_claude() {
 #[test]
 fn preferred_agent_tab_titles_default_to_title_like_text() {
     let agent_text = TerminalAgentText {
-        conversation_display_title: Some("Generated Oz title".to_string()),
-        conversation_latest_user_prompt: Some("Latest Oz prompt".to_string()),
+        conversation_display_title: Some("Generated Agent title".to_string()),
+        conversation_latest_user_prompt: Some("Latest Agent prompt".to_string()),
         cli_agent_title: Some("CLI summary".to_string()),
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: true,
+        is_agent: true,
         cli_agent: Some(CLIAgent::Claude),
     };
 
     assert_eq!(
         preferred_agent_tab_titles(&agent_text, AgentTabTextPreference::ConversationTitle),
         (
-            Some("Generated Oz title".to_string()),
+            Some("Generated Agent title".to_string()),
             Some("CLI summary".to_string())
         )
     );
@@ -166,7 +129,7 @@ fn preferred_agent_tab_titles_do_not_use_cli_prompt_when_disabled() {
         conversation_latest_user_prompt: None,
         cli_agent_title: None,
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: false,
+        is_agent: false,
         cli_agent: Some(CLIAgent::Claude),
     };
 
@@ -183,7 +146,7 @@ fn terminal_primary_line_uses_terminal_title_when_disabled_cli_has_only_prompt()
         conversation_latest_user_prompt: None,
         cli_agent_title: None,
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: false,
+        is_agent: false,
         cli_agent: Some(CLIAgent::Claude),
     };
     let (conversation_title, cli_title) =
@@ -212,18 +175,18 @@ fn terminal_primary_line_uses_terminal_title_when_disabled_cli_has_only_prompt()
 #[test]
 fn preferred_agent_tab_titles_use_latest_prompt_when_enabled() {
     let agent_text = TerminalAgentText {
-        conversation_display_title: Some("Generated Oz title".to_string()),
-        conversation_latest_user_prompt: Some("Latest Oz prompt".to_string()),
+        conversation_display_title: Some("Generated Agent title".to_string()),
+        conversation_latest_user_prompt: Some("Latest Agent prompt".to_string()),
         cli_agent_title: Some("CLI summary".to_string()),
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: true,
+        is_agent: true,
         cli_agent: Some(CLIAgent::Claude),
     };
 
     assert_eq!(
         preferred_agent_tab_titles(&agent_text, AgentTabTextPreference::LatestUserPrompt),
         (
-            Some("Latest Oz prompt".to_string()),
+            Some("Latest Agent prompt".to_string()),
             Some("Latest CLI prompt".to_string())
         )
     );
@@ -236,7 +199,7 @@ fn terminal_primary_line_uses_cli_prompt_when_enabled_cli_has_prompt() {
         conversation_latest_user_prompt: None,
         cli_agent_title: None,
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: false,
+        is_agent: false,
         cli_agent: Some(CLIAgent::Claude),
     };
     let (conversation_title, cli_title) =
@@ -262,7 +225,7 @@ fn terminal_primary_line_uses_cli_prompt_when_enabled_cli_is_long_running() {
         conversation_latest_user_prompt: None,
         cli_agent_title: None,
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: false,
+        is_agent: false,
         cli_agent: Some(CLIAgent::Claude),
     };
     let (conversation_title, cli_title) =
@@ -284,18 +247,18 @@ fn terminal_primary_line_uses_cli_prompt_when_enabled_cli_is_long_running() {
 #[test]
 fn preferred_agent_tab_titles_fall_back_when_preferred_text_is_missing() {
     let agent_text = TerminalAgentText {
-        conversation_display_title: Some("Generated Oz title".to_string()),
+        conversation_display_title: Some("Generated Agent title".to_string()),
         conversation_latest_user_prompt: None,
         cli_agent_title: None,
         cli_agent_latest_user_prompt: Some("Latest CLI prompt".to_string()),
-        is_oz_agent: true,
+        is_agent: true,
         cli_agent: Some(CLIAgent::Claude),
     };
 
     assert_eq!(
         preferred_agent_tab_titles(&agent_text, AgentTabTextPreference::LatestUserPrompt),
         (
-            Some("Generated Oz title".to_string()),
+            Some("Generated Agent title".to_string()),
             Some("Latest CLI prompt".to_string())
         )
     );
@@ -306,7 +269,6 @@ fn pane_type_supports_vertical_tabs_detail_sidecar(pane_type: IPaneType) -> bool
         pane_type,
         IPaneType::Terminal
             | IPaneType::Code
-            | IPaneType::Notebook
             | IPaneType::Workflow
             | IPaneType::EnvVarCollection
             | IPaneType::AIFact
@@ -336,15 +298,12 @@ fn collect_normalized_unique_summary_texts(
 }
 
 #[test]
-fn detail_sidecar_supports_terminal_code_and_warp_drive_object_panes() {
+fn detail_sidecar_supports_terminal_code_and_local_object_panes() {
     assert!(pane_type_supports_vertical_tabs_detail_sidecar(
         IPaneType::Terminal
     ));
     assert!(pane_type_supports_vertical_tabs_detail_sidecar(
         IPaneType::Code
-    ));
-    assert!(pane_type_supports_vertical_tabs_detail_sidecar(
-        IPaneType::Notebook
     ));
     assert!(pane_type_supports_vertical_tabs_detail_sidecar(
         IPaneType::Workflow
@@ -959,7 +918,7 @@ fn coalesce_summary_branch_entries_groups_by_repo_and_branch() {
 fn format_summary_primary_labels_appends_overflow_count() {
     let labels = vec![
         "Claude".to_string(),
-        "Oz".to_string(),
+        "Agent".to_string(),
         "cargo".to_string(),
         "code review".to_string(),
         "tests".to_string(),
@@ -967,7 +926,7 @@ fn format_summary_primary_labels_appends_overflow_count() {
 
     assert_eq!(
         format_summary_primary_labels(&labels, 4),
-        Some("Claude • Oz • cargo • code review + 1 more".to_string())
+        Some("Claude • Agent • cargo • code review + 1 more".to_string())
     );
     assert_eq!(summary_overflow_count(labels.len(), 4), 1);
 }
@@ -977,7 +936,7 @@ fn summary_search_fragments_include_hidden_overflow_values() {
     let summary = VerticalTabsSummaryData {
         primary_labels: vec![
             "Claude".to_string(),
-            "Oz".to_string(),
+            "Agent".to_string(),
             "cargo".to_string(),
             "code review".to_string(),
             "hidden work".to_string(),

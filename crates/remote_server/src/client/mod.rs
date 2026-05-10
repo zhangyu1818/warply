@@ -10,10 +10,10 @@ use futures::io::{AsyncRead, AsyncWrite};
 use warpui::r#async::{executor, FutureExt as _};
 
 use crate::proto::{
-    client_message, server_message, Abort, Authenticate, ClientMessage, DeleteFile, ErrorCode,
-    Initialize, InitializeResponse, LoadRepoMetadataDirectoryResponse,
-    NavigatedToDirectoryResponse, ReadFileContextRequest, ReadFileContextResponse,
-    RunCommandRequest, RunCommandResponse, ServerMessage, SessionBootstrapped, WriteFile,
+    client_message, server_message, Abort, ClientMessage, DeleteFile, ErrorCode, Initialize,
+    InitializeResponse, LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse,
+    ReadFileContextRequest, ReadFileContextResponse, RunCommandRequest, RunCommandResponse,
+    ServerMessage, SessionBootstrapped, WriteFile,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -76,7 +76,6 @@ pub enum ClientEvent {
 pub struct InitializeParams {
     pub user_id: String,
     pub user_email: String,
-    pub crash_reporting_enabled: bool,
 }
 
 /// Client for communicating with a `remote_server` process over the remote server protocol.
@@ -193,17 +192,14 @@ impl RemoteServerClient {
     /// Sends an `Initialize` request and awaits the `InitializeResponse`.
     pub async fn initialize(
         &self,
-        auth_token: Option<&str>,
         params: InitializeParams,
     ) -> Result<InitializeResponse, ClientError> {
         let request_id = RequestId::new();
         let msg = ClientMessage {
             request_id: request_id.to_string(),
             message: Some(client_message::Message::Initialize(Initialize {
-                auth_token: auth_token.unwrap_or_default().to_owned(),
                 user_id: params.user_id,
                 user_email: params.user_email,
-                crash_reporting_enabled: params.crash_reporting_enabled,
             })),
         };
 
@@ -219,32 +215,6 @@ impl RemoteServerClient {
                 Err(ClientError::UnexpectedResponse)
             }
         }
-    }
-
-    /// Sends an `Authenticate` notification to rotate the daemon-wide
-    /// credential after initialization.
-    pub fn authenticate(&self, auth_token: &str) {
-        let msg = ClientMessage {
-            request_id: String::new(),
-            message: Some(client_message::Message::Authenticate(Authenticate {
-                auth_token: auth_token.to_owned(),
-            })),
-        };
-        self.send_notification(msg);
-    }
-
-    /// Sends an `UpdatePreferences` notification when the user's privacy
-    /// settings change (e.g. toggling crash reporting).
-    pub fn update_preferences(&self, crash_reporting_enabled: bool) {
-        let msg = ClientMessage {
-            request_id: String::new(),
-            message: Some(client_message::Message::UpdatePreferences(
-                crate::proto::UpdatePreferences {
-                    crash_reporting_enabled,
-                },
-            )),
-        };
-        self.send_notification(msg);
     }
 
     /// Sends a `SessionBootstrapped` notification (fire-and-forget) so the

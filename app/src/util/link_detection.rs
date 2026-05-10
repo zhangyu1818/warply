@@ -5,7 +5,11 @@ use warpui::elements::PartialClickableElement;
 
 use warpui::platform::Cursor;
 
-use crate::ai::agent::{AIAgentActionType, AIAgentOutput, AIAgentTextSection, ReadFilesRequest};
+use crate::ai::acp::acp_tool_call_content_sections;
+use crate::ai::agent::{
+    AIAgentActionType, AIAgentOutput, AIAgentOutputMessageType, AIAgentTextSection,
+    ReadFilesRequest, SummarizationType,
+};
 use crate::ai::blocklist::block::view_impl::output::LinkActionConstructors;
 use crate::ai::blocklist::block::TextLocation;
 use crate::terminal::links::should_directly_open_link;
@@ -564,18 +568,52 @@ pub(crate) fn collect_output_data_for_link_detection(
         }
     }
 
-    // Collect output text sections and extract hyperlinks from formatted lines
-    for (section_index, section) in output
-        .all_text()
-        .flat_map(|text| text.sections.iter())
-        .enumerate()
-    {
+    let mut section_index = 0;
+    for message in &output.messages {
+        match &message.message {
+            AIAgentOutputMessageType::Text(text)
+            | AIAgentOutputMessageType::Reasoning { text, .. }
+            | AIAgentOutputMessageType::Summarization {
+                text,
+                summarization_type: SummarizationType::ConversationSummary,
+                ..
+            } if !text.sections.iter().all(AIAgentTextSection::is_empty) => {
+                collect_text_sections_for_link_detection(
+                    &text.sections,
+                    &mut section_index,
+                    &mut texts,
+                    &mut hyperlinks,
+                );
+            }
+            AIAgentOutputMessageType::AcpToolCall(tool_call) => {
+                let sections = acp_tool_call_content_sections(tool_call);
+                collect_text_sections_for_link_detection(
+                    &sections,
+                    &mut section_index,
+                    &mut texts,
+                    &mut hyperlinks,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    (texts, hyperlinks)
+}
+
+fn collect_text_sections_for_link_detection(
+    sections: &[AIAgentTextSection],
+    section_index: &mut usize,
+    texts: &mut Vec<(String, TextLocation)>,
+    hyperlinks: &mut HyperlinksByLocation,
+) {
+    for section in sections {
         match section {
             AIAgentTextSection::PlainText { text } => match &text.formatted_lines {
                 Some(formatted_lines) => {
                     for (line_index, line) in formatted_lines.lines().iter().enumerate() {
                         let location = TextLocation::Output {
-                            section_index,
+                            section_index: *section_index,
                             line_index,
                         };
                         texts.push((line.raw_text().to_owned(), location));
@@ -590,7 +628,7 @@ pub(crate) fn collect_output_data_for_link_detection(
                     texts.push((
                         text.text().to_owned(),
                         TextLocation::Output {
-                            section_index,
+                            section_index: *section_index,
                             line_index: 0,
                         },
                     ));
@@ -600,14 +638,14 @@ pub(crate) fn collect_output_data_for_link_detection(
                 texts.push((
                     image.markdown_source.clone(),
                     TextLocation::Output {
-                        section_index,
+                        section_index: *section_index,
                         line_index: 0,
                     },
                 ));
                 texts.push((
                     image.source.clone(),
                     TextLocation::Output {
-                        section_index,
+                        section_index: *section_index,
                         line_index: 1,
                     },
                 ));
@@ -616,16 +654,15 @@ pub(crate) fn collect_output_data_for_link_detection(
                 texts.push((
                     diagram.markdown_source.clone(),
                     TextLocation::Output {
-                        section_index,
+                        section_index: *section_index,
                         line_index: 0,
                     },
                 ));
             }
             AIAgentTextSection::Code { .. } | AIAgentTextSection::Table { .. } => {}
         }
+        *section_index += 1;
     }
-
-    (texts, hyperlinks)
 }
 
 /// Runs URL and file path detection on the given texts and combines with pre-extracted markdown hyperlinks.

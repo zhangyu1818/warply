@@ -139,8 +139,8 @@ pub fn base_config_dir() -> PathBuf {
 /// should be stored.
 ///
 /// This is the appropriate home for files like our sqlite database, which
-/// contains durable but non-critical and non-portable data like what windows
-/// the user had open and cached state of known Warp Drive objects.
+/// contains durable but non-critical and non-portable data like open windows
+/// and cached state of known local objects.
 pub fn state_dir() -> PathBuf {
     let Some(project_dirs) = project_dirs() else {
         return PathBuf::new();

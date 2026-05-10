@@ -1,4 +1,3 @@
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::{
@@ -9,7 +8,7 @@ use crate::ai::{
     document::ai_document_model::AIDocumentModel,
 };
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct ReadDocumentsExecutor;
 
@@ -59,14 +58,6 @@ impl ReadDocumentsExecutor {
             .collect();
 
         ActionExecution::Sync(ReadDocumentsResult::Success { documents }.into())
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _input: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

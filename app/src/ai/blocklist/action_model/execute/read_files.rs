@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
@@ -15,10 +14,7 @@ use crate::{
     terminal::model::session::{active_session::ActiveSession, SessionType},
 };
 
-use super::{
-    read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput,
-    PreprocessActionInput,
-};
+use super::{read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct ReadFilesExecutor {
     active_session: ModelHandle<ActiveSession>,
@@ -259,14 +255,6 @@ impl ReadFilesExecutor {
                 AIAgentActionResultType::ReadFiles(action_result)
             }),
         }
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _input: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

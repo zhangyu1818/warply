@@ -23,10 +23,7 @@ mod imp;
 
 pub use imp::init;
 #[cfg(not(target_family = "wasm"))]
-pub use imp::{create_log_bundle_zip, log_directory, log_file_path, rotate_log_files};
+pub use imp::{log_directory, log_file_path, rotate_log_files};
 
 #[cfg(not(target_family = "wasm"))]
-pub use imp::{
-    init_for_crash_recovery_process, init_logging_for_unit_tests, on_crash_recovery_process_killed,
-    on_parent_process_crash,
-};
+pub use imp::init_logging_for_unit_tests;

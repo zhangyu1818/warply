@@ -19,7 +19,7 @@ use crate::{
     cloud_object::model::persistence::{CloudModel, CloudModelEvent},
     debounce::debounce,
     editor::InteractionState,
-    notebooks::telemetry::BlockInfo,
+    notebooks::events::BlockInfo,
 };
 use crate::{
     notebooks::editor::interaction_state_model::InteractionStateModelEvent,
@@ -52,7 +52,7 @@ use warp_editor::{
 use warpui::elements::ListIndentLevel;
 
 use super::{
-    super::telemetry::SelectionMode as TelemetrySelectionMode, embedding_model::NotebookEmbed,
+    super::events::SelectionMode as NotebookSelectionMode, embedding_model::NotebookEmbed,
     interaction_state_model::InteractionStateModel, notebook_command::NotebookCommand,
     NotebookWorkflow,
 };
@@ -248,10 +248,6 @@ impl NotebooksEditorModel {
 
     pub fn render_state(&self) -> &ModelHandle<RenderState> {
         &self.render_state
-    }
-
-    pub fn markdown_table_count(&self, ctx: &impl ModelAsRef) -> usize {
-        self.render_state.as_ref(ctx).markdown_table_count()
     }
 
     pub fn set_interaction_state(
@@ -1313,7 +1309,7 @@ impl NotebooksEditorModel {
 
         if !had_command_selection {
             ctx.emit(RichTextEditorModelEvent::SwitchedSelectionMode {
-                new_mode: TelemetrySelectionMode::Command,
+                new_mode: NotebookSelectionMode::Command,
             });
         };
 
@@ -1407,7 +1403,7 @@ impl NotebooksEditorModel {
 
         if self.clear_command_selections(ctx) {
             ctx.emit(RichTextEditorModelEvent::SwitchedSelectionMode {
-                new_mode: TelemetrySelectionMode::Text,
+                new_mode: NotebookSelectionMode::Text,
             });
         }
 
@@ -1433,14 +1429,6 @@ impl NotebooksEditorModel {
             });
 
         had_command_selection
-    }
-
-    /// Returns true if any of the subviews store on any of the NotebookCommand models are focused
-    /// (such as the dropdown view for picking different block types)
-    pub fn any_notebook_command_submodel_focused(&self, ctx: &AppContext) -> bool {
-        self.child_models
-            .models::<NotebookCommand>(ctx)
-            .any(|command| command.is_dropdown_focused(ctx))
     }
 
     /// The currently-selected command blocks and their starting offsets.
@@ -1745,7 +1733,7 @@ pub enum RichTextEditorModelEvent {
     ContentChanged(EditOrigin),
     /// The user switched selection modes.
     SwitchedSelectionMode {
-        new_mode: TelemetrySelectionMode,
+        new_mode: NotebookSelectionMode,
     },
 }
 
@@ -2014,14 +2002,6 @@ impl ChildModels {
                 .downcast_ref::<ModelHandle<T>>()?
                 .clone(),
         )
-    }
-
-    /// Iterate over all child models of the given type.
-    pub fn models<'a, T: Entity>(
-        &'a self,
-        ctx: &'a AppContext,
-    ) -> impl Iterator<Item = &'a T> + 'a {
-        self.model_handles().map(|handle| handle.as_ref(ctx))
     }
 
     /// Iterates over all child model handles of the given type.

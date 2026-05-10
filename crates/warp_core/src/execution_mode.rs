@@ -53,45 +53,14 @@ impl AppExecutionMode {
         self.is_app()
     }
 
-    /// Whether the app can sync user preferences to the cloud. This does not gate
-    /// modifying preferences locally.
-    pub fn can_sync_preferences(&self) -> bool {
-        self.is_app()
-    }
-
     /// Whether the app can save and restore sessions.
     pub fn can_save_session(&self) -> bool {
-        self.is_app()
-    }
-
-    /// Whether the app can *automatically* update. This does not prevent manual updates.
-    pub fn can_autoupdate(&self) -> bool {
         self.is_app()
     }
 
     /// Whether the app can automatically start MCP servers from the previous session.
     pub fn can_autostart_mcp_servers(&self) -> bool {
         self.is_app()
-    }
-
-    /// Whether the app can show interactive onboarding UIs (e.g. the onboarding
-    /// callout tutorial). Onboarding requires a user to interact with it, so it
-    /// is disabled in headless modes like SDK/CLI.
-    pub fn can_show_onboarding(&self) -> bool {
-        self.is_app()
-    }
-
-    /// Whether the app can sync agent conversations (tasks and cloud conversation metadata).
-    /// In CLI mode, we don't need this data since there's no user viewing it.
-    pub fn can_fetch_agent_runs_for_management(&self) -> bool {
-        self.is_app()
-    }
-
-    /// Whether telemetry should be sent synchronously at shutdown.
-    /// In CLI mode, we synchronously send events at shutdown because there's a higher likelihood
-    /// that they will be lost otherwise.
-    pub fn send_telemetry_at_shutdown(&self) -> bool {
-        matches!(self.mode, ExecutionMode::Sdk)
     }
 
     /// If true, the app is running autonomously, without a user present.

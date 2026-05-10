@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use warp_core::ui::appearance::Appearance;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warpui::{
@@ -11,13 +10,12 @@ use crate::{
     cloud_object::model::persistence::CloudModel,
     editor::InteractionState,
     notebooks::editor::keys::NotebookKeybindings,
-    server::server_api::{team::MockTeamClient, workspace::MockWorkspaceClient},
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
     vim_registers::VimRegisters,
     workspace::{sync_inputs::SyncedInputState, ActiveSession},
     workspaces::user_workspaces::UserWorkspaces,
-    AuthStateProvider,
+    LocalIdentityProvider,
 };
 
 use super::{CodeEditorRenderOptions, CodeEditorView, CodeEditorViewAction};
@@ -31,7 +29,7 @@ fn initialize_editor(app: &mut App) -> (WindowId, ViewHandle<CodeEditorView>) {
     app.add_singleton_model(|_| SyncedInputState::mock());
     app.add_singleton_model(|_| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
 
     // Add mocks required by rich text editor (used in CommentEditor)
     app.add_singleton_model(CloudModel::mock);
@@ -39,16 +37,7 @@ fn initialize_editor(app: &mut App) -> (WindowId, ViewHandle<CodeEditorView>) {
     app.add_singleton_model(NotebookKeybindings::new);
 
     // Add UserWorkspaces mock (required by EditorView)
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![],
-            ctx,
-        )
-    });
+    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let (window, editor_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         CodeEditorView::new(

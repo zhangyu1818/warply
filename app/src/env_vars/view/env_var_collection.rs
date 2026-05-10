@@ -1,8 +1,6 @@
 use pathfinder_geometry::vector::{vec2f, Vector2F};
 
-use warp_core::features::FeatureFlag;
 use warpui::{
-    clipboard::ClipboardContent,
     elements::{
         Align, AnchorPair, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable,
         ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, EventHandler, Fill,
@@ -21,14 +19,11 @@ use warpui::{
 
 use crate::{
     ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels,
+    cloud_object::update_manager::UpdateManager,
     cloud_object::{
         breadcrumbs::ContainingObject,
         model::persistence::{CloudModel, CloudModelEvent},
         CloudObjectEventEntrypoint, Owner,
-    },
-    drive::{
-        items::WarpDriveItemId,
-        sharing::{ContentEditability, ShareableObject},
     },
     editor::EditorView,
     env_vars::{
@@ -41,16 +36,11 @@ use crate::{
     },
     external_secrets::SecretManager,
     menu::MenuItem,
-    network::{NetworkStatus, NetworkStatusEvent},
+    object_ids::SyncId,
     pane_group::{
         focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent,
     },
     search::external_secrets::view::ExternalSecretsMenu,
-    send_telemetry_from_ctx,
-    server::{
-        cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager},
-        ids::{ServerId, SyncId},
-    },
     terminal::{model::secrets::SecretLevel, safe_mode_settings::get_secret_obfuscation_mode},
     ui_components::{
         breadcrumb::{render_breadcrumbs, BreadcrumbState},
@@ -63,7 +53,7 @@ use crate::{
     util::bindings::CustomAction,
     view_components::{alert::AlertConfig, Alert, DismissibleToast, ToastType},
     workspace::ToastStack,
-    Appearance, CloudObjectTypeAndId, TelemetryEvent,
+    Appearance, CloudObjectTypeAndId,
 };
 
 use super::{command_dialog::EnvVarCommandDialog, menus::Menus};
@@ -315,7 +305,6 @@ pub struct EnvVarCollectionView {
 pub enum EnvVarCollectionEvent {
     Pane(PaneEvent),
     UpdatedEnvVarCollection(SyncId),
-    ViewInWarpDrive(WarpDriveItemId),
     Invoke(EnvVarCollectionType),
 }
 #[derive(Debug, Clone)]
@@ -331,10 +320,8 @@ pub enum EnvVarCollectionAction {
     DeleteVariable(VariableRowIndex),
     // Overflow menu actions
     Untrash,
-    CopyLink(String),
     Duplicate,
     Trash,
-    Export,
     // Secret button related actions
     SelectSecretManager(SecretManager),
     DisplayCommandDialog,
@@ -350,8 +337,6 @@ pub enum EnvVarCollectionAction {
     // Unsaved changes dialog actions
     ForceClose,
     CloseUnsavedChangesDialog,
-    // Breadcrumbs action
-    ViewInWarpDrive(WarpDriveItemId),
 }
 
 /// Defines the view for a collection of environment variables
@@ -359,8 +344,8 @@ impl ValidationError {
     /// Create validation error from detected secret level
     fn from_secret_level(secret_level: SecretLevel) -> Self {
         let message = match secret_level {
-            SecretLevel::Enterprise => "This environment variable cannot be created due to conflicts with your enterprise's secret redaction settings. Contact a team admin for details.".to_string(),
-            SecretLevel::User => "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable (in your shell config or a .env file), or update your secret redaction settings in Settings > Privacy.".to_string(),
+            SecretLevel::Enterprise => "This environment variable cannot be created due to conflicts with secret redaction settings.".to_string(),
+            SecretLevel::User => "This environment variable cannot be created due to conflicts with your secret redaction settings. Save the secret as an environment variable in your shell config or a .env file.".to_string(),
         };
         Self {
             secret_level,
@@ -509,11 +494,6 @@ impl EnvVarCollectionView {
             Self::handle_active_env_var_collection_change,
         );
 
-        ctx.subscribe_to_model(
-            &NetworkStatus::handle(ctx),
-            Self::handle_network_status_event,
-        );
-
         let title_editor = Self::create_editor_handle(
             ctx,
             Some(PLACEHOLDER_FONT_SIZE),
@@ -613,8 +593,6 @@ impl EnvVarCollectionView {
                 .cloned();
             if let Some(env_var_collection) = env_var_collection {
                 me.load(env_var_collection, ctx);
-            } else if let Some(server_id) = env_var_collection_id.into_server() {
-                me.fetch_and_load_env_var_collection(server_id, window_id, ctx);
             } else {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
@@ -624,35 +602,6 @@ impl EnvVarCollectionView {
                     );
                 });
                 log::warn!("Tried to open unknown env var collection {env_var_collection_id:?}");
-            }
-        });
-    }
-
-    fn fetch_and_load_env_var_collection(
-        &mut self,
-        env_var_collection_id: ServerId,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &env_var_collection_id,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(env_var_collection) = CloudModel::as_ref(ctx)
-                .get_env_var_collection(&SyncId::ServerId(env_var_collection_id))
-                .cloned()
-            {
-                me.load(env_var_collection, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(ToastType::CloudObjectNotFound, window_id, ctx);
-                });
-                log::warn!("Tried to open unknown env var collection {env_var_collection_id:?} after fetching");
             }
         });
     }
@@ -670,13 +619,6 @@ impl EnvVarCollectionView {
         let title = collection.title.clone().unwrap_or_default();
 
         self.set_pane_title(if title.is_empty() { "Untitled" } else { &title }, ctx);
-        if let Some(server_id) = env_var_collection.id.into_server() {
-            self.pane_configuration.update(ctx, |pane_config, ctx| {
-                pane_config
-                    .set_shareable_object(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-            });
-        }
-
         let description = collection.description.clone().unwrap_or_default();
 
         self.title_editor.update(ctx, |editor, ctx| {
@@ -965,14 +907,8 @@ impl EnvVarCollectionView {
                 self.update_breadcrumbs(ctx);
                 ctx.notify()
             }
-            ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id) => {
+            ActiveEnvVarCollectionDataEvent::Created => {
                 self.update_breadcrumbs(ctx);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(*server_id)),
-                        ctx,
-                    );
-                });
             }
             ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -1056,22 +992,6 @@ impl EnvVarCollectionView {
             .max_by_key(|error| error.secret_level.priority())
     }
 
-    pub(super) fn is_online(&self, app: &AppContext) -> bool {
-        NetworkStatus::as_ref(app).is_online()
-    }
-
-    fn handle_network_status_event(
-        &mut self,
-        _handle: ModelHandle<NetworkStatus>,
-        event: &NetworkStatusEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let NetworkStatusEvent::NetworkStatusChanged { new_status: _ } = event;
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-    }
-
     pub fn set_saving_status(&mut self, status: SavingStatus, ctx: &mut ViewContext<Self>) {
         self.active_env_var_collection_data
             .update(ctx, |data, _| data.saving_status = status);
@@ -1104,10 +1024,6 @@ impl EnvVarCollectionView {
             });
     }
 
-    fn view_in_warp_drive(&mut self, id: WarpDriveItemId, ctx: &mut ViewContext<Self>) {
-        ctx.emit(EnvVarCollectionEvent::ViewInWarpDrive(id));
-    }
-
     // This is a public re-export of close since it's a trait method
     pub(super) fn close_env_var_collection(&mut self, ctx: &mut ViewContext<Self>) {
         self.close(ctx);
@@ -1115,7 +1031,6 @@ impl EnvVarCollectionView {
 
     fn render_variable_rows(
         &self,
-        editability: ContentEditability,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Vec<Box<dyn Element>> {
@@ -1199,7 +1114,6 @@ impl EnvVarCollectionView {
                                 .clone(),
                             index,
                             variable_editor_row.rendered_secret_menu_is_focused,
-                            editability,
                         ),
                         command @ EnvVarValue::Command(_) => self.render_secret_or_command_button(
                             appearance,
@@ -1209,30 +1123,27 @@ impl EnvVarCollectionView {
                                 .clone(),
                             index,
                             variable_editor_row.rendered_command_menu_is_focused,
-                            editability,
                         ),
                     });
 
-                if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
-                    row_contents.add_child(
-                        Container::new(
-                            icon_button(
-                                appearance,
-                                Icon::MinusCircle,
-                                false,
-                                variable_editor_row.delete_row_mouse_state_handle.clone(),
-                            )
-                            .build()
-                            .on_click(move |ctx, _, _| {
-                                ctx.dispatch_typed_action(EnvVarCollectionAction::DeleteVariable(
-                                    VariableRowIndex(index),
-                                ))
-                            })
-                            .finish(),
+                row_contents.add_child(
+                    Container::new(
+                        icon_button(
+                            appearance,
+                            Icon::MinusCircle,
+                            false,
+                            variable_editor_row.delete_row_mouse_state_handle.clone(),
                         )
+                        .build()
+                        .on_click(move |ctx, _, _| {
+                            ctx.dispatch_typed_action(EnvVarCollectionAction::DeleteVariable(
+                                VariableRowIndex(index),
+                            ))
+                        })
                         .finish(),
-                    );
-                }
+                    )
+                    .finish(),
+                );
 
                 Container::new(
                     Flex::column()
@@ -1296,16 +1207,8 @@ impl View for EnvVarCollectionView {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
         let mut content = Flex::column();
-        let access_level = self
-            .active_env_var_collection_data
-            .as_ref(app)
-            .access_level(app);
-        let editability = self
-            .active_env_var_collection_data
-            .as_ref(app)
-            .editability(app);
 
-        content.extend(self.render_trash_banner(access_level, app));
+        content.extend(self.render_trash_banner(app));
 
         content.add_child(
             Align::new(
@@ -1314,11 +1217,7 @@ impl View for EnvVarCollectionView {
                         Container::new(render_breadcrumbs(
                             self.breadcrumbs.clone(),
                             appearance,
-                            |ctx, _, breadcrumb| {
-                                ctx.dispatch_typed_action(EnvVarCollectionAction::ViewInWarpDrive(
-                                    breadcrumb.kind.into_item_id(),
-                                ));
-                            },
+                            |_, _, _| {},
                         ))
                         .with_horizontal_margin(CORE_HORIZONATAL_MARGIN)
                         .with_vertical_margin(CORE_VERTICAL_MARGIN / 2.)
@@ -1344,13 +1243,11 @@ impl View for EnvVarCollectionView {
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::End)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center);
-            if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
-                buttons_row.add_child(
-                    Container::new(self.render_save_button(appearance, app))
-                        .with_margin_left(BUTTON_SPACING)
-                        .finish(),
-                )
-            }
+            buttons_row.add_child(
+                Container::new(self.render_save_button(appearance, app))
+                    .with_margin_left(BUTTON_SPACING)
+                    .finish(),
+            );
 
             content.add_child(
                 Align::new(
@@ -1383,13 +1280,13 @@ impl View for EnvVarCollectionView {
                     .finish(),
             )
             .with_child(
-                Container::new(self.render_variables_section_header(editability, appearance))
+                Container::new(self.render_variables_section_header(appearance))
                     .with_margin_bottom(SECTION_SPACING)
                     .finish(),
             )
             .with_child(
                 Flex::column()
-                    .with_children(self.render_variable_rows(editability, appearance, app))
+                    .with_children(self.render_variable_rows(appearance, app))
                     .finish(),
             );
         if let Some(error_element) = self.render_bottom_error_message(appearance) {
@@ -1499,17 +1396,8 @@ impl TypedActionView for EnvVarCollectionView {
                 self.delete_row(*index, ctx);
             }
             EnvVarCollectionAction::Untrash => self.untrash_env_var_collection(ctx),
-            EnvVarCollectionAction::CopyLink(link) => {
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::ObjectLinkCopied { link: link.clone() },
-                    ctx
-                );
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(link.to_owned()));
-            }
             EnvVarCollectionAction::Duplicate => self.duplicate_env_var_collection(ctx),
             EnvVarCollectionAction::Trash => self.trash_env_var_collection(ctx),
-            EnvVarCollectionAction::Export => self.export_env_var_collection(ctx),
             EnvVarCollectionAction::SelectSecretManager(secret_manager) => {
                 self.fetch_secret(secret_manager.clone(), ctx)
             }
@@ -1545,7 +1433,6 @@ impl TypedActionView for EnvVarCollectionView {
                 self.update_open_modal_state(ctx);
                 ctx.notify();
             }
-            EnvVarCollectionAction::ViewInWarpDrive(id) => self.view_in_warp_drive(*id, ctx),
         }
     }
 }
@@ -1591,7 +1478,7 @@ impl BackingView for EnvVarCollectionView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         let title = self.title_editor.as_ref(app).buffer_text(app);

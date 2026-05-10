@@ -23,7 +23,7 @@ use string_offset::CharOffset;
 use crate::util::color::coloru_with_opacity;
 use crate::workflows::WorkflowType;
 use crate::{
-    ai::blocklist::ai_brand_color, server::ids::SyncId, settings::InputModeSettings,
+    ai::blocklist::ai_brand_color, object_ids::SyncId, settings::InputModeSettings,
     terminal::block_list_viewport::InputMode, ui_components::icons,
     view_components::FilterableDropdownOrientation, workspace::WorkspaceAction,
 };
@@ -600,11 +600,7 @@ impl WorkflowsMoreInfoView {
                         .with_centered_text_label(NEW_ENV_VAR_BUTTON_LABEL.to_owned())
                         .build()
                         .on_click(|ctx, _, _| {
-                            // Create envvars in personal drive for max extensibility (can be moved
-                            // to any team/workspace)
-                            ctx.dispatch_typed_action(
-                                WorkspaceAction::CreatePersonalEnvVarCollection,
-                            )
+                            ctx.dispatch_typed_action(WorkspaceAction::CreateEnvVarCollection)
                         })
                         .finish(),
                 )

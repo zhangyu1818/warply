@@ -22,10 +22,10 @@ use crate::{
     cloud_object::{model::persistence::CloudModel, CloudObject},
     completer::SessionAgnosticContext,
     notebooks::{
+        events::{ActionEntrypoint, BlockInfo},
         styles::block_footer_action_button,
-        telemetry::{ActionEntrypoint, BlockInfo},
     },
-    server::ids::{HashableId, ToServerId},
+    object_ids::{HashableId, ToServerId},
     settings::FontSettings,
     terminal::input::decorations::{parse_current_commands_and_tokens, ParsedTokensSnapshot},
     themes::theme::AnsiColorIdentifier,
@@ -217,7 +217,6 @@ impl NotebookEmbed {
         let workflow_info = NotebookWorkflow::from_cloud_workflow(Box::new(workflow.clone()));
         let block_info = BlockInfo::EmbeddedWorkflow {
             workflow_id: workflow_id.into_server().map(Into::into),
-            team_uid: workflow.permissions.owner.into(),
         };
 
         let workflow_content = workflow.model().data.content().to_owned();

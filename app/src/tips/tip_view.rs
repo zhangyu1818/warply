@@ -24,9 +24,8 @@ use crate::resource_center::{Tip, TipAction, TipsCompleted};
 use crate::themes::theme::{Blend, Fill};
 use crate::util::bindings::trigger_to_keystroke;
 
-use super::WELCOME_TIP_FEATURE_LENGTH;
-
 const CHECK_MARK_WIDTH: f32 = 20.;
+const WELCOME_TIP_FEATURE_LENGTH: usize = 6;
 const TIP_VIEW_WIDTH: f32 = 250.;
 const CHECK_SVG_PATH: &str = "bundled/svg/check-skinny.svg";
 

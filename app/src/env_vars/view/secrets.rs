@@ -1,5 +1,5 @@
 use pathfinder_geometry::vector::vec2f;
-use warp_core::{features::FeatureFlag, ui::appearance::Appearance};
+use warp_core::ui::appearance::Appearance;
 #[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 use warpui::{
@@ -21,7 +21,6 @@ use super::env_var_collection::{
 };
 
 use crate::{
-    drive::sharing::ContentEditability,
     env_vars::{active_env_var_collection_data::SavingStatus, EnvVarValue},
     external_secrets::{ExternalSecretManager, SecretManager},
     search::external_secrets::{
@@ -144,7 +143,6 @@ impl EnvVarCollectionView {
         menu_button_mouse_state: MouseStateHandle,
         row_index: usize,
         is_focused: bool,
-        editability: ContentEditability,
     ) -> Box<dyn Element> {
         let (display_name, action, menu, icon) = match secret {
             EnvVarValue::Secret(sec) => (
@@ -201,16 +199,12 @@ impl EnvVarCollectionView {
             ..default_button_styles
         };
 
-        let mut button = appearance
+        let button = appearance
             .ui_builder()
             .button(ButtonVariant::Outlined, menu_button_mouse_state)
             .with_style(default_button_styles)
             .with_hovered_styles(hovered_styles)
             .with_text_and_icon_label(text_and_icon);
-
-        if FeatureFlag::SharedWithMe.is_enabled() && !editability.can_edit() {
-            button = button.disabled();
-        }
 
         let button = button
             .build()

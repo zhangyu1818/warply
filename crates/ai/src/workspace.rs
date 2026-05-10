@@ -31,7 +31,7 @@ impl WorkspaceMetadata {
         }
     }
 
-    /// The most recent time this codebase index was navigated to, queried or modified.
+    /// The most recent time this workspace was navigated to, queried or modified.
     pub fn last_touched(&self) -> Option<DateTime<Utc>> {
         let mut last_access_time: Option<DateTime<Utc>> = None;
         if let Some(nav_ts) = self.navigated_ts {

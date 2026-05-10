@@ -38,9 +38,6 @@ const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
 pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
     LazyLock::new(|| "Attach as agent context");
 
-/// Label we use for the the command palette action to create a new local Oz agent pane.
-pub static NEW_AGENT_PANE_LABEL: LazyLock<&'static str> = LazyLock::new(|| "New Agent Pane");
-
 /// Claude/Anthropic brand color (official brand orange #D97757).
 /// Reference: https://github.com/anthropics/skills/blob/main/skills/brand-guidelines/SKILL.md
 pub const CLAUDE_ORANGE: ColorU = ColorU {
@@ -58,8 +55,7 @@ pub fn ai_brand_color(theme: &WarpTheme) -> ColorU {
         .into()
 }
 
-/// Returns the color to be used for error UI throughout Agent Mode (like the "request limit
-/// exceeded" chip).
+/// Returns the color to be used for error UI throughout Agent Mode.
 pub fn error_color(theme: &WarpTheme) -> ColorU {
     AnsiColorIdentifier::Red
         .to_ansi_color(&theme.terminal_colors().normal)
@@ -149,23 +145,6 @@ pub fn get_attached_blocks_chip_element_position_id(view_id: EntityId) -> String
 /// Returns the saved position ID of the overflow menu inside the [`AIBlock`] header.
 pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> String {
     format!("aiblock:{view_id}.overflow_menu_position")
-}
-
-/// Formats credit count to display as whole numbers when the value is effectively a whole number,
-/// otherwise displays with one decimal place.
-/// Returns a formatted string with proper pluralization ("credit" vs "credits").
-pub fn format_credits(credits: f32) -> String {
-    // If the first part of the decimal is 0, we just display the whole number.
-    if credits.fract() < 0.1 {
-        let whole = credits.trunc() as i32;
-        if whole == 1 {
-            format!("{whole} credit")
-        } else {
-            format!("{whole} credits")
-        }
-    } else {
-        format!("{credits:.1} credits")
-    }
 }
 
 /// Renders a secondary button with an MCP/skill provider icon and a text label.

@@ -24,7 +24,7 @@ use crate::{
         agent::comment::CodeReview,
         document::ai_document_model::{AIDocumentId, AIDocumentVersion},
     },
-    server::datetime_ext::DateTimeExt,
+    datetime_ext::DateTimeExt,
     terminal::model::block::BlockId,
     AIAgentTodoList,
 };
@@ -102,17 +102,17 @@ pub enum ExtractMessagesError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum UpgradeOptimisticTaskError {
-    #[error("Attempted to upgrade optimistic root task with parent.")]
+pub enum PromoteOptimisticTaskError {
+    #[error("Attempted to promote optimistic root task with parent.")]
     RootWithUnexpectedParent,
-    #[error("Attempted to upgrade optimistic CLI subagent task with no parent.")]
+    #[error("Attempted to promote optimistic CLI subagent task with no parent.")]
     CLISubagentMissingParent,
     #[error(
-        "Attempted to upgrade optimistic CLI subagent task for subtask with no CLI subagent call."
+        "Attempted to promote optimistic CLI subagent task for subtask with no CLI subagent call."
     )]
     CLISubagentMissingSubagentCall,
-    #[error("Attempted to upgrade task with server data.")]
-    UnexpectedUpgrade,
+    #[error("Attempted to promote task with server data.")]
+    UnexpectedPromotion,
 }
 
 #[derive(Debug, Clone)]
@@ -201,11 +201,11 @@ impl Task {
         parent_task: Option<&api::Task>,
         current_todo_list: Option<&AIAgentTodoList>,
         active_code_review: Option<&CodeReview>,
-    ) -> Result<Self, UpgradeOptimisticTaskError> {
+    ) -> Result<Self, PromoteOptimisticTaskError> {
         match self.data {
             TaskImpl::Optimistic(optimistic::Task::Root) => {
                 if parent_task.is_some() {
-                    return Err(UpgradeOptimisticTaskError::RootWithUnexpectedParent);
+                    return Err(PromoteOptimisticTaskError::RootWithUnexpectedParent);
                 }
                 self.id = TaskId::new(task.id.clone());
                 self.data = TaskImpl::Server(ServerTask {
@@ -215,7 +215,7 @@ impl Task {
             }
             TaskImpl::Optimistic(optimistic::Task::CLIAgent(_)) => {
                 let Some(parent_task) = parent_task else {
-                    return Err(UpgradeOptimisticTaskError::CLISubagentMissingParent);
+                    return Err(PromoteOptimisticTaskError::CLISubagentMissingParent);
                 };
 
                 let Some((subagent_call, subagent_tool_call_id)) =
@@ -226,7 +226,7 @@ impl Task {
                             .then(|| (subagent_call.clone(), tool_call.tool_call_id.clone()))
                     })
                 else {
-                    return Err(UpgradeOptimisticTaskError::CLISubagentMissingSubagentCall);
+                    return Err(PromoteOptimisticTaskError::CLISubagentMissingSubagentCall);
                 };
 
                 self.id = TaskId::new(task.id.clone());
@@ -238,7 +238,7 @@ impl Task {
                     }),
                 })
             }
-            TaskImpl::Server(_) => return Err(UpgradeOptimisticTaskError::UnexpectedUpgrade),
+            TaskImpl::Server(_) => return Err(PromoteOptimisticTaskError::UnexpectedPromotion),
         };
 
         let messages = self.source().expect("exists").messages.clone();
@@ -303,8 +303,6 @@ impl Task {
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
             computer_use_model_id: existing_exchange.computer_use_model_id.clone(),
-            request_cost: None,
-            response_initiator: existing_exchange.response_initiator.clone(),
         };
         new_exchange
             .init_output(
@@ -435,8 +433,6 @@ impl Task {
             coding_model_id: existing_exchange.coding_model_id.clone(),
             cli_agent_model_id: existing_exchange.cli_agent_model_id.clone(),
             computer_use_model_id: existing_exchange.computer_use_model_id.clone(),
-            request_cost: None,
-            response_initiator: existing_exchange.response_initiator.clone(),
         };
         new_exchange
             .init_output(

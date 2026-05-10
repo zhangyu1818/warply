@@ -4,11 +4,8 @@ use warpui::{rendering::GPUPowerPreference, AppContext, SingletonEntity};
 use warpui_extras::user_preferences;
 
 use crate::{
-    ai::cloud_agent_settings::CloudAgentSettings,
     appearance,
     banner::BannerState,
-    drive::settings::WarpDriveSettings,
-    report_if_error,
     resource_center::TipsCompleted,
     search::command_search::settings::CommandSearchSettings,
     terminal::{
@@ -19,7 +16,6 @@ use crate::{
         safe_mode_settings::SafeModeSettings,
         session_settings::{SessionSettings, SessionSettingsChangedEvent},
         settings::TerminalSettings,
-        shared_session::settings::SharedSessionSettings,
         warpify::settings::WarpifySettings,
         BlockListSettings,
     },
@@ -32,14 +28,11 @@ use crate::{
 use warp_core::semantic_selection::SemanticSelection;
 
 use super::{
-    app_icon::AppIconSettings, app_installation_detection::UserAppInstallDetectionSettings,
-    cloud_preferences::CloudPreferencesSettings, initializer::SettingsInitializer,
-    native_preference::NativePreferenceSettings, AISettings, AccessibilitySettings,
-    AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings, ChangelogSettings,
-    CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent,
-    GPUSettings, InputBoxType, InputModeSettings, InputSettings, PaneSettings,
-    SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
-    VimBannerSettings, WarpDrivePrivacySettings,
+    app_icon::AppIconSettings, AISettings, AccessibilitySettings, AliasExpansionSettings,
+    AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings, EmacsBindingsSettings,
+    FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings,
+    InputSettings, PaneSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
+    VimBannerSettings,
 };
 
 pub struct UserDefaultsOnStartup {
@@ -71,19 +64,13 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     CodeSettings::register(ctx);
     LigatureSettings::register(ctx);
     GPUSettings::register(ctx);
-    ChangelogSettings::register(ctx);
     GeneralSettings::register(ctx);
     AISettings::register_and_subscribe_to_events(ctx);
-    CloudAgentSettings::register(ctx);
     ScrollSettings::register(ctx);
     SelectionSettings::register(ctx);
     InputModeSettings::register(ctx);
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
-    NativePreferenceSettings::register(ctx);
-    CloudPreferencesSettings::register(ctx);
-    WarpDrivePrivacySettings::register(ctx);
-    UserAppInstallDetectionSettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);
@@ -92,11 +79,8 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     UndoCloseSettings::register(ctx);
     SshSettings::register(ctx);
     VimBannerSettings::register(ctx);
-    SharedSessionSettings::register(ctx);
-    WarpDriveSettings::register(ctx);
     WorkflowAliases::register(ctx);
     EmacsBindingsSettings::register(ctx);
-    SameLinePromptBlockSettings::register(ctx);
     SemanticSelection::register(ctx);
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -115,8 +99,6 @@ pub fn init(
     startup_toml_parse_error: Option<user_preferences::Error>,
     ctx: &mut AppContext,
 ) -> UserDefaultsOnStartup {
-    ctx.add_singleton_model(|_| SettingsInitializer::new());
-
     register_all_settings(ctx);
 
     // One-time migration: copy public settings from the platform-native store
@@ -193,7 +175,7 @@ pub fn init(
                     InputBoxType::Universal
                 };
                 InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
-                    report_if_error!(input_settings.input_box_type.set_value(new_type, ctx));
+                    let _ = input_settings.input_box_type.set_value(new_type, ctx);
                 });
             }
         },
@@ -264,8 +246,7 @@ fn init_platform_native_preferences() -> user_preferences::Model {
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd", feature = "integration_tests"))] {
             match user_preferences::file_backed::FileBackedUserPreferences::new(super::user_preferences_file_path()) {
                 Ok(prefs) => Box::new(prefs) as user_preferences::Model,
-                Err(err) => {
-                    crate::report_error!(anyhow::anyhow!(err));
+                Err(_) => {
                     Box::<user_preferences::in_memory::InMemoryPreferences>::default()
                 }
             }
@@ -370,14 +351,16 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
         .collect();
 
     // Read each public setting's value from the native store.
-    let native_prefs = ctx.private_user_preferences();
-    let values_to_migrate: Vec<(String, String)> = storage_keys
-        .into_iter()
-        .filter_map(|key| {
-            let value = native_prefs.read_value(&key).unwrap_or_default()?;
-            Some((key, value))
-        })
-        .collect();
+    let values_to_migrate: Vec<(String, String)> = {
+        let native_prefs = ctx.private_user_preferences();
+        storage_keys
+            .into_iter()
+            .filter_map(|key| {
+                let value = native_prefs.read_value(&key).unwrap_or_default()?;
+                Some((key, value))
+            })
+            .collect()
+    };
 
     let mut migrated_count = 0;
     let mut failed_count = 0;
@@ -387,7 +370,7 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
     // and the TOML file are both updated correctly.
     SettingsManager::handle(ctx).update(ctx, |manager, ctx| {
         for (key, value) in values_to_migrate {
-            match manager.update_setting_with_storage_key(&key, value, false, ctx) {
+            match manager.update_setting_with_storage_key(&key, value, ctx) {
                 Ok(()) => migrated_count += 1,
                 Err(err) => {
                     log::warn!("Failed to migrate setting {key}: {err}");
@@ -398,12 +381,7 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
         }
     });
 
-    if let Some(err) = last_error {
-        report_if_error!(Err::<(), _>(err.context(format!(
-            "Settings file migration: {failed_count} of {} settings failed to migrate",
-            migrated_count + failed_count
-        ))));
-    }
+    if let Some(_err) = last_error {}
 
     log::info!("Settings file migration complete — migrated {migrated_count} settings, {failed_count} failed");
 
@@ -411,10 +389,9 @@ fn migrate_native_settings_to_settings_file(ctx: &mut AppContext) {
     // file. This marker is written unconditionally — for new users the native
     // store is empty so the migration is a no-op, but the marker still gets
     // written to indicate that migration was attempted.
-    report_if_error!(ctx
+    let _ = ctx
         .private_user_preferences()
-        .write_value(SETTINGS_FILE_MIGRATION_COMPLETE_KEY, "true".to_owned())
-        .map_err(|err| anyhow::anyhow!(err)));
+        .write_value(SETTINGS_FILE_MIGRATION_COMPLETE_KEY, "true".to_string());
 }
 
 #[cfg(test)]

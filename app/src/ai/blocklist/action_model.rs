@@ -13,7 +13,6 @@
 //! action from the user.
 
 mod execute;
-mod preprocess;
 
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::{
@@ -25,26 +24,15 @@ use crate::ai::{
     blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor,
 };
 use chrono::Local;
-pub(crate) use execute::apply_edits;
 pub(crate) use execute::coerce_integer_args;
-pub(crate) use execute::FileReadResult;
-pub(crate) use execute::MalformedFinalLineProxyEvent;
-#[cfg(test)]
-pub(crate) use execute::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
 pub use execute::{
-    read_local_file_context, EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent,
-    EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
-    ReadFileContextResult, RequestFileEditsExecutor, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent, RunAgentsExecutor, RunAgentsExecutorEvent,
-    RunAgentsSpawningSnapshot, ShellCommandExecutor, ShellCommandExecutorEvent, StartAgentExecutor,
-    StartAgentExecutorEvent, StartAgentRequest, StartAgentRequestId,
+    read_local_file_context, NewConversationDecision, PromptSuggestionExecutor,
+    ReadFileContextResult, RequestFileEditsExecutor, ShellCommandExecutor,
+    ShellCommandExecutorEvent,
 };
 
-use futures::future::{join_all, BoxFuture};
-use preprocess::{PendingPreprocessedActions, PreprocessId};
-
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
 };
@@ -74,14 +62,10 @@ use self::execute::{
 use super::BlocklistAIHistoryModel;
 use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::document::ai_document_model::AIDocumentModel;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 /// The status of an action from an AI output.
 #[derive(Clone, Debug)]
 pub enum AIActionStatus {
-    /// The action is preprocessing and has yet to be started.
-    Preprocessing,
-
     /// The action is queued, but isn't yet actionable by the user (there is another action that
     /// was queued prior that the user must act on first).
     Queued,
@@ -100,11 +84,6 @@ pub enum AIActionStatus {
 }
 
 impl AIActionStatus {
-    /// Returns whether the action is currently preprocessing.
-    pub fn is_preprocessing(&self) -> bool {
-        matches!(self, AIActionStatus::Preprocessing)
-    }
-
     pub fn is_queued(&self) -> bool {
         matches!(self, AIActionStatus::Queued)
     }
@@ -227,8 +206,6 @@ fn can_start_action_with_current_phase(
 pub struct BlocklistAIActionModel {
     executor: ModelHandle<BlocklistAIActionExecutor>,
 
-    pending_preprocessed_actions: HashMap<AIConversationId, PendingPreprocessedActions>,
-
     /// Map from conversation ID to queue of pending [`AIAgentAction`]s.
     pending_actions: HashMap<AIConversationId, VecDeque<AIAgentAction>>,
 
@@ -253,9 +230,6 @@ pub struct BlocklistAIActionModel {
     /// In view-only mode, we never block on user acceptance and avoid any interactive controls.
     /// This is used for agent session sharing to avoid any tools blocking on the viewer's acceptance.
     is_view_only: bool,
-
-    /// The ID of the ambient agent task which owns this action model, if any.
-    ambient_agent_task_id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
 }
 
 impl BlocklistAIActionModel {
@@ -317,9 +291,7 @@ impl BlocklistAIActionModel {
             running_actions: Default::default(),
             action_order: Default::default(),
             terminal_view_id,
-            pending_preprocessed_actions: Default::default(),
             is_view_only: false,
-            ambient_agent_task_id: None,
         }
     }
 
@@ -399,14 +371,6 @@ impl BlocklistAIActionModel {
         self.executor.as_ref(app).suggest_prompt_executor().clone()
     }
 
-    pub fn start_agent_executor(&self, app: &AppContext) -> ModelHandle<StartAgentExecutor> {
-        self.executor.as_ref(app).start_agent_executor().clone()
-    }
-
-    pub fn run_agents_executor(&self, app: &AppContext) -> ModelHandle<RunAgentsExecutor> {
-        self.executor.as_ref(app).run_agents_executor().clone()
-    }
-
     pub fn ask_user_question_executor(
         &self,
         app: &AppContext,
@@ -415,17 +379,6 @@ impl BlocklistAIActionModel {
             .as_ref(app)
             .ask_user_question_executor()
             .clone()
-    }
-
-    pub fn set_ambient_agent_task_id(
-        &mut self,
-        id: Option<crate::ai::ambient_agents::AmbientAgentTaskId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.ambient_agent_task_id = id;
-        self.executor.update(ctx, |executor, ctx| {
-            executor.set_ambient_agent_task_id(id, ctx);
-        });
     }
 
     fn blocked_action_for_conversation(
@@ -642,12 +595,6 @@ impl BlocklistAIActionModel {
                 self.get_action_result(id)
                     .map(|result| AIActionStatus::Finished(result.clone()))
             })
-            .or_else(|| {
-                self.pending_preprocessed_actions
-                    .values()
-                    .any(|preprocessing| preprocessing.contains(id))
-                    .then_some(AIActionStatus::Preprocessing)
-            })
     }
 
     pub fn get_action_result(&self, id: &AIAgentActionId) -> Option<&Arc<AIAgentActionResult>> {
@@ -683,94 +630,9 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Dispatches a `RunAgents` action with the user-edited request
-    /// from the confirmation card.
-    pub fn execute_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        request: ai::agent::action::RunAgentsRequest,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found: Option<(AIConversationId, AIAgentAction)> = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(idx) = queue.iter().position(|a| &a.id == action_id) {
-                if let Some(action) = queue.remove(idx) {
-                    found = Some((*conv_id, action));
-                }
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        if !matches!(action.action, AIAgentActionType::RunAgents(_)) {
-            log::warn!(
-                "BlocklistAIActionModel::execute_run_agents: pending action {action_id:?} is not RunAgents; re-queueing"
-            );
-            self.pending_actions
-                .entry(conversation_id)
-                .or_default()
-                .push_front(action);
-            return;
-        }
-        let task_id = action.task_id.clone();
-        let action_id_clone = action_id.clone();
-
-        self.executor.update(ctx, |executor, exec_ctx| {
-            executor.execute_run_agents(
-                action_id_clone,
-                request,
-                conversation_id,
-                task_id,
-                exec_ctx,
-            );
-        });
-
-        self.update_conversation_in_progress_status(conversation_id, ctx);
-        self.add_running_action(
-            conversation_id,
-            action_id.clone(),
-            RunningActionPhase::Serial,
-        );
-    }
-
     /// Removes a pending `RunAgents` action and records a `Denied`
     /// result. Used when the orchestration config is disapproved at
     /// the time the action becomes blocked on user confirmation.
-    pub fn deny_run_agents(
-        &mut self,
-        action_id: &AIAgentActionId,
-        reason: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut found: Option<(AIConversationId, AIAgentAction)> = None;
-        for (conv_id, queue) in self.pending_actions.iter_mut() {
-            if let Some(idx) = queue.iter().position(|a| &a.id == action_id) {
-                if let Some(action) = queue.remove(idx) {
-                    found = Some((*conv_id, action));
-                }
-                break;
-            }
-        }
-        let Some((conversation_id, action)) = found else {
-            log::warn!(
-                "BlocklistAIActionModel::deny_run_agents: no pending action for {action_id:?}"
-            );
-            return;
-        };
-        let result = Arc::new(AIAgentActionResult {
-            id: action.id,
-            task_id: action.task_id,
-            result: AIAgentActionResultType::RunAgents(
-                ai::agent::action_result::RunAgentsResult::Denied { reason },
-            ),
-        });
-        self.handle_action_result(conversation_id, result, None, ctx);
-    }
-
     /// Attempts to execute the next pending action for the active conversation.
     pub fn execute_next_action_for_user(
         &mut self,
@@ -929,102 +791,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    fn preprocess_action(
-        &mut self,
-        action: &AIAgentAction,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        self.executor.update(ctx, |executor, ctx| {
-            executor.preprocess_action(action, conversation_id, ctx)
-        })
-    }
-
-    /// Queues the `actions` in the given iterator for the given conversation,
-    /// to be dispatched in the order in which they appear in the iterator.
-    pub(super) fn queue_actions(
-        &mut self,
-        actions: Vec<AIAgentAction>,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.action_order.insert(
-            conversation_id,
-            actions
-                .iter()
-                .enumerate()
-                .map(|(index, action)| (action.id.clone(), index))
-                .collect(),
-        );
-        let mut preprocess_future = Vec::with_capacity(actions.len());
-        let mut action_ids = HashSet::with_capacity(actions.len());
-
-        for action in actions.iter() {
-            action_ids.insert(action.id.clone());
-            preprocess_future.push(self.preprocess_action(action, conversation_id, ctx));
-        }
-
-        let preprocess_id = self
-            .pending_preprocessed_actions
-            .entry(conversation_id)
-            .or_default()
-            .insert_preprocess_action_batch(action_ids);
-
-        ctx.spawn(join_all(preprocess_future), move |me, _, ctx| {
-            me.handle_preprocess_actions_results(conversation_id, preprocess_id, actions, ctx);
-        });
-    }
-
-    fn handle_preprocess_actions_results(
-        &mut self,
-        conversation_id: AIConversationId,
-        preprocess_id: PreprocessId,
-        actions: Vec<AIAgentAction>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let actions_to_enqueue = self
-            .pending_preprocessed_actions
-            .entry(conversation_id)
-            .or_default()
-            .handle_preprocess_actions_result(preprocess_id, actions);
-
-        for action in actions_to_enqueue {
-            let action_id = action.id.clone();
-            // Some actions may already have results. This can happen in session sharing when
-            // the sharer finishes and sends a result while preprocessing is still running on the viewer.
-            // This is an edge case that only happens with fast tool calls, but we still need to guard against it,
-            // as otherwise tools get stuck in a pending state on the viewer's side of things. This check
-            // must be scoped to the current conversation as some providers generate tool call IDs that
-            // only unique within a conversation.
-            if self
-                .finished_action_results
-                .get(&conversation_id)
-                .is_some_and(|results| results.iter().any(|r| r.id == action_id))
-            {
-                continue;
-            }
-
-            // In view-only mode, if an action is already marked as running
-            // (which can happen if we receive a CommandExecutionStarted event
-            // before the action is queued), don't add it to the pending queue to avoid an inconsistent state.
-            if self.is_view_only
-                && self
-                    .running_actions
-                    .get(&conversation_id)
-                    .is_some_and(|running| running.contains(&action_id))
-            {
-                continue;
-            }
-
-            self.pending_actions
-                .entry(conversation_id)
-                .or_default()
-                .push_back(action);
-            ctx.emit(BlocklistAIActionEvent::QueuedAction(action_id));
-        }
-        self.try_to_execute_available_actions(conversation_id, ctx);
-    }
-
     /// Apply a finished action result to the conversation.
     /// This is used in agent session sharing to apply finished action results
     /// received from the action stream.
@@ -1138,24 +904,6 @@ impl BlocklistAIActionModel {
         reason: Option<CancellationReason>,
         ctx: &mut ModelContext<Self>,
     ) {
-        if matches!(
-            pending_action.action,
-            AIAgentActionType::RequestComputerUse(_)
-        ) {
-            let server_conversation_id = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conversation_id)
-                .and_then(|c| c.server_conversation_token())
-                .map(|t| t.as_str().to_string());
-            send_telemetry_from_ctx!(
-                TelemetryEvent::ComputerUseCancelled {
-                    client_conversation_id: conversation_id,
-                    server_conversation_id,
-                    ambient_agent_task_id: self.ambient_agent_task_id,
-                },
-                ctx
-            );
-        }
-
         let result = Arc::new(AIAgentActionResult {
             id: pending_action.id,
             task_id: pending_action.task_id,

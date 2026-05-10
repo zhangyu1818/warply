@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::settings::{AISettings, InputSettings, TerminalSpacing};
-use settings::{
-    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
-};
+use settings::{macros::define_settings_group, SupportedPlatforms};
 use warpui::{units::Pixels, AppContext, SingletonEntity};
 
 #[derive(
@@ -74,14 +72,6 @@ impl AltScreenPaddingMode {
             Self::Custom { .. } => Self::MatchBlocklist,
         }
     }
-
-    pub fn telemetry_string(&self) -> String {
-        match self {
-            Self::MatchBlocklist => "MatchBlocklist",
-            Self::Custom { .. } => "Custom",
-        }
-        .to_string()
-    }
 }
 
 define_settings_group!(TerminalSettings, settings: [
@@ -89,7 +79,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP, /* Audible bell is not supported on web */
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "terminal.use_audible_bell",
         description: "Whether to play an audible bell sound on terminal bell events.",
@@ -98,7 +87,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: SpacingMode,
         default: SpacingMode::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.spacing",
         description: "Controls the spacing between terminal blocks.",
@@ -107,7 +95,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: usize,
         default: 50_000,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "terminal.maximum_grid_size",
         description: "The maximum number of rows in the terminal grid.",
@@ -116,7 +103,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: AltScreenPaddingMode,
         default: AltScreenPaddingMode::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.full_screen_apps.alt_screen_padding",
         max_table_depth: 0,
@@ -128,7 +114,6 @@ define_settings_group!(TerminalSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "terminal.show_terminal_zero_state_block",
         description: "Whether to show the AI zero-state block in new terminal sessions.",

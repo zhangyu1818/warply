@@ -7,18 +7,18 @@ use std::time::Duration;
 
 use instant::Instant;
 
-use crate::server::ids::SyncId;
-use crate::server::telemetry::ImageProtocol;
+use crate::object_ids::SyncId;
 use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::block::SerializedBlock;
 use crate::terminal::model::completions::ShellCompletion;
 use crate::terminal::model::terminal_model::HandlerEvent;
 use crate::terminal::shell::ShellType;
 use crate::terminal::ClipboardType;
+use crate::ui_events::ImageProtocol;
 use crate::util::AsciiDebug;
 
 use super::history::HistoryEntry;
-use super::model::ansi::{FinishUpdateValue, WarpificationUnavailableReason};
+use super::model::ansi::WarpificationUnavailableReason;
 use super::model::block::BlockId;
 use super::model::session::{SessionId, SessionInfo};
 use super::model::terminal_model::{BlockIndex, ExitReason, TmuxInstallationState};
@@ -127,9 +127,6 @@ pub enum Event {
         session_id: SessionId,
         error: String,
     },
-    /// Emitted when the assisted auto-update has completed and we're ready to
-    /// relaunch the app.
-    FinishUpdate(FinishUpdateValue),
     TextSelectionChanged,
     ShellSpawned(ShellType),
     SendCompletionsPrompt,
@@ -204,8 +201,7 @@ pub struct BootstrappedEvent {
 
 #[derive(Clone)]
 pub struct BlockCompletedEvent {
-    /// This will be None when we don't want to collect telemetry
-    /// for this block's latency.
+    /// This will be None when block latency is not relevant.
     pub block_latency_data: Option<BlockLatencyData>,
     pub block_type: BlockType,
     pub num_secrets_obfuscated: usize,
@@ -473,7 +469,6 @@ impl Debug for Event {
                     "RemoteServerFailed(session: {session_id:?}, error: {error})"
                 )
             }
-            Event::FinishUpdate(data) => write!(f, "FinishUpdate({})", data.update_id),
             Event::TextSelectionChanged => write!(f, "TextSelectionChanged"),
             Event::ShellSpawned(shell_type) => write!(f, "ShellSpawned({shell_type:?})"),
             Event::SendCompletionsPrompt => write!(f, "SendCompletionsPrompt"),

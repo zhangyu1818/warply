@@ -1,8 +1,7 @@
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::terminal::model::session::active_session::ActiveSession;
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle};
 
 #[cfg(not(target_family = "wasm"))]
@@ -134,14 +133,6 @@ impl ReadMCPResourceExecutor {
                 |res, _ctx| handle_read_resource_result(res),
             )
         }
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _action: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

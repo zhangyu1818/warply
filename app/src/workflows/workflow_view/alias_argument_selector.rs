@@ -16,7 +16,7 @@ use crate::{
         EditOrigin, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
         SingleLineEditorOptions, TextOptions,
     },
-    server::ids::SyncId,
+    object_ids::SyncId,
     view_components::{Dropdown, DropdownItem},
     workflows::{workflow::ArgumentType, workflow_enum::EnumVariants},
 };

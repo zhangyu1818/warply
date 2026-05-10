@@ -7,7 +7,6 @@ pub enum ExternalProductIcon {
     Linear,
     Figma,
     Github,
-    Slack,
 }
 
 impl ExternalProductIcon {
@@ -19,7 +18,6 @@ impl ExternalProductIcon {
             "linear" => Some(ExternalProductIcon::Linear),
             "figma" => Some(ExternalProductIcon::Figma),
             "github" => Some(ExternalProductIcon::Github),
-            "slack" => Some(ExternalProductIcon::Slack),
             _other => None,
         }
     }
@@ -31,7 +29,6 @@ impl ExternalProductIcon {
             ExternalProductIcon::Linear => "bundled/svg/linear.svg",
             ExternalProductIcon::Figma => "bundled/svg/figma.svg",
             ExternalProductIcon::Github => "bundled/svg/github.svg",
-            ExternalProductIcon::Slack => "bundled/svg/slack-logo.svg",
         }
     }
 

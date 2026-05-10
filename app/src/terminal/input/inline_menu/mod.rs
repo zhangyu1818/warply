@@ -37,9 +37,7 @@ pub use view::{
 )]
 pub enum InlineMenuType {
     SlashCommands,
-    ModelSelector,
     ConversationMenu,
-    ProfileSelector,
     PromptsMenu,
     SkillMenu,
     UserQueryMenu,
@@ -53,9 +51,7 @@ impl InlineMenuType {
     fn display_label(&self) -> &'static str {
         match self {
             InlineMenuType::SlashCommands => "/Commands",
-            InlineMenuType::ModelSelector => "/Model",
             InlineMenuType::ConversationMenu => "/Conversations",
-            InlineMenuType::ProfileSelector => "/Profiles",
             InlineMenuType::PromptsMenu => "/Prompts",
             InlineMenuType::SkillMenu => "/Skills",
             InlineMenuType::UserQueryMenu => "/Fork",
@@ -69,9 +65,7 @@ impl InlineMenuType {
     pub(crate) fn from_suggestions_mode(mode: &InputSuggestionsMode) -> Option<Self> {
         match mode {
             InputSuggestionsMode::SlashCommands => Some(InlineMenuType::SlashCommands),
-            InputSuggestionsMode::ModelSelector => Some(InlineMenuType::ModelSelector),
             InputSuggestionsMode::ConversationMenu => Some(InlineMenuType::ConversationMenu),
-            InputSuggestionsMode::ProfileSelector => Some(InlineMenuType::ProfileSelector),
             InputSuggestionsMode::PromptsMenu => Some(InlineMenuType::PromptsMenu),
             InputSuggestionsMode::SkillMenu => Some(InlineMenuType::SkillMenu),
             InputSuggestionsMode::UserQueryMenu {

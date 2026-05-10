@@ -6,7 +6,6 @@ use crate::code_review::code_review_view::{
     render_file_navigation_button, CodeReviewView, CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN,
 };
 use crate::code_review::code_review_view::{CodeReviewCommentDebugState, CodeReviewViewEvent};
-use crate::code_review::telemetry_event::CodeReviewContextDestination;
 use crate::pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT};
 use crate::pane_group::WorkingDirectoriesEvent;
 use crate::pane_group::{Event as PaneGroupEvent, PaneGroup, WorkingDirectoriesModel};
@@ -26,7 +25,6 @@ use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 use crate::workspace::WorkspaceAction;
 use crate::{
     appearance::Appearance,
-    drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
     terminal::resizable_data::{ModalType, ResizableData},
 };
 use crate::{code_review::diff_state::DiffStateModel, terminal::view::TerminalView};
@@ -60,6 +58,9 @@ use warpui::{
     ui_components::components::UiComponent,
 };
 
+const MIN_RIGHT_PANEL_WIDTH: f32 = 250.;
+const MAX_RIGHT_PANEL_WIDTH_RATIO: f32 = 0.75;
+
 /// Describes which agent destination is available for sending review comments.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReviewDestination {
@@ -76,7 +77,6 @@ pub enum ReviewSubmissionResult {
     Success {
         comment_count: usize,
         file_count: usize,
-        destination: CodeReviewContextDestination,
     },
     Error,
 }
@@ -339,7 +339,6 @@ pub struct RightPanelView {
     code_review_state: Option<CodeReviewState>,
     #[cfg(feature = "local_fs")]
     code_review_session_env: Option<CodeReviewSessionEnv>,
-    is_agent_management_view_open: bool,
     panel_position: super::PanelPosition,
 }
 
@@ -434,14 +433,8 @@ impl RightPanelView {
             code_review_state,
             #[cfg(feature = "local_fs")]
             code_review_session_env: None,
-            is_agent_management_view_open: false,
             panel_position: super::PanelPosition::Right,
         }
-    }
-
-    pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        self.is_agent_management_view_open = is_open;
-        ctx.notify();
     }
 
     pub fn set_panel_position(
@@ -1233,21 +1226,14 @@ impl RightPanelView {
 
         let active_cli_agent = terminal_view.read(ctx, |t, ctx| t.active_cli_agent(ctx));
 
-        let (result, destination) = if active_cli_agent.is_some() {
-            let r = terminal_view.update(ctx, |terminal, ctx| {
+        let result = if active_cli_agent.is_some() {
+            terminal_view.update(ctx, |terminal, ctx| {
                 terminal.send_review_to_cli_agent_or_rich_input(&comments, ctx)
-            });
-            let dest = if terminal_view.read(ctx, |t, ctx| t.is_cli_agent_rich_input_open(ctx)) {
-                CodeReviewContextDestination::RichInput
-            } else {
-                CodeReviewContextDestination::Pty
-            };
-            (r, dest)
+            })
         } else {
-            let r = terminal_view.update(ctx, |terminal, ctx| {
+            terminal_view.update(ctx, |terminal, ctx| {
                 terminal.send_inline_review(comments, ctx)
-            });
-            (r, CodeReviewContextDestination::AgentReview)
+            })
         };
 
         if let Err(err) = &result {
@@ -1258,7 +1244,6 @@ impl RightPanelView {
             ReviewSubmissionResult::Success {
                 comment_count,
                 file_count,
-                destination,
             }
         } else {
             ReviewSubmissionResult::Error
@@ -1745,8 +1730,8 @@ impl View for RightPanelView {
                 ctx.notify();
             })
             .with_bounds_callback(Box::new(|window_size| {
-                let min_width = MIN_SIDEBAR_WIDTH;
-                let max_width = window_size.x() * MAX_SIDEBAR_WIDTH_RATIO;
+                let min_width = MIN_RIGHT_PANEL_WIDTH;
+                let max_width = window_size.x() * MAX_RIGHT_PANEL_WIDTH_RATIO;
                 (min_width, max_width.max(min_width))
             }))
             .finish()

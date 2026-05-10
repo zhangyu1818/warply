@@ -1,14 +1,14 @@
 use crate::ai::block_context::BlockContext;
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai::execution_context::AiExecutionContext;
+use crate::ai::terminal_suggestions::provider::SuggestionProvider;
+use crate::ai::terminal_suggestions::TerminalSuggestionsConfig;
 use crate::completer::SessionContext;
-use crate::report_error;
-use crate::server::server_api::{AIApiError, ServerApi};
+use crate::http_api::AIApiError;
 use crate::settings::AISettings;
 use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::{History, HistoryEntry, TerminalModel};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use chrono::Utc;
 use futures::stream::AbortHandle;
 use itertools::Itertools;
@@ -30,9 +30,9 @@ use warp_core::features::FeatureFlag;
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
-use super::generate_ai_input_suggestions::{
-    create_generate_ai_input_suggestions_request, get_context_messages,
-    GenerateAIInputSuggestionsRequest, GenerateAIInputSuggestionsResponseV2, NextCommandContext,
+use super::terminal_input_suggestions::{
+    create_terminal_input_suggestions_request, get_context_messages, NextCommandContext,
+    TerminalInputSuggestionsRequest, TerminalInputSuggestionsResponse,
 };
 
 cfg_if::cfg_if! {
@@ -55,8 +55,7 @@ const NUM_ADDITIONAL_PREV_COMMAND_CONTEXT_LLM: usize = 2;
 const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 
 pub fn is_next_command_enabled(app: &warpui::AppContext) -> bool {
-    AISettings::as_ref(app).is_intelligent_autosuggestions_enabled(app)
-        && UserWorkspaces::as_ref(app).is_next_command_enabled()
+    AISettings::as_ref(app).is_terminal_next_command_enabled()
 }
 
 /// Information about an autosuggestion that would have been made if purely based off history.
@@ -74,8 +73,8 @@ pub enum NextCommandSuggestionState {
     None,
     Cycling,
     Ready {
-        request: Box<GenerateAIInputSuggestionsRequest>,
-        response: GenerateAIInputSuggestionsResponseV2,
+        request: Box<TerminalInputSuggestionsRequest>,
+        response: TerminalInputSuggestionsResponse,
         /// How long the request took to complete, in milliseconds.
         request_duration_ms: i64,
         /// If true, we made a call to an LLM to generate this.
@@ -98,7 +97,6 @@ impl NextCommandSuggestionState {
 
     pub fn command_suggestion(&self) -> Option<&str> {
         match &self {
-            // The server only returns one command suggestion as the most likely action.
             NextCommandSuggestionState::Ready { response, .. } => {
                 let command = &response.most_likely_action;
                 // If AI accidentally returned JSON instead of a plain string for the most likely action, don't use it.
@@ -112,12 +110,11 @@ impl NextCommandSuggestionState {
     }
 }
 
-/// Struct storing the result of the zero-state next command suggestion,
-/// used for telemetry purposes.
+/// Struct storing the result of the zero-state next command suggestion.
 #[derive(Clone)]
 pub struct ZeroStateSuggestionInfo {
-    pub request: Box<GenerateAIInputSuggestionsRequest>,
-    pub response: GenerateAIInputSuggestionsResponseV2,
+    pub request: Box<TerminalInputSuggestionsRequest>,
+    pub response: TerminalInputSuggestionsResponse,
     /// How long the request took to complete, in milliseconds.
     pub request_duration_ms: i64,
     /// If true, we made a call to an LLM to generate this.
@@ -129,9 +126,7 @@ pub struct ZeroStateSuggestionInfo {
 pub struct NextCommandModel {
     sessions: ModelHandle<Sessions>,
     model: Arc<FairMutex<TerminalModel>>,
-    server_api: Arc<ServerApi>,
-    #[cfg(feature = "local_fs")]
-    conn: Option<Arc<Mutex<SqliteConnection>>>,
+    suggestion_provider: Arc<dyn SuggestionProvider>,
 
     next_command_state: NextCommandSuggestionState,
     /// Context used to generate the zero-state suggestion.
@@ -149,26 +144,42 @@ pub enum NextCommandModelEvent {
     NextCommandSuggestionReady,
 }
 
+async fn generate_terminal_input_suggestions(
+    suggestion_provider: Arc<dyn SuggestionProvider>,
+    suggestions_config: Option<TerminalSuggestionsConfig>,
+    request: TerminalInputSuggestionsRequest,
+) -> Result<TerminalInputSuggestionsResponse, AIApiError> {
+    let Some(config) = suggestions_config else {
+        log::warn!(
+            "[terminal-suggestions] next command skipped: endpoint or model is not configured"
+        );
+        return Err(AIApiError::Other(anyhow::anyhow!(
+            "Terminal suggestions endpoint and model must be configured"
+        )));
+    };
+
+    log::debug!(
+        "[terminal-suggestions] next command request prepared prefix_present={} context_messages={} history_bytes={} model={}",
+        request.prefix.is_some(),
+        request.context_messages.len(),
+        request.history_context.len(),
+        config.model,
+    );
+    suggestion_provider
+        .generate_input_suggestions(config, request)
+        .await
+}
+
 impl NextCommandModel {
     pub fn new(
         sessions: ModelHandle<Sessions>,
         model: Arc<FairMutex<TerminalModel>>,
-        server_api: Arc<ServerApi>,
+        suggestion_provider: Arc<dyn SuggestionProvider>,
     ) -> Self {
-        #[cfg(feature = "local_fs")]
-        let conn = crate::persistence::database_file_path()
-            .to_str()
-            .and_then(|db_url| {
-                crate::persistence::establish_ro_connection(db_url)
-                    .ok()
-                    .map(|conn| Arc::new(Mutex::new(conn)))
-            });
         Self {
             sessions,
             model,
-            server_api,
-            #[cfg(feature = "local_fs")]
-            conn,
+            suggestion_provider,
             next_command_state: NextCommandSuggestionState::None,
             cached_zerostate_next_command_context: None,
             zerostate_suggestion_info: None,
@@ -186,7 +197,7 @@ impl NextCommandModel {
         conn: &mut SqliteConnection,
         completed_block: &UserBlockCompleted,
         num_additional_preceding_commands: usize,
-    ) -> Vec<crate::ai::predict::generate_ai_input_suggestions::HistoryContext> {
+    ) -> Vec<crate::ai::predict::terminal_input_suggestions::HistoryContext> {
         // The number of commands from history affects how quickly we "learn" new patterns, the lower the faster.
         let Ok(same_commands_from_history) =
             crate::persistence::commands::get_same_commands_from_history(
@@ -206,7 +217,7 @@ impl NextCommandModel {
                     crate::persistence::commands::get_next_command(conn, &command).ok()?;
                 if num_additional_preceding_commands == 0 {
                     return Some(
-                        crate::ai::predict::generate_ai_input_suggestions::HistoryContext {
+                        crate::ai::predict::terminal_input_suggestions::HistoryContext {
                             previous_commands: vec![command],
                             next_command,
                         },
@@ -222,7 +233,7 @@ impl NextCommandModel {
                 .ok()?;
                 previous_commands.push(command);
                 Some(
-                    crate::ai::predict::generate_ai_input_suggestions::HistoryContext {
+                    crate::ai::predict::terminal_input_suggestions::HistoryContext {
                         previous_commands,
                         next_command,
                     },
@@ -259,15 +270,21 @@ impl NextCommandModel {
     #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
     fn get_next_command_context(
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        #[cfg(feature = "local_fs")] conn: Option<Arc<Mutex<SqliteConnection>>>,
-        ai_execution_context: WarpAiExecutionContext,
+        ai_execution_context: AiExecutionContext,
         block_completed: &UserBlockCompleted,
     ) -> NextCommandContext {
         #[cfg_attr(not(feature = "local_fs"), allow(unused_mut))]
         let mut history_contexts = vec![];
         let context_messages = get_context_messages(terminal_model.clone(), 5, 100, 200);
         #[cfg(feature = "local_fs")]
-        if let Some(conn) = conn {
+        if let Some(conn) = crate::persistence::database_file_path()
+            .to_str()
+            .and_then(|db_url| {
+                crate::persistence::establish_ro_connection(db_url)
+                    .ok()
+                    .map(|conn| Arc::new(Mutex::new(conn)))
+            })
+        {
             let mut conn = conn.lock();
             history_contexts = Self::get_similar_history_context(
                 &mut conn,
@@ -286,7 +303,7 @@ impl NextCommandModel {
     pub fn generate_next_command_suggestion(
         &mut self,
         block_completed: UserBlockCompleted,
-        context: WarpAiExecutionContext,
+        context: AiExecutionContext,
         completer_data: CompleterData,
         block_context: Option<Box<BlockContext>>,
         previous_result: Option<IntelligentAutosuggestionResult>,
@@ -333,13 +350,14 @@ impl NextCommandModel {
         &mut self,
         prefix: Option<String>,
         block_completed: UserBlockCompleted,
-        context: WarpAiExecutionContext,
+        context: AiExecutionContext,
         completer_data: CompleterData,
         block_context: Option<Box<BlockContext>>,
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let server_api = self.server_api.clone();
+        let suggestion_provider = self.suggestion_provider.clone();
+        let suggestions_config = AISettings::as_ref(ctx).terminal_suggestions_config();
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();
 
@@ -351,8 +369,6 @@ impl NextCommandModel {
             None
         };
 
-        #[cfg(feature = "local_fs")]
-        let conn = self.conn.clone();
         self.next_command_state = NextCommandSuggestionState::None;
         self.abort_inflight_request();
         let session_env_vars = completer_data
@@ -375,8 +391,6 @@ impl NextCommandModel {
                         } else {
                             Self::get_next_command_context(
                                 terminal_model,
-                                #[cfg(feature = "local_fs")]
-                                conn,
                                 context,
                                 &block_completed,
                             )
@@ -429,16 +443,14 @@ impl NextCommandModel {
                                 && history_command_prediction_likelihood
                                     >= skip_llm_confidence_threshold
                             {
-                                // We construct the request even though we're not sending it to the server because
-                                // it might be used later for cycling next command suggestions.
-                                let request = create_generate_ai_input_suggestions_request(
+                                let request = create_terminal_input_suggestions_request(
                                     next_command_context.clone(),
                                     prefix,
                                     block_context,
                                     previous_result,
                                 );
                                 return (
-                                    Ok(GenerateAIInputSuggestionsResponseV2 {
+                                    Ok(TerminalInputSuggestionsResponse {
                                         commands: vec![most_likely_next_command.to_owned()],
                                         ai_queries: vec![],
                                         most_likely_action: most_likely_next_command.to_owned(),
@@ -453,7 +465,7 @@ impl NextCommandModel {
                             }
                         }
                     }
-                    let request = create_generate_ai_input_suggestions_request(
+                    let request = create_terminal_input_suggestions_request(
                         next_command_context.clone(),
                         prefix.clone(),
                         block_context,
@@ -463,7 +475,12 @@ impl NextCommandModel {
                     // For zero-state next command suggestions, return the result immediately.
                     let Some(prefix) = prefix else {
                         return (
-                            server_api.generate_ai_input_suggestions(&request).await,
+                            generate_terminal_input_suggestions(
+                                suggestion_provider.clone(),
+                                suggestions_config.clone(),
+                                request.clone(),
+                            )
+                            .await,
                             request,
                             true,
                             start_ts_ms,
@@ -479,7 +496,7 @@ impl NextCommandModel {
                     for reverse_chronological_command in reverse_chronological_potential_autosuggestions.unwrap_or_default() {
                         if is_command_valid(&reverse_chronological_command.command, completion_context.as_ref(), session_env_vars.as_ref()).await {
                             return (
-                                Ok(GenerateAIInputSuggestionsResponseV2 {
+                                Ok(TerminalInputSuggestionsResponse {
                                     commands: vec![reverse_chronological_command.command.clone()],
                                 ai_queries: vec![],
                                 most_likely_action: reverse_chronological_command.command,
@@ -527,7 +544,7 @@ impl NextCommandModel {
                         if let Some(autosuggestion) = autosuggestion {
                             if is_command_valid(&autosuggestion, Some(&completion_context), session_env_vars.as_ref()).await {
                                 return (
-                                    Ok(GenerateAIInputSuggestionsResponseV2 {
+                                    Ok(TerminalInputSuggestionsResponse {
                                         commands: vec![autosuggestion.clone()],
                                     ai_queries: vec![],
                                     most_likely_action: autosuggestion,
@@ -544,7 +561,12 @@ impl NextCommandModel {
                     };
 
                     // Only if we have no commands from history and no completions, use the LLM to generate a partial suggestion.
-                    let response = server_api.generate_ai_input_suggestions(&request).await;
+                    let response = generate_terminal_input_suggestions(
+                        suggestion_provider,
+                        suggestions_config,
+                        request.clone(),
+                    )
+                    .await;
                     (
                         response,
                         request,
@@ -564,8 +586,8 @@ impl NextCommandModel {
     fn on_next_command_suggestion_result(
         &mut self,
         result: (
-            Result<GenerateAIInputSuggestionsResponseV2, AIApiError>,
-            GenerateAIInputSuggestionsRequest,
+            Result<TerminalInputSuggestionsResponse, AIApiError>,
+            TerminalInputSuggestionsRequest,
             bool,
             i64,
             HistoryBasedAutosuggestionState,
@@ -591,10 +613,17 @@ impl NextCommandModel {
         }
         match result {
             Ok(response) => {
+                log::debug!(
+                    "[terminal-suggestions] next command response received is_from_ai={} is_from_cycle={} duration_ms={} commands={} ai_queries={} most_likely_action_bytes={}",
+                    is_from_ai,
+                    is_from_cycle,
+                    request_duration_ms,
+                    response.commands.len(),
+                    response.ai_queries.len(),
+                    response.most_likely_action.len(),
+                );
                 if let Some(prefix) = &request.prefix {
                     if !response.most_likely_action.starts_with(prefix) {
-                        // This is not expected to happen because the server applies its own filtering,
-                        // but check just in case.
                         log::warn!(
                             "Next command suggestion `{}` does not start with prefix `{}`.",
                             response.most_likely_action,
@@ -624,9 +653,7 @@ impl NextCommandModel {
                 ctx.emit(NextCommandModelEvent::NextCommandSuggestionReady);
             }
             Err(err) => {
-                report_error!(
-                    anyhow::anyhow!(err).context("Failed to generate Next Command suggestion")
-                );
+                log::warn!("[terminal-suggestions] next command request failed: {err}");
             }
         };
     }

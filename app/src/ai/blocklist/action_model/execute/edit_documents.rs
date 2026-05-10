@@ -1,5 +1,4 @@
 use ai::diff_validation::DiffDelta;
-use futures::{future::BoxFuture, FutureExt};
 use std::collections::HashMap;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
@@ -12,7 +11,7 @@ use crate::ai::{
 };
 use crate::notebooks::post_process_notebook;
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct EditDocumentsExecutor;
 
@@ -138,14 +137,6 @@ impl EditDocumentsExecutor {
 
         // All diffs succeeded, return success
         ActionExecution::Sync(EditDocumentsResult::Success { updated_documents }.into())
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _input: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

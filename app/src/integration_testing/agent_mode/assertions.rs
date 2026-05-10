@@ -3,7 +3,6 @@
 // `assert!` causes the app to crash before debug info can be exported. Use `integration_assert!` instead.
 #![deny(clippy::assertions_on_constants)]
 
-use super::llm_judge::{LLMJudge, LLMJudgeConfig};
 use crate::{
     ai::agent::{
         conversation::{AIConversation, AIConversationId, ConversationStatus},
@@ -735,42 +734,6 @@ pub fn hydrate_ai_conversation_assertion(tasks: Vec<api::Task>) -> AssertionCall
     })
 }
 
-pub fn assert_llm_judge_whole_conversation_passes(
-    judge_config: LLMJudgeConfig,
-) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-            // Async assertions to wait until this exchange is finished.
-            let Some(conversation) = history_model.active_conversation(terminal_view.id()) else {
-                return AssertionOutcome::immediate_failure(
-                    "Failed to get conversation".to_owned(),
-                );
-            };
-
-            let judge = LLMJudge::new(judge_config.clone());
-            let result = judge.judge(conversation);
-            match result {
-                Ok(judge_result) => {
-                    if !judge_result.pass {
-                        AssertionOutcome::immediate_failure(format!(
-                            "LLM judged conversation to fail: {}",
-                            judge_result.critique
-                        ))
-                    } else {
-                        // TODO: we want to record critiques on success
-                        println!("LLM judged conversation to pass: {}", judge_result.critique);
-                        AssertionOutcome::Success
-                    }
-                }
-                Err(e) => AssertionOutcome::immediate_failure(format!(
-                    "Failed to judge conversation: {e:?}"
-                )),
-            }
-        })
-    })
-}
-
 /// Assert that the target conversation contains no actions.
 pub fn assert_conversation_contains_no_actions(
     conversation_target: ConversationTarget,
@@ -1075,26 +1038,6 @@ fn get_exchange_count(
     history_model
         .active_conversation(terminal_view_id)
         .map_or(0, |c| c.root_task_exchanges().count())
-}
-
-/// Assert that the active conversation was summarized due to context window limits.
-pub fn assert_conversation_was_summarized() -> AssertionCallback {
-    Box::new(|app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-            let Some(conversation) = history_model.active_conversation(terminal_view.id()) else {
-                return AssertionOutcome::failure("No active conversation".to_owned());
-            };
-
-            if conversation.was_summarized() {
-                AssertionOutcome::Success
-            } else {
-                AssertionOutcome::immediate_failure(
-                    "Expected conversation to be summarized due to large context window, but it was not".to_owned(),
-                )
-            }
-        })
-    })
 }
 
 /// Asserts that no exchanges exist in the history model (which also means no conversations).

@@ -1,6 +1,6 @@
 use crate::ai::agent::SuggestedLoggingId;
-use crate::drive::items::{ai_fact::WarpDriveAIFact, WarpDriveItem};
-use crate::server::{ids::SyncId, sync_queue::QueueItem};
+use crate::drive::items::{ai_fact::LocalObjectAIFact, LocalObjectItem};
+use crate::object_ids::SyncId;
 use crate::{
     cloud_object::{
         model::{
@@ -8,7 +8,7 @@ use crate::{
             json_model::{JsonModel, JsonSerializer},
         },
         GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType, Revision, ServerCloudObject,
+        JsonObjectType,
     },
     drive::CloudObjectTypeAndId,
 };
@@ -38,12 +38,6 @@ pub struct AIMemory {
     /// so we can suppress re-surfacing the same suggestion in future responses.
     #[serde(default)]
     pub suggested_logging_id: Option<SuggestedLoggingId>,
-}
-
-impl AIFact {
-    pub fn is_memory(&self) -> bool {
-        matches!(self, AIFact::Memory { .. })
-    }
 }
 
 pub type CloudAIFact = GenericCloudObject<GenericStringObjectId, CloudAIFactModel>;
@@ -78,40 +72,21 @@ impl StringModel for AIFact {
         }
     }
 
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateAIFact {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
-    }
-
-    fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {
-        if let ServerCloudObject::AIFact(server_ai_fact) = server_cloud_object {
-            return Some(server_ai_fact.model.clone().string_model);
-        }
-        None
-    }
-
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
         None
     }
 
-    fn renders_in_warp_drive(&self) -> bool {
+    fn renders_as_local_object(&self) -> bool {
         false
     }
 
-    fn to_warp_drive_item(
+    fn to_local_object_item(
         &self,
         id: SyncId,
         _appearance: &Appearance,
         ai_fact: &CloudAIFact,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveAIFact::new(
+    ) -> Option<Box<dyn LocalObjectItem>> {
+        Some(Box::new(LocalObjectAIFact::new(
             CloudObjectTypeAndId::GenericStringObject {
                 object_type: GenericStringObjectFormat::Json(JsonObjectType::AIFact),
                 id,

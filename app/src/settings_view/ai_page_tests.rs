@@ -1,93 +1,41 @@
-use super::{derive_agent_attribution_toggle_state, AgentAttributionToggleState};
-use crate::workspaces::workspace::AdminEnablementSetting;
+use super::{
+    acp_config_option_dropdown_items, acp_config_option_selected_value,
+};
+use crate::ai::acp::config_options::{AcpConfigOption, AcpConfigOptionValue};
+use std::collections::HashMap;
 
 #[test]
-fn respect_user_setting_returns_user_pref_unlocked() {
-    let state = derive_agent_attribution_toggle_state(
-        &AdminEnablementSetting::RespectUserSetting,
-        true,
-        true,
-    );
-    assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: true,
-            is_forced_by_org: false,
-            is_disabled: false,
-        }
-    );
-}
+fn acp_config_dropdown_selects_current_option_without_default_item() {
+    let option = AcpConfigOption {
+        id: "model".to_string(),
+        name: "Model".to_string(),
+        description: None,
+        category: None,
+        current_value: "gpt-5.5".to_string(),
+        values: vec![
+            AcpConfigOptionValue {
+                id: "gpt-5.4".to_string(),
+                name: "GPT-5.4".to_string(),
+            },
+            AcpConfigOptionValue {
+                id: "gpt-5.5".to_string(),
+                name: "GPT-5.5".to_string(),
+            },
+        ],
+    };
 
-#[test]
-fn respect_user_setting_with_user_off_returns_unchecked_unlocked() {
-    let state = derive_agent_attribution_toggle_state(
-        &AdminEnablementSetting::RespectUserSetting,
-        false,
-        true,
-    );
     assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: false,
-            is_forced_by_org: false,
-            is_disabled: false,
-        }
+        acp_config_option_selected_value(&option, &HashMap::new()).as_deref(),
+        Some("gpt-5.5")
     );
-}
 
-#[test]
-fn team_enable_locks_toggle_on_regardless_of_user_pref() {
-    let state = derive_agent_attribution_toggle_state(&AdminEnablementSetting::Enable, false, true);
+    let items = acp_config_option_dropdown_items(&option);
     assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: true,
-            is_forced_by_org: true,
-            is_disabled: true,
-        }
+        items
+            .iter()
+            .map(|item| item.display_text.as_str())
+            .collect::<Vec<_>>(),
+        vec!["GPT-5.4", "GPT-5.5"]
     );
-}
-
-#[test]
-fn team_disable_locks_toggle_off_regardless_of_user_pref() {
-    let state = derive_agent_attribution_toggle_state(&AdminEnablementSetting::Disable, true, true);
-    assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: false,
-            is_forced_by_org: true,
-            is_disabled: true,
-        }
-    );
-}
-
-#[test]
-fn ai_globally_disabled_marks_toggle_disabled_but_not_forced() {
-    let state = derive_agent_attribution_toggle_state(
-        &AdminEnablementSetting::RespectUserSetting,
-        true,
-        false,
-    );
-    assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: true,
-            is_forced_by_org: false,
-            is_disabled: true,
-        }
-    );
-}
-
-#[test]
-fn team_force_takes_precedence_over_global_ai_disabled() {
-    let state =
-        derive_agent_attribution_toggle_state(&AdminEnablementSetting::Enable, false, false);
-    assert_eq!(
-        state,
-        AgentAttributionToggleState {
-            is_enabled: true,
-            is_forced_by_org: true,
-            is_disabled: true,
-        }
-    );
+    assert!(items.iter().all(|item| item.display_text != "Default"));
 }

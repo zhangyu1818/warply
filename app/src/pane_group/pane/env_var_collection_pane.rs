@@ -3,21 +3,17 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use crate::{
     app_state::{EnvVarCollectionPaneSnapshot, LeafContents},
-    drive::items::WarpDriveItemId,
     env_vars::{
         manager::{EnvVarCollectionManager, EnvVarCollectionSource},
         view::env_var_collection::{EnvVarCollectionEvent, EnvVarCollectionView},
         EnvVarCollectionType,
     },
+    object_ids::SyncId,
     pane_group::focus_state::PaneFocusHandle,
-    server::ids::SyncId,
     workspaces::user_workspaces::UserWorkspaces,
 };
 
-use super::{
-    view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 
 pub struct EnvVarCollectionPane {
     view: ViewHandle<PaneView<EnvVarCollectionView>>,
@@ -60,8 +56,8 @@ impl EnvVarCollectionPane {
             None => EnvVarCollectionSource::New {
                 title: None,
                 owner: UserWorkspaces::as_ref(ctx)
-                    .personal_drive(ctx)
-                    .context("personal drive unavailable")?,
+                    .current_user_owner(ctx)
+                    .context("local identity unavailable")?,
                 initial_folder_id: None,
             },
         };
@@ -146,14 +142,6 @@ impl PaneContent for EnvVarCollectionPane {
             .update(ctx, |view, ctx| view.focus(ctx));
     }
 
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        // TODO: sega
-        Ok(ShareableLink::Base)
-    }
-
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
         self.pane_configuration.clone()
     }
@@ -173,7 +161,6 @@ fn handle_env_var_collection_event(
         EnvVarCollectionEvent::Pane(pane_event) => {
             group.handle_pane_event(pane_id, pane_event, ctx)
         }
-        EnvVarCollectionEvent::ViewInWarpDrive(id) => view_in_warp_drive(*id, ctx),
         EnvVarCollectionEvent::Invoke(env_var_collection) => {
             invoke_env_var_collection(env_var_collection.clone(), ctx)
         }
@@ -191,8 +178,4 @@ fn invoke_env_var_collection(
         env_var_collection: env_var_collection.into(),
         in_subshell: false,
     })
-}
-
-fn view_in_warp_drive(id: WarpDriveItemId, ctx: &mut ViewContext<PaneGroup>) {
-    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(id))
 }

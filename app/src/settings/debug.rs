@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
 
 // Debug mode settings.
 //
@@ -23,21 +23,18 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
     },
     are_in_band_generators_for_all_sessions_enabled: AreInBandGeneratorsForAllSessionsEnabled {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
     },
     force_disable_in_band_generators: ForceDisableInBandGenerators {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
         storage_key: "DisableInBandCommands",
     },
@@ -45,14 +42,12 @@ define_settings_group!(DebugSettings, settings: [
         type: bool,
         default: cfg!(feature = "recording_mode"),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
     },
     show_memory_stats: ShowMemoryStats {
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
     }
 ]);

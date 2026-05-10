@@ -12,13 +12,12 @@ use crate::{
     agent::{
         action_result::{
             AIAgentActionResultType, AskUserQuestionResult, CallMCPToolResult,
-            CreateDocumentsResult, EditDocumentsResult, FetchConversationResult, FileGlobResult,
-            FileGlobV2Result, GrepResult, InsertReviewCommentsResult, ReadDocumentsResult,
-            ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult, ReadSkillResult,
+            CreateDocumentsResult, EditDocumentsResult, FileGlobResult, FileGlobV2Result,
+            GrepResult, InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult,
+            ReadMCPResourceResult, ReadShellCommandOutputResult, ReadSkillResult,
             RequestCommandOutputResult, RequestComputerUseResult, RequestFileEditsResult,
-            RunAgentsResult, SearchCodebaseResult, SendMessageToAgentResult, StartAgentResult,
-            StartAgentVersion, SuggestNewConversationResult, SuggestPromptResult,
-            TransferShellCommandControlToUserResult, UploadArtifactResult, UseComputerResult,
+            SearchCodebaseResult, SuggestNewConversationResult, SuggestPromptResult,
+            TransferShellCommandControlToUserResult, UseComputerResult,
             WriteToLongRunningShellCommandResult,
         },
         AIAgentCitation, FileLocations,
@@ -27,7 +26,6 @@ use crate::{
     document::AIDocumentId,
     skills::SkillReference,
 };
-pub use warp_multi_agent_api::LifecycleEventType;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumDiscriminants)]
 pub enum AIAgentActionType {
@@ -66,9 +64,6 @@ pub enum AIAgentActionType {
 
     /// AI requested getting the content of some files.
     ReadFiles(ReadFilesRequest),
-
-    /// AI requested uploading a local file as a conversation artifact.
-    UploadArtifact(UploadArtifactRequest),
 
     SearchCodebase(SearchCodebaseRequest),
 
@@ -141,23 +136,6 @@ pub enum AIAgentActionType {
     // AI requested to read a skill.
     ReadSkill(ReadSkillRequest),
 
-    FetchConversation {
-        conversation_id: String,
-    },
-
-    StartAgent {
-        version: StartAgentVersion,
-        name: String,
-        prompt: String,
-        execution_mode: StartAgentExecutionMode,
-        lifecycle_subscription: Option<Vec<LifecycleEventType>>,
-    },
-
-    SendMessageToAgent {
-        addresses: Vec<String>,
-        subject: String,
-        message: String,
-    },
     /// Transfer control of a running shell command to the user.
     TransferShellCommandControlToUser {
         /// The reason provided by the agent for transferring control.
@@ -167,108 +145,8 @@ pub enum AIAgentActionType {
     AskUserQuestion {
         questions: Vec<AskUserQuestionItem>,
     },
-
-    /// AI requested batched orchestration of one-or-more child agents that
-    /// share run-wide configuration (model, harness, execution mode).
-    /// The full per-child prompt is computed at dispatch time as
-    /// `base_prompt + "\n\n" + agent_run_configs[i].prompt` (or just
-    /// `base_prompt` when the per-agent `prompt` is empty).
-    RunAgents(RunAgentsRequest),
 }
 
-/// Run-wide + per-agent configuration for a `RunAgents` tool call.
-///
-/// Mirrors the proto `RunAgents` message. Server-resolved fields
-/// (`model_id`, `harness_type`, `execution_mode`'s remote details) are
-/// folded in by the server's final tool-call re-emission once the
-/// payload is complete; the client renders the full layout from a
-/// fully-resolved instance only.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsRequest {
-    pub summary: String,
-    pub base_prompt: String,
-    pub skills: Vec<SkillReference>,
-    pub model_id: String,
-    pub harness_type: String,
-    pub execution_mode: RunAgentsExecutionMode,
-    pub agent_run_configs: Vec<RunAgentsAgentRunConfig>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum RunAgentsExecutionMode {
-    Local,
-    Remote {
-        environment_id: String,
-        worker_host: String,
-        computer_use_enabled: bool,
-    },
-}
-
-impl RunAgentsExecutionMode {
-    pub fn is_remote(&self) -> bool {
-        matches!(self, Self::Remote { .. })
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct RunAgentsAgentRunConfig {
-    pub name: String,
-    pub prompt: String,
-    pub title: String,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StartAgentExecutionMode {
-    Local {
-        /// `None` selects the legacy embedded local child-agent flow.
-        /// `Some(...)` selects a third-party CLI harness to launch locally.
-        harness_type: Option<String>,
-        /// `None` inherits the parent agent's preferred LLM (legacy behavior).
-        /// `Some(_)` overrides the child's preferred LLM with the supplied
-        /// model id (used by the orchestrate confirmation card so the user's
-        /// model selection is honored on local launches).
-        model_id: Option<String>,
-    },
-    Remote {
-        environment_id: String,
-        skill_references: Vec<SkillReference>,
-        model_id: String,
-        computer_use_enabled: bool,
-        worker_host: String,
-        harness_type: String,
-        title: String,
-    },
-}
-
-impl StartAgentExecutionMode {
-    /// Constructs a local execution mode using the legacy v1 default harness.
-    pub fn local_with_defaults() -> Self {
-        Self::Local {
-            harness_type: None,
-            model_id: None,
-        }
-    }
-    /// Constructs a local execution mode for a specific third-party harness.
-    pub fn local_harness(harness_type: String) -> Self {
-        Self::Local {
-            harness_type: Some(harness_type),
-            model_id: None,
-        }
-    }
-    /// Constructs a remote execution mode using the legacy v1 defaults for
-    /// fields that were added later in StartAgentV2.
-    pub fn remote_with_defaults(environment_id: String) -> Self {
-        Self::Remote {
-            environment_id,
-            skill_references: Vec::new(),
-            model_id: String::new(),
-            computer_use_enabled: false,
-            worker_host: String::new(),
-            harness_type: String::new(),
-            title: String::new(),
-        }
-    }
-}
 impl AIAgentActionType {
     pub fn is_request_command_output(&self) -> bool {
         matches!(self, Self::RequestCommandOutput { .. })
@@ -303,9 +181,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
             }
             Self::ReadFiles(..) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-            Self::UploadArtifact(..) => {
-                AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-            }
             Self::SearchCodebase(..) => {
                 AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
             }
@@ -355,17 +230,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::RequestComputerUse(RequestComputerUseResult::Cancelled)
             }
             Self::ReadSkill(_) => AIAgentActionResultType::ReadSkill(ReadSkillResult::Cancelled),
-            Self::FetchConversation { .. } => {
-                AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
-            }
-            Self::StartAgent { version, .. } => {
-                AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                    version: *version,
-                })
-            }
-            Self::SendMessageToAgent { .. } => {
-                AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-            }
             Self::TransferShellCommandControlToUser { .. } => {
                 AIAgentActionResultType::TransferShellCommandControlToUser(
                     TransferShellCommandControlToUserResult::Cancelled,
@@ -374,7 +238,6 @@ impl AIAgentActionType {
             Self::AskUserQuestion { .. } => {
                 AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
             }
-            Self::RunAgents(_) => AIAgentActionResultType::RunAgents(RunAgentsResult::Cancelled),
         }
     }
 
@@ -387,7 +250,6 @@ impl AIAgentActionType {
                 "Write to long running shell command".to_string()
             }
             Self::ReadFiles(_) => "Read files".to_string(),
-            Self::UploadArtifact(_) => "Upload artifact".to_string(),
             Self::SearchCodebase(_) => "Search codebase".to_string(),
             Self::RequestFileEdits { file_edits, .. } => {
                 let file_names = file_edits.iter().filter_map(|edit| edit.file()).join(", ");
@@ -411,17 +273,11 @@ impl AIAgentActionType {
             }
             Self::RequestComputerUse(_) => "Request computer use".to_string(),
             Self::ReadSkill(_) => "Read skill".to_string(),
-            Self::FetchConversation { .. } => "Fetch conversation".to_string(),
-            Self::StartAgent { name, .. } => format!("Start agent: {name}"),
-            Self::SendMessageToAgent { subject, .. } => format!("Send message: {subject}"),
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
             }
             Self::AskUserQuestion { questions } => {
                 format!("Ask user {} question(s)", questions.len())
-            }
-            Self::RunAgents(req) => {
-                format!("Orchestrate {} agent(s)", req.agent_run_configs.len())
             }
         }
     }
@@ -452,9 +308,6 @@ impl Display for AIAgentActionType {
                 )
             }
             AIAgentActionType::ReadFiles(request) => {
-                write!(f, "{request}")
-            }
-            AIAgentActionType::UploadArtifact(request) => {
                 write!(f, "{request}")
             }
             AIAgentActionType::SearchCodebase(request) => {
@@ -574,35 +427,11 @@ impl Display for AIAgentActionType {
             AIAgentActionType::ReadSkill(req) => {
                 write!(f, "ReadSkill: {}", req.skill)
             }
-            AIAgentActionType::FetchConversation { conversation_id } => {
-                write!(f, "FetchConversation: {conversation_id}")
-            }
-            AIAgentActionType::StartAgent { name, .. } => {
-                write!(f, "StartAgent: {name}")
-            }
-            AIAgentActionType::SendMessageToAgent {
-                addresses, subject, ..
-            } => {
-                write!(
-                    f,
-                    "SendMessageToAgent: to=[{}] subject={subject}",
-                    addresses.join(", ")
-                )
-            }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
             }
             AIAgentActionType::AskUserQuestion { questions } => {
                 write!(f, "AskUserQuestion: {} question(s)", questions.len())
-            }
-            AIAgentActionType::RunAgents(req) => {
-                let names = req
-                    .agent_run_configs
-                    .iter()
-                    .map(|c| c.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                write!(f, "Orchestrate: summary='{}' agents=[{names}]", req.summary,)
             }
         }
     }
@@ -670,18 +499,6 @@ impl Display for ReadFilesRequest {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "ReadFiles: [{file_names}]")
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UploadArtifactRequest {
-    pub file_path: String,
-    pub description: Option<String>,
-}
-
-impl Display for UploadArtifactRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UploadArtifact: {}", self.file_path)
     }
 }
 

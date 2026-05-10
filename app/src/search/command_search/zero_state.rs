@@ -13,7 +13,6 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
-use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
 use crate::search::FilterChipRenderer;
 use crate::search::QueryFilter;
 use crate::settings::{AISettings, AISettingsChangedEvent};
@@ -24,14 +23,9 @@ lazy_static! {
     /// These are rendered as clickable 'chips' in the zero state.
     static ref SAMPLE_QUERY_TO_FILTER: HashMap<&'static str, QueryFilter> = HashMap::from([
         ("history: git checkout", QueryFilter::History),
-        ("workflows: run dev server", QueryFilter::Workflows),
         (
             "# find \"foo\" in files",
             QueryFilter::NaturalLanguage
-        ),
-        (
-            "notebooks: deploy production server",
-            QueryFilter::Notebooks
         ),
     ]);
 }
@@ -56,12 +50,6 @@ impl CommandSearchZeroStateView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
-                ctx.notify();
-            }
-        });
-
-        ctx.subscribe_to_model(&WarpDriveSettings::handle(ctx), |_, _, event, ctx| {
-            if let WarpDriveSettingsChangedEvent::EnableWarpDrive { .. } = event {
                 ctx.notify();
             }
         });
@@ -297,12 +285,6 @@ fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
             filters.push(QueryFilter::AgentModeWorkflows);
         }
         filters.push(QueryFilter::PromptHistory);
-    }
-
-    if WarpDriveSettings::is_warp_drive_enabled(app) {
-        filters.extend([QueryFilter::Workflows, QueryFilter::Notebooks]);
-
-        filters.push(QueryFilter::EnvironmentVariables);
     }
 
     filters

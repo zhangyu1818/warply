@@ -5,8 +5,7 @@ use crate::{appearance::Appearance, ui_components::icons::Icon};
 use enum_iterator::{all, Sequence};
 use lazy_static::lazy_static;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde::Serialize;
 use std::any::Any;
 use std::{collections::HashSet, sync::Arc};
 use warp_core::features::FeatureFlag;
@@ -29,24 +28,12 @@ lazy_static! {
         primary_text: "prompts:",
         aliases: vec!["p:"]
     };
-    static ref NOTEBOOKS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "notebooks:",
-        aliases: vec!["n:"]
-    };
-    static ref PLANS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "plans:",
-        aliases: vec![]
-    };
     static ref NATURAL_LANGUAGE_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "#",
         aliases: vec![]
     };
     static ref ACTIONS_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "actions:",
-        aliases: vec![]
-    };
-    static ref DRIVE_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "drive:",
         aliases: vec![]
     };
     static ref SESSIONS_FILTER_ATOM: FilterAtom = FilterAtom {
@@ -152,12 +139,6 @@ pub enum QueryFilter {
     /// Only include agent mode workflows (prompts) from WorkflowsDataSource.
     AgentModeWorkflows,
 
-    /// Only include results from NotebooksDataSource.
-    Notebooks,
-
-    /// Only include results from PlansDataSource.
-    Plans,
-
     /// Only include the Natural Language (AI) command search result.
     NaturalLanguage,
 
@@ -175,9 +156,6 @@ pub enum QueryFilter {
 
     /// Filter results for launch configurations.
     LaunchConfigurations,
-
-    /// Filter for objects in Warp Drive
-    Drive,
 
     /// Filter results for environment variables.
     EnvironmentVariables,
@@ -234,15 +212,12 @@ impl QueryFilter {
             QueryFilter::History => "Search history",
             QueryFilter::Workflows => "Search workflows",
             QueryFilter::AgentModeWorkflows => "Search prompts",
-            QueryFilter::Notebooks => "Search notebooks",
-            QueryFilter::Plans => "Search plans",
             QueryFilter::NaturalLanguage => "e.g. replace string in file",
             QueryFilter::Actions => "Search actions",
             QueryFilter::Sessions => "Search sessions",
             QueryFilter::Conversations => "Search conversations",
             QueryFilter::HistoricalConversations => "Search historical conversations",
             QueryFilter::LaunchConfigurations => "Search launch configurations",
-            QueryFilter::Drive => "Search objects in drive",
             QueryFilter::EnvironmentVariables => "Search environment variables",
             QueryFilter::PromptHistory => "Search prompt history",
             QueryFilter::Files => "Search files",
@@ -268,14 +243,11 @@ impl QueryFilter {
             QueryFilter::History => &HISTORY_FILTER_ATOM,
             QueryFilter::Workflows => &WORKFLOWS_FILTER_ATOM,
             QueryFilter::AgentModeWorkflows => &AGENT_MODE_WORKFLOWS_FILTER_ATOM,
-            QueryFilter::Notebooks => &NOTEBOOKS_FILTER_ATOM,
-            QueryFilter::Plans => &PLANS_FILTER_ATOM,
             QueryFilter::NaturalLanguage => &NATURAL_LANGUAGE_FILTER_ATOM,
             QueryFilter::Actions => &ACTIONS_FILTER_ATOM,
             QueryFilter::Sessions => &SESSIONS_FILTER_ATOM,
             QueryFilter::Conversations => &CONVERSATIONS_FILTER_ATOM,
             QueryFilter::LaunchConfigurations => &LAUNCH_CONFIG_FILTER_ATOM,
-            QueryFilter::Drive => &DRIVE_FILTER_ATOM,
             QueryFilter::EnvironmentVariables => &ENV_VARS_FILTER_ATOM,
             QueryFilter::PromptHistory => &AI_PROMPTS_FILTER_ATOM,
             QueryFilter::Files => &FILES_FILTER_ATOM,
@@ -300,14 +272,11 @@ impl QueryFilter {
             QueryFilter::History => "history",
             QueryFilter::Workflows => "workflows",
             QueryFilter::AgentModeWorkflows => "prompts",
-            QueryFilter::Notebooks => "notebooks",
-            QueryFilter::Plans => "plans",
             QueryFilter::NaturalLanguage => "AI command suggestions",
             QueryFilter::Actions => "actions",
             QueryFilter::Sessions => "sessions",
             QueryFilter::Conversations => "conversations",
             QueryFilter::LaunchConfigurations => "launch configurations",
-            QueryFilter::Drive => "Warp Drive",
             QueryFilter::EnvironmentVariables => "environment variables",
             QueryFilter::PromptHistory => "prompt history",
             QueryFilter::Files => "files",
@@ -331,13 +300,11 @@ impl QueryFilter {
         match self {
             QueryFilter::History => Some("bundled/svg/history.svg"),
             QueryFilter::Workflows => Some("bundled/svg/workflow.svg"),
-            QueryFilter::Notebooks => Some("bundled/svg/notebook.svg"),
-            QueryFilter::Plans => Some("bundled/svg/compass-3.svg"),
             QueryFilter::NaturalLanguage => {
                 if !FeatureFlag::AgentMode.is_enabled() {
                     Some(Icon::AiAssistant.into())
                 } else {
-                    Some(Icon::Oz.into())
+                    Some(Icon::AgentMode.into())
                 }
             }
             QueryFilter::Actions => None,
@@ -346,7 +313,6 @@ impl QueryFilter {
                 Some("bundled/svg/conversation.svg")
             }
             QueryFilter::LaunchConfigurations => Some("bundled/svg/navigation.svg"),
-            QueryFilter::Drive => Some("bundled/svg/warp-drive.svg"),
             QueryFilter::EnvironmentVariables => Some("bundled/svg/env-var-collection.svg"),
             QueryFilter::AgentModeWorkflows | QueryFilter::PromptHistory => {
                 Some(Icon::Prompt.into())
@@ -527,7 +493,7 @@ where
         self.as_ref(app).run_query(query, app)
     }
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct DataSourceSearchError {
     pub(crate) message: String,
 }
@@ -535,10 +501,6 @@ pub struct DataSourceSearchError {
 impl DataSourceRunError for DataSourceSearchError {
     fn user_facing_error(&self) -> String {
         self.message.clone()
-    }
-
-    fn telemetry_payload(&self) -> serde_json::Value {
-        json!(self)
     }
 
     fn as_any(&self) -> &dyn Any {

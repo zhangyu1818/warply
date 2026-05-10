@@ -176,9 +176,6 @@ pub enum ContextChipKind {
     KubernetesContext,
     SvnBranch,
     SvnDirtyItems,
-    // This is for backwards compatibility with the old "RemoteLogin" chip.
-    // We originally had two different chips for different input types, this has since been consolidated.
-    #[serde(alias = "RemoteLogin")]
     Ssh,
     Subshell,
     /// A chip that shows the plan and todo list for the current conversation.
@@ -344,7 +341,7 @@ impl ContextChipKind {
                 RefreshConfig::OnDemandOnly,
             )),
             Self::Ssh => Some(ContextChip::builtin(
-                "Remote Login",
+                "SSH Session",
                 builtins::ssh_session,
                 RefreshConfig::OnDemandOnly,
             )),
@@ -444,18 +441,6 @@ impl ContextChipKind {
         let font_properties = Properties::default().weight(Weight::Semibold);
 
         RendererStyles::new(color, font_properties)
-    }
-
-    /// The name of this context chip to use in telemetry, or `None` if it should not
-    /// be reported at all.
-    ///
-    /// This lets us measure which chips are being used without reporting private
-    /// user-created chips.
-    pub fn telemetry_name(&self) -> Option<String> {
-        match self {
-            Self::Custom { .. } => None,
-            chip => Some(format!("{chip:?}")),
-        }
     }
 
     /// Formats a value of this context chip for display.

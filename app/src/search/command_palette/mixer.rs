@@ -1,9 +1,8 @@
 use crate::ai::agent::conversation::AIConversationId;
-use crate::drive::CloudObjectTypeAndId;
 use crate::launch_configs::launch_config::LaunchConfig;
+use crate::object_ids::SyncId;
 use crate::search::command_palette::new_session::{NewSessionOption, NewSessionOptionId};
 use crate::search::mixer::SearchMixer;
-use crate::server::ids::SyncId;
 use crate::util::bindings::CommandBinding;
 use crate::workspace::PaneViewLocator;
 use std::sync::Arc;
@@ -22,12 +21,6 @@ pub enum CommandPaletteItemAction {
     },
     ExecuteWorkflow {
         id: SyncId,
-    },
-    OpenNotebook {
-        id: SyncId,
-    },
-    ViewInWarpDrive {
-        id: CloudObjectTypeAndId,
     },
     InvokeEnvironmentVariables {
         id: SyncId,
@@ -84,7 +77,6 @@ impl CommandPaletteItemAction {
             CommandPaletteItemAction::AcceptBinding { binding } => ItemSummary::Action {
                 binding_id: binding.id,
             },
-            CommandPaletteItemAction::OpenNotebook { id } => ItemSummary::Notebook { id: *id },
             CommandPaletteItemAction::ExecuteWorkflow { id } => ItemSummary::Workflow { id: *id },
             CommandPaletteItemAction::InvokeEnvironmentVariables { id } => {
                 ItemSummary::EnvVarCollection { id: *id }
@@ -106,12 +98,6 @@ impl CommandPaletteItemAction {
             CommandPaletteItemAction::OpenLaunchConfiguration { .. } => {
                 ItemSummary::LaunchConfiguration
             }
-            CommandPaletteItemAction::ViewInWarpDrive { id } => match id {
-                CloudObjectTypeAndId::Notebook(_)
-                | CloudObjectTypeAndId::Folder(_)
-                | CloudObjectTypeAndId::GenericStringObject { .. } => ItemSummary::CloudObject,
-                CloudObjectTypeAndId::Workflow(id) => ItemSummary::Workflow { id: *id },
-            },
             CommandPaletteItemAction::OpenFile {
                 path,
                 project_directory,
@@ -161,9 +147,6 @@ pub enum ItemSummary {
         id: SyncId,
     },
     EnvVarCollection {
-        id: SyncId,
-    },
-    Notebook {
         id: SyncId,
     },
     Session {

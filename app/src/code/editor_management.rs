@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::ai::skills::SkillOpenOrigin;
 use ai::skills::SkillReference;
 use serde::{Deserialize, Serialize};
 use warp_util::path::LineAndColumnArg;
@@ -126,7 +125,6 @@ pub enum CodeSource {
     Skill {
         reference: SkillReference,
         path: PathBuf,
-        origin: SkillOpenOrigin,
     },
 }
 
@@ -176,19 +174,6 @@ impl CodeSource {
             }
         } else {
             self.clone()
-        }
-    }
-
-    /// Returns the variant name as a string for telemetry purposes.
-    pub fn telemetry_source_name(&self) -> &'static str {
-        match self {
-            Self::New { .. } => "new",
-            Self::Link { .. } => "link",
-            Self::AIAction { .. } => "ai_action",
-            Self::ProjectRules { .. } => "project_rules",
-            Self::FileTree { .. } => "file_tree",
-            Self::Finder { .. } => "finder",
-            Self::Skill { .. } => "skill",
         }
     }
 

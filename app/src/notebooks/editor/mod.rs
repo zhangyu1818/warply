@@ -39,7 +39,6 @@ pub mod notebook_command;
 mod omnibar;
 pub mod view;
 
-pub use block_insertion_menu::BlockInsertionSource;
 use warpui::elements::ListIndentLevel;
 
 const NOTEBOOK_LINE_HEIGHT_RATIO: f32 = 1.6;
@@ -330,7 +329,7 @@ impl<'a> From<&'a BufferBlockStyle> for BlockType {
 /// Wrapper around the shared [`Workflow`] type with additional context for workflows contained
 /// within a notebook.
 ///
-/// This may be a command block that's part of the notebook text, or an embedded Warp Drive workflow.
+/// This may be a command block that's part of the notebook text, or an embedded workflow.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NotebookWorkflow {
     /// Definition of the workflow itself.
@@ -345,21 +344,6 @@ impl NotebookWorkflow {
         Self {
             source: Some(cloud_workflow.permissions.owner.into()),
             workflow: UserInput::new(Arc::new(WorkflowType::Cloud(cloud_workflow))),
-        }
-    }
-
-    /// Extract the [`WorkflowType`], assigning a name using the given callback if needed.
-    pub fn named_workflow<F: FnOnce() -> Option<String>>(&self, name: F) -> Arc<WorkflowType> {
-        match &**self.workflow {
-            WorkflowType::Notebook(workflow) if workflow.name().is_empty() => match name() {
-                Some(name) => {
-                    let mut workflow = workflow.clone();
-                    workflow.set_name(name.as_str());
-                    Arc::new(WorkflowType::Notebook(workflow))
-                }
-                None => (*self.workflow).clone(),
-            },
-            _ => (*self.workflow).clone(),
         }
     }
 }

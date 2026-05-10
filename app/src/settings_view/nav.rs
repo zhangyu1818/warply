@@ -25,20 +25,18 @@ pub struct SettingsUmbrella {
     pub label: &'static str,
     pub subpages: Vec<SettingsSection>,
     pub expanded: bool,
-    /// Saved expanded state from before search began, restored when search is cleared.
-    pub pre_search_expanded: Option<bool>,
     pub button_state_handle: MouseStateHandle,
     pub subpage_button_states: Vec<MouseStateHandle>,
 }
 
 impl SettingsUmbrella {
+    #[allow(dead_code)]
     pub fn new(label: &'static str, subpages: Vec<SettingsSection>) -> Self {
         let subpage_count = subpages.len();
         Self {
             label,
             subpages,
             expanded: false,
-            pre_search_expanded: None,
             button_state_handle: MouseStateHandle::default(),
             subpage_button_states: (0..subpage_count)
                 .map(|_| MouseStateHandle::default())
@@ -136,5 +134,6 @@ pub enum SettingsNavItem {
     /// A top-level page that is rendered directly in the sidebar.
     Page(SettingsSection),
     /// A collapsible group header whose children are subpage sections.
+    #[allow(dead_code)]
     Umbrella(SettingsUmbrella),
 }

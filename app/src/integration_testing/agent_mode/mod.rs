@@ -1,8 +1,6 @@
 mod assertions;
-pub mod llm_judge;
 mod step;
 mod user_defaults;
-mod util;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
@@ -14,18 +12,13 @@ use crate::{ai::agent::AIAgentActionType, integration_testing::view_getters::ter
 pub use assertions::*;
 pub use step::*;
 pub use user_defaults::*;
-pub use util::*;
 use warpui::integration::PersistedDataMap;
 pub use warpui::integration::RUNTIME_TAG_FAILURE_REASON;
 use warpui::{App, SingletonEntity as _, WindowId};
 
-pub const TOTAL_REQUEST_COST_PREFIX: &str = "Total request cost: ";
 pub const TOTAL_EXCHANGES_PREFIX: &str = "Total number of exchanges: ";
-pub const TOTAL_TOKEN_USAGE_PREFIX: &str = "Total token usage: ";
 
-pub const RUNTIME_TAG_TOTAL_REQUEST_COST: &str = "total_request_cost";
 pub const RUNTIME_TAG_TOTAL_EXCHANGES: &str = "total_exchanges";
-pub const RUNTIME_TAG_TOKEN_USAGE_PREFIX: &str = "token_usage.";
 
 const CODE_DIFF_OUTPUT_FILE_ENV_VAR: &str = "CODE_DIFF_OUTPUT_FILE";
 
@@ -171,96 +164,15 @@ pub fn output_conversation_debug_info(
         write_to_debug_file(&format!(
             "========Conversation Debug Info (Generated: {current_time})========"
         ));
-        let debug_link = conversation
-            .server_conversation_token()
-            .map(|token| {
-                // The debug link within the container will be using host.docker.internal, but we're opening
-                // from outside the container.
-                // The server is configured to always write debug data to GCS instead of locally when run for evals, so we replace
-                // with staging.warp.dev instead of localhost:8080.
-                token
-                    .debug_link()
-                    .replace("host.docker.internal:8080", "staging.warp.dev")
-            })
-            .unwrap_or("unavailable".to_owned());
-        write_to_debug_file(&format!("Conversation Debug Link: {debug_link}"));
+        write_to_debug_file(&format!("Conversation ID: {}", conversation.id()));
 
-        let total_request_cost = conversation.total_request_cost();
         let total_exchanges = conversation.all_exchanges().len();
-        let token_usage = conversation.total_token_usage();
-
-        // Populate runtime tags with conversation data
-        persisted_data.insert(
-            RUNTIME_TAG_TOTAL_REQUEST_COST.to_string(),
-            total_request_cost.to_string(),
-        );
         persisted_data.insert(
             RUNTIME_TAG_TOTAL_EXCHANGES.to_string(),
             total_exchanges.to_string(),
         );
 
-        // Add token usage as separate runtime tags
-        for usage in token_usage.iter() {
-            persisted_data.insert(
-                format!(
-                    "{}{}.total_input",
-                    RUNTIME_TAG_TOKEN_USAGE_PREFIX, usage.model_id
-                ),
-                usage.total_input.to_string(),
-            );
-            persisted_data.insert(
-                format!(
-                    "{}{}.output",
-                    RUNTIME_TAG_TOKEN_USAGE_PREFIX, usage.model_id
-                ),
-                usage.output.to_string(),
-            );
-            persisted_data.insert(
-                format!(
-                    "{}{}.input_cache_read",
-                    RUNTIME_TAG_TOKEN_USAGE_PREFIX, usage.model_id
-                ),
-                usage.input_cache_read.to_string(),
-            );
-            persisted_data.insert(
-                format!(
-                    "{}{}.input_cache_write",
-                    RUNTIME_TAG_TOKEN_USAGE_PREFIX, usage.model_id
-                ),
-                usage.input_cache_write.to_string(),
-            );
-            persisted_data.insert(
-                format!(
-                    "{}{}.cost_in_cents",
-                    RUNTIME_TAG_TOKEN_USAGE_PREFIX, usage.model_id
-                ),
-                usage.cost_in_cents.to_string(),
-            );
-        }
-
-        // Write to debug file for backward compatibility
-        write_to_debug_file(&format!(
-            "{TOTAL_REQUEST_COST_PREFIX}{total_request_cost}"
-        ));
-
         write_to_debug_file(&format!("{TOTAL_EXCHANGES_PREFIX}{total_exchanges}"));
-
-        write_to_debug_file(&format!(
-            "{TOTAL_TOKEN_USAGE_PREFIX}{}",
-            token_usage
-                .iter()
-                .map(|usage| format!(
-                    "model_id={},total_input={},output={},input_cache_read={},input_cache_write={},cost_in_cents={}",
-                    usage.model_id,
-                    usage.total_input,
-                    usage.output,
-                    usage.input_cache_read,
-                    usage.input_cache_write,
-                    usage.cost_in_cents
-                ))
-                .collect::<Vec<_>>()
-                .join("|")
-        ));
 
         write_to_debug_file("\nConversation Exchanges:\n");
         for (i, exchange) in conversation.all_exchanges().into_iter().enumerate() {

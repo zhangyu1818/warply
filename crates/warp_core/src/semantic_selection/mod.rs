@@ -2,7 +2,7 @@ use std::{collections::HashSet, ops::Range};
 
 use lazy_static::lazy_static;
 use regex::Regex;
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
 use string_offset::ByteOffset;
 use warpui::elements::SmartSelectFn;
 
@@ -103,7 +103,6 @@ define_settings_group!(SemanticSelection, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         storage_key: "SmartSelect",
         toml_path: "terminal.smart_select.enabled",
@@ -113,7 +112,6 @@ define_settings_group!(SemanticSelection, settings: [
         type: String,
         default: DEFAULT_WORD_CHAR_ALLOWLIST.to_owned(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         storage_key: "WordCharAllowlist",
         toml_path: "terminal.smart_select.word_char_allowlist",

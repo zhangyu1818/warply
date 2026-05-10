@@ -9,7 +9,9 @@ use tempfile::NamedTempFile;
 use crate::{
     ClassificationResult, Context, InputClassifier, InputType,
     parser::parse_query_into_tokens,
-    util::{is_likely_shell_command, is_one_off_natural_language_word},
+    util::{
+        is_likely_cjk_natural_language, is_likely_shell_command, is_one_off_natural_language_word,
+    },
 };
 
 #[derive(Clone, Copy, RustEmbed)]
@@ -61,6 +63,10 @@ impl InputClassifier for FasttextClassifier {
 
         if total_word_token_count == 1 {
             if is_one_off_natural_language_word(&word_tokens[0].to_lowercase()) {
+                return InputType::AI;
+            }
+
+            if is_likely_cjk_natural_language(&word_tokens) {
                 return InputType::AI;
             }
 

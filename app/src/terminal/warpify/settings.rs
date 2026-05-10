@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use settings::{
     macros::{maybe_define_setting, register_settings_events},
-    ChangeEventReason, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
+    ChangeEventReason, Setting, SupportedPlatforms,
 };
 use strum_macros::EnumIter;
 use warp_util::path::ShellFamily;
@@ -17,7 +17,6 @@ maybe_define_setting!(AddedSubshellCommands, group: WarpifySettings, {
     type: Vec<String>,
     default: Vec::new(),
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.subshells.added_subshell_commands",
     description: "Additional regex patterns for commands that should be recognized as subshells.",
@@ -27,7 +26,6 @@ maybe_define_setting!(SubshellCommandsDenylist, group: WarpifySettings, {
     type: Vec<String>,
     default: Vec::new(),
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.subshells.subshell_commands_denylist",
     description: "Commands that should not trigger the subshell warpification prompt.",
@@ -37,7 +35,6 @@ maybe_define_setting!(SshHostsDenylist, group: WarpifySettings, {
     type: Vec<String>,
     default: Vec::new(),
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.ssh.ssh_hosts_denylist",
     description: "SSH hosts that should not trigger the warpification prompt.",
@@ -47,7 +44,6 @@ maybe_define_setting!(EnableSshWarpification, group: WarpifySettings, {
     type: bool,
     default: true,
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.ssh.enable_ssh_warpification",
     description: "Whether to enable Warp features in SSH sessions.",
@@ -57,7 +53,6 @@ maybe_define_setting!(UseSshTmuxWrapper, group: WarpifySettings, {
     type: bool,
     default: false,
     supported_platforms: SupportedPlatforms::OR(SupportedPlatforms::MAC.into(), SupportedPlatforms::LINUX.into()),
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.ssh.use_ssh_tmux_wrapper",
     description: "Whether to use a tmux-based wrapper for SSH warpification.",
@@ -96,7 +91,6 @@ maybe_define_setting!(SshExtensionInstallModeSetting, group: WarpifySettings, {
     type: SshExtensionInstallMode,
     default: SshExtensionInstallMode::default(),
     supported_platforms: SupportedPlatforms::ALL,
-    sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
     private: false,
     toml_path: "warpify.ssh.ssh_extension_install_mode",
     description: "Controls SSH extension installation behavior.",

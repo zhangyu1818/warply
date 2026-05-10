@@ -9,25 +9,25 @@ use crate::{
     ai::facts::{AIFact, AIMemory, CloudAIFact},
     appearance::Appearance,
     cloud_object::CloudObjectMetadata,
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
+    drive::{CloudObjectTypeAndId, DriveObjectType},
     themes::theme::Fill,
 };
 
-use super::{WarpDriveItem, WarpDriveItemId};
+use super::{LocalObjectItem, LocalObjectItemId};
 
 #[derive(Clone)]
-pub struct WarpDriveAIFact {
+pub struct LocalObjectAIFact {
     id: CloudObjectTypeAndId,
     ai_fact: CloudAIFact,
 }
 
-impl WarpDriveAIFact {
+impl LocalObjectAIFact {
     pub fn new(id: CloudObjectTypeAndId, ai_fact: CloudAIFact) -> Self {
         Self { id, ai_fact }
     }
 }
 
-impl WarpDriveItem for WarpDriveAIFact {
+impl LocalObjectItem for LocalObjectAIFact {
     fn display_name(&self) -> Option<String> {
         match &self.ai_fact.model().string_model {
             AIFact::Memory(AIMemory { content, name, .. }) => {
@@ -53,10 +53,6 @@ impl WarpDriveItem for WarpDriveAIFact {
 
     fn secondary_icon(&self, _color: Option<Fill>) -> Option<Box<dyn Element>> {
         None
-    }
-
-    fn click_action(&self) -> Option<DriveIndexAction> {
-        Some(DriveIndexAction::OpenAIFactCollection)
     }
 
     fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -88,28 +84,26 @@ impl WarpDriveItem for WarpDriveAIFact {
         )
     }
 
-    fn warp_drive_id(&self) -> WarpDriveItemId {
-        WarpDriveItemId::Object(self.id)
+    fn local_object_id(&self) -> LocalObjectItemId {
+        LocalObjectItemId::Object(self.id)
     }
 
     fn sync_status_icon(
         &self,
-        sync_queue_is_dequeueing: bool,
         hover_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
-        self.ai_fact.metadata.pending_changes_statuses.render_icon(
-            sync_queue_is_dequeueing,
-            hover_state,
-            appearance,
-        )
+        self.ai_fact
+            .metadata
+            .pending_changes_statuses
+            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, _app: &AppContext) -> Option<String> {
         None
     }
 
-    fn clone_box(&self) -> Box<dyn WarpDriveItem> {
+    fn clone_box(&self) -> Box<dyn LocalObjectItem> {
         Box::new(self.clone())
     }
 }

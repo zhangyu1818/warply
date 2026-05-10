@@ -1,11 +1,8 @@
 use super::*;
-use crate::auth::AuthStateProvider;
 use crate::editor::soft_wrap::FrameLayouts;
 use crate::editor::tests::sample_text;
 use crate::editor::EditorView;
-use crate::report_if_error;
-use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
+use crate::identity::LocalIdentityProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::sync_inputs::SyncedInputState;
@@ -14,7 +11,6 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 use anyhow::Error;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
-use settings::ToggleableSetting;
 use unindent::Unindent;
 use warpui::color::ColorU;
 use warpui::platform::WindowStyle;
@@ -47,20 +43,9 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| SyncedInputState::mock());
     app.add_singleton_model(|_ctx| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
 
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![],
-            ctx,
-        )
-    });
+    app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
 #[test]
@@ -407,12 +392,10 @@ fn test_select_word() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        // Disable smart select and clear the word-char allowlist so basic
-        // word-boundary rules apply.
         app.update(|ctx| {
             SemanticSelection::handle(ctx).update(ctx, |selection, ctx| {
-                report_if_error!(selection.smart_select_enabled.toggle_and_save_value(ctx));
-                report_if_error!(selection.word_char_allowlist.set_value(String::new(), ctx));
+                let _ = selection.smart_select_enabled.set_value(false, ctx);
+                let _ = selection.word_char_allowlist.set_value("".to_string(), ctx);
                 assert!(!selection.smart_select_enabled());
             });
         });
@@ -490,11 +473,10 @@ fn test_select_word_with_custom_boundaries() {
 
         app.update(|ctx| {
             SemanticSelection::handle(ctx).update(ctx, |selection, ctx| {
-                // Disable smart select so custom word boundaries take effect
-                report_if_error!(selection.smart_select_enabled.toggle_and_save_value(ctx));
-                report_if_error!(selection
+                let _ = selection.smart_select_enabled.set_value(false, ctx);
+                let _ = selection
                     .word_char_allowlist
-                    .set_value("/-.".to_owned(), ctx));
+                    .set_value("-./".to_string(), ctx);
                 assert!(!selection.smart_select_enabled());
             });
         });

@@ -1,7 +1,7 @@
-use crate::auth::auth_state::AuthStateProvider;
-use crate::remote_server::auth_context::server_api_auth_context;
+use crate::identity::local_identity::LocalIdentityProvider;
+use crate::remote_server::identity_context::server_api_identity_context;
 use instant::Instant;
-use remote_server::auth::RemoteServerAuthContext;
+use remote_server::identity::RemoteServerIdentityContext;
 use std::path::PathBuf;
 use std::sync::Arc;
 use warp_core::SessionId;
@@ -13,14 +13,9 @@ use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySetting
 
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::remote_server::ssh_transport::SshTransport;
-use crate::server::server_api::ServerApiProvider;
-use crate::settings::PrivacySettings;
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
-use remote_server::setup::{
-    PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform, UnsupportedReason,
-};
+use remote_server::setup::{PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform};
 
 use super::pty_controller::{EventLoopSender, PtyController};
 
@@ -75,10 +70,9 @@ pub struct RemoteServerController<T: EventLoopSender> {
     state: SshInitState,
     /// Whether the binary was installed during this setup flow.
     did_install: bool,
-    /// Detected remote platform from the binary check phase, used for telemetry.
+    /// Detected remote platform from the binary check phase.
     remote_platform: Option<RemotePlatform>,
-    /// Outcome of the preinstall check from the binary check phase,
-    /// used for telemetry on the supported path.
+    /// Outcome of the preinstall check from the binary check phase.
     preinstall_check: Option<PreinstallCheckResult>,
 }
 
@@ -139,9 +133,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             | RemoteServerManagerEvent::RepoMetadataSnapshot { .. }
             | RemoteServerManagerEvent::RepoMetadataUpdated { .. }
             | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
-            | RemoteServerManagerEvent::SetupStateChanged { .. }
-            | RemoteServerManagerEvent::ClientRequestFailed { .. }
-            | RemoteServerManagerEvent::ServerMessageDecodingError { .. } => {}
+            | RemoteServerManagerEvent::SetupStateChanged { .. } => {}
         });
 
         Self {
@@ -195,7 +187,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                 self.flush_stashed_bootstrap(old_info, ctx);
             }
         }
-        let transport = SshTransport::new(socket_path, self.build_auth_context(ctx));
+        let transport = SshTransport::new(socket_path, self.build_identity_context(ctx));
         self.did_install = false;
         self.remote_platform = None;
         self.preinstall_check = None;
@@ -251,7 +243,6 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                 "Remote server preinstall check classified as unsupported, falling back to legacy SSH: session={session_id:?} status={:?}",
                 check.status
             );
-            send_unsupported_telemetry(self.remote_platform.as_ref(), check, ctx);
             RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
                 mgr.mark_setup_unsupported(session_id, reason, ctx);
             });
@@ -363,8 +354,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
     }
 
     /// Called when the remote server session is connected. Flushes the
-    /// stashed bootstrap (so the session initializes with a live client)
-    /// and emits the `RemoteServerSetupDuration` telemetry event.
+    /// stashed bootstrap so the session initializes with a live client.
     fn on_session_connected(&mut self, session_id: SessionId, ctx: &mut ModelContext<Self>) {
         let SshInitState::AwaitingConnect {
             session_id: expected,
@@ -391,11 +381,11 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         // subsequently initializes, so it picks `RemoteServerCommandExecutor`.
         self.flush_stashed_bootstrap(session_info, ctx);
 
-        let duration_ms = Instant::now()
+        let _duration_ms = Instant::now()
             .duration_since(setup_start)
             .as_millis()
             .min(u64::MAX as u128) as u64;
-        let (remote_os, remote_arch) = self
+        let (_remote_os, _remote_arch) = self
             .remote_platform
             .as_ref()
             .map(|p| {
@@ -405,20 +395,10 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                 )
             })
             .unwrap_or((None, None));
-        let remote_libc = self
+        let _remote_libc = self
             .preinstall_check
             .as_ref()
             .map(|check| describe_libc(&check.libc));
-        send_telemetry_from_ctx!(
-            TelemetryEvent::RemoteServerSetupDuration {
-                duration_ms,
-                installed_binary: self.did_install,
-                remote_os,
-                remote_arch,
-                remote_libc,
-            },
-            ctx
-        );
     }
 
     /// Called when the remote server connection failed. Flushes the stashed
@@ -505,21 +485,9 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         }
     }
 
-    /// Builds a fresh [`RemoteServerAuthContext`] that captures the current
-    /// crash-reporting preference from [`PrivacySettings`], so each
-    /// connection attempt uses the latest value without requiring a
-    /// long-lived cache or subscription.
-    fn build_auth_context(&self, ctx: &ModelContext<Self>) -> Arc<RemoteServerAuthContext> {
-        let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
-        let auth_client = ServerApiProvider::as_ref(ctx).get_auth_client();
-        let crash_reporting_enabled = PrivacySettings::handle(ctx)
-            .as_ref(ctx)
-            .is_crash_reporting_enabled;
-        Arc::new(server_api_auth_context(
-            auth_state,
-            auth_client,
-            crash_reporting_enabled,
-        ))
+    fn build_identity_context(&self, ctx: &ModelContext<Self>) -> Arc<RemoteServerIdentityContext> {
+        let local_identity = LocalIdentityProvider::as_ref(ctx).get().clone();
+        Arc::new(server_api_identity_context(local_identity))
     }
 
     fn connect_session_for_current_identity(
@@ -528,49 +496,19 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         socket_path: PathBuf,
         ctx: &mut ModelContext<Self>,
     ) {
-        let auth_context = self.build_auth_context(ctx);
-        let transport = SshTransport::new(socket_path, auth_context.clone());
+        let identity_context = self.build_identity_context(ctx);
+        let transport = SshTransport::new(socket_path, identity_context.clone());
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
-            mgr.connect_session(session_id, transport, auth_context, ctx);
+            mgr.connect_session(session_id, transport, identity_context, ctx);
         });
     }
 }
 
-/// Describes a [`RemoteLibc`] as a short string for telemetry.
+/// Describes a [`RemoteLibc`] as a short string.
 fn describe_libc(libc: &RemoteLibc) -> String {
     match libc {
         RemoteLibc::Glibc(version) => format!("glibc {version}"),
         RemoteLibc::NonGlibc { name } => name.clone(),
         RemoteLibc::Unknown => "unknown".to_string(),
     }
-}
-
-fn send_unsupported_telemetry<T: EventLoopSender>(
-    remote_platform: Option<&RemotePlatform>,
-    check: &PreinstallCheckResult,
-    ctx: &mut ModelContext<RemoteServerController<T>>,
-) {
-    let (remote_os, remote_arch) = remote_platform
-        .map(|p| {
-            (
-                Some(p.os.as_str().to_owned()),
-                Some(p.arch.as_str().to_owned()),
-            )
-        })
-        .unwrap_or((None, None));
-    let required_glibc = match &check.status {
-        remote_server::setup::PreinstallStatus::Unsupported {
-            reason: UnsupportedReason::GlibcTooOld { required, .. },
-        } => required.to_string(),
-        _ => String::new(),
-    };
-    send_telemetry_from_ctx!(
-        TelemetryEvent::RemoteServerHostUnsupported {
-            remote_os,
-            remote_arch,
-            detected_libc: describe_libc(&check.libc),
-            required_glibc,
-        },
-        ctx
-    );
 }

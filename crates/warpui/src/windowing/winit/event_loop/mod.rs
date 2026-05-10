@@ -952,7 +952,7 @@ impl EventLoop {
                 // On non-web platforms, immediately terminate the process instead of returning
                 // from the event loop.  This matches the behavior of
                 // `[NSApp terminate]` on macOS, and may avoid some at-exit
-                // crashes that produce noise in our crash reporting data.
+                // crashes during shutdown.
                 // On web, it's not possible to exit cleanly, so just return from the event loop
                 // instead.
                 #[cfg(not(target_family = "wasm"))]
@@ -1159,7 +1159,6 @@ impl EventLoop {
                     crate::event::Event::ModifierStateChanged {
                         mouse_position: window_state.last_cursor_position.to_vec2f(),
                         modifiers: from_winit_modifiers_state(state),
-                        // TODO: when we need key codes for voice input on Linux/Windows, we'll need to populate this!
                         key_code: None,
                     },
                 ))

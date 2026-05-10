@@ -12,7 +12,6 @@ use input_classifier::util::{is_agent_follow_up_input, is_one_off_natural_langua
 use instant::Instant;
 use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::{InputMode, InputType as ProtocolInputType};
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -24,22 +23,17 @@ use super::context_model::BlocklistAIContextModel;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
-use crate::PrivacySettings;
 use warp_completer::completer::CompletionContext;
 
 use crate::{
     input_classifier::InputClassifierModel,
-    report_if_error, send_telemetry_from_ctx,
-    settings::{AISettings, AISettingsChangedEvent, InputBoxType, InputSettings},
+    settings::{AISettings, InputBoxType, InputSettings},
     terminal::{
         input::decorations::ParsedTokensSnapshot,
         model::{rich_content::RichContentType, session::SessionId},
         History, TerminalModel,
     },
-    TelemetryEvent,
 };
-
-use super::telemetry_banner::should_collect_ai_ugc_telemetry;
 
 /// Cutoff score for deciding an user input matches a history command entry.
 const HISTORY_ENTRY_MATCH_CUTOFF: f32 = 0.9;
@@ -120,17 +114,6 @@ impl InputConfig {
     }
 }
 
-impl From<InputConfig> for InputMode {
-    fn from(config: InputConfig) -> Self {
-        let protocol_input_type = match config.input_type {
-            InputType::Shell => ProtocolInputType::Shell,
-            InputType::AI => ProtocolInputType::AI,
-        };
-
-        InputMode::new(protocol_input_type, config.is_locked)
-    }
-}
-
 /// Terminal pane-scoped model responsible for managing AI input state.
 #[derive(Clone)]
 pub struct BlocklistAIInputModel {
@@ -197,57 +180,6 @@ impl BlocklistAIInputModel {
                 }
             },
         );
-
-        ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, event, ctx| {
-            match event {
-                AISettingsChangedEvent::AIAutoDetectionEnabled { .. }
-                    if FeatureFlag::AgentView.is_enabled() =>
-                {
-                    if me.agent_view_controller.as_ref(ctx).is_fullscreen() {
-                        // Use context-specific check to determine if autodetection should be enabled
-                        let is_nld_enabled =
-                            AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx);
-
-                        // If autodetection is enabled, unlock the input.
-                        me.set_input_config_internal(
-                            InputConfig {
-                                is_locked: !is_nld_enabled,
-                                input_type: InputType::AI,
-                            },
-                            ctx,
-                        );
-                    }
-                }
-                AISettingsChangedEvent::AIAutoDetectionEnabled { .. } => {
-                    // Use context-specific check to determine if autodetection should be enabled
-                    let is_autodetection_enabled =
-                        me.is_autodetection_enabled_for_current_context(ctx);
-
-                    // If autodetection is enabled, unlock the input.
-                    me.set_input_config_internal(
-                        InputConfig {
-                            is_locked: !is_autodetection_enabled,
-                            ..me.input_config()
-                        },
-                        ctx,
-                    );
-                }
-                AISettingsChangedEvent::NLDInTerminalEnabled { .. }
-                    if FeatureFlag::AgentView.is_enabled()
-                        && !me.agent_view_controller.as_ref(ctx).is_active() =>
-                {
-                    let is_nld_enabled = AISettings::as_ref(ctx).is_nld_in_terminal_enabled(ctx);
-                    me.set_input_config_internal(
-                        InputConfig {
-                            is_locked: !is_nld_enabled,
-                            input_type: InputType::Shell,
-                        },
-                        ctx,
-                    );
-                }
-                _ => (),
-            }
-        });
 
         if FeatureFlag::AgentView.is_enabled() {
             ctx.subscribe_to_model(&agent_view_controller, |me, event, ctx| match event {
@@ -439,15 +371,6 @@ impl BlocklistAIInputModel {
             self.last_ai_autodetection_ts = None;
         }
 
-        if new_config.input_type.is_ai() {
-            AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                let new_num_times = *settings.entered_agent_mode_num_times + 1;
-                report_if_error!(settings
-                    .entered_agent_mode_num_times
-                    .set_value(new_num_times, ctx));
-            });
-        }
-
         self.input_config = new_config;
 
         // Emit specific events for what actually changed
@@ -494,9 +417,7 @@ impl BlocklistAIInputModel {
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
     /// and change the input type.
     pub fn should_run_input_autodetection(&self, app: &AppContext) -> bool {
-        FeatureFlag::AgentMode.is_enabled()
-            && self.is_autodetection_enabled_for_current_context(app)
-            && !self.input_config.is_locked
+        self.is_autodetection_enabled_for_current_context(app) && !self.input_config.is_locked
     }
 
     /// Returns whether autodetection is enabled for the current context.
@@ -677,10 +598,10 @@ impl BlocklistAIInputModel {
         });
 
         let buffer_cloned = input.buffer_text.clone();
-        let other_buffer_cloned = buffer_cloned.clone();
+        let _other_buffer_cloned = buffer_cloned.clone();
         let current_input_type = self.input_type();
 
-        let is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
+        let _is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
 
         // Determine if the input is a follow-up to an AI block.
         let is_agent_follow_up = {
@@ -766,30 +687,6 @@ impl BlocklistAIInputModel {
                         },
                         ctx,
                     );
-                    if current_input_type != new_input_type {
-                        let buffer_length = other_buffer_cloned.len();
-                        let input_buffer_text_for_telemetry = should_collect_ai_ugc_telemetry(
-                            ctx,
-                            PrivacySettings::as_ref(ctx).is_telemetry_enabled,
-                        )
-                        .then_some(other_buffer_cloned);
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AgentModeChangedInputType {
-                                input: input_buffer_text_for_telemetry,
-                                buffer_length,
-                                is_manually_changed: false,
-                                new_input_type,
-                                active_block_id: me
-                                    .model
-                                    .lock()
-                                    .block_list()
-                                    .active_block_id()
-                                    .clone(),
-                                is_udi_enabled,
-                            },
-                            ctx
-                        );
-                    }
                 },
             )
             .abort_handle();

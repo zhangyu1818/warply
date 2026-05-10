@@ -145,14 +145,6 @@ impl InputSuggestionsModeModel {
         matches!(self.mode, InputSuggestionsMode::ConversationMenu)
     }
 
-    pub fn is_inline_model_selector(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::ModelSelector)
-    }
-
-    pub fn is_profile_selector(&self) -> bool {
-        matches!(self.mode, InputSuggestionsMode::ProfileSelector)
-    }
-
     pub fn is_prompts_menu(&self) -> bool {
         matches!(self.mode, InputSuggestionsMode::PromptsMenu)
     }

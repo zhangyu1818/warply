@@ -1,7 +1,5 @@
 use crate::{
     appearance::Appearance,
-    send_telemetry_from_ctx,
-    server::telemetry::TelemetryEvent,
     settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier},
     themes::theme::Fill,
 };
@@ -29,19 +27,15 @@ use super::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FeatureSection {
-    WhatsNew,
     GettingStarted,
     MaximizeWarp,
-    AdvancedSetup,
 }
 
 impl FeatureSection {
     pub fn section_name_string(&self) -> &'static str {
         match self {
-            FeatureSection::WhatsNew => "What's New?",
             FeatureSection::GettingStarted => "Getting Started",
             FeatureSection::MaximizeWarp => "Maximize Warp",
-            FeatureSection::AdvancedSetup => "Advanced Setup",
         }
     }
 }
@@ -147,7 +141,6 @@ impl FeatureSectionView {
 
     // Turns gamification off without rendering completed modal
     pub fn skip_gamified_section(&mut self, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::ResourceCenterTipsSkipped, ctx);
         self.tips_completed.update(ctx, |tips_completed, ctx| {
             skip_tips_and_write_to_user_defaults(tips_completed, ctx);
             ctx.notify();
@@ -156,7 +149,6 @@ impl FeatureSectionView {
 
     // Turns gamification off and renders completed modal
     pub fn complete_gamified_section(&mut self, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::ResourceCenterTipsCompleted, ctx);
         self.tips_completed.update(ctx, |tips_completed, ctx| {
             complete_tips_and_write_to_user_defaults(tips_completed, ctx);
             ctx.notify();
@@ -381,7 +373,6 @@ impl TypedActionView for FeatureSectionView {
                 ctx.emit(FeatureSectionEvent::ExpandSection(*section_name));
                 ctx.notify();
             }
-            _ => {}
         }
     }
 }
@@ -389,11 +380,6 @@ impl TypedActionView for FeatureSectionView {
 impl SectionView for FeatureSectionView {
     fn is_expanded(&self) -> bool {
         self.is_expanded
-    }
-
-    fn toggle_expanded(&mut self, ctx: &mut ViewContext<Self>) {
-        self.is_expanded = !self.is_expanded;
-        ctx.notify();
     }
 
     fn section_progress_indicator(

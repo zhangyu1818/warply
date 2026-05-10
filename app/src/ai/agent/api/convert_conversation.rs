@@ -9,7 +9,6 @@ use crate::ai::agent::api::convert_from::{
     MaybeAIAgentOutputMessage,
 };
 use crate::ai::agent::conversation::update_todo_list_from_todo_op;
-use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
@@ -24,111 +23,27 @@ use crate::ai::agent::{
     RequestFileEditsResult, SearchCodebaseFailureReason, SearchCodebaseResult, ServerOutputId,
     Shared, ShellCommandCompletedTrigger, ShellCommandError, SuggestNewConversationResult,
     SuggestPromptResult, TransferShellCommandControlToUserResult, UpdatedFileContext,
-    UploadArtifactResult, WriteToLongRunningShellCommandResult,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::ai::block_context::BlockContext;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
+use crate::ai::execution_context::{AiExecutionContext, AiOsContext};
 use crate::ai::llms::LLMId;
-use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
 use ai::agent::action_result::{
-    AskUserQuestionAnswerItem, AskUserQuestionResult, FetchConversationResult, ReadSkillResult,
-    RequestComputerUseResult, SendMessageToAgentResult, StartAgentResult, StartAgentVersion,
+    AskUserQuestionAnswerItem, AskUserQuestionResult, ReadSkillResult, RequestComputerUseResult,
     UseComputerResult,
 };
 use ai::skills::ParsedSkill;
 use chrono::{DateTime, Local, TimeZone};
-use persistence::model::AgentConversationData;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use warp_core::command::ExitCode;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::ask_user_question_result::answer_item::Answer as AskUserQuestionAnswer;
 
-use crate::ai::agent::conversation::ServerAIConversationMetadata;
 use crate::ai::agent::UserQueryMode;
-
-/// How to restore a conversation from the cloud.
-pub enum RestorationMode {
-    /// Continue the same conversation (use the same server ID).
-    Continue,
-    /// Fork from the original conversation.
-    #[allow(dead_code)]
-    Fork,
-}
-
-/// Converts a cloud ConversationData to an AIConversation.
-/// The `metadata` contains all server-side information about the conversation, including usage data.
-/// `restoration_mode` controls how the server metadata is handled - we should only keep the metadata when continuing, not forking
-pub fn convert_conversation_data_to_ai_conversation(
-    conversation_id: AIConversationId,
-    conversation_data: &api::ConversationData,
-    metadata: ServerAIConversationMetadata,
-    restoration_mode: RestorationMode,
-) -> Option<AIConversation> {
-    let usage_metadata = Some(metadata.usage.clone());
-
-    let agent_conversation_data = match restoration_mode {
-        RestorationMode::Fork => AgentConversationData {
-            server_conversation_token: None,
-            conversation_usage_metadata: usage_metadata,
-            reverted_action_ids: None,
-            forked_from_server_conversation_token: Some(
-                metadata.server_conversation_token.as_str().to_string(),
-            ),
-            // If we fork, new conversation, artifacts don't carry over
-            artifacts_json: None,
-            parent_agent_id: None,
-            agent_name: None,
-            parent_conversation_id: None,
-            is_remote_child: false,
-            run_id: None,
-            autoexecute_override: None,
-            last_event_sequence: None,
-        },
-        RestorationMode::Continue => AgentConversationData {
-            server_conversation_token: Some(
-                metadata.server_conversation_token.as_str().to_string(),
-            ),
-            conversation_usage_metadata: usage_metadata,
-            reverted_action_ids: None,
-            forked_from_server_conversation_token: None,
-            artifacts_json: serde_json::to_string(&metadata.artifacts).ok(),
-            parent_agent_id: None,
-            agent_name: None,
-            parent_conversation_id: None,
-            is_remote_child: false,
-            // TODO: Populate run_id from server metadata once it is exposed
-            // in ServerAIConversationMetadata. For cloud conversations that
-            // were spawned via the server API, the run_id is created at task
-            // dispatch time; adding it here would avoid a round-trip to StreamInit.
-            run_id: None,
-            autoexecute_override: None,
-            last_event_sequence: None,
-        },
-    };
-
-    match AIConversation::new_restored(
-        conversation_id,
-        conversation_data.tasks.clone(),
-        Some(agent_conversation_data),
-    ) {
-        Ok(mut conversation) => {
-            // Set the server metadata only if we're continuing
-            // If we're forking, this should be treated as a brand new conversation that doesn't have server metadata yet.
-            // After the first request, server metadata will be populated.
-            if matches!(restoration_mode, RestorationMode::Continue) {
-                conversation.set_server_metadata(metadata);
-            }
-            Some(conversation)
-        }
-        Err(e) => {
-            log::warn!("Failed to convert ConversationData to AIConversation: {e:?}");
-            None
-        }
-    }
-}
 
 /// Converts InputContext from the API to the application type `Arc<[AIAgentContext]>`
 #[allow(clippy::single_range_in_vec_init)]
@@ -188,28 +103,26 @@ pub(crate) fn convert_input_context(context: Option<&api::InputContext>) -> Arc<
 
     // Convert operating system and shell to execution environment
     if let (Some(os), Some(shell)) = (&context.operating_system, &context.shell) {
-        result.push(AIAgentContext::ExecutionEnvironment(
-            WarpAiExecutionContext {
-                os: WarpAiOsContext {
-                    category: if os.platform.is_empty() {
-                        None
-                    } else {
-                        Some(os.platform.clone())
-                    },
-                    distribution: if os.distribution.is_empty() {
-                        None
-                    } else {
-                        Some(os.distribution.clone())
-                    },
-                },
-                shell_name: shell.name.clone(),
-                shell_version: if shell.version.is_empty() {
+        result.push(AIAgentContext::ExecutionEnvironment(AiExecutionContext {
+            os: AiOsContext {
+                category: if os.platform.is_empty() {
                     None
                 } else {
-                    Some(shell.version.clone())
+                    Some(os.platform.clone())
+                },
+                distribution: if os.distribution.is_empty() {
+                    None
+                } else {
+                    Some(os.distribution.clone())
                 },
             },
-        ));
+            shell_name: shell.name.clone(),
+            shell_version: if shell.version.is_empty() {
+                None
+            } else {
+                Some(shell.version.clone())
+            },
+        }));
     }
 
     // Convert current time
@@ -378,17 +291,21 @@ impl ConvertToExchanges for &api::Task {
 
             let added_message_as_exchange_input = match message {
                 api::message::Message::UserQuery(user_query) => {
-                    // Add user query as input
-                    current_inputs.push(AIAgentInput::UserQuery {
-                        query: user_query.query.clone(),
-                        context: convert_input_context(user_query.context.as_ref()),
-                        static_query_type: None,
-                        referenced_attachments: HashMap::new(),
-                        user_query_mode: convert_user_query_mode(user_query.mode.as_ref()),
-                        running_command: None,
-                        intended_agent: Some(user_query.intended_agent()),
-                    });
-                    true
+                    if let Some(user_query_mode) = convert_user_query_mode(user_query.mode.as_ref())
+                    {
+                        current_inputs.push(AIAgentInput::UserQuery {
+                            query: user_query.query.clone(),
+                            context: convert_input_context(user_query.context.as_ref()),
+                            static_query_type: None,
+                            referenced_attachments: HashMap::new(),
+                            user_query_mode,
+                            running_command: None,
+                            intended_agent: Some(user_query.intended_agent()),
+                        });
+                        true
+                    } else {
+                        false
+                    }
                 }
                 api::message::Message::SystemQuery(query) => {
                     let Some(query_type) = &query.r#type else {
@@ -676,34 +593,7 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::UploadFileArtifact(result)) => {
-            let upload_result = match &result.result {
-                Some(api::upload_file_artifact_result::Result::Success(success)) => {
-                    UploadArtifactResult::Success {
-                        artifact_uid: success.artifact_uid.clone(),
-                        filepath: None,
-                        mime_type: success.mime_type.clone(),
-                        description: None,
-                        size_bytes: success.size_bytes,
-                    }
-                }
-                Some(api::upload_file_artifact_result::Result::Error(error)) => {
-                    UploadArtifactResult::Error(error.message.clone())
-                }
-                None => UploadArtifactResult::Error(
-                    "Upload artifact tool call returned no result".to_string(),
-                ),
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::UploadArtifact(upload_result),
-                },
-                context,
-            })
-        }
+        Some(ToolCallResultType::UploadFileArtifact(_)) => None,
         Some(ToolCallResultType::SearchCodebase(result)) => {
             let search_result = match &result.result {
                 Some(api::search_codebase_result::Result::Success(success)) => {
@@ -1398,28 +1288,7 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::FetchConversation(result)) => {
-            let fetch_result = match &result.result {
-                Some(api::fetch_conversation_result::Result::Success(success)) => {
-                    FetchConversationResult::Success {
-                        directory_path: success.directory_path.clone(),
-                    }
-                }
-                Some(api::fetch_conversation_result::Result::Error(error)) => {
-                    FetchConversationResult::Error(error.message.clone())
-                }
-                None => FetchConversationResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::FetchConversation(fetch_result),
-                },
-                context,
-            })
-        }
+        Some(ToolCallResultType::FetchConversation(_)) => None,
         Some(ToolCallResultType::Server(_)) => {
             // Server results should not create exchanges - return None
             None
@@ -1430,58 +1299,7 @@ pub(crate) fn convert_tool_call_result_to_input(
             create_cancelled_result_for_tool_call(task_id, &tool_call_id, tool_call_map, context)
         }
         Some(ToolCallResultType::Subagent(_)) => None,
-        Some(ToolCallResultType::StartAgent(result)) => {
-            let start_agent_result = match &result.result {
-                Some(api::start_agent_result::Result::Success(success)) => {
-                    StartAgentResult::Success {
-                        agent_id: success.agent_id.clone(),
-                        version: StartAgentVersion::V1,
-                    }
-                }
-                Some(api::start_agent_result::Result::Error(error)) => StartAgentResult::Error {
-                    error: error.error.clone(),
-                    version: StartAgentVersion::V1,
-                },
-                None => StartAgentResult::Cancelled {
-                    version: StartAgentVersion::V1,
-                },
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::StartAgent(start_agent_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::StartAgentV2(result)) => {
-            let start_agent_result = match &result.result {
-                Some(api::start_agent_v2_result::Result::Success(success)) => {
-                    StartAgentResult::Success {
-                        agent_id: success.agent_id.clone(),
-                        version: StartAgentVersion::V2,
-                    }
-                }
-                Some(api::start_agent_v2_result::Result::Error(error)) => StartAgentResult::Error {
-                    error: error.error.clone(),
-                    version: StartAgentVersion::V2,
-                },
-                None => StartAgentResult::Cancelled {
-                    version: StartAgentVersion::V2,
-                },
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::StartAgent(start_agent_result),
-                },
-                context,
-            })
-        }
+        Some(ToolCallResultType::StartAgent(_)) | Some(ToolCallResultType::StartAgentV2(_)) => None,
         Some(ToolCallResultType::AskUserQuestion(result)) => {
             let ask_result = match &result.result {
                 Some(warp_multi_agent_api::ask_user_question_result::Result::Success(success)) => {
@@ -1521,98 +1339,8 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::SendMessageToAgent(result)) => {
-            let send_message_result = match &result.result {
-                Some(api::send_message_to_agent_result::Result::Success(success)) => {
-                    SendMessageToAgentResult::Success {
-                        message_id: success.message_id.clone(),
-                    }
-                }
-                Some(api::send_message_to_agent_result::Result::Error(error)) => {
-                    SendMessageToAgentResult::Error(error.message.clone())
-                }
-                None => SendMessageToAgentResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SendMessageToAgent(send_message_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::RunAgentsResult(result)) => {
-            use ai::agent::action_result::{
-                RunAgentsAgentOutcome, RunAgentsAgentOutcomeKind, RunAgentsLaunchedExecutionMode,
-                RunAgentsResult,
-            };
-            let run_agents_result = match &result.outcome {
-                Some(api::run_agents_result::Outcome::Launched(launched)) => {
-                    let execution_mode = match &launched.resolved_execution_mode {
-                        Some(api::run_agents_result::launched::ResolvedExecutionMode::Remote(
-                            remote,
-                        )) => RunAgentsLaunchedExecutionMode::Remote {
-                            environment_id: remote.environment_id.clone(),
-                            worker_host: remote.worker_host.clone(),
-                            computer_use_enabled: remote.computer_use_enabled,
-                        },
-                        Some(api::run_agents_result::launched::ResolvedExecutionMode::Local(_))
-                        | None => RunAgentsLaunchedExecutionMode::Local,
-                    };
-                    let agents = launched
-                        .agents
-                        .iter()
-                        .map(|outcome| RunAgentsAgentOutcome {
-                            name: outcome.name.clone(),
-                            kind: match &outcome.result {
-                                Some(api::run_agents_result::agent_outcome::Result::Launched(
-                                    launched_agent,
-                                )) => RunAgentsAgentOutcomeKind::Launched {
-                                    agent_id: launched_agent.agent_id.clone(),
-                                },
-                                Some(api::run_agents_result::agent_outcome::Result::Failed(
-                                    failed,
-                                )) => RunAgentsAgentOutcomeKind::Failed {
-                                    error: failed.error.clone(),
-                                },
-                                None => RunAgentsAgentOutcomeKind::Failed {
-                                    error: String::new(),
-                                },
-                            },
-                        })
-                        .collect();
-                    RunAgentsResult::Launched {
-                        model_id: launched.resolved_model_id.clone(),
-                        harness_type:
-                            crate::ai::agent::api::convert_from::convert_run_agents_harness(
-                                launched.resolved_harness.as_ref(),
-                            )
-                            .unwrap_or_default(),
-                        execution_mode,
-                        agents,
-                    }
-                }
-                Some(api::run_agents_result::Outcome::Denied(denied)) => RunAgentsResult::Denied {
-                    reason: denied.reason.clone(),
-                },
-                Some(api::run_agents_result::Outcome::Failure(failure)) => {
-                    RunAgentsResult::Failure {
-                        error: failure.error.clone(),
-                    }
-                }
-                None => RunAgentsResult::Cancelled,
-            };
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::RunAgents(run_agents_result),
-                },
-                context,
-            })
-        }
+        Some(ToolCallResultType::SendMessageToAgent(_))
+        | Some(ToolCallResultType::RunAgentsResult(_)) => None,
         // Deprecated/unused result types or absent result.
         Some(ToolCallResultType::SuggestCreatePlan(..))
         | Some(ToolCallResultType::SuggestPlan(..))
@@ -1670,9 +1398,7 @@ fn create_cancelled_result_for_tool_call(
             )
         }
         ToolType::ReadFiles(_) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-        ToolType::UploadFileArtifact(_) => {
-            AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-        }
+        ToolType::UploadFileArtifact(_) => return None,
         ToolType::SearchCodebase(_) => {
             AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
         }
@@ -1724,32 +1450,16 @@ fn create_cancelled_result_for_tool_call(
         ToolType::RequestComputerUse(_) => {
             AIAgentActionResultType::RequestComputerUse(RequestComputerUseResult::Cancelled)
         }
-        ToolType::FetchConversation(_) => {
-            AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
-        }
+        ToolType::FetchConversation(_) => return None,
         ToolType::Server(_) => {
             return None;
         }
         ToolType::Subagent(_) => return None,
-        ToolType::StartAgent(_) => {
-            AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                version: StartAgentVersion::V1,
-            })
-        }
-        ToolType::StartAgentV2(_) => {
-            AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                version: StartAgentVersion::V2,
-            })
-        }
+        ToolType::StartAgent(_) | ToolType::StartAgentV2(_) => return None,
         ToolType::AskUserQuestion(_) => {
             AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
         }
-        ToolType::SendMessageToAgent(_) => {
-            AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-        }
-        ToolType::RunAgents(_) => {
-            AIAgentActionResultType::RunAgents(ai::agent::action_result::RunAgentsResult::Cancelled)
-        }
+        ToolType::SendMessageToAgent(_) | ToolType::RunAgents(_) => return None,
         // These tools are deprecated.
         ToolType::SuggestCreatePlan(_) | ToolType::SuggestPlan(_) => return None,
     };
@@ -1844,13 +1554,11 @@ fn create_exchange_from_messages(
         api_metadata_bytes: None,
         server_output_id: server_output_id.map(|id| ServerOutputId::new(id.to_owned())),
         suggestions: None,
-        telemetry_events: vec![],
         model_info: model_used.map(|model| OutputModelInfo {
             model_id: model.model_id.clone().into(),
             display_name: model.model_display_name.clone(),
             is_fallback: model.is_fallback,
         }),
-        request_cost: None,
     };
 
     // There is a special case where an exchange consists of only ActionResults with no outputs
@@ -1909,11 +1617,9 @@ fn create_exchange_from_messages(
         time_to_first_token_ms,
         working_directory,
         model_id: default_model_id.clone(),
-        request_cost: None,
         coding_model_id: default_model_id.clone(),
         cli_agent_model_id: default_model_id.clone(),
         computer_use_model_id: default_model_id,
-        response_initiator: None,
         added_message_ids: message_ids.iter().map(|s| s.clone().into()).collect(),
     })
 }

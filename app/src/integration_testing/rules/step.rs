@@ -6,12 +6,9 @@ use warpui::{
 
 use crate::{
     ai::facts::{view::AIFactPage, AIMemory},
-    cloud_object::{model::persistence::CloudModel, Space},
+    cloud_object::{model::persistence::CloudModel, update_manager::UpdateManager, Space},
     integration_testing::view_getters::workspace_view,
-    server::{
-        cloud_objects::update_manager::UpdateManager,
-        ids::{ClientId, SyncId},
-    },
+    object_ids::{ClientId, SyncId},
     workspaces::user_workspaces::UserWorkspaces,
 };
 
@@ -39,7 +36,7 @@ pub fn create_a_personal_rule(
                     ai_fact,
                     client_id,
                     UserWorkspaces::as_ref(ctx)
-                        .personal_drive(ctx)
+                        .current_user_owner(ctx)
                         .expect("User UID must be set in tests"),
                     ctx,
                 );

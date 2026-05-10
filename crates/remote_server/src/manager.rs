@@ -5,12 +5,12 @@ use std::sync::Arc;
 #[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 
-use crate::auth::RemoteServerAuthContext;
 #[cfg(not(target_family = "wasm"))]
 use crate::client::ClientEvent;
 #[cfg(not(target_family = "wasm"))]
 use crate::client::InitializeParams;
 use crate::client::RemoteServerClient;
+use crate::identity::RemoteServerIdentityContext;
 use crate::setup::PreinstallCheckResult;
 #[cfg(not(target_family = "wasm"))]
 use crate::setup::RemoteOs;
@@ -44,13 +44,13 @@ struct ReconnectParams {
     host_id: HostId,
     exit_status: Option<RemoteServerExitStatus>,
     transport: Arc<dyn RemoteTransport>,
-    auth_context: Arc<RemoteServerAuthContext>,
+    identity_context: Arc<RemoteServerIdentityContext>,
     control_path: Option<PathBuf>,
     identity_key: String,
 }
 
 /// Error from [`RemoteServerManager::run_connect_and_handshake`] that
-/// preserves which phase failed so callers can report accurate telemetry.
+/// preserves which phase failed so callers can present accurate status.
 #[cfg(not(target_family = "wasm"))]
 #[derive(Debug, thiserror::Error)]
 enum ConnectAndHandshakeError {
@@ -83,47 +83,14 @@ pub enum RemoteServerInitPhase {
     Initialize,
 }
 
-/// The remote server client operation that failed.
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteServerOperation {
-    NavigateToDirectory,
-    LoadRepoMetadataDirectory,
-}
-
-/// Classification of a remote server client error for telemetry.
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteServerErrorKind {
-    Timeout,
-    Disconnected,
-    ServerError,
-    Other,
-}
-
 /// Exit status information captured from the remote server subprocess
-/// when the connection drops. Used for diagnostics and telemetry.
+/// when the connection drops. Used for local diagnostics.
 #[derive(Clone, Debug, Serialize)]
 pub struct RemoteServerExitStatus {
     /// Process exit code, if the process exited normally.
     pub code: Option<i32>,
     /// True if the process was killed by a signal (Unix only).
     pub signal_killed: bool,
-}
-
-impl RemoteServerErrorKind {
-    /// Classify a [`ClientError`] into a telemetry error kind.
-    pub fn from_client_error(error: &crate::client::ClientError) -> Self {
-        use crate::client::ClientError;
-        match error {
-            ClientError::Timeout(_) => Self::Timeout,
-            ClientError::Disconnected | ClientError::ResponseChannelClosed => Self::Disconnected,
-            ClientError::ServerError { .. } => Self::ServerError,
-            ClientError::Protocol(_)
-            | ClientError::UnexpectedResponse
-            | ClientError::FileOperationFailed(_) => Self::Other,
-        }
-    }
 }
 
 /// Returns `true` if the client and server are on compatible versions for
@@ -186,10 +153,6 @@ pub enum RemoteSessionState {
         client: Arc<RemoteServerClient>,
         host_id: HostId,
         /// Identity key that was active when this session was established.
-        /// Used by `rotate_auth_token` to ensure token rotation notifications
-        /// are only delivered to sessions that belong to the current user
-        /// identity, preventing a stale session for a previous identity from
-        /// receiving a different user's bearer token.
         identity_key: String,
         /// The transport's owning `Child`. See `Initializing::_child`.
         #[cfg(not(target_family = "wasm"))]
@@ -342,16 +305,6 @@ pub enum RemoteServerManagerEvent {
         session_id: SessionId,
         result: Result<(), String>,
     },
-
-    // --- Telemetry events ---
-    /// A client request to the remote server failed.
-    ClientRequestFailed {
-        session_id: SessionId,
-        operation: RemoteServerOperation,
-        error_kind: RemoteServerErrorKind,
-    },
-    /// A server message could not be decoded (no parseable request_id).
-    ServerMessageDecodingError { session_id: SessionId },
 }
 
 impl RemoteServerManagerEvent {
@@ -368,9 +321,7 @@ impl RemoteServerManagerEvent {
             | RemoteServerManagerEvent::NavigatedToDirectory { session_id, .. }
             | RemoteServerManagerEvent::SetupStateChanged { session_id, .. }
             | RemoteServerManagerEvent::BinaryCheckComplete { session_id, .. }
-            | RemoteServerManagerEvent::BinaryInstallComplete { session_id, .. }
-            | RemoteServerManagerEvent::ClientRequestFailed { session_id, .. }
-            | RemoteServerManagerEvent::ServerMessageDecodingError { session_id } => {
+            | RemoteServerManagerEvent::BinaryInstallComplete { session_id, .. } => {
                 Some(*session_id)
             }
             RemoteServerManagerEvent::HostConnected { .. }
@@ -417,12 +368,12 @@ pub struct RemoteServerManager {
     /// remote server daemon on every (re)connect. Persists until
     /// `deregister_session`.
     session_bootstrap_info: HashMap<SessionId, SessionBootstrapInfo>,
-    /// App auth context used for connection-time `Initialize` and future
+    /// App identity context used for connection-time `Initialize` and future
     /// reconnect handshakes.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    auth_context: Option<Arc<RemoteServerAuthContext>>,
+    identity_context: Option<Arc<RemoteServerIdentityContext>>,
     /// Detected remote platform per session, populated during the binary check
-    /// phase via `detect_platform()`. Used for telemetry.
+    /// phase via `detect_platform()`.
     session_platforms: HashMap<SessionId, RemotePlatform>,
 }
 
@@ -440,7 +391,7 @@ impl RemoteServerManager {
             spawner: ctx.spawner(),
             last_navigated_path: HashMap::new(),
             session_bootstrap_info: HashMap::new(),
-            auth_context: None,
+            identity_context: None,
             session_platforms: HashMap::new(),
         }
     }
@@ -663,7 +614,7 @@ impl RemoteServerManager {
         &mut self,
         session_id: SessionId,
         transport: T,
-        auth_context: Arc<RemoteServerAuthContext>,
+        identity_context: Arc<RemoteServerIdentityContext>,
         ctx: &mut ModelContext<Self>,
     ) where
         T: RemoteTransport + 'static,
@@ -685,7 +636,7 @@ impl RemoteServerManager {
 
             self.sessions
                 .insert(session_id, RemoteSessionState::Connecting);
-            self.auth_context = Some(Arc::clone(&auth_context));
+            self.identity_context = Some(Arc::clone(&identity_context));
             ctx.emit(RemoteServerManagerEvent::SessionConnecting { session_id });
 
             let spawner = self.spawner.clone();
@@ -693,17 +644,15 @@ impl RemoteServerManager {
             // Wrap the transport in an Arc so it can be stored on `Connected`
             // for reconnection after a spontaneous disconnect.
             let transport: Arc<dyn RemoteTransport> = Arc::new(transport);
-            let auth_context_for_task = Arc::clone(&auth_context);
-            // Capture the identity key synchronously so it travels with the
-            // session and can be used to filter token-rotation notifications.
-            let identity_key = auth_context.remote_server_identity_key();
+            let identity_context_for_task = Arc::clone(&identity_context);
+            let identity_key = identity_context.remote_server_identity_key();
 
             ctx.background_executor()
                 .spawn(async move {
                     match Self::run_connect_and_handshake(
                         session_id,
                         &*transport,
-                        &auth_context_for_task,
+                        &identity_context_for_task,
                         &spawner,
                         &executor,
                     )
@@ -757,14 +706,14 @@ impl RemoteServerManager {
     /// 1. Calls `transport.connect()` to establish streams.
     /// 2. Transitions the session to `Initializing` and starts draining the
     ///    event channel.
-    /// 3. Runs the initialize handshake with the current auth token, if any.
+    /// 3. Runs the initialize handshake.
     ///
     /// Returns `Ok(host_id)` on success, or a phase-tagged error.
     #[cfg(not(target_family = "wasm"))]
     async fn run_connect_and_handshake(
         session_id: SessionId,
         transport: &dyn RemoteTransport,
-        auth_context: &RemoteServerAuthContext,
+        identity_context: &RemoteServerIdentityContext,
         spawner: &ModelSpawner<Self>,
         executor: &Arc<warpui::r#async::executor::Background>,
     ) -> Result<HostId, ConnectAndHandshakeError> {
@@ -820,16 +769,11 @@ impl RemoteServerManager {
         }
 
         // Phase 2: Initialize handshake.
-        let auth_token = auth_context.get_auth_token().await;
         let resp = client
-            .initialize(
-                auth_token.as_deref(),
-                InitializeParams {
-                    user_id: auth_context.user_id().to_owned(),
-                    user_email: auth_context.user_email().to_owned(),
-                    crash_reporting_enabled: auth_context.crash_reporting_enabled(),
-                },
-            )
+            .initialize(InitializeParams {
+                user_id: identity_context.user_id().to_owned(),
+                user_email: identity_context.user_email().to_owned(),
+            })
             .await
             .map_err(|e| ConnectAndHandshakeError::Initialize(anyhow::anyhow!("{e:#}")))?;
 
@@ -975,42 +919,6 @@ impl RemoteServerManager {
         })
     }
 
-    /// Rotates the daemon-wide auth credential on each connected remote host.
-    ///
-    /// Only sessions whose stored `identity_key` matches the current identity
-    /// (from `auth_context`) receive the notification. This prevents a stale
-    /// session established under a previous user identity from receiving a
-    /// newly-rotated bearer token that belongs to a different user.
-    ///
-    /// Within the matching identity, a daemon may have multiple client
-    /// connections. The credential is stored daemon-wide, so sending one
-    /// notification per connected host is sufficient.
-    pub fn rotate_auth_token(&self, token: String) {
-        let Some(ref auth_context) = self.auth_context else {
-            log::warn!("Remote server rotate_auth_token: no auth_context available, skipping");
-            return;
-        };
-        let current_identity_key = auth_context.remote_server_identity_key();
-        let mut authenticated_hosts = HashSet::new();
-        for state in self.sessions.values() {
-            let RemoteSessionState::Connected {
-                client,
-                host_id,
-                identity_key,
-                ..
-            } = state
-            else {
-                continue;
-            };
-            if identity_key != &current_identity_key {
-                continue;
-            }
-            if authenticated_hosts.insert(host_id.clone()) {
-                client.authenticate(&token);
-            }
-        }
-    }
-
     /// Returns the connection state for this session.
     pub fn session(&self, session_id: SessionId) -> Option<&RemoteSessionState> {
         self.sessions.get(&session_id)
@@ -1103,16 +1011,6 @@ impl RemoteServerManager {
                     }
                     Err(e) => {
                         log::warn!("Remote server navigate_to_directory failed: session={session_id:?} error={e}");
-                        let error_kind = RemoteServerErrorKind::from_client_error(&e);
-                        let _ = spawner
-                            .spawn(move |_me, ctx| {
-                                ctx.emit(RemoteServerManagerEvent::ClientRequestFailed {
-                                    session_id,
-                                    operation: RemoteServerOperation::NavigateToDirectory,
-                                    error_kind,
-                                });
-                            })
-                            .await;
                     }
                 }
             })
@@ -1194,16 +1092,6 @@ impl RemoteServerManager {
                         log::warn!(
                             "Remote server load_repo_metadata_directory failed: session={session_id:?} error={e}"
                         );
-                        let error_kind = RemoteServerErrorKind::from_client_error(&e);
-                        let _ = spawner
-                            .spawn(move |_me, ctx| {
-                                ctx.emit(RemoteServerManagerEvent::ClientRequestFailed {
-                                    session_id,
-                                    operation: RemoteServerOperation::LoadRepoMetadataDirectory,
-                                    error_kind,
-                                });
-                            })
-                            .await;
                     }
                 }
             })
@@ -1234,7 +1122,7 @@ impl RemoteServerManager {
                 ctx.emit(RemoteServerManagerEvent::RepoMetadataUpdated { host_id, update });
             }
             ClientEvent::MessageDecodingError => {
-                ctx.emit(RemoteServerManagerEvent::ServerMessageDecodingError { session_id });
+                log::warn!("Remote server message decoding error: session={session_id:?}");
             }
             ClientEvent::Disconnected => {
                 // Handled by the drain loop's completion callback.
@@ -1383,8 +1271,8 @@ impl RemoteServerManager {
                 return;
             }
 
-            let Some(auth_context) = self.auth_context.clone() else {
-                log::warn!("Remote server spontaneous disconnect without auth context: session={session_id:?}");
+            let Some(identity_context) = self.identity_context.clone() else {
+                log::warn!("Remote server spontaneous disconnect without identity context: session={session_id:?}");
                 self.finalize_disconnect(session_id, host_id, exit_status, ctx);
                 return;
             };
@@ -1412,7 +1300,7 @@ impl RemoteServerManager {
                     host_id,
                     exit_status,
                     transport,
-                    auth_context,
+                    identity_context,
                     control_path,
                     identity_key,
                 },
@@ -1439,7 +1327,7 @@ impl RemoteServerManager {
             host_id,
             exit_status,
             transport,
-            auth_context,
+            identity_context,
             control_path,
             identity_key,
         } = params;
@@ -1460,7 +1348,7 @@ impl RemoteServerManager {
         let spawner = self.spawner.clone();
         let executor = ctx.background_executor().clone();
         let transport_clone = Arc::clone(&transport);
-        let auth_context_for_task = Arc::clone(&auth_context);
+        let identity_context_for_task = Arc::clone(&identity_context);
 
         ctx.background_executor()
             .spawn(async move {
@@ -1480,7 +1368,7 @@ impl RemoteServerManager {
                 match Self::run_connect_and_handshake(
                     session_id,
                     &*transport_clone,
-                    &auth_context_for_task,
+                    &identity_context_for_task,
                     &spawner,
                     &executor,
                 )
@@ -1536,7 +1424,7 @@ impl RemoteServerManager {
                                         host_id,
                                         exit_status,
                                         transport,
-                                        auth_context,
+                                        identity_context,
                                         control_path,
                                         identity_key,
                                     },

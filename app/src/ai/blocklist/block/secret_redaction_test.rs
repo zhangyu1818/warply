@@ -310,7 +310,7 @@ fn test_merge_ranges_with_same_end() {
 #[test]
 fn test_detect_secrets_no_regexes_configured() {
     // With no regexes configured, no secrets should be detected
-    let text = "foo warp-server-staging.firebaseapp.com bar";
+    let text = "foo internal-secret.example.com bar";
     let detected_secrets = find_secrets_in_text(text);
     assert_eq!(detected_secrets, vec![]);
 }
@@ -369,7 +369,7 @@ fn test_detect_secrets_multiple_secrets() {
         [
             &Regex::new("ABCD").expect("Should be able to construct regex"),
             &Regex::new(r"\bghp_[A-Za-z0-9_]{36}\b").expect("Should be able to construct regex"),
-            &Regex::new(r"\b([a-z0-9-]){1,30}(\.firebaseapp\.com)\b")
+            &Regex::new(r"\binternal-secret\.example\.com\b")
                 .expect("Should be able to construct regex"),
             &Regex::new(r"\b(?:r|s)k_(test|live)_[0-9a-zA-Z]{24}\b")
                 .expect("Should be able to construct regex"),
@@ -377,8 +377,8 @@ fn test_detect_secrets_multiple_secrets() {
         std::iter::empty(), // No enterprise secrets
     );
 
-    // Using custom secret, github token, firebase domain, and stripe key as secrets.
-    let text = "ABCD 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 foo baz warp-server-staging.firebaseapp.com bar \n foo sk_live_4eC39HqLyjWDarjtT1zdp7dc qux foo";
+    // Using custom secret, github token, domain, and stripe key as secrets.
+    let text = "ABCD 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 foo baz internal-secret.example.com bar \n foo sk_live_4eC39HqLyjWDarjtT1zdp7dc qux foo";
     let detected_secrets = find_secrets_in_text(text);
     assert_eq!(
         detected_secrets,
@@ -392,12 +392,12 @@ fn test_detect_secrets_multiple_secrets() {
                 byte_range: 5..45,
             },
             SecretRange {
-                char_range: 54..89,
-                byte_range: 54..89,
+                char_range: 54..81,
+                byte_range: 54..81,
             },
             SecretRange {
-                char_range: 100..132,
-                byte_range: 100..132,
+                char_range: 92..124,
+                byte_range: 92..124,
             }
         ]
     );

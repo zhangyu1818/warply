@@ -7,10 +7,10 @@ use warpui::{AppContext, Element, ViewContext};
 use warpui::{Entity, ModelHandle, View, ViewHandle};
 
 use crate::ai::blocklist::agent_view::AgentViewController;
+use crate::object_ids::SyncId;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{AddAsyncSourceOptions, SearchMixer};
 use crate::search::slash_command_menu::SlashCommandId;
-use crate::server::ids::SyncId;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_menu::{InlineMenuEvent, InlineMenuPositioner, InlineMenuView};
 use crate::terminal::input::slash_command_model::SlashCommandEntryState;
@@ -56,6 +56,11 @@ pub enum SlashCommandsEvent {
         id: SlashCommandId,
         cmd_or_ctrl_enter: bool,
     },
+    SelectedAcpCommand {
+        name: String,
+        description: String,
+        input_hint: Option<String>,
+    },
     /// A skill was selected from the menu. Contains the skill name (for buffer insertion)
     /// and path/bundled_skill_id (for execution context).
     SelectedSkill {
@@ -100,8 +105,7 @@ impl InlineSlashCommandView {
                 });
             },
         );
-        let zero_state_source =
-            ctx.add_model(|_| ZeroStateDataSource::new(&slash_commands_source, false));
+        let zero_state_source = ctx.add_model(|_| ZeroStateDataSource::new(&slash_commands_source));
         let saved_prompts_source = super::saved_prompts_data_source();
 
         let mixer = ctx.add_model(|ctx| {
@@ -236,6 +240,17 @@ impl InlineSlashCommandView {
             }
             AcceptSlashCommandOrSavedPrompt::SavedPrompt { id } => {
                 ctx.emit(SlashCommandsEvent::SelectedSavedPrompt { id: *id });
+            }
+            AcceptSlashCommandOrSavedPrompt::AcpCommand {
+                name,
+                description,
+                input_hint,
+            } => {
+                ctx.emit(SlashCommandsEvent::SelectedAcpCommand {
+                    name: name.clone(),
+                    description: description.clone(),
+                    input_hint: input_hint.clone(),
+                });
             }
             AcceptSlashCommandOrSavedPrompt::Skill { name, reference } => {
                 ctx.emit(SlashCommandsEvent::SelectedSkill {

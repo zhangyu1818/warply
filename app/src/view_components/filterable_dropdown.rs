@@ -58,20 +58,10 @@ pub struct FilterableDropdown<A: Action + Clone> {
     style_override: Option<UiComponentStyles>,
     hovered_style_override: Option<UiComponentStyles>,
     menu_header_text_override: Option<MenuHeaderTextFormatter>,
-    /// True when a pinned footer has been registered via `set_footer`.
-    /// When true, the footer lives inside the `Menu`'s own `Dismiss` (via
-    /// `Menu::set_pinned_footer_builder`), so clicks on it never trigger the
-    /// dismiss handler. The `FilterableDropdown` render also skips the
-    /// empty-state placeholder and always renders the `ChildView<Menu>` so
-    /// the footer remains visible even when the item list is empty.
     has_pinned_footer: bool,
     menu_width: Option<f32>,
     vertical_margin: f32,
     top_bar_height: f32,
-    /// See `Dropdown::use_overlay_layer`. Mirrors the same opt-out for
-    /// `FilterableDropdown` callers (the orchestrate environment
-    /// picker) that need to render in the parent's Normal layer
-    /// instead of an overlay.
     use_overlay_layer: bool,
 }
 
@@ -134,28 +124,6 @@ where
         }
     }
 
-    /// See `Dropdown::set_use_overlay_layer`.
-    pub fn set_use_overlay_layer(&mut self, use_overlay_layer: bool, ctx: &mut ViewContext<Self>) {
-        self.use_overlay_layer = use_overlay_layer;
-        ctx.notify();
-    }
-
-    /// Override the top-bar height.
-    /// so callers (e.g. the orchestrate environment picker) that mix
-    /// `Dropdown` and `FilterableDropdown` in the same row can size them
-    /// identically.
-    pub fn set_top_bar_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
-        self.top_bar_height = height;
-        ctx.notify();
-    }
-
-    pub fn set_menu_header_text_override<F>(&mut self, formatter: F)
-    where
-        F: Fn(&str) -> String + 'static,
-    {
-        self.menu_header_text_override = Some(Box::new(formatter));
-    }
-
     pub fn set_footer<F>(&mut self, builder: F, ctx: &mut ViewContext<Self>)
     where
         F: Fn(&AppContext) -> Box<dyn Element> + 'static,
@@ -169,32 +137,8 @@ where
         });
     }
 
-    pub fn clear_footer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.has_pinned_footer = false;
-        self.dropdown.update(ctx, |menu, _| {
-            menu.clear_pinned_footer_builder();
-        });
-    }
-
-    /// Set the main_axis_size behavior for the dropdown header button.
-    ///
-    /// Default is MainAxisSize::Max, set to MainAxisSize::Min if you want to wrap the dropdown to
-    /// the text that's filling it.
-    pub fn set_main_axis_size(
-        &mut self,
-        main_axis_size: MainAxisSize,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.main_axis_size = main_axis_size;
-        ctx.notify();
-    }
-
     pub fn set_style(&mut self, style: UiComponentStyles) {
         self.style_override = Some(style);
-    }
-
-    pub fn set_button_variant(&mut self, button_variant: ButtonVariant) {
-        self.button_variant = button_variant;
     }
 
     pub fn set_orientation(&mut self, orientation: FilterableDropdownOrientation) {

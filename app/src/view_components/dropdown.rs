@@ -3,19 +3,18 @@ use std::fmt::Debug;
 use pathfinder_color::ColorU;
 use warpui::{
     elements::{
-        Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, Element, Fill,
-        Icon, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement,
+        Border, ChildAnchor, ChildView, ConstrainedBox, Container, Element, Icon,
+        MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement,
         PositionedElementAnchor, PositionedElementOffsetBounds, SavePosition, Stack,
     },
     fonts::FamilyId,
     geometry::vector::vec2f,
-    scene::DropShadow,
     ui_components::{
         button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{Coords, UiComponent, UiComponentStyles},
     },
     Action, AppContext, BlurContext, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WeakViewHandle,
+    ViewHandle,
 };
 
 use crate::{
@@ -36,16 +35,12 @@ pub enum DropdownStyle {
     /// No border, smaller text, smaller padding
     #[allow(dead_code)]
     Naked,
-    /// Similar to Secondary but with ActionButton-like hover behavior:
-    /// background fill on hover instead of border color change.
-    /// TODO this should probably replace the default `Secondary` theme
-    ActionButtonSecondary,
 }
 
 impl DropdownStyle {
     fn ui_component_styles(&self) -> UiComponentStyles {
         match self {
-            DropdownStyle::Secondary | DropdownStyle::ActionButtonSecondary => UiComponentStyles {
+            DropdownStyle::Secondary => UiComponentStyles {
                 padding: Some(Coords {
                     top: 5.,
                     bottom: 5.,
@@ -74,44 +69,12 @@ pub struct Dropdown<A: Action + Clone> {
 
     dropdown: ViewHandle<Menu<DropdownAction<A>>>,
     selected_item: Option<MenuItem<DropdownAction<A>>>,
-    // Function for overriding the default closed-state text (the selected item)
-    menu_header_text_override: Option<MenuHeaderTextFormatter>,
-    self_handle: WeakViewHandle<Self>,
     style: DropdownStyle,
-    use_drop_shadow: bool,
     font_color: Option<ColorU>,
     font_size: Option<f32>,
     padding: Option<Coords>,
-    /// Optional override for the top-bar background fill, applied on top
-    /// of the variant's default style. Used by callers that need a
-    /// per-call appearance distinct from the shared `DropdownStyle`
-    /// variants (e.g. orchestrate confirmation card pickers per Figma
-    /// 4340:117057).
-    background: Option<Fill>,
-    /// Optional override for the top-bar border fill. See `background`.
-    border_color: Option<Fill>,
-    /// Optional override for the top-bar border width.
-    border_width: Option<f32>,
-    /// Optional override for the top-bar corner radius.
-    border_radius: Option<CornerRadius>,
     vertical_margin: f32,
     top_bar_height: f32,
-    /// When true (default), the open menu is attached to the dropdown's
-    /// stack via `add_positioned_overlay_child`, painting it in an
-    /// `Overlay` layer that escapes parent clip bounds. When false, the
-    /// menu is attached via `add_positioned_child` and paints in the
-    /// parent's Normal layer, the same way other AIBlock-internal
-    /// menus (e.g. the accept-and-autoexecute split-button menu in
-    /// `requested_command.rs` / `code_diff_view.rs`) do.
-    ///
-    /// Setting this to `false` is required for dropdowns rendered
-    /// inside a `SelectableArea` whose menu items would otherwise lose
-    /// `LeftMouseDown` / `LeftMouseUp` (hover still works) due to an
-    /// interaction between `Menu`'s `prevent_interaction_with_other_elements`
-    /// full-window hit-recording rect and the surrounding
-    /// `SelectableArea`. Tracked as P1.1 for the orchestrate
-    /// confirmation card pickers.
-    use_overlay_layer: bool,
 }
 
 #[derive(Clone)]
@@ -210,57 +173,15 @@ where
             top_bar_mouse_state: Default::default(),
             top_bar_max_width: TOP_MENU_BAR_MAX_WIDTH,
             selected_item: None,
-            menu_header_text_override: None,
-            self_handle: ctx.handle(),
             style: Default::default(),
             element_anchor: PositionedElementAnchor::BottomLeft,
             child_anchor: ChildAnchor::TopLeft,
-            use_drop_shadow: false,
             font_color: None,
             font_size: None,
             padding: None,
-            background: None,
-            border_color: None,
-            border_width: None,
-            border_radius: None,
             vertical_margin: DROPDOWN_PADDING,
             top_bar_height: TOP_MENU_BAR_HEIGHT,
-            use_overlay_layer: true,
         }
-    }
-
-    /// Controls whether the open menu is rendered in an `Overlay`
-    /// layer (default) or attached as a positioned child in the
-    /// dropdown stack's Normal layer. See the field-level docs on
-    /// `use_overlay_layer` for when each is appropriate.
-    pub fn set_use_overlay_layer(&mut self, use_overlay_layer: bool, ctx: &mut ViewContext<Self>) {
-        self.use_overlay_layer = use_overlay_layer;
-        ctx.notify();
-    }
-
-    pub fn set_background(&mut self, background: Fill, ctx: &mut ViewContext<Self>) {
-        self.background = Some(background);
-        ctx.notify();
-    }
-
-    pub fn set_border_color(&mut self, border_color: Fill, ctx: &mut ViewContext<Self>) {
-        self.border_color = Some(border_color);
-        ctx.notify();
-    }
-
-    pub fn set_border_width(&mut self, border_width: f32, ctx: &mut ViewContext<Self>) {
-        self.border_width = Some(border_width);
-        ctx.notify();
-    }
-
-    pub fn set_border_radius(&mut self, border_radius: CornerRadius, ctx: &mut ViewContext<Self>) {
-        self.border_radius = Some(border_radius);
-        ctx.notify();
-    }
-
-    pub fn with_drop_shadow(mut self) -> Self {
-        self.use_drop_shadow = true;
-        self
     }
 
     pub fn set_font_color(&mut self, color: ColorU, ctx: &mut ViewContext<Self>) {
@@ -307,13 +228,6 @@ where
         ctx.notify();
     }
 
-    pub fn set_menu_header_text_override<F>(&mut self, formatter: F)
-    where
-        F: Fn(&str) -> String + 'static,
-    {
-        self.menu_header_text_override = Some(Box::new(formatter));
-    }
-
     pub fn set_menu_position(
         &mut self,
         element_anchor: PositionedElementAnchor,
@@ -331,22 +245,6 @@ where
             ctx.notify();
         });
         ctx.notify();
-    }
-
-    pub fn is_focused(&self, ctx: &AppContext) -> bool {
-        let Some(handle) = self.self_handle.upgrade(ctx) else {
-            return false;
-        };
-
-        if handle.is_focused(ctx) {
-            return true;
-        }
-
-        if self.dropdown.is_focused(ctx) {
-            return true;
-        }
-
-        false
     }
 
     pub fn set_items(&mut self, items: Vec<DropdownItem<A>>, ctx: &mut ViewContext<Self>) {
@@ -435,13 +333,6 @@ where
         })
     }
 
-    pub fn set_menu_max_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
-        self.dropdown.update(ctx, |menu, ctx| {
-            menu.set_height(height);
-            ctx.notify();
-        })
-    }
-
     fn selected_item(&self, ctx: &mut ViewContext<Self>) -> Option<MenuItem<DropdownAction<A>>> {
         self.dropdown
             .read(ctx, |dropdown, _| dropdown.selected_item())
@@ -478,12 +369,7 @@ where
         let (selected_item_text, font_family_id) = match self.selected_item.clone() {
             Some(MenuItem::Item(fields)) => {
                 let label = fields.label();
-                let text = if let Some(formatter) = &self.menu_header_text_override {
-                    formatter(label)
-                } else {
-                    label.to_string()
-                };
-                (text, fields.override_font_family())
+                (label.to_string(), fields.override_font_family())
             }
             _ => (String::new(), None),
         };
@@ -493,7 +379,6 @@ where
                 match self.style {
                     DropdownStyle::Secondary => ButtonVariant::Outlined,
                     DropdownStyle::Naked => ButtonVariant::Text,
-                    DropdownStyle::ActionButtonSecondary => ButtonVariant::Secondary,
                 },
                 self.top_bar_mouse_state.clone(),
             )
@@ -511,7 +396,7 @@ where
                     vec2f(15., 15.),
                 )
                 .with_inner_padding(match self.style {
-                    DropdownStyle::Secondary | DropdownStyle::ActionButtonSecondary => 10.,
+                    DropdownStyle::Secondary => 10.,
                     DropdownStyle::Naked => 6.,
                 }),
             )
@@ -520,10 +405,6 @@ where
                 font_color: self.font_color,
                 font_size: self.font_size,
                 padding: self.padding,
-                background: self.background,
-                border_color: self.border_color,
-                border_width: self.border_width,
-                border_radius: self.border_radius,
                 ..Default::default()
             })
             .set_clicked_styles(None);
@@ -607,12 +488,7 @@ where
         let appearance = Appearance::as_ref(app);
         let mut dropdown_stack = Stack::new().with_child(self.render_top_bar(appearance));
         if self.is_expanded {
-            let mut menu = ChildView::new(&self.dropdown).finish();
-            if self.use_drop_shadow {
-                menu = Container::new(menu)
-                    .with_drop_shadow(DropShadow::default())
-                    .finish();
-            }
+            let menu = ChildView::new(&self.dropdown).finish();
             let positioning = OffsetPositioning::offset_from_save_position_element(
                 self.top_bar_label(),
                 vec2f(0., 0.),
@@ -620,11 +496,7 @@ where
                 self.element_anchor,
                 self.child_anchor,
             );
-            if self.use_overlay_layer {
-                dropdown_stack.add_positioned_overlay_child(menu, positioning);
-            } else {
-                dropdown_stack.add_positioned_child(menu, positioning);
-            }
+            dropdown_stack.add_positioned_overlay_child(menu, positioning);
         }
         Container::new(dropdown_stack.finish())
             .with_margin_top(self.vertical_margin)

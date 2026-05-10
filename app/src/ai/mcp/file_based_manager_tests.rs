@@ -1,8 +1,8 @@
 use super::{FileBasedMCPManager, FileBasedMCPManagerEvent, MCPProvider};
 use crate::ai::mcp::FileMCPWatcher;
 use crate::ai::mcp::ParsedTemplatableMCPServerResult;
-use crate::auth::AuthStateProvider;
-use crate::settings::{AISettings, FocusedTerminalInfo};
+use crate::identity::LocalIdentityProvider;
+use crate::settings::AISettings;
 use crate::warp_managed_paths_watcher::{warp_managed_mcp_config_path, WarpManagedPathsWatcher};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use repo_metadata::{
@@ -25,9 +25,8 @@ fn setup_app(app: &mut App) -> warpui::ModelHandle<FileBasedMCPManager> {
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
     app.add_singleton_model(FileMCPWatcher::new);
     app.add_singleton_model(AISettings::new_with_defaults);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(UserWorkspaces::default_mock);
-    app.add_singleton_model(FocusedTerminalInfo::new);
     app.add_singleton_model(FileBasedMCPManager::new)
 }
 
@@ -63,8 +62,6 @@ fn subscribe_events(
                 me.despawned_uuids
                     .extend(installation_uuids.iter().copied());
             }
-            FileBasedMCPManagerEvent::PurgeCredentials { .. }
-            | FileBasedMCPManagerEvent::CloudEnvMcpScanComplete { .. } => {}
         });
     });
     events

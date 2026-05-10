@@ -1,12 +1,8 @@
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 use warp_core::context_flag::ContextFlag;
-use warp_core::features::FeatureFlag;
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
 pub mod categories;
-use anyhow::Result;
 use workflow::Workflow;
 
 pub mod aliases;
@@ -20,23 +16,14 @@ pub mod workflow_enum;
 pub mod workflow_view;
 
 use crate::appearance::Appearance;
-use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{
-    CloudModelType, CloudObjectEventEntrypoint, CreateCloudObjectResult, CreateObjectRequest,
-    GenericCloudObject, GenericServerObject, ObjectType, Revision, ServerCloudObject,
-    UpdateCloudObjectResult,
-};
-use crate::server::cloud_objects::update_manager::InitiatedBy;
+use crate::cloud_object::{CloudModelType, GenericCloudObject, ObjectType, SerializedModel};
 
-use crate::drive::items::workflow::WarpDriveWorkflow;
-use crate::drive::items::WarpDriveItem;
+use crate::drive::items::workflow::LocalObjectWorkflow;
+use crate::drive::items::LocalObjectItem;
 use crate::drive::CloudObjectTypeAndId;
-use crate::notebooks::{NotebookId, NotebookLocation};
+use crate::notebooks::NotebookLocation;
+use crate::object_ids::{ServerId, SyncId};
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::object::ObjectClient;
-use crate::server::sync_queue::{QueueItem, SerializedModel};
-use async_trait::async_trait;
 pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
 
 pub fn init(app: &mut AppContext) {
@@ -49,14 +36,9 @@ pub enum WorkflowSource {
     Global,
     Local,
     Project,
-    Team {
-        team_uid: ServerId,
-    },
     PersonalCloud,
-    WarpAI,
+    Agent,
     Notebook {
-        notebook_id: Option<NotebookId>,
-        team_uid: Option<ServerId>,
         location: NotebookLocation,
     },
 
@@ -67,11 +49,11 @@ pub enum WorkflowSource {
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash, PartialOrd)]
 pub enum WorkflowSelectionSource {
-    WarpDrive,
+    LocalObject,
     CommandPalette,
     UniversalSearch,
     Voltron,
-    WarpAI,
+    Agent,
     Notebook,
     SlashMenu,
     UpArrowHistory,
@@ -92,38 +74,16 @@ impl WorkflowViewMode {
     /// The editing mode supported for a workflow.
     ///
     /// Editing is disabled if the user does not have edit permissions.
-    pub fn supported_edit_mode(workflow_id: Option<SyncId>, app: &AppContext) -> Self {
-        let can_edit = workflow_id
-            .map(|id| {
-                CloudViewModel::as_ref(app)
-                    .object_editability(&id.uid(), app)
-                    .can_edit()
-            })
-            .unwrap_or(true);
-
-        if !FeatureFlag::SharedWithMe.is_enabled() || can_edit {
-            Self::Edit
-        } else {
-            Self::View
-        }
+    pub fn supported_edit_mode(_workflow_id: Option<SyncId>, _app: &AppContext) -> Self {
+        Self::Edit
     }
 
     /// The viewing mode supported for this workflow.
     ///
     /// Viewing is disabled if the user is allowed to edit the workflow and in a context where
     /// running workflows is supported.
-    pub fn supported_view_mode(workflow_id: Option<SyncId>, app: &AppContext) -> Self {
-        let can_edit = workflow_id
-            .map(|id| {
-                CloudViewModel::as_ref(app)
-                    .object_editability(&id.uid(), app)
-                    .can_edit()
-            })
-            .unwrap_or(true);
-
-        if FeatureFlag::SharedWithMe.is_enabled() && !can_edit {
-            Self::View
-        } else if ContextFlag::RunWorkflow.is_enabled() {
+    pub fn supported_view_mode(_workflow_id: Option<SyncId>, _app: &AppContext) -> Self {
+        if ContextFlag::RunWorkflow.is_enabled() {
             Self::Edit
         } else {
             Self::View
@@ -146,22 +106,16 @@ crate::server_id_traits! { WorkflowId, "Workflow" }
 pub enum AIWorkflowOrigin {
     CommandSearch,
     AgentMode,
-    LegacyWarpAI,
 }
 
-/// Wrapper type for a workflow that may be saved locally or using cloud sync.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WorkflowType {
-    /// Saved workflows sourced from local, global, project, app collections, saved locally.
     Local(Workflow),
-    /// Saved workflows from personal or team collections, saved using cloud-sync.
     Cloud(Box<CloudWorkflow>),
-    /// Ephemeral/transient workflows created from Warp AI output
     AIGenerated {
         workflow: Workflow,
         origin: AIWorkflowOrigin,
     },
-    /// A workflow that's part of a cloud notebook.
     Notebook(Workflow),
 }
 
@@ -185,8 +139,6 @@ impl WorkflowType {
         }
     }
 
-    /// The object type and ID for the cloud object containing this workflow, if there is
-    /// one. This is currently only supported for cloud workflows, not workflows within notebooks.
     pub fn object_id(&self) -> Option<CloudObjectTypeAndId> {
         match self {
             WorkflowType::Cloud(workflow) => Some(CloudObjectTypeAndId::Workflow(workflow.id)),
@@ -214,7 +166,6 @@ impl WorkflowType {
     }
 }
 
-/// The model for a `CloudWorkflow`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CloudWorkflowModel {
     pub data: Workflow,
@@ -226,11 +177,8 @@ impl CloudWorkflowModel {
     }
 }
 
-/// `CloudWorkflow` is a workflow retrieved from the server.
 pub type CloudWorkflow = GenericCloudObject<WorkflowId, CloudWorkflowModel>;
 
-#[cfg_attr(not(target_family = "wasm"), async_trait)]
-#[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl CloudModelType for CloudWorkflowModel {
     type CloudObjectType = CloudWorkflow;
     type IdType = WorkflowId;
@@ -269,92 +217,23 @@ impl CloudModelType for CloudWorkflowModel {
         ModelEvent::UpsertWorkflows(objects.to_vec())
     }
 
-    fn create_object_queue_item(
-        &self,
-        workflow: &CloudWorkflow,
-        entrypoint: CloudObjectEventEntrypoint,
-        initiated_by: InitiatedBy,
-    ) -> Option<QueueItem> {
-        if let SyncId::ClientId(client_id) = workflow.id {
-            return Some(QueueItem::CreateWorkflow {
-                object_type: self.object_type(),
-                owner: workflow.permissions.owner,
-                model: Arc::new(workflow.model().clone()),
-                initial_folder_id: workflow.metadata.folder_id,
-                entrypoint,
-                id: client_id,
-                initiated_by,
-            });
-        }
-        None
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        workflow: &CloudWorkflow,
-    ) -> QueueItem {
-        QueueItem::UpdateWorkflow {
-            // Note that this is intentionally a deep clone of the model because we are grabbing
-            // a snapshot to update at a moment in time.
-            model: workflow.model().clone().into(),
-            id: workflow.id,
-            revision: revision_ts.or_else(|| workflow.metadata.revision.clone()),
-        }
-    }
-
-    fn should_update_after_server_conflict(&self) -> bool {
-        true
-    }
-
     fn serialized(&self) -> SerializedModel {
         SerializedModel::new(
             serde_json::to_string(&self.data).expect("failed to serialize workflow"),
         )
     }
 
-    fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {
-        if let ServerCloudObject::Workflow(server_workflow) = server_cloud_object {
-            return Some(CloudWorkflowModel {
-                data: server_workflow.model.data.clone(),
-            });
-        }
-        None
-    }
-
-    async fn send_create_request(
-        object_client: Arc<dyn ObjectClient>,
-        request: CreateObjectRequest,
-    ) -> Result<CreateCloudObjectResult> {
-        object_client.create_workflow(request).await
-    }
-
-    async fn send_update_request(
-        &self,
-        object_client: Arc<dyn ObjectClient>,
-        server_id: ServerId,
-        revision: Option<Revision>,
-    ) -> Result<UpdateCloudObjectResult<GenericServerObject<WorkflowId, Self>>> {
-        object_client
-            .update_workflow(
-                server_id.into(),
-                serde_json::to_string(&self.data)?.into(),
-                revision,
-            )
-            .await
-    }
-
-    fn renders_in_warp_drive(&self) -> bool {
+    fn renders_as_local_object(&self) -> bool {
         true
     }
 
-    fn to_warp_drive_item(
+    fn to_local_object_item(
         &self,
         id: SyncId,
         _appearance: &Appearance,
         workflow: &CloudWorkflow,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveWorkflow::new(
+    ) -> Option<Box<dyn LocalObjectItem>> {
+        Some(Box::new(LocalObjectWorkflow::new(
             self.cloud_object_type_and_id(id),
             workflow.clone(),
         )))

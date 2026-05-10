@@ -1,19 +1,12 @@
-use settings::{RespectUserSyncSetting, SyncToCloud};
 use warp::{
     features::FeatureFlag,
     integration_testing::{
         self,
-        notebook::{
-            assert_cloud_preference_exists, assert_notebook_contents,
-            assert_notebook_metadata_revision,
-        },
         step::{new_step_with_default_assertions, new_step_with_default_assertions_for_pane},
         tab::assert_pane_title,
         terminal::wait_until_bootstrapped_single_pane_for_tab,
         view_getters::single_terminal_view_for_tab,
-        workflow::assert_workflow_metadata_revision,
     },
-    settings::Preference,
     settings_view::{SettingsSection, SettingsView},
     sqlite_testing::set_user_and_hostname_for_blocks,
     terminal::{
@@ -327,42 +320,6 @@ pub fn test_restore_snapshot_with_background_output() -> Builder {
         )
 }
 
-/// Tests restoring a snapshot that includes notebook panes.
-///
-/// The snapshot has a single window with one tab, containing:
-/// * A notebook pane, where the notebook exists
-/// * A notebook pane, where the notebook no longer exists
-/// * A terminal pane
-pub fn test_restore_snapshot_with_notebooks() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "restored_notebooks.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-        })
-        .with_step(
-            TestStep::new("Verify that the notebook panes were restored")
-                .add_assertion(assert_pane_title(0, 0, "First Notebook"))
-                // The missing notebook should be replaced with an empty new notebook.
-                .add_assertion(assert_pane_title(0, 1, "Untitled")),
-        )
-        .with_step(
-            new_step_with_default_assertions_for_pane("Wait for terminal pane to bootstrap", 0, 2)
-                .add_assertion(assert_pane_title(
-                    0,
-                    2,
-                    tab_title_in_home_dir("test_restore_snapshot_with_notebooks"),
-                )),
-        )
-        .with_step(
-            TestStep::new("Verify notebook contents")
-                .add_assertion(assert_notebook_contents(0, 0, "Notebook 1 content"))
-                .add_assertion(assert_notebook_contents(0, 1, "")),
-        )
-}
-
 /// Test restoring a snapshot that includes workflow panes - the second pane exists, but the first
 /// is for a deleted workflow.
 pub fn test_restore_snapshot_with_workflows() -> Builder {
@@ -378,96 +335,6 @@ pub fn test_restore_snapshot_with_workflows() -> Builder {
             TestStep::new("Verify that the workflow panes were restored")
                 .add_assertion(assert_pane_title(0, 1, "My Workflow"))
                 .add_assertion(assert_pane_title(0, 0, "Untitled")),
-        )
-}
-
-/// Tests restoring a snapshot that includes a test json object.
-///
-/// The test json object has as its contents the string "egpmggresq"
-pub fn test_restore_snapshot_with_test_json_object() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_json_object.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-        })
-        .with_step(
-            TestStep::new("Verify json object contents").add_assertion(
-                assert_cloud_preference_exists(
-                    Preference::new(
-                        "HonorPS1".to_string(),
-                        "false",
-                        SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-                    )
-                    .expect("error creating preference"),
-                ),
-            ),
-        )
-}
-
-/// Tests restoring a snapshot that has multiple objects with the same shareable_object_id
-/// in the metadata table.  This test verifies a regression introduced in
-/// https://github.com/warpdotdev/warp-internal/pull/7406 and fixed in
-/// https://github.com/warpdotdev/warp-internal/pull/7480
-///
-/// The two objects have server ids Workflow-ftv7on4HwTeixO2xF5hmKf and Notebook-Flbu686H9XDCHZlYRriVpB
-/// and shareable_object_id 2.
-pub fn test_restore_snapshot_with_common_shareable_metadata_ids() -> Builder {
-    new_builder()
-        .with_setup(|_utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test_duplicate_shareable_ids.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-        })
-        .with_step(TestStep::new("Verify revision of workflow").add_assertion(
-            assert_workflow_metadata_revision("ftv7on4HwTeixO2xF5hmKf", 1676321629559090),
-        ))
-        .with_step(TestStep::new("Verify revision of notebook").add_assertion(
-            assert_notebook_metadata_revision("Flbu686H9XDCHZlYRriVpB", 1690991057168223),
-        ))
-}
-
-/// Tests restoring a snapshot that includes a Markdown file pane.
-///
-/// The snapshot has a single window with one tab, containing:
-/// * A terminal pane
-/// * A Markdown file pane, `test.md` (backed by [`../../tests/data/test.md`]).
-///
-/// Normally, we store absolute paths in SQLite for restoring Markdown panes. The test uses a
-/// relative path for portability, and assumes it's run from the root of the `integration` crate.
-pub fn test_restore_snapshot_with_markdown_file() -> Builder {
-    new_builder()
-        .with_setup(|utils| {
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "file_notebook.sqlite",
-                &integration_testing::persistence::database_file_path(),
-            );
-            integration_testing::create_file_from_assets(
-                TEST_ONLY_ASSETS,
-                "test.md",
-                &utils.test_dir().join("docs/test.md"),
-            );
-        })
-        // Wait for the terminal pane to bootstrap first - we need an active session to resolve the
-        // home directory and context for the notebook pane.
-        .with_step(
-            new_step_with_default_assertions_for_pane("Wait for terminal pane to bootstrap", 0, 0)
-                .add_assertion(assert_pane_title(
-                    0,
-                    0,
-                    tab_title_in_home_dir("test_restore_snapshot_with_markdown_file"),
-                )),
-        )
-        .with_step(
-            // The pane title isn't set until after the Markdown file is read in, so this verifies
-            // that both pieces were successful.
-            TestStep::new("Verify that the notebook pane was restored")
-                .add_assertion(assert_pane_title(0, 1, "test.md")),
         )
 }
 
@@ -494,7 +361,7 @@ pub fn test_restore_snapshot_with_code_file() -> Builder {
             );
         })
         // Wait for the terminal pane to bootstrap first - we need an active session to resolve the
-        // home directory and context for the notebook pane.
+        // home directory and context for the code pane.
         .with_step(
             new_step_with_default_assertions_for_pane("Wait for terminal pane to bootstrap", 0, 0)
                 .add_assertion(assert_pane_title(
@@ -515,7 +382,7 @@ pub fn test_restore_snapshot_with_code_file() -> Builder {
 ///
 /// The snapshot has a single window with one tab, containing:
 /// * A terminal pane
-/// * A settings pane (with page set to "Referrals")
+/// * A settings pane
 pub fn test_restore_snapshot_with_settings_page() -> Builder {
     new_builder()
         .with_setup(|_utils| {
@@ -530,7 +397,6 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
             TestStep::new("Verify settings pane restoration")
                 .add_assertion(assert_pane_title(0, 1, "Settings"))
                 .add_assertion(move |app, window_id| {
-                    // Verify the settings view exists and is on the Referrals page.
                     let settings_views: Vec<ViewHandle<SettingsView>> = app
                         .views_of_type(window_id)
                         .expect("Settings view must exist");
@@ -538,10 +404,7 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
 
                     let settings_view = settings_views.first().expect("Settings view must exist");
                     settings_view.read(app, |view, _| {
-                        async_assert_eq!(
-                            view.current_settings_section(),
-                            SettingsSection::Referrals
-                        )
+                        async_assert_eq!(view.current_settings_section(), SettingsSection::AI)
                     })
                 }),
         )

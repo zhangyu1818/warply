@@ -16,8 +16,7 @@ pub enum LogManagerError {
 }
 
 impl LogManagerError {
-    /// Returns a description of the error suitable for use in release-channel error reporting.
-    /// User-specific data (e.g. file paths) is omitted; non-sensitive details are preserved.
+    /// Returns a description of the error without user-specific data.
     pub fn safe_message(&self) -> String {
         match self {
             Self::LoggerAlreadyActive { .. } => "logger already active for path".to_string(),

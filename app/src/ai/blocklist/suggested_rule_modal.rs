@@ -2,6 +2,7 @@ use crate::ai::agent::SuggestedRule;
 use crate::ai::facts::CloudAIFactModel;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::update_manager::{ObjectOperation, UpdateManagerEvent};
 use crate::cloud_object::Owner;
 use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
@@ -10,17 +11,12 @@ use crate::editor::{
 };
 use crate::modal::{Modal, ModalEvent};
 use crate::network::NetworkStatus;
-use crate::send_telemetry_from_ctx;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
-};
-use crate::server::ids::SyncId;
-use crate::server::telemetry::TelemetryEvent;
+use crate::object_ids::SyncId;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
     ai::facts::{AIFact, AIMemory},
-    server::cloud_objects::update_manager::UpdateManager,
+    cloud_object::update_manager::UpdateManager,
     ui_components::blended_colors,
 };
 use pathfinder_geometry::vector::vec2f;
@@ -66,8 +62,8 @@ enum EditorType {
 
 #[derive(Debug, Clone)]
 pub enum SuggestedRuleModalEvent {
-    AddNewRule { rule: SuggestedRule },
-    OpenRuleForEditing { rule: SuggestedRule },
+    AddNewRule,
+    OpenRuleForEditing,
     Close,
 }
 
@@ -166,11 +162,9 @@ impl SuggestedRuleModal {
 
     fn handle_view_event(&mut self, event: &SuggestedRuleDialogEvent, ctx: &mut ViewContext<Self>) {
         match event {
-            SuggestedRuleDialogEvent::AddNewRule { rule } => {
-                ctx.emit(SuggestedRuleModalEvent::AddNewRule { rule: rule.clone() })
-            }
-            SuggestedRuleDialogEvent::OpenRuleForEditing { rule } => {
-                ctx.emit(SuggestedRuleModalEvent::OpenRuleForEditing { rule: rule.clone() })
+            SuggestedRuleDialogEvent::AddNewRule => ctx.emit(SuggestedRuleModalEvent::AddNewRule),
+            SuggestedRuleDialogEvent::OpenRuleForEditing => {
+                ctx.emit(SuggestedRuleModalEvent::OpenRuleForEditing)
             }
             SuggestedRuleDialogEvent::Close => ctx.emit(SuggestedRuleModalEvent::Close),
         }
@@ -214,8 +208,8 @@ enum SuggestedRuleDialogAction {
 
 #[derive(Debug, Clone)]
 pub enum SuggestedRuleDialogEvent {
-    AddNewRule { rule: SuggestedRule },
-    OpenRuleForEditing { rule: SuggestedRule },
+    AddNewRule,
+    OpenRuleForEditing,
     Close,
 }
 
@@ -249,7 +243,7 @@ impl SuggestedRuleView {
             me.handle_cloud_model_event(event, ctx);
         });
 
-        let owner = UserWorkspaces::as_ref(ctx).personal_drive(ctx);
+        let owner = UserWorkspaces::as_ref(ctx).current_user_owner(ctx);
 
         let network_status = NetworkStatus::handle(ctx);
         ctx.subscribe_to_model(&network_status, |me, _, _event, ctx| {
@@ -378,15 +372,7 @@ impl SuggestedRuleView {
             }
             EditorEvent::Edited(_) => {
                 // todo this seems noisy?
-                if let Some(SuggestedRuleAndId { rule, .. }) = &self.rule_and_id {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::AISuggestedRuleContentChanged {
-                            rule_id: rule.logging_id.clone(),
-                            is_saved: self.is_saved
-                        },
-                        ctx
-                    );
-                }
+                if let Some(SuggestedRuleAndId { rule: _, .. }) = &self.rule_and_id {}
             }
             EditorEvent::Navigate(NavigationKey::Tab)
             | EditorEvent::Navigate(NavigationKey::ShiftTab) => {
@@ -412,13 +398,9 @@ impl SuggestedRuleView {
         event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
+        let result = &event.result;
 
-        if let (ObjectOperation::Create { .. }, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-        {
+        if matches!(&result.operation, ObjectOperation::Create { .. }) {
             if let Some(rule_and_id) = &self.rule_and_id {
                 if rule_and_id.sync_id.into_client() == result.client_id {
                     if let Some(server_id) = result.server_id {
@@ -426,9 +408,8 @@ impl SuggestedRuleView {
                             rule: rule_and_id.rule.clone(),
                             sync_id: SyncId::ServerId(server_id),
                         });
-                        // Reload the rule from the cloud model.
-                        self.load_rule(ctx);
                     }
+                    self.load_rule(ctx);
                 }
             }
         }
@@ -540,7 +521,7 @@ impl SuggestedRuleView {
             });
         }
         self.on_add_rule(ctx);
-        ctx.emit(SuggestedRuleDialogEvent::AddNewRule { rule });
+        ctx.emit(SuggestedRuleDialogEvent::AddNewRule);
     }
 
     /// Updates the UI state to reflect that a rule has been added.
@@ -664,8 +645,8 @@ impl TypedActionView for SuggestedRuleView {
                 self.add_rule(ctx);
             }
             SuggestedRuleDialogAction::Edit => {
-                if let Some(SuggestedRuleAndId { rule, .. }) = &self.rule_and_id {
-                    ctx.emit(SuggestedRuleDialogEvent::OpenRuleForEditing { rule: rule.clone() });
+                if let Some(SuggestedRuleAndId { rule: _, .. }) = &self.rule_and_id {
+                    ctx.emit(SuggestedRuleDialogEvent::OpenRuleForEditing);
                 } else {
                     log::warn!("No rule to edit in suggested rule dialog");
                 }

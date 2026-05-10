@@ -1,10 +1,9 @@
 use crate::ai::agent::{AIAgentActionResultType, AIAgentActionType};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use ai::agent::action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult};
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub enum AskUserQuestionDecision {
     Completed(Vec<AskUserQuestionAnswerItem>),
@@ -78,14 +77,6 @@ impl AskUserQuestionExecutor {
                 }
             },
         )
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _action: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 
     pub fn complete(&self, answers: Vec<AskUserQuestionAnswerItem>) {

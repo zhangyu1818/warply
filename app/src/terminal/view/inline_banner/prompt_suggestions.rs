@@ -1,49 +1,35 @@
 use serde::Serialize;
 use std::rc::Rc;
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::prompt::prompt_alert::{
-    PromptAlertEvent, PromptAlertState, PromptAlertView,
-};
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
-use crate::server::telemetry::InteractionSource;
-use crate::settings::InputSettings;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
+use crate::ui_events::InteractionSource;
 use crate::util::bindings::keybinding_name_to_keystroke;
-use pathfinder_geometry::vector::vec2f;
 use warpui::elements::{
-    ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty,
-    Fill, Flex, HighlightedHyperlink, Hoverable, Icon, MainAxisAlignment, MainAxisSize,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack,
-    Text,
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Fill, Flex,
+    HighlightedHyperlink, Hoverable, Icon, MainAxisAlignment, MainAxisSize, ParentElement, Radius,
+    Shrinkable, Text,
 };
 use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{elements::MouseStateHandle, Element};
-use warpui::{
-    AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext, ViewHandle,
-};
+use warpui::{AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext};
 use warpui::{SingletonEntity, View};
 
-use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion};
+use crate::terminal::view::PromptSuggestion;
 use crate::ui_components::blended_colors;
 use crate::{appearance::Appearance, terminal::view::TerminalAction};
-use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
 
 use crate::ui_components::icons::Icon as WarpUIIcon;
 
 use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
-use crate::server::ids::ServerId;
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
-
-const DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE: &str = "Restricted due to payment issue";
-const OUT_OF_REQUESTS_TOOLTIP_MESSAGE: &str = "Out of credits";
 
 /// Types of zero-state prompt suggestions.
 #[derive(Debug, Copy, Clone, Serialize)]
@@ -62,7 +48,7 @@ pub enum ZeroStatePromptSuggestionTriggeredFrom {
     InputBar,
     AgentModeHomepage,
     TryAgentModeBanner,
-    AgentManagementPopup,
+    ConversationListPopup,
 }
 
 impl ZeroStatePromptSuggestionType {
@@ -114,9 +100,6 @@ pub struct PromptSuggestionBannerState {
     /// The conversation that this suggestion should be associated with.
     /// Only populated when a prompt suggestion is generated in the agent view.
     pub conversation_id: Option<AIConversationId>,
-
-    /// The server request token, used to construct a debug link (dogfood only).
-    pub server_request_token: Option<String>,
 }
 
 /// Renders the Prompt Suggestions button, with appropriate hover and click effects.
@@ -128,37 +111,20 @@ fn render_button(
     keystroke: Option<Keystroke>,
     mouse_state: MouseStateHandle,
     on_click: Rc<impl Fn(&mut EventContext) + 'static>,
-    debug_request_token: Option<ServerConversationToken>,
-    prompt_alert_state: &PromptAlertState,
     should_shrink: bool,
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let is_button_disabled = matches!(
-        prompt_alert_state,
-        PromptAlertState::NoConnection
-            | PromptAlertState::AnonymousUserRequestLimitHardGate
-            | PromptAlertState::DelinquentDueToPaymentIssue
-            | PromptAlertState::OveragesToggleableButNotEnabled
-            | PromptAlertState::MonthlyOveragesSpendLimitReached
-            | PromptAlertState::RequestLimitReached
-    );
-    let opacity: f32 = if is_button_disabled { 0.5 } else { 1.0 };
-    let opacity_u8 = (opacity * 255.0).round() as u8;
     let hoverable = Hoverable::new(mouse_state.clone(), |mouse_state| {
-        let mut background_color = if mouse_state.is_hovered() {
+        let background_color = if mouse_state.is_hovered() {
             neutral_3(theme)
         } else {
             neutral_2(theme)
         };
-        background_color.a = opacity_u8;
         let background_fill = Fill::Solid(background_color);
 
-        let mut text_color = blended_colors::text_main(theme, theme.surface_1());
-        if is_button_disabled {
-            text_color = blended_colors::text_disabled(theme, theme.surface_1());
-        }
+        let text_color = blended_colors::text_main(theme, theme.surface_1());
 
         let icon_size = appearance.monospace_font_size();
         let button_height = app.font_cache().line_height(
@@ -167,8 +133,7 @@ fn render_button(
         ) + 14.;
         // Need this to have reasonable keyboard shortcut heights.
         // let keyboard_shortcut_icon_height = button_height - 6.;
-        let mut icon_color = blended_colors::text_main(theme, theme.surface_1());
-        icon_color.a = opacity_u8;
+        let icon_color = blended_colors::text_main(theme, theme.surface_1());
 
         let text = {
             let base = Text::new_inline(
@@ -236,92 +201,16 @@ fn render_button(
             container = container.with_margin_left(INLINE_BANNER_SPACING);
         }
 
-        let mut stack = Stack::new();
-        stack.add_child(container.finish());
-
-        if is_button_disabled && mouse_state.is_hovered() {
-            if let Some(tooltip_text) = get_tooltip_text_for_alert_state(prompt_alert_state) {
-                let tooltip = appearance
-                    .ui_builder()
-                    .tool_tip(tooltip_text)
-                    .with_style(UiComponentStyles {
-                        font_size: Some(appearance.monospace_font_size() - 4.),
-                        padding: Some(Coords {
-                            top: 4.,
-                            bottom: 4.,
-                            left: 8.,
-                            right: 8.,
-                        }),
-                        background: Some(theme.tooltip_background().into()),
-                        font_color: Some(theme.background().into_solid()),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish();
-                let tooltip_offset = OffsetPositioning::offset_from_parent(
-                    vec2f(0., 4.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::BottomMiddle,
-                    ChildAnchor::TopMiddle,
-                );
-                stack.add_positioned_overlay_child(tooltip, tooltip_offset);
-            }
-        }
-
-        ConstrainedBox::new(stack.finish())
+        ConstrainedBox::new(container.finish())
             .with_height(button_height)
             .finish()
     })
     .with_cursor(Cursor::PointingHand);
 
-    let hoverable = if let Some(token) = debug_request_token {
-        hoverable.on_right_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(TerminalAction::ContextMenu(
-                ContextMenuAction::CopyServerRequestId {
-                    request_id: token.clone(),
-                },
-            ));
-        })
-    } else {
-        hoverable
-    };
-
-    if is_button_disabled {
-        hoverable.finish()
-    } else {
-        hoverable.on_click(move |ctx, _, _| on_click(ctx)).finish()
-    }
-}
-
-fn get_tooltip_text_for_alert_state(alert_state: &PromptAlertState) -> Option<String> {
-    // This is not an exhaustive list; the actual prompt alert component will have more information,
-    // so we can keep the tooltip's text relatively minimal and just capture broad groups.
-    match alert_state {
-        PromptAlertState::DelinquentDueToPaymentIssue => {
-            Some(DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE.to_string())
-        }
-        PromptAlertState::RequestLimitReached
-        | PromptAlertState::AnonymousUserRequestLimitHardGate
-        | PromptAlertState::AnonymousUserRequestLimitSoftGate
-        | PromptAlertState::OveragesToggleableButNotEnabled
-        | PromptAlertState::MonthlyOveragesSpendLimitReached => {
-            Some(OUT_OF_REQUESTS_TOOLTIP_MESSAGE.to_string())
-        }
-        _ => None,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptSuggestionsEvent {
-    SignupAnonymousUser,
-    OpenBillingAndUsagePage,
-    OpenPrivacyPage,
-    OpenBillingPortal { team_uid: ServerId },
+    hoverable.on_click(move |ctx, _, _| on_click(ctx)).finish()
 }
 
 pub struct PromptSuggestionsView {
-    ai_input_model: ModelHandle<BlocklistAIInputModel>,
-    prompt_alert: ViewHandle<PromptAlertView>,
     banner_state: Option<PromptSuggestionBannerState>,
 }
 
@@ -330,48 +219,20 @@ impl PromptSuggestionsView {
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
-        ctx.subscribe_to_view(&prompt_alert, |me, _, event, ctx| {
-            me.handle_prompt_alert_event(event, ctx);
-        });
-
         ctx.subscribe_to_model(&ai_input_model, |_, _, _, ctx| {
             ctx.notify();
         });
 
-        Self {
-            ai_input_model,
-            prompt_alert,
-            banner_state: None,
-        }
+        Self { banner_state: None }
     }
 
     pub fn set_banner_state(&mut self, banner_state: PromptSuggestionBannerState) {
         self.banner_state = Some(banner_state);
     }
-
-    fn handle_prompt_alert_event(&mut self, event: &PromptAlertEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            PromptAlertEvent::SignupAnonymousUser => {
-                ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-            PromptAlertEvent::OpenBillingAndUsagePage => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingAndUsagePage);
-            }
-            PromptAlertEvent::OpenPrivacyPage => {
-                ctx.emit(PromptSuggestionsEvent::OpenPrivacyPage);
-            }
-            PromptAlertEvent::OpenBillingPortal { team_uid } => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingPortal {
-                    team_uid: *team_uid,
-                });
-            }
-        }
-    }
 }
 
 impl Entity for PromptSuggestionsView {
-    type Event = PromptSuggestionsEvent;
+    type Event = ();
 }
 
 impl View for PromptSuggestionsView {
@@ -387,28 +248,17 @@ impl View for PromptSuggestionsView {
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_main_axis_size(MainAxisSize::Max);
 
-        let prompt_alert_state = self.prompt_alert.as_ref(app).state();
-
         let Some(banner_state) = &self.banner_state else {
             return Empty::new().finish();
         };
         let prompt_suggestion = &banner_state.prompt_suggestion;
-
-        let debug_request_token = if ChannelState::enable_debug_features() {
-            banner_state
-                .server_request_token
-                .as_ref()
-                .map(|t| ServerConversationToken::new(t.clone()))
-        } else {
-            None
-        };
 
         inner_banner_flex.add_child(
             Shrinkable::new(
                 1.0,
                 render_button(
                     prompt_suggestion.label().clone(),
-                    WarpUIIcon::Oz,
+                    WarpUIIcon::AgentMode,
                     0,
                     keybinding_name_to_keystroke(ACCEPT_PROMPT_SUGGESTION_KEYBINDING, app),
                     banner_state.accept_button_mouse_state.clone(),
@@ -419,8 +269,6 @@ impl View for PromptSuggestionsView {
                             },
                         ));
                     }),
-                    debug_request_token,
-                    prompt_alert_state,
                     true, // should_shrink
                     appearance,
                     app,
@@ -428,21 +276,6 @@ impl View for PromptSuggestionsView {
             )
             .finish(),
         );
-
-        // Render the right-side alert chip. This is also rendered by the AI prompt, so if we're in AI mode,
-        // we skip over rendering it to avoid two of them showing up. Also skip if UDI is enabled since
-        // UDI will render it in the bottom bar.
-        if self.ai_input_model.as_ref(app).input_type() != InputType::AI
-            && !InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
-        {
-            // We don't want to render the chip if there's nothing that will show up;
-            // that will cause it to take up space , which squishes the left-side prompt.
-            if !self.prompt_alert.as_ref(app).is_no_alert() {
-                inner_banner_flex.add_child(
-                    Shrinkable::new(1., ChildView::new(&self.prompt_alert).finish()).finish(),
-                );
-            }
-        }
 
         Container::new(inner_banner_flex.finish())
             // Add 1px top padding to balance out the 1px overdraw on the bottom
@@ -454,24 +287,7 @@ impl View for PromptSuggestionsView {
 }
 
 impl TypedActionView for PromptSuggestionsView {
-    type Action = PromptSuggestionsEvent;
+    type Action = ();
 
-    fn handle_action(&mut self, action: &PromptSuggestionsEvent, ctx: &mut ViewContext<Self>) {
-        match action {
-            PromptSuggestionsEvent::SignupAnonymousUser => {
-                ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-            PromptSuggestionsEvent::OpenBillingAndUsagePage => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingAndUsagePage);
-            }
-            PromptSuggestionsEvent::OpenPrivacyPage => {
-                ctx.emit(PromptSuggestionsEvent::OpenPrivacyPage);
-            }
-            PromptSuggestionsEvent::OpenBillingPortal { team_uid } => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingPortal {
-                    team_uid: *team_uid,
-                });
-            }
-        }
-    }
+    fn handle_action(&mut self, _: &(), _: &mut ViewContext<Self>) {}
 }

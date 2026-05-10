@@ -3,19 +3,16 @@ use warp_core::context_flag::ContextFlag;
 use warpui::{keymap::Trigger, SingletonEntity, ViewContext, ViewHandle};
 
 use crate::{
-    cloud_object::{CloudObject, GenericStringObjectFormat, Space},
-    drive::{
-        drive_helpers::has_feature_gated_anonymous_user_reached_env_var_limit,
-        export::ExportManager, CloudObjectTypeAndId,
-    },
+    cloud_object::update_manager::UpdateManager,
+    cloud_object::GenericStringObjectFormat,
+    drive::CloudObjectTypeAndId,
     env_vars::active_env_var_collection_data::TrashStatus,
     external_secrets::SecretManager,
     menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields},
     pane_group::PaneEvent,
-    server::cloud_objects::update_manager::UpdateManager,
     ui_components::icons::Icon,
     util::bindings::{keybinding_name_to_display_string, trigger_to_keystroke, CustomAction},
-    AppContext, CloudModel, FeatureFlag,
+    AppContext,
 };
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView, VariableRowIndex};
@@ -361,70 +358,31 @@ impl EnvVarCollectionView {
         let mut menu_items = Vec::new();
 
         let active_collection_data = self.active_env_var_collection_data.as_ref(ctx);
-        let access_level = active_collection_data.access_level(ctx);
-        let space = active_collection_data.space(ctx);
-
-        if !active_collection_data.is_on_server()
+        if !active_collection_data.is_committed()
             || active_collection_data.trash_status(ctx) != TrashStatus::Active
         {
             return menu_items;
         }
 
-        // Add "Copy Link" to menu
-        if let Some(link) = self.env_var_collection_link(ctx) {
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(EnvVarCollectionAction::CopyLink(link))
-                    .with_icon(Icon::Link)
-                    .into_item(),
-            );
-        }
-
-        // Add "Duplicate" to menu
-        if space != Some(Space::Shared) {
-            menu_items.push(
-                MenuItemFields::new("Duplicate")
-                    .with_on_select_action(EnvVarCollectionAction::Duplicate)
-                    .with_icon(Icon::Duplicate)
-                    .into_item(),
-            );
-        }
-
-        // Add "Trash" to menu
-        if self.is_online(ctx)
-            && (!FeatureFlag::SharedWithMe.is_enabled() || access_level.can_trash())
-        {
-            menu_items.push(
-                MenuItemFields::new("Trash")
-                    .with_on_select_action(EnvVarCollectionAction::Trash)
-                    .with_icon(Icon::Trash)
-                    .into_item(),
-            );
-        }
-
-        #[cfg(feature = "local_fs")]
         menu_items.push(
-            MenuItemFields::new("Export")
-                .with_on_select_action(EnvVarCollectionAction::Export)
-                .with_icon(Icon::Download)
+            MenuItemFields::new("Duplicate")
+                .with_on_select_action(EnvVarCollectionAction::Duplicate)
+                .with_icon(Icon::Duplicate)
+                .into_item(),
+        );
+
+        menu_items.push(
+            MenuItemFields::new("Trash")
+                .with_on_select_action(EnvVarCollectionAction::Trash)
+                .with_icon(Icon::Trash)
                 .into_item(),
         );
 
         menu_items
     }
 
-    pub(super) fn env_var_collection_link(&self, ctx: &AppContext) -> Option<String> {
-        self.env_var_collection_id(ctx)
-            .and_then(|id| CloudModel::as_ref(ctx).get_env_var_collection(&id))
-            .map(|env_var_collection| env_var_collection.object_link())?
-    }
-
     pub(super) fn untrash_env_var_collection(&self, ctx: &mut ViewContext<Self>) {
         if let Some(env_var_collection_id) = self.active_env_var_collection_data.as_ref(ctx).id() {
-            if has_feature_gated_anonymous_user_reached_env_var_limit(ctx) {
-                return;
-            }
-
             UpdateManager::handle(ctx).update(ctx, move |update_manager, ctx| {
                 update_manager.untrash_object(
                     CloudObjectTypeAndId::GenericStringObject {
@@ -473,24 +431,6 @@ impl EnvVarCollectionView {
                 );
             });
             ctx.notify();
-        }
-    }
-
-    pub(super) fn export_env_var_collection(&self, ctx: &mut ViewContext<Self>) {
-        if let Some(env_var_collection_id) = self.env_var_collection_id(ctx) {
-            let window_id = ctx.window_id();
-            ExportManager::handle(ctx).update(ctx, |export_manager, ctx| {
-                export_manager.export(
-                    window_id,
-                    &[CloudObjectTypeAndId::from_generic_string_object(
-                        GenericStringObjectFormat::Json(
-                            crate::cloud_object::JsonObjectType::EnvVarCollection,
-                        ),
-                        env_var_collection_id,
-                    )],
-                    ctx,
-                )
-            });
         }
     }
 }

@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
-use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
+use warpui::{AppContext, ModelHandle, ViewHandle, WindowId};
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::{
     ai::blocklist::SerializedBlockListItem, context_chips::prompt_type::PromptType,
     pane_group::TerminalViewResources, terminal::view::ConversationRestorationInNewPaneType,
@@ -76,7 +75,6 @@ impl MockTerminalManager {
                 // into the web view.
                 conversation_restoration,
                 None, // inactive_pty_reads_rx
-                false,
                 ctx,
             )
         });
@@ -112,15 +110,8 @@ impl TerminalManager for MockTerminalManager {
     fn on_view_detached(
         &self,
         _detach_type: crate::pane_group::pane::DetachType,
-        app: &mut AppContext,
+        _app: &mut AppContext,
     ) {
-        // If this is a conversation transcript viewer, unregister the ambient session.
-        if self.model.lock().is_conversation_transcript_viewer() {
-            let terminal_view_id = self.view.id();
-            ActiveAgentViewsModel::handle(app).update(app, |model, ctx| {
-                model.unregister_ambient_session(terminal_view_id, ctx);
-            });
-        }
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -137,7 +128,7 @@ mod testing {
     use warpui::{platform::WindowStyle, App, Element, SingletonEntity};
 
     use crate::{
-        server::server_api::ServerApiProvider,
+        http_api::HttpApiProvider,
         terminal::{
             shell::{ShellName, ShellType},
             ShellLaunchState,
@@ -173,13 +164,13 @@ mod testing {
             app: &mut App,
             restored_blocks: Option<&[SerializedBlockListItem]>,
         ) -> ViewHandle<TerminalView> {
-            let server_api = app.read(|ctx| ServerApiProvider::as_ref(ctx).get());
+            let http_api = app.read(|ctx| HttpApiProvider::as_ref(ctx).get());
             let tips_model = app.add_model(|_| Default::default());
 
             let (window_id, _) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
                 let resources = TerminalViewResources {
                     tips_completed: tips_model,
-                    server_api,
+                    http_api,
                     model_event_sender: None,
                 };
                 let terminal_manager = MockTerminalManager::create_model(

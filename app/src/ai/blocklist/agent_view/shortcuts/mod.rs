@@ -13,11 +13,10 @@ use warpui::{
     AppContext, Element, SingletonEntity,
 };
 
-use crate::ai::blocklist::agent_view::ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE;
 use crate::{
     ai::blocklist::agent_view::ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
-    cmd_or_ctrl_shift,
-    terminal::{self, TOGGLE_AUTOEXECUTE_MODE_KEYBINDING},
+    search::slash_command_menu::static_commands::commands,
+    terminal,
     ui_components::blended_colors,
     util::bindings::keybinding_name_to_keystroke,
     workspace::view::{
@@ -27,8 +26,6 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AgentShortcutsViewContext {
-    pub is_cloud_agent: bool,
-    /// True once the user has submitted the first prompt.
     pub has_submitted_first_prompt: bool,
 }
 
@@ -111,143 +108,10 @@ pub fn render_agent_shortcuts_view(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
-
-    let hide_cloud_zero_state_items = context.is_cloud_agent && !context.has_submitted_first_prompt;
-
-    let mut shortcuts = vec![];
-
-    if !hide_cloud_zero_state_items {
-        shortcuts.push(render_shortcut(
-            ShortcutProps {
-                keystroke: Keystroke {
-                    key: "!".to_owned(),
-                    ..Default::default()
-                },
-                text: "input shell command".into(),
-                ..Default::default()
-            },
-            app,
-        ));
-    }
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: Keystroke {
-                key: "/".to_owned(),
-                ..Default::default()
-            },
-            text: "for slash commands".into(),
-            ..Default::default()
-        },
-        app,
-    ));
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: Keystroke {
-                key: "@".to_owned(),
-                ..Default::default()
-            },
-            text: "for file paths and attaching other context".into(),
-            ..Default::default()
-        },
-        app,
-    ));
-
-    // Code review is not available for cloud agents.
-    if !context.is_cloud_agent {
-        if let Some(keystroke) = keybinding_name_to_keystroke(TOGGLE_RIGHT_PANEL_BINDING_NAME, app)
-        {
-            shortcuts.push(render_shortcut(
-                ShortcutProps {
-                    keystroke,
-                    text: "open code review".into(),
-                    ..Default::default()
-                },
-                app,
-            ));
-        }
-    }
-
-    if FeatureFlag::AgentViewConversationListView.is_enabled() {
-        if let Some(keystroke) =
-            keybinding_name_to_keystroke(TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, app)
-        {
-            shortcuts.push(render_shortcut(
-                ShortcutProps {
-                    keystroke,
-                    text: "toggle conversation list".into(),
-                    ..Default::default()
-                },
-                app,
-            ));
-        }
-    }
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: Keystroke::parse(cmd_or_ctrl_shift("y")).expect("is valid keystroke"),
-            text: "search and continue conversations".into(),
-            ..Default::default()
-        },
-        app,
-    ));
-
-    // Use cloud keystroke (cmd+opt+enter) for cloud mode, regular keystroke (cmd+enter) otherwise.
-    let new_conversation_keystroke = if context.is_cloud_agent {
-        ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone()
-    } else {
-        ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone()
-    };
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: new_conversation_keystroke.clone(),
-            text: "start a new conversation".into(),
-            ..Default::default()
-        },
-        app,
-    ));
-
-    if !hide_cloud_zero_state_items {
-        if let Some(keystroke) =
-            keybinding_name_to_keystroke(TOGGLE_AUTOEXECUTE_MODE_KEYBINDING, app)
-        {
-            shortcuts.push(render_shortcut(
-                ShortcutProps {
-                    keystroke,
-                    text: "toggle auto-accept".into(),
-                    ..Default::default()
-                },
-                app,
-            ));
-        }
-    }
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: Keystroke {
-                key: "c".to_owned(),
-                ctrl: true,
-                ..Default::default()
-            },
-            text: "pause agent".into(),
-            ..Default::default()
-        },
-        app,
-    ));
-
-    shortcuts.push(render_shortcut(
-        ShortcutProps {
-            keystroke: Keystroke {
-                key: "escape".to_owned(),
-                ..Default::default()
-            },
-            text: "go back to terminal".into(),
-            ..Default::default()
-        },
-        app,
-    ));
+    let shortcuts = agent_shortcut_props(context, agent_shortcut_keybindings(app))
+        .into_iter()
+        .map(|props| render_shortcut(props, app))
+        .collect::<Vec<_>>();
 
     Container::new(
         Flex::column()
@@ -266,6 +130,109 @@ pub fn render_agent_shortcuts_view(
     .finish()
 }
 
+#[derive(Default)]
+struct AgentShortcutKeybindings {
+    code_review: Option<Keystroke>,
+    conversation_list: Option<Keystroke>,
+    conversation_search: Option<Keystroke>,
+}
+
+fn agent_shortcut_keybindings(app: &AppContext) -> AgentShortcutKeybindings {
+    AgentShortcutKeybindings {
+        code_review: keybinding_name_to_keystroke(TOGGLE_RIGHT_PANEL_BINDING_NAME, app),
+        conversation_list: if FeatureFlag::AgentViewConversationListView.is_enabled() {
+            keybinding_name_to_keystroke(TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, app)
+        } else {
+            None
+        },
+        conversation_search: keybinding_name_to_keystroke(commands::CONVERSATIONS.name, app),
+    }
+}
+
+fn agent_shortcut_props(
+    context: AgentShortcutsViewContext,
+    keybindings: AgentShortcutKeybindings,
+) -> Vec<ShortcutProps> {
+    let _has_submitted_first_prompt = context.has_submitted_first_prompt;
+    let mut shortcuts = vec![
+        ShortcutProps {
+            keystroke: Keystroke {
+                key: "!".to_owned(),
+                ..Default::default()
+            },
+            text: "input shell command".into(),
+            ..Default::default()
+        },
+        ShortcutProps {
+            keystroke: Keystroke {
+                key: "/".to_owned(),
+                ..Default::default()
+            },
+            text: "for slash commands".into(),
+            ..Default::default()
+        },
+        ShortcutProps {
+            keystroke: Keystroke {
+                key: "@".to_owned(),
+                ..Default::default()
+            },
+            text: "for file paths and attaching other context".into(),
+            ..Default::default()
+        },
+    ];
+
+    if let Some(keystroke) = keybindings.code_review {
+        shortcuts.push(ShortcutProps {
+            keystroke,
+            text: "open code review".into(),
+            ..Default::default()
+        });
+    }
+
+    if let Some(keystroke) = keybindings.conversation_list {
+        shortcuts.push(ShortcutProps {
+            keystroke,
+            text: "toggle conversation list".into(),
+            ..Default::default()
+        });
+    }
+
+    if let Some(keystroke) = keybindings.conversation_search {
+        shortcuts.push(ShortcutProps {
+            keystroke,
+            text: "search and continue conversations".into(),
+            ..Default::default()
+        });
+    }
+
+    shortcuts.extend([
+        ShortcutProps {
+            keystroke: ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
+            text: "start a new conversation".into(),
+            ..Default::default()
+        },
+        ShortcutProps {
+            keystroke: Keystroke {
+                key: "c".to_owned(),
+                ctrl: true,
+                ..Default::default()
+            },
+            text: "pause agent".into(),
+            ..Default::default()
+        },
+        ShortcutProps {
+            keystroke: Keystroke {
+                key: "escape".to_owned(),
+                ..Default::default()
+            },
+            text: "go back to terminal".into(),
+            ..Default::default()
+        },
+    ]);
+
+    shortcuts
+}
+
 pub mod styles {
     use warp_core::ui::appearance::Appearance;
 
@@ -275,5 +242,58 @@ pub mod styles {
 
     pub fn font_size(appearance: &Appearance) -> f32 {
         appearance.monospace_font_size() - 2.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_keystroke(key: &str) -> Keystroke {
+        Keystroke {
+            key: key.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn acp_shortcuts_keep_generic_items_without_legacy_agent_items() {
+        let shortcuts = agent_shortcut_props(
+            AgentShortcutsViewContext {
+                has_submitted_first_prompt: false,
+            },
+            AgentShortcutKeybindings {
+                code_review: Some(test_keystroke("r")),
+                conversation_list: Some(test_keystroke("l")),
+                conversation_search: Some(test_keystroke("y")),
+            },
+        );
+        let labels = shortcuts
+            .iter()
+            .map(|shortcut| shortcut.text.as_ref())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            labels,
+            vec![
+                "input shell command",
+                "for slash commands",
+                "for file paths and attaching other context",
+                "open code review",
+                "toggle conversation list",
+                "search and continue conversations",
+                "start a new conversation",
+                "pause agent",
+                "go back to terminal",
+            ]
+        );
+        assert!(!labels.contains(&"toggle auto-accept"));
+        assert_eq!(
+            shortcuts
+                .iter()
+                .find(|shortcut| shortcut.text == "search and continue conversations")
+                .map(|shortcut| shortcut.keystroke.key.as_str()),
+            Some("y")
+        );
     }
 }

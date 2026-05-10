@@ -1,15 +1,9 @@
 use super::{workflow::Workflow, CloudWorkflowModel};
 use crate::{
     cloud_object::{model::persistence::CloudModel, GenericCloudObject, Owner},
-    drive::OpenWarpDriveObjectSettings,
+    object_ids::{ClientId, SyncId},
     pane_group::{PaneContent, WorkflowPane},
     safe_warn,
-    server::{
-        cloud_objects::update_manager::{
-            ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
-        },
-        ids::{ClientId, SyncId},
-    },
     workflows::{workflow_view::WorkflowView, WorkflowViewMode},
     PaneViewLocator, WindowId,
 };
@@ -43,12 +37,7 @@ pub enum WorkflowOpenSource {
 }
 
 impl WorkflowManager {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        ctx.subscribe_to_model(
-            &UpdateManager::handle(ctx),
-            Self::handle_update_manager_event,
-        );
-
+    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         WorkflowManager {
             panes_by_hashed_id: HashMap::new(),
         }
@@ -67,7 +56,6 @@ impl WorkflowManager {
     pub fn create_pane(
         &mut self,
         source: &WorkflowOpenSource,
-        settings: &OpenWarpDriveObjectSettings,
         mode: WorkflowViewMode,
         window_id: WindowId,
         ctx: &mut ModelContext<Self>,
@@ -78,17 +66,10 @@ impl WorkflowManager {
             WorkflowOpenSource::Existing(workflow_id) => {
                 let workflow = CloudModel::as_ref(ctx).get_workflow(workflow_id).cloned();
                 if let Some(workflow) = workflow {
-                    view.update(ctx, |view, ctx| view.load(workflow, settings, mode, ctx));
+                    view.update(ctx, |view, ctx| view.load(workflow, mode, ctx));
                 } else {
-                    // If the workflow doesn't exist, try waiting for initial load and trying again
                     view.update(ctx, |view, ctx| {
-                        view.wait_for_initial_load_then_load(
-                            *workflow_id,
-                            settings,
-                            mode,
-                            window_id,
-                            ctx,
-                        )
+                        view.wait_for_initial_load_then_load(*workflow_id, mode, window_id, ctx)
                     });
                 }
             }
@@ -122,7 +103,6 @@ impl WorkflowManager {
                             *initial_folder_id,
                             ClientId::default(),
                         ),
-                        &OpenWarpDriveObjectSettings::default(),
                         mode,
                         ctx,
                     );
@@ -144,7 +124,6 @@ impl WorkflowManager {
         let entry = self.panes_by_hashed_id.entry(workflow_id.uid());
         if let Entry::Vacant(entry) = entry {
             entry.insert(WorkflowPaneData {
-                workflow_id,
                 window_id,
                 locator: PaneViewLocator {
                     pane_group_id,
@@ -175,46 +154,9 @@ impl WorkflowManager {
             }
         }
     }
-
-    fn handle_update_manager_event(
-        &mut self,
-        event: &UpdateManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        if !matches!(&result.success_type, OperationSuccessType::Success) {
-            return;
-        }
-        if let ObjectOperation::Create { .. } = result.operation {
-            let server_id = result.server_id.expect("Expect server id on success");
-            let Some(server_id) = CloudModel::as_ref(ctx)
-                .get_workflow_by_uid(&server_id.uid())
-                .and_then(|workflow| workflow.id.into_server())
-            else {
-                return;
-            };
-            let Some(client_id) = result.client_id else {
-                return;
-            };
-
-            if let Some(mut pane) = self.panes_by_hashed_id.remove(&client_id.to_string()) {
-                pane.workflow_id = SyncId::ServerId(server_id);
-                self.panes_by_hashed_id
-                    .insert(server_id.uid().clone(), pane);
-            }
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.panes_by_hashed_id.clear();
-    }
 }
 
 struct WorkflowPaneData {
-    workflow_id: SyncId,
     window_id: WindowId,
     locator: PaneViewLocator,
 }

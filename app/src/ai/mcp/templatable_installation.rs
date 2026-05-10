@@ -5,7 +5,6 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use uuid::Uuid;
-use warp_managed_secrets::ManagedSecretValue;
 
 use crate::ai::mcp::{TemplatableMCPServer, TemplateVariable};
 use siphasher::sip::SipHasher;
@@ -23,6 +22,11 @@ pub enum VariableType {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VariableValue {
     pub variable_type: VariableType,
+    pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TemplateSecretValue {
     pub value: String,
 }
 
@@ -98,31 +102,12 @@ impl TemplatableMCPServerInstallation {
         &self.variable_values
     }
 
-    /// Apply Warp-managed secrets to the installation's variable values.
-    ///
-    /// Precedence for each template variable:
-    /// 1. Explicit reference: if the current value contains `{{secret_name}}`
-    ///    placeholders, they are rendered against the secrets map. Any other
-    ///    secrets that happen to share the variable's key name are ignored.
-    /// 2. Implicit key-name match: if the current value has no `{{...}}`
-    ///    placeholders but a secret exists whose name equals the variable key,
-    ///    that secret's value is inserted.
-    ///
-    /// Variables with no matching explicit refs and no matching secret are left
-    /// unchanged.
-    pub fn apply_secrets(&mut self, secrets: &HashMap<String, ManagedSecretValue>) {
+    pub fn apply_secrets(&mut self, secrets: &HashMap<String, TemplateSecretValue>) {
         let secret_strings: HashMap<String, String> = secrets
             .iter()
-            .filter_map(|(k, v)| {
-                let ManagedSecretValue::RawValue { value } = v else {
-                    return None;
-                };
-                Some((k.clone(), value.clone()))
-            })
+            .map(|(k, v)| (k.clone(), v.value.clone()))
             .collect();
 
-        // Access templatable_mcp_server directly instead of using template_variables() to allow mutating
-        // variable_values while borrowing the template.
         for variable in self.templatable_mcp_server.template.variables.iter() {
             let has_explicit_refs = self
                 .variable_values
@@ -140,15 +125,11 @@ impl TemplatableMCPServerInstallation {
                     },
                 );
             } else if let Some(secret) = secrets.get(&variable.key) {
-                let ManagedSecretValue::RawValue { value } = secret else {
-                    // We don't support injecting other secret types.
-                    continue;
-                };
                 self.variable_values.insert(
                     variable.key.clone(),
                     VariableValue {
                         variable_type: VariableType::Text,
-                        value: value.clone(),
+                        value: secret.value.clone(),
                     },
                 );
             }

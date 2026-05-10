@@ -14,24 +14,20 @@ pub fn initialize_settings_for_tests_with_mode(
     is_sandboxed: bool,
 ) {
     use crate::{
-        ai::cloud_agent_settings::CloudAgentSettings,
-        drive::settings::WarpDriveSettings,
         search::command_search::settings::CommandSearchSettings,
         settings::{
             app_icon::AppIconSettings, init_and_register_user_preferences,
             manager::SettingsManager, AISettings, AccessibilitySettings, AliasExpansionSettings,
-            AppEditorSettings, BlockVisibilitySettings, ChangelogSettings,
-            CloudPreferencesSettings, CodeSettings, DebugSettings, EmacsBindingsSettings,
-            FontSettings, GPUSettings, InputModeSettings, InputSettings, NativePreferenceSettings,
-            PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
-            SshSettings, ThemeSettings, VimBannerSettings,
+            AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings,
+            EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings, InputSettings,
+            PaneSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
+            VimBannerSettings,
         },
         terminal::{
             general_settings::GeneralSettings, keys_settings::KeysSettings,
             ligature_settings::LigatureSettings, safe_mode_settings::SafeModeSettings,
             session_settings::SessionSettings, settings::TerminalSettings,
-            shared_session::settings::SharedSessionSettings, warpify::settings::WarpifySettings,
-            BlockListSettings,
+            warpify::settings::WarpifySettings, BlockListSettings,
         },
         undo_close::UndoCloseSettings,
         user_config::WarpConfig,
@@ -48,12 +44,9 @@ pub fn initialize_settings_for_tests_with_mode(
     AccessibilitySettings::register(app);
     app.update(AISettings::register_and_subscribe_to_events);
     AliasExpansionSettings::register(app);
-    CloudAgentSettings::register(app);
     AppEditorSettings::register(app);
     BlockVisibilitySettings::register(app);
     BlockListSettings::register(app);
-    ChangelogSettings::register(app);
-    CloudPreferencesSettings::register(app);
     CommandSearchSettings::register(app);
     DebugSettings::register(app);
     AppIconSettings::register(app);
@@ -78,9 +71,7 @@ pub fn initialize_settings_for_tests_with_mode(
         LinuxAppConfiguration::register(app);
     }
 
-    NativePreferenceSettings::register(app);
     SafeModeSettings::register(app);
-    SameLinePromptBlockSettings::register(app);
     ScrollSettings::register(app);
     SelectionSettings::register(app);
     app.update(|ctx| {
@@ -94,9 +85,7 @@ pub fn initialize_settings_for_tests_with_mode(
     ThemeSettings::register(app);
     UndoCloseSettings::register(app);
     VimBannerSettings::register(app);
-    WarpDriveSettings::register(app);
     WindowSettings::register(app);
-    SharedSessionSettings::register(app);
     CodeSettings::register(app);
     SemanticSelection::register(app);
 

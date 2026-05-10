@@ -14,11 +14,11 @@ use crate::pane_group::pane::view::header::components::{
 use crate::pane_group::pane::view::header::render_pane_header_draggable;
 use crate::pane_group::{CodePane, PaneConfigurationEvent, PaneDragDropLocation};
 use crate::quit_warning::UnsavedStateSummary;
-use crate::server::telemetry::CodeContextDestination;
 use crate::terminal::cli_agent::{
     build_selection_line_range_prompt, build_selection_substring_prompt,
 };
 use crate::terminal::view::CliAgentRouting;
+use crate::ui_events::CodeContextDestination;
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::TabBarDropTargetData;
 use crate::{code::EditorTabBarDropTargetData, pane_group::pane::ActionOrigin};
@@ -59,11 +59,10 @@ use warpui::{
 
 use crate::{
     menu::{MenuItem, MenuItemFields},
-    notebooks::file::{is_markdown_file, MarkdownDisplayMode},
     search::{files::icon::icon_from_file_path, ItemHighlightState},
     tab::TAB_BAR_BORDER_HEIGHT,
     ui_components::{blended_colors, buttons::icon_button},
-    view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView},
+    view_components::DismissibleToast,
     workspace::{ActiveSession, ToastStack, WorkspaceAction},
 };
 
@@ -78,8 +77,6 @@ use super::{
     editor_management::{CodeManager, CodeSource},
     local_code_editor::{LocalCodeEditorEvent, LocalCodeEditorView},
 };
-
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut CodeView, &mut ViewContext<CodeView>) + Send + Sync + 'static>;
@@ -162,8 +159,6 @@ pub enum CodeViewAction {
     ToggleMaximized,
     #[cfg(feature = "local_fs")]
     CopyFilePath,
-    #[cfg(feature = "local_fs")]
-    RenderMarkdown,
     DragOverIndex {
         target: usize,
         drag_position: RectF,
@@ -234,7 +229,6 @@ pub struct CodeView {
     source: CodeSource,
     window_id: WindowId,
     drag_position: Option<TabBarDragPosition>,
-    markdown_mode_segmented_control: Option<ViewHandle<MarkdownToggleView>>,
 }
 
 impl CodeView {
@@ -250,7 +244,6 @@ impl CodeView {
             source,
             window_id,
             drag_position: None,
-            markdown_mode_segmented_control: None,
         }
     }
 
@@ -262,50 +255,7 @@ impl CodeView {
         let path = source.path();
         let mut view = Self::new_internal(source, ctx);
         view.open_or_focus_existing(path, line_col, ctx);
-        #[cfg(feature = "local_fs")]
-        {
-            view.update_markdown_mode_segmented_control(ctx);
-        }
         view
-    }
-
-    #[cfg(feature = "local_fs")]
-    fn update_markdown_mode_segmented_control(&mut self, ctx: &mut ViewContext<Self>) {
-        let path = self
-            .local_path(ctx)
-            .or_else(|| {
-                self.tab_at(self.active_tab_index)
-                    .and_then(|t| t.path.clone())
-            })
-            .or_else(|| self.source.path());
-
-        let is_markdown = path.as_ref().map(is_markdown_file).unwrap_or(false);
-
-        if !is_markdown {
-            self.markdown_mode_segmented_control = None;
-            ctx.notify();
-            return;
-        }
-
-        if self.markdown_mode_segmented_control.is_none() {
-            let handle = ctx.add_typed_action_view(|ctx| {
-                MarkdownToggleView::new(MarkdownDisplayMode::Raw, ctx)
-            });
-
-            ctx.subscribe_to_view(&handle, |view, _, event, ctx| {
-                let MarkdownToggleEvent::ModeSelected(mode) = event;
-                match mode {
-                    MarkdownDisplayMode::Rendered => {
-                        view.handle_action(&CodeViewAction::RenderMarkdown, ctx);
-                    }
-                    MarkdownDisplayMode::Raw => {}
-                }
-            });
-
-            self.markdown_mode_segmented_control = Some(handle);
-        }
-
-        ctx.notify();
     }
 
     /// Restore a code view from a persisted multi-tab snapshot.
@@ -337,10 +287,6 @@ impl CodeView {
 
         if let Some(path) = path {
             view.open_in_preview_or_promote(path, ctx);
-            #[cfg(feature = "local_fs")]
-            {
-                view.update_markdown_mode_segmented_control(ctx);
-            }
         } else {
             log::warn!("Preview CodeView constructed with no path");
         }
@@ -355,7 +301,6 @@ impl CodeView {
                 self.set_title_after_content_update(ctx);
                 self.update_tab_bar_state(ctx);
                 self.focus_contents(ctx);
-                send_telemetry_from_ctx!(TelemetryEvent::PreviewPanePromoted, ctx);
                 ctx.notify();
             }
         }
@@ -993,25 +938,15 @@ impl CodeView {
             if let Some(routing) = terminal_view.update(ctx, |tv, ctx| {
                 tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
             }) {
-                let destination = match routing {
+                let _destination = match routing {
                     CliAgentRouting::RichInput => CodeContextDestination::RichInput,
                     CliAgentRouting::Pty => CodeContextDestination::Pty,
                 };
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CodeSelectionAddedAsContext { destination },
-                    ctx
-                );
                 return;
             }
         }
 
         // Otherwise insert the location snippet into the input buffer (original behavior).
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CodeSelectionAddedAsContext {
-                destination: CodeContextDestination::AgentInput,
-            },
-            ctx
-        );
         ctx.dispatch_typed_action(&WorkspaceAction::InsertInInput {
             content: format!("{file_path}:{start_line}-{end_line} "),
             replace_buffer: false,
@@ -1261,11 +1196,6 @@ impl CodeView {
             file_path,
             tab_index: index,
         });
-
-        #[cfg(feature = "local_fs")]
-        {
-            self.update_markdown_mode_segmented_control(ctx);
-        }
 
         ctx.notify();
     }
@@ -1639,7 +1569,7 @@ impl CodeView {
     /// Renders the tab bar with explicit draggable handling for multi-tab case.
     fn render_tab_bar_with_draggable(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
@@ -1835,7 +1765,7 @@ impl CodeView {
     /// Renders the header for the single-tab (or empty) case with a centered title.
     fn render_single_tab_header(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let title = self
@@ -1852,10 +1782,6 @@ impl CodeView {
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
-
-        if let Some(segmented) = &self.markdown_mode_segmented_control {
-            right_row.add_child(ChildView::new(segmented).finish());
-        }
 
         let show_close_button = self
             .focus_handle
@@ -1874,11 +1800,7 @@ impl CodeView {
 
         let button_count = show_close_button as u32 + header_ctx.has_overflow_items as u32;
         let buttons_width = button_count as f32 * ICON_DIMENSIONS;
-        let edge_width = if self.markdown_mode_segmented_control.is_some() {
-            220.0
-        } else {
-            view::StandardHeaderOptions::DEFAULT_CONTROL_CONTAINER_WIDTH
-        };
+        let edge_width = view::StandardHeaderOptions::DEFAULT_CONTROL_CONTAINER_WIDTH;
 
         // Get tooltip path and handle from the first tab (if any).
         let tab = self.tab_group.first();
@@ -1952,21 +1874,13 @@ impl CodeView {
         ];
 
         #[cfg(feature = "local_fs")]
-        if let Some(path) = self.local_path(ctx) {
+        if self.local_path(ctx).is_some() {
             items.extend([
                 MenuItem::Separator,
                 MenuItemFields::new("Copy file path")
                     .with_on_select_action(CodeViewAction::CopyFilePath)
                     .into_item(),
             ]);
-
-            if is_markdown_file(&path) {
-                items.push(
-                    MenuItemFields::new("View Markdown preview")
-                        .with_on_select_action(CodeViewAction::RenderMarkdown)
-                        .into_item(),
-                );
-            }
         }
 
         items
@@ -2119,37 +2033,6 @@ impl TypedActionView for CodeView {
                         .write(ClipboardContent::plain_text(path.display().to_string()));
                 }
             }
-            #[cfg(feature = "local_fs")]
-            CodeViewAction::RenderMarkdown => {
-                let path = self.local_path(ctx).or_else(|| {
-                    self.tab_at(self.active_tab_index)
-                        .and_then(|t| t.path.clone())
-                });
-
-                if let Some(path) = path {
-                    let source = self.source.clone();
-                    if self.active_tab_has_unsaved_changes(ctx) {
-                        self.save_local(
-                            self.active_tab_index,
-                            Some(Box::new(move |outcome, _me, ctx| {
-                                if outcome != SaveOutcome::Canceled {
-                                    ctx.emit(CodeViewEvent::Pane(PaneEvent::ReplaceWithFilePane {
-                                        path: path.clone(),
-                                        source: Some(source.clone()),
-                                    }));
-                                }
-                            })),
-                            ctx,
-                        );
-                    } else {
-                        ctx.emit(CodeViewEvent::Pane(PaneEvent::ReplaceWithFilePane {
-                            path,
-                            source: Some(source),
-                        }));
-                    }
-                }
-            }
-
             CodeViewAction::DragOverIndex {
                 target,
                 drag_position,
@@ -2243,7 +2126,7 @@ impl BackingView for CodeView {
 
     fn render_header_content(
         &self,
-        ctx: &view::HeaderRenderContext<'_>,
+        ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         if self.tab_group.len() >= 2 {

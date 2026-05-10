@@ -35,8 +35,6 @@ pub enum ExitAgentViewError {
     LongRunningCommand,
     #[error("Cannot exit conversation as a viewer.")]
     ConversationViewer,
-    #[error("Cannot exit cloud agent.")]
-    AmbientAgent,
 }
 
 /// The display mode for an active agent view.
@@ -117,8 +115,6 @@ pub enum AgentViewEntryOrigin {
     AutoFollowUp,
     /// Entered agent view due to conversation restoration on startup or forking.
     RestoreExistingConversation,
-    /// Entered agent view due to shared-session synchronization.
-    SharedSessionSelection,
     /// Entered agent view due to a server-driven conversation split (StartNewConversation client action).
     AgentRequestedNewConversation,
     /// Entered agent view via accepting a prompt suggestion.
@@ -129,13 +125,6 @@ pub enum AgentViewEntryOrigin {
     AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.
     InlineCodeReview,
-    /// Entered agent view through a cloud agent prompt.
-    CloudAgent,
-    /// Entered agent view by opening an existing non-Oz cloud agent run (live shared-session
-    /// viewer or transcript viewer).
-    ThirdPartyCloudAgent,
-    /// Entered agent view via the CLI (e.g. `warp agent run`).
-    Cli,
     /// Entered agent view by adding an image (drag-and-drop or paste).
     ImageAdded,
     /// Entered agent view by executing a slash command that requires agent mode.
@@ -143,7 +132,6 @@ pub enum AgentViewEntryOrigin {
         trigger: SlashCommandTrigger,
     },
     SlashInit,
-    CreateEnvironment,
     /// Entered agent view by executing a slash command that requires agent mode.
     Keybinding,
     /// Entered agent view by attaching context from the code review panel.
@@ -153,24 +141,12 @@ pub enum AgentViewEntryOrigin {
     /// Entered agent view by selecting a conversation from the inline history menu.
     InlineHistoryMenu,
     InlineConversationMenu,
-    OnboardingCallout,
     ConversationListView,
     /// Entered agent view because the default session mode setting is Agent.
     DefaultSessionMode,
 
     /// Entered agent view by long-running command.
     LongRunningCommand,
-
-    /// Entered agent view from the onboarding flow.
-    Onboarding,
-
-    /// Entered agent view because a parent agent started this child agent via StartAgent.
-    ChildAgent,
-
-    /// Entered agent view by clicking a pill / breadcrumb in the orchestration
-    /// pill bar (or breadcrumb row) to navigate the current pane to a sibling
-    /// or parent conversation in the same orchestration tree.
-    OrchestrationPillBar,
 
     /// Entered agent view after opening project from OS directory picker.
     ProjectEntry,
@@ -205,10 +181,6 @@ pub enum AutoTriggerBehavior {
 }
 
 impl AgentViewEntryOrigin {
-    pub fn is_cloud_agent(&self) -> bool {
-        matches!(self, Self::CloudAgent)
-    }
-
     pub fn should_autotrigger_request(&self) -> AutoTriggerBehavior {
         match self {
             AgentViewEntryOrigin::Input {
@@ -217,7 +189,6 @@ impl AgentViewEntryOrigin {
             AgentViewEntryOrigin::SlashCommand { trigger } if !trigger.is_keybinding() => {
                 AutoTriggerBehavior::Always
             }
-            AgentViewEntryOrigin::Cli => AutoTriggerBehavior::Always,
             AgentViewEntryOrigin::AcceptedPromptSuggestion => AutoTriggerBehavior::Always,
             AgentViewEntryOrigin::LinearDeepLink => AutoTriggerBehavior::Never,
             _ => AutoTriggerBehavior::InAgentView,
@@ -424,7 +395,6 @@ impl AgentViewController {
                 .active_block()
                 .is_active_and_long_running();
 
-        // In a non-ambient agent case, users cannot exit the fullscreen agent view with an active long running command.
         if is_fullscreen_with_long_running {
             return Err(ExitAgentViewError::LongRunningCommand);
         }
@@ -700,7 +670,6 @@ impl AgentViewController {
                 .active_block()
                 .is_active_and_long_running()
                 && !terminal_model.is_conversation_transcript_viewer()
-                && !matches!(origin, AgentViewEntryOrigin::ThirdPartyCloudAgent)
         };
 
         if is_long_running {
@@ -767,12 +736,7 @@ impl AgentViewController {
             (conversation.id(), conversation.exchange_count())
         } else {
             let id = history_model.update(ctx, |history_model, ctx| {
-                history_model.start_new_conversation(
-                    self.terminal_view_id,
-                    false,
-                    matches!(origin, AgentViewEntryOrigin::CloudAgent),
-                    ctx,
-                )
+                history_model.start_new_conversation(self.terminal_view_id, false, ctx)
             });
             (id, 0)
         };
@@ -815,18 +779,6 @@ impl AgentViewController {
                 should_confirm: ExitConfirmationRequirement::Required,
             },
             trigger,
-            false,
-            ctx,
-        );
-    }
-
-    /// Exits the active agent view without any confirmation.
-    pub(crate) fn exit_agent_view_without_confirmation(&mut self, ctx: &mut ModelContext<Self>) {
-        self.exit_agent_view_internal(
-            ExitAgentViewOptions {
-                should_confirm: ExitConfirmationRequirement::None,
-            },
-            ExitConfirmationTrigger::Escape,
             false,
             ctx,
         );
@@ -929,7 +881,6 @@ impl AgentViewController {
             display_mode,
             original_exchange_count: original_conversation_length,
             final_exchange_count,
-            was_ambient_agent: origin == AgentViewEntryOrigin::CloudAgent,
             is_exit_before_new_entrance,
         });
     }
@@ -954,8 +905,6 @@ pub enum AgentViewControllerEvent {
         original_exchange_count: usize,
         /// The number of exchanges in the conversation when agent view is being exited.
         final_exchange_count: usize,
-        /// Whether this was an ambient (cloud) agent session.
-        was_ambient_agent: bool,
         /// Whether this exit is immediately followed by entering a new agent view.
         /// (e.g. Cmd+K while already in agent view to start a new conversation).
         is_exit_before_new_entrance: bool,

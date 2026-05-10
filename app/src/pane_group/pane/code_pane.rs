@@ -10,9 +10,7 @@ use crate::{
     pane_group::PaneGroup,
 };
 
-use super::{
-    DetachType, PaneConfiguration, PaneContent, PaneId, PaneView, ShareableLink, ShareableLinkError,
-};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneId, PaneView};
 
 pub struct CodePane {
     view: ViewHandle<PaneView<CodeView>>,
@@ -231,13 +229,6 @@ impl PaneContent for CodePane {
 
     fn has_application_focus(&self, ctx: &mut ViewContext<PaneGroup>) -> bool {
         self.view.is_self_or_child_focused(ctx)
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

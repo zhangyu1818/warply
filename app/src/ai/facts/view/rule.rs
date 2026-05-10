@@ -1,5 +1,6 @@
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::cloud_object::{
     CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
 };
@@ -9,10 +10,8 @@ use crate::editor::{
     TextOptions,
 };
 use crate::network::NetworkStatus;
+use crate::object_ids::{ClientId, SyncId};
 use crate::search_bar::SearchBar;
-use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
-use crate::server::ids::{ClientId, SyncId};
-use crate::server::sync_queue::SyncQueue;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
@@ -175,7 +174,7 @@ impl RuleView {
             ctx.notify();
         });
 
-        let owner = UserWorkspaces::as_ref(ctx).personal_drive(ctx);
+        let owner = UserWorkspaces::as_ref(ctx).current_user_owner(ctx);
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(
@@ -288,12 +287,10 @@ impl RuleView {
 
     fn handle_update_manager_event(
         &mut self,
-        event: &UpdateManagerEvent,
+        _event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let UpdateManagerEvent::ObjectOperationComplete { .. } = event {
-            self.fetch_ai_rules(ctx);
-        }
+        self.fetch_ai_rules(ctx);
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
@@ -639,12 +636,9 @@ impl RuleView {
             return None;
         }
 
-        let item = ai_row.fact.to_warp_drive_item(appearance)?;
-        let icon = item.sync_status_icon(
-            SyncQueue::as_ref(app).is_dequeueing(),
-            ai_row.mouse_states.sync_status_icon.clone(),
-            appearance,
-        )?;
+        let item = ai_row.fact.to_local_object_item(appearance)?;
+        let icon =
+            item.sync_status_icon(ai_row.mouse_states.sync_status_icon.clone(), appearance)?;
 
         Some(
             Hoverable::new(ai_row.mouse_states.sync_status_hover.clone(), |state| {

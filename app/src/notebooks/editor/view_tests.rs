@@ -1,6 +1,5 @@
 use crate::features::FeatureFlag;
 use async_channel::TryRecvError;
-use std::sync::Arc;
 use string_offset::CharOffset;
 use warp_editor::render::{
     element::RichTextAction,
@@ -22,13 +21,11 @@ use crate::notebooks::editor::link_editor::LinkEditorAction;
 use crate::notebooks::editor::model::NotebooksEditorModel;
 use crate::notebooks::editor::rich_text_styles;
 use crate::notebooks::link::{NotebookLinks, SessionSource};
-use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 
 use crate::settings::FontSettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 
-use crate::auth::AuthStateProvider;
+use crate::identity::LocalIdentityProvider;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::ActiveSession;
@@ -81,19 +78,9 @@ fn initialize_editor(
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![],
-            ctx,
-        )
-    });
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
+
+    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let (window, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         let window_id = ctx.window_id();
@@ -166,7 +153,9 @@ fn test_focus() {
         editor_view.update(&mut app, |editor, ctx| {
             editor.handle_action(&EditorViewAction::UserTyped(UserInput::new("abc")), ctx);
         });
-        editor_view.read(&app, |editor, ctx| assert!(editor.markdown(ctx).is_empty()));
+        editor_view.read(&app, |editor, ctx| {
+            assert!(editor.model().as_ref(ctx).markdown(ctx).is_empty())
+        });
 
         // Once the editor gains focus, it should start dispatching key events.
         editor_view.update(&mut app, |_, ctx| {
@@ -176,7 +165,9 @@ fn test_focus() {
         editor_view.update(&mut app, |editor, ctx| {
             editor.handle_action(&EditorViewAction::UserTyped(UserInput::new("abc")), ctx);
         });
-        editor_view.read(&app, |editor, ctx| assert_eq!(&editor.markdown(ctx), "abc"));
+        editor_view.read(&app, |editor, ctx| {
+            assert_eq!(&editor.model().as_ref(ctx).markdown(ctx), "abc")
+        });
 
         // Focus the root view to ensure that the editor is not focused at the framework level.
         test_view.update(&mut app, |_, ctx| ctx.focus_self());

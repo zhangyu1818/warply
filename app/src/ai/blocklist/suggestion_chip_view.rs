@@ -2,20 +2,17 @@ use crate::ai::agent::{SuggestedAgentModeWorkflow, SuggestedLoggingId, Suggested
 use crate::ai::facts::CloudAIFactModel;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
+use crate::cloud_object::update_manager::{ObjectOperation, UpdateManagerEvent};
 use crate::drive::CloudObjectTypeAndId;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
-};
-use crate::server::ids::SyncId;
+use crate::object_ids::SyncId;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme, SecondaryTheme};
-use crate::TelemetryEvent;
 use crate::{
     ai::facts::{AIFact, AIMemory},
-    server::{cloud_objects::update_manager::UpdateManager, ids::ClientId},
+    cloud_object::update_manager::UpdateManager,
+    object_ids::ClientId,
     ui_components::{blended_colors, icons::Icon},
 };
 use pathfinder_color::ColorU;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warpui::{
@@ -194,7 +191,7 @@ pub struct SuggestionChipView {
 
 impl SuggestionChipView {
     pub fn new_rule_chip(rule: SuggestedRule, ctx: &mut ViewContext<Self>) -> Self {
-        Self::listen_for_warp_drive_events(ctx);
+        Self::listen_for_local_object_events(ctx);
 
         let chip = ctx.add_typed_action_view(|_| {
             ActionButton::new(rule.content.clone(), SecondaryTheme)
@@ -219,14 +216,7 @@ impl SuggestionChipView {
         workflow: SuggestedAgentModeWorkflow,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        send_telemetry_from_ctx!(
-            TelemetryEvent::ShowedSuggestedAgentModeWorkflowChip {
-                logging_id: workflow.logging_id.clone(),
-            },
-            ctx
-        );
-
-        Self::listen_for_warp_drive_events(ctx);
+        Self::listen_for_local_object_events(ctx);
         let sync_id = SyncId::ClientId(ClientId::default());
 
         let chip = ctx.add_typed_action_view(|_| {
@@ -255,7 +245,7 @@ impl SuggestionChipView {
         }
     }
 
-    fn listen_for_warp_drive_events(ctx: &mut ViewContext<Self>) {
+    fn listen_for_local_object_events(ctx: &mut ViewContext<Self>) {
         let update_manager = UpdateManager::handle(ctx);
         ctx.subscribe_to_model(&update_manager, |me, _, event, ctx| {
             me.handle_update_manager_event(event, ctx);
@@ -272,28 +262,20 @@ impl SuggestionChipView {
         event: &UpdateManagerEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
+        let result = &event.result;
 
-        if let (ObjectOperation::Create { .. }, OperationSuccessType::Success) =
-            (&result.operation, &result.success_type)
-        {
+        if matches!(&result.operation, ObjectOperation::Create { .. }) {
             if self.sync_id.into_client() == result.client_id {
                 if let Some(server_id) = result.server_id {
                     self.sync_id = SyncId::ServerId(server_id);
-                    // Reload the rule from the cloud model.
-                    match &mut self.suggestion {
-                        Suggestion::Rule { .. } => {
-                            self.load_suggestion(ctx);
-                        }
-                        Suggestion::AgentModeWorkflow { .. } => {
-                            // Loading agent mode workflows is not supported
-                            // as there is no editing flow for them.
-                        }
-                    }
-                    self.on_add_suggestion(ctx);
                 }
+                match &mut self.suggestion {
+                    Suggestion::Rule { .. } => {
+                        self.load_suggestion(ctx);
+                    }
+                    Suggestion::AgentModeWorkflow { .. } => {}
+                }
+                self.on_add_suggestion(ctx);
             }
         }
     }
@@ -447,13 +429,6 @@ impl TypedActionView for SuggestionChipView {
                             sync_id: self.sync_id,
                         });
                     } else {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::ShowedSuggestedAgentModeWorkflowModal {
-                                logging_id: workflow.logging_id.clone(),
-                            },
-                            ctx
-                        );
-
                         ctx.emit(
                             SuggestedChipViewEvent::ShowSuggestedAgentModeWorkflowModal {
                                 workflow_and_id: SuggestedAgentModeWorkflowAndId {

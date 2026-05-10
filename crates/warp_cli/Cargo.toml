@@ -26,13 +26,9 @@ windows = { workspace = true, features = [
     "Win32_Foundation"
 ] }
 
-[build-dependencies]
-cfg_aliases.workspace = true
-
 [features]
 plugin_host = []
 integration_tests = []
-api_key_authentication = []
 
 [dev-dependencies]
 serial_test = "0.8.0"

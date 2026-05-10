@@ -19,13 +19,8 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
     ai::persisted_workspace::all_working_directories,
-    safe_info, safe_warn, send_telemetry_from_ctx,
-    settings::{
-        AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, InputSettings,
-        InputSettingsChangedEvent,
-    },
-    workspaces::user_workspaces::UserWorkspaces,
-    TelemetryEvent,
+    safe_info, safe_warn,
+    settings::{AISettings, AISettingsChangedEvent, InputSettings, InputSettingsChangedEvent},
 };
 
 use super::OutlineStatus;
@@ -63,12 +58,6 @@ impl RepoOutlines {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, event, ctx| {
             if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
-                Self::handle_setting_change_event(me, ctx);
-            }
-        });
-
-        ctx.subscribe_to_model(&CodeSettings::handle(ctx), |me, event, ctx| {
-            if let CodeSettingsChangedEvent::CodebaseContextEnabled { .. } = event {
                 Self::handle_setting_change_event(me, ctx);
             }
         });
@@ -128,13 +117,10 @@ impl RepoOutlines {
         }
     }
 
-    /// Check if outlines should be built based on if codebase context enabled OR
-    /// outline codebase symbols for @ context menu settings.
     fn should_build_outlines(ctx: &ModelContext<Self>) -> bool {
-        UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx)
-            || *InputSettings::as_ref(ctx)
-                .outline_codebase_symbols_for_at_context_menu
-                .value()
+        *InputSettings::as_ref(ctx)
+            .outline_codebase_symbols_for_at_context_menu
+            .value()
     }
 
     fn handle_setting_change_event(me: &mut RepoOutlines, ctx: &mut ModelContext<Self>) {
@@ -224,15 +210,7 @@ impl RepoOutlines {
                     // The abort handle doesn't always abort.
                     if Self::should_build_outlines(ctx) {
                         match res {
-                            Ok((canonicalized_path, outline, parse_duration)) => {
-                                send_telemetry_from_ctx!(
-                                    TelemetryEvent::RepoOutlineConstructionSuccess {
-                                        total_parse_seconds: parse_duration.as_secs() as usize,
-                                        file_count: outline.file_count(),
-                                    },
-                                    ctx
-                                );
-
+                            Ok((canonicalized_path, outline, _parse_duration)) => {
                                 safe_info!(
                                     safe: ("Successfully constructed symbols outline for repo."),
                                     full: (
@@ -281,12 +259,6 @@ impl RepoOutlines {
                                     )
                                 );
 
-                                send_telemetry_from_ctx!(
-                                    TelemetryEvent::RepoOutlineConstructionFailed {
-                                        error: e.to_string()
-                                    },
-                                    ctx
-                                );
                                 if let Some(outline_state) = me.outlines.get_mut(&root_path_clone) {
                                     outline_state.status = OutlineStatus::Failed;
                                 }

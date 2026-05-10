@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use warp_core::context_flag::ContextFlag;
 use warpui::{
     elements::{Clipped, Container, Flex, MouseStateHandle, ParentElement},
     fonts::Weight,
@@ -13,20 +12,20 @@ use crate::{
         model::actions::{ObjectActionType, ObjectActions},
         CloudObjectMetadata,
     },
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
+    drive::{CloudObjectTypeAndId, DriveObjectType},
     env_vars::{CloudEnvVarCollection, EnvVarValue},
     themes::theme::Fill,
 };
 
-use super::{WarpDriveItem, WarpDriveItemId};
+use super::{LocalObjectItem, LocalObjectItemId};
 
 #[derive(Clone)]
-pub struct WarpDriveEnvVarCollection {
+pub struct LocalObjectEnvVarCollection {
     id: CloudObjectTypeAndId,
     env_var_collection: CloudEnvVarCollection,
 }
 
-impl WarpDriveEnvVarCollection {
+impl LocalObjectEnvVarCollection {
     pub fn new(id: CloudObjectTypeAndId, env_var_collection: CloudEnvVarCollection) -> Self {
         Self {
             id,
@@ -35,7 +34,7 @@ impl WarpDriveEnvVarCollection {
     }
 }
 
-impl WarpDriveItem for WarpDriveEnvVarCollection {
+impl LocalObjectItem for LocalObjectEnvVarCollection {
     fn display_name(&self) -> Option<String> {
         self.env_var_collection.model().string_model.title.clone()
     }
@@ -50,16 +49,6 @@ impl WarpDriveItem for WarpDriveEnvVarCollection {
 
     fn secondary_icon(&self, _color: Option<Fill>) -> Option<Box<dyn Element>> {
         None
-    }
-
-    fn click_action(&self) -> Option<DriveIndexAction> {
-        // If running the workflow is disabled (true for some web views),
-        // we should just open the workflow instead.
-        if !ContextFlag::RunWorkflow.is_enabled() {
-            Some(DriveIndexAction::OpenObject(self.id))
-        } else {
-            Some(DriveIndexAction::RunObject(self.id))
-        }
     }
 
     fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -155,20 +144,19 @@ impl WarpDriveItem for WarpDriveEnvVarCollection {
         Some(text.finish())
     }
 
-    fn warp_drive_id(&self) -> WarpDriveItemId {
-        WarpDriveItemId::Object(self.id)
+    fn local_object_id(&self) -> LocalObjectItemId {
+        LocalObjectItemId::Object(self.id)
     }
 
     fn sync_status_icon(
         &self,
-        sync_queue_is_dequeueing: bool,
         hover_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
         self.env_var_collection
             .metadata
             .pending_changes_statuses
-            .render_icon(sync_queue_is_dequeueing, hover_state, appearance)
+            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, app: &AppContext) -> Option<String> {
@@ -176,7 +164,7 @@ impl WarpDriveItem for WarpDriveEnvVarCollection {
             .get_action_history_summary_for_action_type(&self.id.uid(), ObjectActionType::Execute)
     }
 
-    fn clone_box(&self) -> Box<dyn WarpDriveItem> {
+    fn clone_box(&self) -> Box<dyn LocalObjectItem> {
         Box::new(self.clone())
     }
 }

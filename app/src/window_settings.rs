@@ -1,6 +1,4 @@
-use settings::{
-    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
-};
+use settings::{macros::define_settings_group, SupportedPlatforms};
 use warpui::{AppContext, WindowId};
 
 define_settings_group!(WindowSettings, settings: [
@@ -8,7 +6,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u8,
         default: 1,
         supported_platforms: SupportedPlatforms::MAC,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         storage_key: "OverrideBlur",
         toml_path: "appearance.window.override_blur",
@@ -18,7 +15,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::WINDOWS,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         storage_key: "OverrideBlurTexture",
         toml_path: "appearance.window.override_blur_texture",
@@ -28,7 +24,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u8,
         default: 100,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         storage_key: "OverrideOpacity",
         toml_path: "appearance.window.override_opacity",
@@ -38,7 +33,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.window.open_windows_at_custom_size",
         description: "Whether to open new windows at a custom size instead of the default.",
@@ -47,7 +41,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 80,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.window.new_windows_num_columns",
         description: "The number of columns for new windows when using a custom size.",
@@ -56,7 +49,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 40,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.window.new_windows_num_rows",
         description: "The number of rows for new windows when using a custom size.",
@@ -65,7 +57,6 @@ define_settings_group!(WindowSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::DESKTOP,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "appearance.window.left_panel_visibility_across_tabs",
         description: "Whether the left panel visibility is shared across all tabs.",
@@ -74,7 +65,6 @@ define_settings_group!(WindowSettings, settings: [
         type: u16,
         default: 100,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "appearance.window.zoom_level",
         description: "The zoom level for the window, as a percentage.",

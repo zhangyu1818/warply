@@ -15,10 +15,11 @@ use crate::{
             persistence::CloudModel,
         },
         GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType, Revision, ServerCloudObject, UniquePer,
+        JsonObjectType, UniquePer,
     },
-    drive::items::WarpDriveItem,
-    server::{datetime_ext::DateTimeExt, ids::SyncId, sync_queue::QueueItem},
+    datetime_ext::DateTimeExt,
+    drive::items::LocalObjectItem,
+    object_ids::SyncId,
 };
 
 const UNIQUENESS_KEY_PREFIX: &str = "templatable_mcp_server";
@@ -258,27 +259,6 @@ impl StringModel for TemplatableMCPServer {
         self.name.clone()
     }
 
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateTemplatableMCPServer {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
-    }
-
-    fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {
-        if let ServerCloudObject::TemplatableMCPServer(server_templatable_mcp_server) =
-            server_cloud_object
-        {
-            return Some(server_templatable_mcp_server.model.clone().string_model);
-        }
-        None
-    }
-
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
         Some(GenericStringObjectUniqueKey {
             key: format!("{UNIQUENESS_KEY_PREFIX}_{}", self.uuid),
@@ -286,16 +266,16 @@ impl StringModel for TemplatableMCPServer {
         })
     }
 
-    fn renders_in_warp_drive(&self) -> bool {
+    fn renders_as_local_object(&self) -> bool {
         false
     }
 
-    fn to_warp_drive_item(
+    fn to_local_object_item(
         &self,
         _id: SyncId,
         _appearance: &Appearance,
         _templatable_mcp_server: &CloudTemplatableMCPServer,
-    ) -> Option<Box<dyn WarpDriveItem>> {
+    ) -> Option<Box<dyn LocalObjectItem>> {
         None
     }
 }

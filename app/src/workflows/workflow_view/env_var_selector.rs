@@ -10,7 +10,7 @@ use crate::{
         CloudObject as _, GenericStringObjectFormat, JsonObjectType,
     },
     drive::CloudObjectTypeAndId,
-    server::ids::SyncId,
+    object_ids::SyncId,
     view_components::{DropdownItem, FilterableDropdown, FilterableDropdownOrientation},
 };
 

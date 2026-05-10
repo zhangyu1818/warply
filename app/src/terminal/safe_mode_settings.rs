@@ -1,9 +1,7 @@
-use settings::{
-    macros::define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
-};
+use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::{terminal::model::ObfuscateSecrets, workspaces::user_workspaces::UserWorkspaces};
+use crate::terminal::model::ObfuscateSecrets;
 
 /// How secrets should be displayed in the block list
 #[derive(
@@ -42,15 +40,6 @@ impl SecretDisplayMode {
         }
     }
 
-    /// Convert from legacy boolean setting for backward compatibility
-    pub fn from_legacy_hide_secrets(hide_secrets: bool) -> Self {
-        if hide_secrets {
-            SecretDisplayMode::Asterisks
-        } else {
-            SecretDisplayMode::Strikethrough
-        }
-    }
-
     /// Display name for UI
     pub fn display_name(self) -> &'static str {
         match self {
@@ -75,58 +64,30 @@ define_settings_group!(SafeModeSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
-        toml_path: "privacy.secret_redaction.enabled",
+        toml_path: "terminal.secret_redaction.enabled",
         description: "Whether secret redaction is enabled to detect and obscure secrets in terminal output.",
     },
     secret_display_mode: SecretDisplayModeSetting {
         type: SecretDisplayMode,
         default: SecretDisplayMode::Strikethrough,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
-        toml_path: "privacy.secret_redaction.secret_display_mode_setting",
+        toml_path: "terminal.secret_redaction.secret_display_mode",
         description: "Controls how detected secrets are visually displayed in the terminal.",
-    },
-    // Keep legacy setting for backward compatibility during migration
-    hide_secrets_in_block_list: HideSecretsInBlockList {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
-        private: false,
-        toml_path: "privacy.secret_redaction.hide_secrets_in_block_list",
-        description: "Whether to hide detected secrets in the block list using asterisks.",
     },
 ]);
 
 /// Returns whether the rendering should obfuscate secrets given the current safe mode settings.
 pub fn get_secret_obfuscation_mode(app: &AppContext) -> ObfuscateSecrets {
     let safe_mode_settings = SafeModeSettings::as_ref(app);
-    let is_enterprise_secret_redaction_enabled =
-        UserWorkspaces::as_ref(app).is_enterprise_secret_redaction_enabled();
 
-    if !is_enterprise_secret_redaction_enabled && !*safe_mode_settings.safe_mode_enabled.value() {
+    if !*safe_mode_settings.safe_mode_enabled.value() {
         ObfuscateSecrets::No
     } else {
-        let mode = get_effective_secret_display_mode(safe_mode_settings);
-        mode.to_obfuscate_secrets()
-    }
-}
-
-/// Get the effective secret display mode, handling backward compatibility
-pub fn get_effective_secret_display_mode(
-    safe_mode_settings: &SafeModeSettings,
-) -> SecretDisplayMode {
-    // Check if user has migrated to new setting (non-default value or explicit setting)
-    let current_mode = *safe_mode_settings.secret_display_mode.value();
-    let legacy_hide_secrets = *safe_mode_settings.hide_secrets_in_block_list.value();
-
-    // If the new setting is at default and legacy setting is non-default, migrate
-    if current_mode == SecretDisplayMode::default() && legacy_hide_secrets {
-        SecretDisplayMode::from_legacy_hide_secrets(legacy_hide_secrets)
-    } else {
-        current_mode
+        safe_mode_settings
+            .secret_display_mode
+            .value()
+            .to_obfuscate_secrets()
     }
 }

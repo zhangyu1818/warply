@@ -6,10 +6,7 @@ use crate::{
     app_state::{AIDocumentPaneSnapshot, LeafContents},
 };
 
-use super::{
-    view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 
 pub struct AIDocumentPane {
     view: ViewHandle<PaneView<AIDocumentView>>,
@@ -94,9 +91,6 @@ impl PaneContent for AIDocumentPane {
                 AIDocumentEvent::CloseRequested => {
                     group.close_pane_with_confirmation(pane_id, ctx);
                 }
-                AIDocumentEvent::ViewInWarpDrive(id) => {
-                    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(*id));
-                }
                 #[cfg(feature = "local_fs")]
                 AIDocumentEvent::OpenCodeInWarp {
                     source,
@@ -160,13 +154,6 @@ impl PaneContent for AIDocumentPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.document_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

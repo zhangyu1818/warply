@@ -12,8 +12,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use warpui::r#async::executor;
 
-use remote_server::auth::RemoteServerAuthContext;
 use remote_server::client::RemoteServerClient;
+use remote_server::identity::RemoteServerIdentityContext;
 use remote_server::manager::RemoteServerExitStatus;
 use remote_server::setup::{
     parse_uname_output, remote_server_daemon_dir, PreinstallCheckResult, RemotePlatform,
@@ -30,7 +30,7 @@ use remote_server::transport::{Connection, RemoteTransport};
 #[derive(Clone)]
 pub struct SshTransport {
     socket_path: PathBuf,
-    auth_context: Arc<RemoteServerAuthContext>,
+    identity_context: Arc<RemoteServerIdentityContext>,
 }
 
 impl fmt::Debug for SshTransport {
@@ -42,10 +42,10 @@ impl fmt::Debug for SshTransport {
 }
 
 impl SshTransport {
-    pub fn new(socket_path: PathBuf, auth_context: Arc<RemoteServerAuthContext>) -> Self {
+    pub fn new(socket_path: PathBuf, identity_context: Arc<RemoteServerIdentityContext>) -> Self {
         Self {
             socket_path,
-            auth_context,
+            identity_context,
         }
     }
 
@@ -56,20 +56,20 @@ impl SshTransport {
     pub fn remote_daemon_socket_path(&self) -> String {
         format!(
             "{}/server.sock",
-            remote_server_daemon_dir(&self.auth_context.remote_server_identity_key())
+            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key())
         )
     }
 
     pub fn remote_daemon_pid_path(&self) -> String {
         format!(
             "{}/server.pid",
-            remote_server_daemon_dir(&self.auth_context.remote_server_identity_key())
+            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key())
         )
     }
 
     fn remote_proxy_command(&self) -> String {
         let binary = remote_server::setup::remote_server_binary();
-        let identity_key = self.auth_context.remote_server_identity_key();
+        let identity_key = self.identity_context.remote_server_identity_key();
         let quoted_identity_key = shell_words::quote(&identity_key);
         format!("{binary} remote-server-proxy --identity-key {quoted_identity_key}")
     }

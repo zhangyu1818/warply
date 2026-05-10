@@ -3,10 +3,9 @@ use crate::cloud_object::{
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::network::NetworkStatus;
+use crate::object_ids::SyncId;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent};
-use crate::server::ids::SyncId;
-use crate::server::sync_queue::SyncQueue;
 use std::path::PathBuf;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
@@ -322,7 +321,7 @@ impl BackingView for AIFactView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         _app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::simple(HEADER_TEXT)
@@ -355,14 +354,13 @@ pub fn is_edit_allowed(ai_fact: CloudAIFact, app: &AppContext) -> bool {
     is_online(app) || !cloud_object_type_and_id.has_server_id()
 }
 
-pub fn is_syncing(ai_fact: CloudAIFact, app: &AppContext) -> bool {
-    let sync_queue_is_dequeueing = SyncQueue::as_ref(app).is_dequeueing();
+pub fn is_syncing(ai_fact: CloudAIFact, _app: &AppContext) -> bool {
     let sync_status = &ai_fact.metadata().pending_changes_statuses;
     let has_in_flight_requests = matches!(
         &sync_status.content_sync_status,
         CloudObjectSyncStatus::InFlight(reqs) if reqs.0 > 0
     );
-    (has_in_flight_requests && sync_queue_is_dequeueing)
+    has_in_flight_requests
         || sync_status.has_pending_metadata_change
         || sync_status.has_pending_permissions_change
         || sync_status.pending_untrash

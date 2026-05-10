@@ -25,7 +25,7 @@ use crate::{
         EditorOptions, EditorView, EnterSettings, Event as EditorEvent, InteractionState,
         PropagateAndNoOpNavigationKeys, TextOptions,
     },
-    server::ids::SyncId,
+    object_ids::SyncId,
     ui_components::{
         buttons::{highlight, icon_button},
         icons::{self, Icon},

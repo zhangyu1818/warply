@@ -1,13 +1,9 @@
 pub(crate) mod agent_input_footer;
 mod agent_message_bar;
 mod agent_view_block;
-pub mod child_agent_status_card;
 mod controller;
 mod ephemeral_message_model;
 mod inline_agent_view_header;
-// TODO: Move orchestration_conversation_links module import elsewhere.
-pub(crate) mod orchestration_conversation_links;
-pub mod orchestration_pill_bar;
 pub mod shortcuts;
 mod zero_state_block;
 
@@ -17,7 +13,6 @@ pub use agent_view_block::*;
 pub use controller::*;
 pub use ephemeral_message_model::*;
 pub use inline_agent_view_header::*;
-pub use orchestration_pill_bar::{render_orchestration_breadcrumbs, OrchestrationPillBar};
 use warpui::fonts::Properties;
 pub use zero_state_block::*;
 
@@ -49,27 +44,6 @@ pub static ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE: LazyLock<Keystroke> = La
         }
     }
 });
-
-pub static ENTER_CLOUD_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE: LazyLock<Keystroke> =
-    LazyLock::new(|| {
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "macos")] {
-                Keystroke {
-                    cmd: true,
-                    alt: true,
-                    key: "enter".to_owned(),
-                    ..Default::default()
-                }
-            } else {
-                Keystroke {
-                    ctrl: true,
-                    alt: true,
-                    key: "enter".to_owned(),
-                    ..Default::default()
-                }
-            }
-        }
-    });
 
 pub fn agent_view_bg_fill(app: &AppContext) -> Fill {
     let appearance = Appearance::as_ref(app);

@@ -29,13 +29,11 @@ pub struct RegexLevelMetadata {
 
 lazy_static! {
     /// Used for secret redaction in the Grid.
-    /// Initially empty - will be populated with user-defined regexes when safe mode is enabled.
     pub(in crate::terminal::model) static ref SECRETS_DFA: RwLock<RegexDFAs> = RwLock::new(
         RegexDFAs::new_many(&[], true, true)
             .expect("should be able to construct empty regex DFA")
     );
     /// Used for secret redaction in simple text strings (e.g.: rich content blocks).
-    /// Initially empty - will be populated with user-defined regexes when safe mode is enabled.
     pub static ref SECRETS_REGEX: RwLock<regex_automata::meta::Regex> = RwLock::new(
         regex_automata::meta::Regex::new_many(&[] as &[&str])
             .expect("should be able to construct empty regex")
@@ -435,33 +433,6 @@ impl StepLite for RangeMapPoint {
 }
 
 pub mod regexes {
-    use crate::settings::RegexDisplayInfo;
-
-    /// A default regex pattern with its descriptive name
-    pub struct DefaultRegex {
-        pub pattern: &'static str,
-        pub name: &'static str,
-    }
-
-    impl RegexDisplayInfo for DefaultRegex {
-        fn pattern(&self) -> &str {
-            self.pattern
-        }
-
-        fn name(&self) -> Option<&str> {
-            Some(self.name)
-        }
-    }
-
-    impl RegexDisplayInfo for &DefaultRegex {
-        fn pattern(&self) -> &str {
-            self.pattern
-        }
-
-        fn name(&self) -> Option<&str> {
-            Some(self.name)
-        }
-    }
     /// Identifies an IPv4 address. Source: <https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp>.
     pub const IPV4_ADDRESS: &str = r"\b((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}\b";
 
@@ -503,9 +474,6 @@ pub mod regexes {
     pub const AWS_ACCESS_ID: &str =
         r"\b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{12,}\b";
 
-    /// Identifies a Slack app token.
-    pub const SLACK_APP_TOKEN: &str = r"\bxapp-[0-9]+-[A-Za-z0-9_]+-[0-9]+-[a-f0-9]+\b";
-
     /// The following identify github tokens. Source: <https://github.com/odomojuli/RegExAPI>
     /// and source of `[A-Za-z0-9_]` character set is <https://github.blog/changelog/2021-03-31-authentication-token-format-updates-are-generally-available/>
     pub const GITHUB_CLASSIC_PERSONAL_ACCESS_TOKEN: &str = r"\bghp_[A-Za-z0-9_]{36}\b";
@@ -517,101 +485,30 @@ pub mod regexes {
     /// Identifies Stripe API Keys. Source: <https://github.com/l4yton/RegHex#stripe-api-key>
     pub const STRIPE_KEY: &str = r"\b(?:r|s)k_(test|live)_[0-9a-zA-Z]{24}\b";
 
-    /// Identifies a Firebase Auth Domain.
-    pub const FIREBASE_AUTH_DOMAIN: &str = r"\b([a-z0-9-]){1,30}(\.firebaseapp\.com)\b";
-
     /// Identifies a JSON web token (JWT). Source: <https://en.wikipedia.org/wiki/JSON_Web_Token>
     /// "ey" is the beginning of the patterns for the header and claims b/c that is:
     /// echo -n '{"' | base64
     /// We know those sections are JSON and should begin with '{"'.
     pub const JWT: &str = r"\b(ey[a-zA-z0-9_\-=]{10,}\.){2}[a-zA-z0-9_\-=]{10,}\b";
 
-    /// Identifies a Warp API Key. Format: wk- followed by a version number and any combination of hex digits, hyphens, or periods.
-    pub const WARP_API_KEY: &str = r"\bwk-[0-9]+\.[A-Fa-f0-9.\-]+\b";
-
-    /// Returns a slice of regex strings that can be used to identify secrets.
-    // NOTE: All regexes added here must also be added server-side in logic/ai/util.go.
-    pub const DEFAULT_REGEXES_WITH_NAMES: &[DefaultRegex] = &[
-        DefaultRegex {
-            pattern: IPV4_ADDRESS,
-            name: "IPv4 Address",
-        },
-        DefaultRegex {
-            pattern: IPV6_ADDRESS,
-            name: "IPv6 Address",
-        },
-        DefaultRegex {
-            pattern: PHONE_NUMBER,
-            name: "Phone Number",
-        },
-        DefaultRegex {
-            pattern: MAC_ADDRESS,
-            name: "MAC Address",
-        },
-        DefaultRegex {
-            pattern: GOOGLE_API_KEY,
-            name: "Google API Key",
-        },
-        DefaultRegex {
-            pattern: AWS_ACCESS_ID,
-            name: "AWS Access ID",
-        },
-        DefaultRegex {
-            pattern: SLACK_APP_TOKEN,
-            name: "Slack App Token",
-        },
-        DefaultRegex {
-            pattern: GITHUB_CLASSIC_PERSONAL_ACCESS_TOKEN,
-            name: "GitHub Classic Personal Access Token",
-        },
-        DefaultRegex {
-            pattern: GITHUB_FINE_GRAINED_PERSONAL_ACCESS_TOKEN,
-            name: "GitHub Fine-Grained Personal Access Token",
-        },
-        DefaultRegex {
-            pattern: GITHUB_OAUTH_ACCESS_TOKEN,
-            name: "GitHub OAuth Access Token",
-        },
-        DefaultRegex {
-            pattern: GITHUB_USER_TO_SERVER_TOKEN,
-            name: "GitHub User-to-Server Token",
-        },
-        DefaultRegex {
-            pattern: GITHUB_SERVER_TO_SERVER_TOKEN,
-            name: "GitHub Server-to-Server Token",
-        },
-        DefaultRegex {
-            pattern: STRIPE_KEY,
-            name: "Stripe Key",
-        },
-        DefaultRegex {
-            pattern: FIREBASE_AUTH_DOMAIN,
-            name: "Firebase Auth Domain",
-        },
-        DefaultRegex {
-            pattern: JWT,
-            name: "JWT",
-        },
-        DefaultRegex {
-            pattern: OPENAI_API_KEY,
-            name: "OpenAI API Key",
-        },
-        DefaultRegex {
-            pattern: ANTHROPIC_API_KEY,
-            name: "Anthropic API Key",
-        },
-        DefaultRegex {
-            pattern: GENERIC_SK_API_KEY,
-            name: "Generic SK API Key",
-        },
-        DefaultRegex {
-            pattern: FIREWORKS_API_KEY,
-            name: "Fireworks API Key",
-        },
-        DefaultRegex {
-            pattern: WARP_API_KEY,
-            name: "Warp API Key",
-        },
+    pub const DEFAULT_REGEXES: &[&str] = &[
+        IPV4_ADDRESS,
+        IPV6_ADDRESS,
+        PHONE_NUMBER,
+        MAC_ADDRESS,
+        GOOGLE_API_KEY,
+        AWS_ACCESS_ID,
+        GITHUB_CLASSIC_PERSONAL_ACCESS_TOKEN,
+        GITHUB_FINE_GRAINED_PERSONAL_ACCESS_TOKEN,
+        GITHUB_OAUTH_ACCESS_TOKEN,
+        GITHUB_USER_TO_SERVER_TOKEN,
+        GITHUB_SERVER_TO_SERVER_TOKEN,
+        STRIPE_KEY,
+        JWT,
+        OPENAI_API_KEY,
+        ANTHROPIC_API_KEY,
+        GENERIC_SK_API_KEY,
+        FIREWORKS_API_KEY,
     ];
 }
 

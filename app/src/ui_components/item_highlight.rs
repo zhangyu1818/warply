@@ -6,8 +6,7 @@ use warp_core::ui::theme::Fill;
 use warpui::elements::{CornerRadius, MouseState, Radius};
 use warpui::Element;
 
-/// Shared item highlight state for left-panel style lists (file tree, global search results,
-/// warp drive rows, etc.).
+/// Shared item highlight state for left-panel style lists.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ItemHighlightState {
     None,

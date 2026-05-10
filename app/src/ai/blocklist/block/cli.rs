@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{cmp::Ordering, rc::Rc};
 use warp_core::features::FeatureFlag;
-use warp_core::report_error;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
@@ -55,8 +54,6 @@ use crate::ai::blocklist::permissions::is_agent_mode_autonomy_allowed;
 use crate::ai::control_code_parser::{parse_control_codes_from_bytes, ParsedControlCodeOutput};
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions};
 use crate::menu::MenuItemFields;
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
 use crate::terminal::input::SET_INPUT_MODE_TERMINAL_ACTION_NAME;
 use crate::terminal::model::block::BlockId;
@@ -108,8 +105,8 @@ use super::{
     model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
     view_impl::{
         common::{
-            render_debug_footer, render_failed_output, render_informational_footer,
-            render_text_sections, DebugFooterProps, FailedOutputProps, TextSectionsProps,
+            render_debug_footer, render_failed_output, render_text_sections, DebugFooterProps,
+            FailedOutputProps, TextSectionsProps,
         },
         output::are_all_text_sections_empty,
     },
@@ -191,7 +188,6 @@ pub fn init(app: &mut AppContext) {
 struct StateHandles {
     invalid_api_key_button_handle: MouseStateHandle,
     debug_copy_button_handle: MouseStateHandle,
-    submit_issue_button_handle: MouseStateHandle,
     query_selection_handle: SelectionHandle,
     output_selection_handle: SelectionHandle,
     action_selection_handle: SelectionHandle,
@@ -355,7 +351,7 @@ impl CLISubagentView {
         ctx.subscribe_to_model(
             &history_model,
             move |me, _history_model, event, ctx| match event {
-                BlocklistAIHistoryEvent::UpgradedTask {
+                BlocklistAIHistoryEvent::PromotedTask {
                     optimistic_id: old_id,
                     server_id: new_id,
                     ..
@@ -528,15 +524,6 @@ impl CLISubagentView {
         if is_autoexecuted {
             self.enable_autoexecute_override(ctx);
         }
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentActionExecuted {
-                conversation_id: self.conversation_id,
-                block_id: self.block_id.clone(),
-                is_autoexecuted,
-            },
-            ctx
-        );
     }
 
     fn handle_reject_blocked_action(
@@ -545,15 +532,6 @@ impl CLISubagentView {
         ctx: &mut ViewContext<Self>,
     ) {
         self.reject_blocked_action(should_user_take_over, ctx);
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::CLISubagentActionRejected {
-                conversation_id: self.conversation_id,
-                block_id: self.block_id.clone(),
-                user_took_over: should_user_take_over,
-            },
-            ctx
-        );
     }
 
     fn take_control_of_running_command(&mut self, ctx: &mut ViewContext<Self>) {
@@ -625,13 +603,11 @@ impl CLISubagentView {
                 });
 
                 BlocklistAIPermissions::handle(ctx).update(ctx, |permissions, ctx| {
-                    if let Err(e) = permissions.set_always_allow_write_to_pty(
+                    if let Err(_e) = permissions.set_always_allow_write_to_pty(
                         self.always_allow_write_to_pty_checked,
                         self.terminal_view_id,
                         ctx,
-                    ) {
-                        report_error!(e);
-                    }
+                    ) {}
                 });
                 ctx.notify();
             }
@@ -647,13 +623,11 @@ impl CLISubagentView {
                     });
 
                     BlocklistAIPermissions::handle(ctx).update(ctx, |permissions, ctx| {
-                        if let Err(e) = permissions.set_always_allow_read_files(
+                        if let Err(_e) = permissions.set_always_allow_read_files(
                             self.always_allow_read_files_checked,
                             self.terminal_view_id,
                             ctx,
-                        ) {
-                            report_error!(e);
-                        }
+                        ) {}
                     });
                     ctx.notify();
                 }
@@ -1198,7 +1172,6 @@ impl View for CLISubagentView {
                     invalid_api_key_button_handle: &self
                         .state_handles
                         .invalid_api_key_button_handle,
-                    aws_bedrock_credentials_error_view: None,
                     icon_right_margin: AVATAR_RIGHT_MARGIN,
                 },
                 app,
@@ -1206,35 +1179,17 @@ impl View for CLISubagentView {
 
             if !self.model.is_restored() && !error.is_invalid_api_key() {
                 output_items.add_child(
-                    Container::new(render_informational_footer(
-                        app,
-                        "This response won't count towards your usage. \"Take over\" to continue."
-                            .to_string(),
-                    ))
-                    .with_margin_top(8.)
-                    .with_margin_left(icon_size(app) + AVATAR_RIGHT_MARGIN)
-                    .finish(),
-                );
-
-                output_items.add_child(
                     Container::new(render_debug_footer(
                         DebugFooterProps {
-                            conversation: self.model.conversation(app),
                             model: self.model.as_ref(),
                             debug_copy_button_handle: self
                                 .state_handles
                                 .debug_copy_button_handle
                                 .clone(),
-                            submit_issue_button_handle: self
-                                .state_handles
-                                .submit_issue_button_handle
-                                .clone(),
-                            should_render_feedback_below: true,
                         },
                         |debug_id, ctx| {
                             ctx.dispatch_typed_action(CLISubagentAction::CopyDebugId(debug_id))
                         },
-                        |ctx| ctx.dispatch_typed_action(CLISubagentAction::OpenFeedbackDocs),
                         app,
                     ))
                     .with_margin_top(8.)
@@ -1430,7 +1385,6 @@ pub enum CLISubagentAction {
     DismissInput,
     SelectText,
     CopyDebugId(String),
-    OpenFeedbackDocs,
 }
 
 impl TypedActionView for CLISubagentView {
@@ -1474,26 +1428,22 @@ impl TypedActionView for CLISubagentView {
             CLISubagentAction::ToggleAlwaysAllowWriteToPty => {
                 self.always_allow_write_to_pty_checked = !self.always_allow_write_to_pty_checked;
                 BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                    if let Err(e) = model.set_always_allow_write_to_pty(
+                    if let Err(_e) = model.set_always_allow_write_to_pty(
                         self.always_allow_write_to_pty_checked,
                         self.terminal_view_id,
                         ctx,
-                    ) {
-                        report_error!(e);
-                    }
+                    ) {}
                 });
                 ctx.notify();
             }
             CLISubagentAction::ToggleAlwaysAllowReadFiles => {
                 self.always_allow_read_files_checked = !self.always_allow_read_files_checked;
                 BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                    if let Err(e) = model.set_always_allow_read_files(
+                    if let Err(_e) = model.set_always_allow_read_files(
                         self.always_allow_read_files_checked,
                         self.terminal_view_id,
                         ctx,
-                    ) {
-                        report_error!(e);
-                    }
+                    ) {}
                 });
                 ctx.notify();
             }
@@ -1503,13 +1453,6 @@ impl TypedActionView for CLISubagentView {
                     handle.abort();
                 }
                 ctx.notify();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CLISubagentInputDismissed {
-                        conversation_id: self.conversation_id,
-                        block_id: self.block_id.clone(),
-                    },
-                    ctx
-                );
             }
             CLISubagentAction::SelectText => {
                 self.clear_other_selections(None, ctx);
@@ -1520,9 +1463,6 @@ impl TypedActionView for CLISubagentView {
             CLISubagentAction::CopyDebugId(debug_id) => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(debug_id.clone()));
-            }
-            CLISubagentAction::OpenFeedbackDocs => {
-                ctx.open_url("https://docs.warp.dev/support-and-billing/sending-us-feedback");
             }
         }
     }
@@ -1841,9 +1781,7 @@ fn render_permissions_speedbump(
     )
     .with_hyperlink_font_color(blended_colors::accent_fg_strong(theme).into())
     .register_default_click_handlers(|_, ctx, _| {
-        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPage(
-            SettingsSection::WarpAgent,
-        ));
+        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPage(SettingsSection::AI));
     })
     .finish();
 

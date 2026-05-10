@@ -20,6 +20,7 @@ pub mod blockgrid;
 pub mod blocks;
 pub mod bootstrap;
 pub mod completions;
+pub mod display_setting;
 pub mod header_grid;
 pub mod rich_content;
 pub mod tmux;

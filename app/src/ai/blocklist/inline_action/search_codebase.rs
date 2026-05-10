@@ -467,11 +467,7 @@ impl View for SearchCodebaseView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         match &self.status {
-            Some(
-                AIActionStatus::Preprocessing
-                | AIActionStatus::Queued
-                | AIActionStatus::RunningAsync,
-            ) => {
+            Some(AIActionStatus::Queued | AIActionStatus::RunningAsync) => {
                 let loading_text = if let Some(repo_name) = &self.repo_name {
                     format!("Searching for \"{}\" in {}", self.search_query, repo_name)
                 } else {

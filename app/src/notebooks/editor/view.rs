@@ -14,7 +14,7 @@ use warp_editor::{
         text::{BufferTextStyle, CodeBlockType, TextStyles},
         version::BufferVersion,
     },
-    editor::{EmbeddedItemModel, NavigationKey, RunnableCommandModel, TextDecoration},
+    editor::{EmbeddedItemModel, RunnableCommandModel, TextDecoration},
     model::{CoreEditorModel, RichTextEditorModel},
     render::{
         element::{
@@ -62,10 +62,10 @@ use crate::{
     features::FeatureFlag,
     notebooks::{
         editor::{find_bar::FindBarAction, model::word_unit},
-        link::{LinkTarget, NotebookLinks, ResolveError},
-        telemetry::{ActionEntrypoint, BlockInfo, EmbeddedObjectInfo, SelectionMode},
+        events::{ActionEntrypoint, BlockInfo},
+        link::{LinkEvent, LinkTarget, NotebookLinks, ResolveError},
     },
-    server::ids::SyncId,
+    object_ids::SyncId,
     settings::{AppEditorSettings, FontSettings, SelectionSettings},
     terminal::{grid_renderer::URL_COLOR, links::directly_open_link_keybinding_string},
     ui_components::icons::ICON_DIMENSIONS,
@@ -670,7 +670,7 @@ pub fn init(app: &mut AppContext) {
 
     // Rich-text editable keybindings
     app.register_editable_bindings([
-        // Most apps use cmd-k / ctrl-k to edit links, but not all (notably, Slack). The binding is
+        // Most apps use cmd-k / ctrl-k to edit links, but not all. The binding is
         // editable for users who are used to something else.
         EditableBinding::new(
             "editor:edit_link",
@@ -685,7 +685,7 @@ pub fn init(app: &mut AppContext) {
             EditorViewAction::InlineCode,
         )
         .with_context_predicate(text_entry.clone())
-        // Slack and other apps use cmd-shift-C on Mac and ctrl-shift-C on Linux/Windows.
+        // Some apps use cmd-shift-C on Mac and ctrl-shift-C on Linux/Windows.
         // However, we use ctrl-shift-C for copying, to not conflict with ctrl-c in the
         // terminal. For consistency with the rest of the app, ctrl-shift-C still copies in a
         // notebook, and we leave code styling unbound.
@@ -766,8 +766,6 @@ pub enum EditorViewAction {
     EditLink,
     /// A link tooltip was clicked.
     OpenTooltipLink(UserInput<LinkTarget>),
-    /// Perform a link's secondary action.
-    SecondaryLinkAction(UserInput<LinkTarget>),
     /// Open the link editor to modify an existing link or insert a new one.
     CreateOrEditLink,
     SelectUp,
@@ -875,7 +873,6 @@ pub enum EditorViewAction {
         block: BlockInfo,
         entrypoint: ActionEntrypoint,
     },
-    OpenEmbeddedObjectSearch,
     RemoveEmbeddingAt(CharOffset),
     MiddleClickPaste,
     /// Open a file. If open_in_warp is true, open in Warp's code editor; otherwise use external editor.
@@ -916,35 +913,14 @@ pub enum EditorViewEvent {
     Focused,
     /// Cmd/Ctrl+Enter was pressed (emitted in comment editor mode).
     CmdEnter,
-    Navigate(NavigationKey),
     /// Open a file in the preferred editor
     OpenFile {
         path: PathBuf,
         line_and_column_num: Option<LineAndColumnArg>,
         force_open_in_warp: bool,
     },
-    /// Emitted when the user runs a notebook workflow. The parent `NotebookView` is responsible
-    /// for sending it to the active terminal.
-    RunWorkflow(NotebookWorkflow),
-    EditWorkflow(SyncId),
-    /// The block insertion menu was opened.
-    OpenedBlockInsertionMenu(BlockInsertionSource),
-    /// The embedded object search menu was opened.
-    OpenedEmbeddedObjectSearch,
     /// The find bar was opened.
     OpenedFindBar,
-    /// An embedded object was inserted (via the menu - this doesn't account for copy/pasting
-    /// embeds).
-    InsertedEmbeddedObject(EmbeddedObjectInfo),
-    CopiedBlock {
-        block: BlockInfo,
-        entrypoint: ActionEntrypoint,
-    },
-    /// One of the command-navigation keyboard shortcuts was used.
-    NavigatedCommands,
-    /// The editor switched between text selection and command selection. The event contains the
-    /// _new_ selection mode.
-    ChangedSelectionMode(SelectionMode),
     /// The text selection changed (cursor moved, selection extended, etc.).
     TextSelectionChanged,
     /// Escape was pressed (emitted when shell command execution is disabled,
@@ -959,7 +935,6 @@ struct MouseStateHandles {
     open_link_mouse_handle: MouseStateHandle,
     copy_link_mouse_handle: MouseStateHandle,
     edit_link_mouse_handle: MouseStateHandle,
-    secondary_link_mouse_handle: MouseStateHandle,
 }
 
 // Represents the states of an ongoing mouse event. Note that these states are mutually exclusive:
@@ -1057,8 +1032,6 @@ pub struct RichTextEditorConfig {
     pub vertical_expansion_behavior: Option<VerticalExpansionBehavior>,
 
     /// Enable or disable embedded objects (notebooks, workflows) in the block insertion menu.
-    pub embedded_objects_enabled: Option<bool>,
-
     /// Configure whether this editor can execute shell commands via Cmd/Ctrl+Enter.
     /// When disabled, Cmd/Ctrl+Enter emits a CmdEnter event instead, allowing parent views
     /// (like comment editors) to handle it for submitting comments.
@@ -1105,6 +1078,7 @@ impl RichTextEditorView {
         );
 
         ctx.subscribe_to_model(&model, Self::handle_model_event);
+        ctx.subscribe_to_model(&links, Self::handle_link_event);
 
         ctx.observe(&model, |_, _, ctx| ctx.notify());
 
@@ -1123,8 +1097,7 @@ impl RichTextEditorView {
         let find_bar = FindBarState::new(parent_position_id, model.clone(), ctx);
         ctx.subscribe_to_view(find_bar.view(), Self::handle_find_bar_event);
 
-        let insertion_menu_state =
-            BlockInsertionMenuState::new(ctx, config.embedded_objects_enabled.unwrap_or(true));
+        let insertion_menu_state = BlockInsertionMenuState::new(ctx);
 
         Self {
             omnibar,
@@ -1240,8 +1213,25 @@ impl RichTextEditorView {
                 self.reset_for_editing_change(ctx);
                 ctx.emit(EditorViewEvent::TextSelectionChanged);
             }
-            RichTextEditorModelEvent::SwitchedSelectionMode { new_mode } => {
-                ctx.emit(EditorViewEvent::ChangedSelectionMode(*new_mode))
+            RichTextEditorModelEvent::SwitchedSelectionMode { .. } => {}
+        }
+    }
+
+    fn handle_link_event(
+        &mut self,
+        _handle: ModelHandle<NotebookLinks>,
+        event: &LinkEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            LinkEvent::RefreshLinks => {}
+            #[cfg(feature = "local_fs")]
+            LinkEvent::OpenFile { path, line_col } => {
+                ctx.emit(EditorViewEvent::OpenFile {
+                    path: path.clone(),
+                    line_and_column_num: *line_col,
+                    force_open_in_warp: false,
+                });
             }
         }
     }
@@ -1379,10 +1369,6 @@ impl RichTextEditorView {
         &self.model
     }
 
-    pub fn markdown(&self, ctx: &AppContext) -> String {
-        self.model.as_ref(ctx).markdown(ctx)
-    }
-
     pub fn markdown_unescaped(&self, ctx: &AppContext) -> String {
         self.model.as_ref(ctx).markdown_unescaped(ctx)
     }
@@ -1438,8 +1424,7 @@ impl RichTextEditorView {
     fn should_handle_user_input(&self, app: &AppContext) -> bool {
         !(self.link_editor.as_ref(app).editors_focused(app)
             || self.find_bar.is_focused(app)
-            || self.model.as_ref(app).has_command_selection(app)
-            || self.insertion_menu_state.embedded_object_search_open)
+            || self.model.as_ref(app).has_command_selection(app))
     }
 
     /// Whether or not the view is currently editable.
@@ -1515,11 +1500,6 @@ impl RichTextEditorView {
         }
     }
 
-    /// Whether or not any command blocks are selected.
-    pub fn has_command_selection(&self, ctx: &AppContext) -> bool {
-        self.model.as_ref(ctx).has_command_selection(ctx)
-    }
-
     pub fn enter(&mut self, ctx: &mut ViewContext<Self>) {
         if self.model.as_ref(ctx).has_command_selection(ctx) {
             self.model
@@ -1575,12 +1555,6 @@ impl RichTextEditorView {
         }
     }
 
-    pub fn system_clear_buffer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.clear_buffer(ctx);
-        });
-    }
-
     pub fn reset_with_markdown(&mut self, markdown: &str, ctx: &mut ViewContext<Self>) {
         self.model.update(ctx, |model, ctx| {
             model.reset_with_markdown(markdown, ctx);
@@ -1630,13 +1604,6 @@ impl RichTextEditorView {
                 render_state.scroll(delta, ctx);
             })
         })
-    }
-
-    /// Move the cursor to the start of the buffer.
-    pub fn cursor_start(&mut self, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.cursor_at(CharOffset::zero(), ctx);
-        });
     }
 
     pub fn select_up(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1695,14 +1662,12 @@ impl RichTextEditorView {
     fn command_up(&mut self, ctx: &mut ViewContext<Self>) {
         self.model
             .update(ctx, |model, ctx| model.select_command_up(ctx));
-        ctx.emit(EditorViewEvent::NavigatedCommands);
     }
 
     /// Select the command below the current selection.
     fn command_down(&mut self, ctx: &mut ViewContext<Self>) {
         self.model
             .update(ctx, |model, ctx| model.select_command_down(ctx));
-        ctx.emit(EditorViewEvent::NavigatedCommands);
     }
 
     pub fn move_up(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1737,8 +1702,6 @@ impl RichTextEditorView {
     pub fn tab(&mut self, ctx: &mut ViewContext<Self>) {
         if self.can_edit(ctx) {
             self.indent(false, ctx);
-        } else {
-            ctx.emit(EditorViewEvent::Navigate(NavigationKey::Tab));
         }
     }
 
@@ -1754,8 +1717,6 @@ impl RichTextEditorView {
     pub fn shift_tab(&mut self, ctx: &mut ViewContext<Self>) {
         if self.can_edit(ctx) {
             self.indent(true, ctx);
-        } else {
-            ctx.emit(EditorViewEvent::Navigate(NavigationKey::ShiftTab));
         }
     }
 
@@ -1778,12 +1739,8 @@ impl RichTextEditorView {
         self.focus(ctx);
 
         self.ongoing_mouse_state = OngoingMouseEvent::Selecting;
-        let had_command_selection = self
-            .model
+        self.model
             .update(ctx, |model, ctx| model.select_at(offset, multiselect, ctx));
-        if had_command_selection {
-            ctx.emit(EditorViewEvent::ChangedSelectionMode(SelectionMode::Text));
-        }
     }
 
     /// Updates the current selection that is being dragged.  This should be called after
@@ -1934,17 +1891,15 @@ impl RichTextEditorView {
 
     /// Copy the current selection.
     pub fn copy(&self, entrypoint: ActionEntrypoint, ctx: &mut ViewContext<Self>) {
-        if let Some(block) = self.model.update(ctx, |model, ctx| model.copy(ctx)) {
-            ctx.emit(EditorViewEvent::CopiedBlock { block, entrypoint });
-        }
+        let _ = entrypoint;
+        let _ = self.model.update(ctx, |model, ctx| model.copy(ctx));
     }
 
     /// Cuts the current selection.
     pub fn cut(&mut self, entrypoint: ActionEntrypoint, ctx: &mut ViewContext<Self>) {
         if self.is_editable(ctx) {
-            if let Some(block) = self.model.update(ctx, |model, ctx| model.cut(ctx)) {
-                ctx.emit(EditorViewEvent::CopiedBlock { block, entrypoint });
-            }
+            let _ = entrypoint;
+            let _ = self.model.update(ctx, |model, ctx| model.cut(ctx));
         }
     }
 
@@ -2160,16 +2115,12 @@ impl RichTextEditorView {
     /// If there is no selected command, but the text cursor is inside a command block, that
     /// command will be selected first.
     fn run_selected_commands(&self, ctx: &mut ViewContext<Self>) {
-        let workflow = self.model.update(ctx, |model, ctx| {
+        let _ = self.model.update(ctx, |model, ctx| {
             if !model.has_command_selection(ctx) {
                 model.select_command_at_cursor(ctx);
             }
-            model.selected_command_workflow(ctx)
+            model.selected_command_workflow(ctx);
         });
-
-        if let Some(workflow) = workflow {
-            ctx.emit(EditorViewEvent::RunWorkflow(workflow))
-        }
     }
 
     /// Render tooltip shown when user clicks on a link in the notebook.
@@ -2303,40 +2254,6 @@ impl RichTextEditorView {
             )
             .finish(),
         );
-
-        // Link-specific secondary action:
-        if let LinkState::Resolved(target) = &link_url.state {
-            let target = target.clone();
-            if let Some(secondary_action) = target.secondary_action() {
-                let mut button = appearance
-                    .ui_builder()
-                    .button(
-                        ButtonVariant::Text,
-                        self.mouse_states.secondary_link_mouse_handle.clone(),
-                    )
-                    .with_text_label(secondary_action.label.into_owned());
-                if let Some(tooltip) = secondary_action.tooltip {
-                    let ui_builder = appearance.ui_builder().clone();
-                    button = button.with_tooltip(move || {
-                        ui_builder.tool_tip(tooltip.into_owned()).build().finish()
-                    });
-                }
-                tool_tip.add_child(
-                    Container::new(
-                        button
-                            .build()
-                            .on_click(move |ctx, _, _| {
-                                ctx.dispatch_typed_action(EditorViewAction::SecondaryLinkAction(
-                                    UserInput::new(target.clone()),
-                                ))
-                            })
-                            .finish(),
-                    )
-                    .with_padding_left(12.)
-                    .finish(),
-                );
-            }
-        }
 
         if link_url.editable && self.is_editable(ctx) {
             tool_tip.add_child(
@@ -2509,34 +2426,6 @@ impl RichTextEditorView {
                 .has_single_exact_rendered_mermaid_selection(ctx)
             && !matches!(self.ongoing_mouse_state, OngoingMouseEvent::Selecting)
             && !self.is_block_insertion_menu_open()
-    }
-
-    /// Insert an embedded notebook inline link at the current insertion menu source.
-    /// For now, this looks like a regular hyperlink that opens the notebook in a new tab.
-    pub(super) fn insert_embedded_notebook_view(
-        &mut self,
-        title: String,
-        link: String,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match self.insertion_menu_state.open_at_source {
-            Some(BlockInsertionSource::AtCursor) if self.selection_is_single_cursor(ctx) => {
-                self.model.update(ctx, |model, ctx| {
-                    // Remove slash
-                    model.backspace(ctx);
-                });
-            }
-            Some(BlockInsertionSource::BlockInsertionButton) if self.hovered_block.is_some() => {
-                self.model.update(ctx, |model, ctx| {
-                    model.newline(ctx);
-                });
-            }
-            _ => return,
-        };
-
-        self.model.update(ctx, |model, ctx| {
-            model.set_link(title, link, ctx);
-        });
     }
 }
 
@@ -2755,9 +2644,6 @@ impl TypedActionView for RichTextEditorView {
             OpenTooltipLink(target) => self.links.update(ctx, |links, ctx| {
                 links.open(target.clone().into_inner(), ctx)
             }),
-            SecondaryLinkAction(target) => self
-                .links
-                .update(ctx, |links, ctx| links.secondary_action(target, ctx)),
             CreateOrEditLink => self.edit_link(false, ctx),
             Scroll(delta) => self.scroll(*delta, ctx),
             SelectUp => self.select_up(ctx),
@@ -2952,8 +2838,7 @@ impl TypedActionView for RichTextEditorView {
                 self.model
                     .update(ctx, |model, ctx| model.select_command_at_cursor(ctx))
             }
-            EditWorkflow(id) => ctx.emit(EditorViewEvent::EditWorkflow(*id)),
-            RunWorkflow(workflow) => ctx.emit(EditorViewEvent::RunWorkflow(workflow.clone())),
+            EditWorkflow(_) | RunWorkflow(_) => {}
             CodeBlockTypeSelectedAtOffset {
                 start_anchor,
                 code_block_type,
@@ -2962,19 +2847,11 @@ impl TypedActionView for RichTextEditorView {
             }),
             CopyTextToClipboard {
                 text,
-                block,
-                entrypoint,
+                block: _,
+                entrypoint: _,
             } => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(text.clone().into_inner()));
-                ctx.emit(EditorViewEvent::CopiedBlock {
-                    block: *block,
-                    entrypoint: *entrypoint,
-                });
-            }
-            OpenEmbeddedObjectSearch => {
-                self.open_embedded_object_search(ctx);
-                ctx.notify();
             }
             RemoveEmbeddingAt(offset) => self
                 .model
@@ -3051,16 +2928,6 @@ impl TypedActionView for RichTextEditorView {
                     WarpA11yRole::UserAction,
                 ))
             }
-            EditorViewAction::SecondaryLinkAction(link) => {
-                let content = link.secondary_action().map_or_else(
-                    || format!("Secondary click on {}", **link),
-                    |action| action.accessibility_content.into_owned(),
-                );
-                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    content,
-                    WarpA11yRole::UserAction,
-                ))
-            }
             EditorViewAction::DeleteLineLeft => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
                     "Delete line left",
@@ -3111,12 +2978,6 @@ impl TypedActionView for RichTextEditorView {
             EditorViewAction::OpenBlockInsertionMenu => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
                     "Open block-insertion menu",
-                    WarpA11yRole::UserAction,
-                ))
-            }
-            EditorViewAction::OpenEmbeddedObjectSearch => {
-                ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Open embedded object search menu",
                     WarpA11yRole::UserAction,
                 ))
             }

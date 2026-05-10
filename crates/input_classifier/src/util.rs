@@ -47,6 +47,28 @@ pub fn is_one_off_natural_language_word(word: &str) -> bool {
     ONE_OFF_NATURAL_LANGUAGE_WORDS.contains(word)
 }
 
+pub fn is_likely_cjk_natural_language(word_tokens: &[String]) -> bool {
+    let Some(first_token) = word_tokens.first() else {
+        return false;
+    };
+
+    first_token.chars().any(is_cjk_character)
+        && !word_tokens
+            .iter()
+            .any(|token| check_if_token_has_shell_syntax(token.as_str()))
+}
+
+fn is_cjk_character(c: char) -> bool {
+    matches!(
+        c,
+        '\u{3400}'..='\u{4dbf}'
+            | '\u{4e00}'..='\u{9fff}'
+            | '\u{f900}'..='\u{faff}'
+            | '\u{3040}'..='\u{30ff}'
+            | '\u{ac00}'..='\u{d7af}'
+    )
+}
+
 /// Checks if the input string is a prefix of any word in the ONE_OFF_NATURAL_LANGUAGE_WORDS set.
 /// This helps with progressive typing detection to avoid mode flipping.
 pub fn is_prefix_of_natural_language_word(input: &str) -> bool {

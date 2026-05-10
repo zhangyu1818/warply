@@ -3,7 +3,6 @@
 
 //! TTY related functionality.
 use crate::terminal::bootstrap::raw_init_shell_script_for_shell;
-use crate::terminal::cli_agent_sessions::event::current_protocol_version;
 use crate::terminal::local_tty::docker_sandbox::{
     DockerSandboxShellStarter, DOCKER_SANDBOX_HOME_DIR,
 };
@@ -13,9 +12,7 @@ use crate::terminal::local_tty::shell::{
 use crate::terminal::model::session::command_executor::shell_escape_single_quotes;
 use crate::terminal::shell::ShellType;
 use crate::ASSETS;
-use warp_core::features::FeatureFlag;
 
-use crate::report_if_error;
 use itertools::Itertools;
 
 use super::event_loop::{PTY_TOKEN, SIGNALS_TOKEN};
@@ -314,16 +311,6 @@ fn build_host_shell_command(
     // logic if this flag is set.
     builder.env("WARP_IS_LOCAL_SHELL_SESSION", "1");
 
-    // Only advertise the protocol version when the HOA notifications feature is enabled.
-    // Without it, Warp can't render structured CLI agent notifications,
-    // so the plugin should fall back to legacy notifications.
-    if FeatureFlag::HOANotifications.is_enabled() {
-        builder.env(
-            "WARP_CLI_AGENT_PROTOCOL_VERSION",
-            current_protocol_version().to_string(),
-        );
-    }
-
     if shell_debug_mode {
         builder.env("WARP_SHELL_DEBUG_MODE", "1");
     }
@@ -403,10 +390,6 @@ fn spawn_command_in_pty(
         let _ = termios::tcsetattr(leader, SetArg::TCSANOW, &termios);
     }
 
-    // Detect isolation platform outside pre_exec, since detect() is not async-signal-safe.
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    let is_isolated = warp_isolation_platform::detect().is_some();
-
     unsafe {
         let fdlimit = libc::sysconf(libc::_SC_OPEN_MAX) as i32;
 
@@ -471,33 +454,6 @@ fn spawn_command_in_pty(
                 }
             }
 
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-            if is_isolated {
-                // If running in a sandbox on Linux, adjust the OOM score
-                // to make the child process more likely to be killed than the parent process
-                // in case of OOM. If the Warp process is killed while hosting an ambient
-                // agent, its shared session will abruptly end with no user-visible error.
-                // Instead, we want to kill whatever process the agent spawned that's using
-                // lots of memory. This gives the agent a chance to gracefully fail.
-                //
-                // Try to open /proc/self/oom_score_adj and set it to a positive value.
-                // Valid values are between -1000 and 1000, where lower values are less likely
-                // to be killed. Don't propagate errors, as this is best-effort.
-                //
-                // For Docker sandbox sessions this is effectively a no-op: the
-                // container enforces memory limits via its own cgroup, so this
-                // rebias on the host-side `sbx` process does not influence the
-                // in-container OOM killer. We leave it in the shared path anyway
-                // so the fork-side setup stays identical across session types.
-                let oom_score_path = c"/proc/self/oom_score_adj";
-                let fd = libc::open(oom_score_path.as_ptr(), libc::O_WRONLY);
-                if fd >= 0 {
-                    let score = b"500\n";
-                    libc::write(fd, score.as_ptr() as *const libc::c_void, score.len());
-                    libc::close(fd);
-                }
-            }
-
             Ok(())
         });
     }
@@ -514,11 +470,7 @@ fn spawn_command_in_pty(
 
 impl Pty {
     /// Create a new pty and return a handle to interact with it.
-    pub fn new(
-        options: PtyOptions,
-        is_crash_reporting_enabled: bool,
-        ctx: &mut AppContext,
-    ) -> Result<Self> {
+    pub fn new(options: PtyOptions, ctx: &mut AppContext) -> Result<Self> {
         let size = options.size;
         let shell = options.shell_starter.shell_type();
 
@@ -527,9 +479,7 @@ impl Pty {
             .context("error preparing signal handling")?;
 
         let (PtySpawnResult { pid, leader_fd }, pty_handle) = PtySpawner::handle(ctx)
-            .update(ctx, |pty_spawner, ctx| {
-                pty_spawner.spawn_pty(options, is_crash_reporting_enabled, ctx)
-            })?;
+            .update(ctx, |pty_spawner, ctx| pty_spawner.spawn_pty(options, ctx))?;
 
         log::info!(
             "Successfully spawned child {} process with pid {}",
@@ -655,9 +605,8 @@ impl EventedPty for Pty {
         // hang. Closing the pty explicitly fixes it, though the reason is unclear;
         // it appears to be a kernel bug.
         std::mem::drop(self.fd);
-        let result = self.pty_handle.kill();
-        report_if_error!(result);
-        result
+
+        self.pty_handle.kill()
     }
 }
 
@@ -792,12 +741,6 @@ fn build_docker_sandbox_command(
     );
     builder.env("SSH_SOCKET_DIR", ssh_socket_dir());
     builder.env("WARP_IS_LOCAL_SHELL_SESSION", "1");
-    if FeatureFlag::HOANotifications.is_enabled() {
-        builder.env(
-            "WARP_CLI_AGENT_PROTOCOL_VERSION",
-            current_protocol_version().to_string(),
-        );
-    }
     if shell_debug_mode {
         builder.env("WARP_SHELL_DEBUG_MODE", "1");
     }

@@ -3,6 +3,8 @@ use crate::terminal::model::session::Session;
 use crate::terminal::model::session::{
     command_executor::testing::TestCommandExecutor, SessionInfo,
 };
+use crate::test_util::settings::initialize_settings_for_tests;
+use settings::Setting;
 use typed_path::TypedPathBuf;
 use warp_completer::signatures::CommandRegistry;
 use warp_completer::{meta::SpannedItem, parsers::ParsedToken};
@@ -200,6 +202,28 @@ fn test_find_autosuggestion_from_history_with_no_pwd_and_no_working_directory() 
             "cd Dotfiles".to_owned()
         ]
     );
+}
+
+#[test]
+fn test_next_command_enabled_uses_terminal_setting_only() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        app.read(|ctx| {
+            assert!(is_next_command_enabled(ctx));
+        });
+
+        crate::settings::AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .terminal_next_command_enabled
+                .set_value(false, ctx)
+                .unwrap();
+        });
+
+        app.read(|ctx| {
+            assert!(!is_next_command_enabled(ctx));
+        });
+    });
 }
 
 fn test_session_context(cwd: TypedPathBuf, app: &App) -> SessionContext {

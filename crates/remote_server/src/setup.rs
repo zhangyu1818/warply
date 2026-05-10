@@ -73,8 +73,7 @@ impl RemoteServerSetupState {
 pub struct PreinstallCheckResult {
     pub status: PreinstallStatus,
     pub libc: RemoteLibc,
-    /// Verbatim, trimmed script stdout. Forwarded to telemetry for
-    /// diagnosing `Unknown` outcomes on exotic distros.
+    /// Verbatim, trimmed script stdout for diagnosing `Unknown` outcomes on exotic distros.
     pub raw: String,
 }
 
@@ -327,7 +326,7 @@ pub fn remote_server_daemon_dir(identity_key: &str) -> String {
 
 /// Returns the binary name, keyed by channel.
 ///
-/// Matches the CLI command names: `oz` (stable), `oz-preview`, `oz-dev`.
+/// Matches the CLI command names for each channel.
 pub fn binary_name() -> &'static str {
     ChannelState::channel().cli_command_name()
 }
@@ -384,60 +383,8 @@ fn pinned_version() -> &'static str {
 /// [`install_script`].
 const INSTALL_SCRIPT_TEMPLATE: &str = include_str!("install_remote_server.sh");
 
-/// Returns the install script that downloads and installs the CLI binary
-/// at the current client version.
-///
-/// The script detects the remote architecture via `uname -m`, downloads
-/// the correct Oz CLI tarball from the download URL, and installs it at
-/// the path returned by [`remote_server_binary`] so repeat invocations
-/// are idempotent. The `version_query` / `version_suffix` substitutions
-/// follow the same rule as [`remote_server_binary`]: empty on
-/// [`Channel::Local`] and [`Channel::Oss`] (so the install lands at
-/// the unversioned path used by `script/deploy_remote_server`); pinned to
-/// `&version={v}` / `-{v}` on every other channel, where `v` falls back
-/// to `CARGO_PKG_VERSION` when no release tag is baked in.
 pub fn install_script() -> String {
-    let (version_query, version_suffix) = match ChannelState::channel() {
-        Channel::Local | Channel::Oss => (String::new(), String::new()),
-        Channel::Stable | Channel::Preview | Channel::Dev | Channel::Integration => {
-            let v = pinned_version();
-            (format!("&version={v}"), format!("-{v}"))
-        }
-    };
-    INSTALL_SCRIPT_TEMPLATE
-        .replace("{download_base_url}", &download_url())
-        .replace("{channel}", download_channel())
-        .replace("{install_dir}", &remote_server_dir())
-        .replace("{binary_name}", binary_name())
-        .replace("{version_query}", &version_query)
-        .replace("{version_suffix}", &version_suffix)
-}
-
-/// Construct the download URL from the server root URL.
-///
-/// For example, given `https://app.warp.dev`, returns
-/// `https://app.warp.dev/download/cli`.
-fn download_url() -> String {
-    let base = ChannelState::server_root_url();
-    let base = base.trim_end_matches('/');
-    format!("{base}/download/cli")
-}
-
-/// Maps the client's [`Channel`] to the server's download channel parameter.
-///
-/// The server recognises `"stable"`, `"preview"`, and `"dev"`.  Local and
-/// Integration builds map to `"dev"` so they fetch dogfood artifacts.
-fn download_channel() -> &'static str {
-    match ChannelState::channel() {
-        Channel::Stable => "stable",
-        Channel::Preview => "preview",
-        Channel::Dev | Channel::Local | Channel::Integration => "dev",
-        Channel::Oss => {
-            // TODO(alokedesai): need to figure out how remote server works with warp-oss
-            // For now, return what Dev returns.
-            "dev"
-        }
-    }
+    INSTALL_SCRIPT_TEMPLATE.to_owned()
 }
 
 /// Timeout for the binary existence check.

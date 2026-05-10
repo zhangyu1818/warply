@@ -5,10 +5,7 @@ use crate::{
     app_state::{AIFactPaneSnapshot, LeafContents},
 };
 
-use super::{
-    view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, ShareableLink,
-    ShareableLinkError,
-};
+use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
 
 pub struct AIFactPane {
     view: ViewHandle<PaneView<AIFactView>>,
@@ -103,13 +100,6 @@ impl PaneContent for AIFactPane {
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>) {
         self.ai_fact_view(ctx)
             .update(ctx, |view, ctx| view.focus(ctx));
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

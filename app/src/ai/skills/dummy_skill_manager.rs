@@ -32,10 +32,6 @@ impl SkillManager {
         None
     }
 
-    pub fn active_bundled_skill(&self, _id: &str, _ctx: &AppContext) -> Option<&ParsedSkill> {
-        None
-    }
-
     pub fn skill_exists_for_any_provider(
         &self,
         _skill: &SkillDescriptor,

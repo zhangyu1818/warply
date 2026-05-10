@@ -1,14 +1,9 @@
 pub mod feature_section;
-pub use feature_section::FeatureSectionView;
-pub mod content_section;
-pub use content_section::ContentSectionView;
-use warp_core::features::FeatureFlag;
-pub mod changelog_section;
 use crate::{
     appearance::Appearance,
     resource_center::{section_views::feature_section::FeatureSection, TipAction},
 };
-pub use changelog_section::ChangelogSectionView;
+pub use feature_section::FeatureSectionView;
 use warpui::{
     elements::{
         Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable,
@@ -16,7 +11,7 @@ use warpui::{
     },
     platform::Cursor,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, ViewContext, ViewHandle,
+    AppContext,
 };
 
 pub const HEADER_FONT_SIZE: f32 = 16.;
@@ -26,7 +21,6 @@ pub const DETAIL_FONT_SIZE: f32 = 12.;
 
 pub const KEYBOARD_ICON_SIZE: f32 = 30.;
 pub const CHEVRON_ICON_SIZE: f32 = 20.;
-pub const FOOTER_ICON_SIZE: f32 = 15.;
 pub const ELLIPSE_ICON_SIZE: f32 = 8.;
 pub const ICON_PADDING: f32 = 3.;
 
@@ -37,24 +31,15 @@ pub const DROPDOWN_ICON_OPACITY: u8 = 75;
 pub const SCROLLBAR_OFFSET: f32 = 7.;
 pub const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 
-pub const SECTION_SPACING_BOTTOM: f32 = 24.;
 pub const SECTION_SPACING: f32 = 12.;
-pub const BUTTON_PADDING: f32 = 10.;
 pub const ITEM_PADDING_BOTTOM: f32 = 6.;
 
 pub const CHEVRON_DOWN_SKINNY_SVG_PATH: &str = "bundled/svg/chevron-down-skinny.svg";
 pub const CHEVRON_RIGHT_SKINNY_SVG_PATH: &str = "bundled/svg/chevron-right-skinny.svg";
 pub const ELLIPSE_SVG_PATH: &str = "bundled/svg/ellipse.svg";
 
-pub enum SectionViewHandle {
-    Feature(ViewHandle<FeatureSectionView>),
-    Content(ViewHandle<ContentSectionView>),
-    Changelog(ViewHandle<ChangelogSectionView>),
-}
-
 #[derive(Debug)]
 pub enum SectionAction {
-    OpenUrl(String),
     ToggleExpanded,
     Click(TipAction),
     CloseResourceCenter,
@@ -65,8 +50,6 @@ pub enum SectionAction {
 
 pub trait SectionView {
     fn is_expanded(&self) -> bool;
-
-    fn toggle_expanded(&mut self, ctx: &mut ViewContext<Self>);
 
     fn section_progress_indicator(
         &self,
@@ -128,9 +111,7 @@ pub trait SectionView {
                     .with_width(CHEVRON_ICON_SIZE)
                     .finish();
 
-            if !FeatureFlag::AvatarInTabBar.is_enabled() {
-                section_header.add_child(dropdown_icon);
-            }
+            section_header.add_child(dropdown_icon);
             section_header.add_child(section_title);
 
             if let Some(progress_indicator) =

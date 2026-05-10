@@ -1,31 +1,34 @@
 //! Renders the AI output portion of the AI block.
 //!
 //! This includes text, code snippets, suggested commands, and interactive inline action UX.
-use crate::ai::agent::api::ServerConversationToken;
+#[cfg(test)]
+use crate::ai::acp::format_acp_terminal_trace;
+use crate::ai::acp::{acp_tool_call_content_sections, AcpPermissionRequest, AcpPlan, AcpToolCall};
 use crate::ai::agent::comment::ReviewComment;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentInput, CreateDocumentsResult, EditDocumentsResult, ReadFilesResult, SubagentCall,
-    SubagentType, TodoOperation, UploadArtifactResult,
+    SubagentType, TodoOperation,
 };
 use crate::util::truncation::truncate_from_end;
-use ai::agent::file_locations::group_file_contexts_for_display;
+#[cfg(test)]
+use agent_client_protocol::schema::{ContentBlock, ToolCallContent};
+use agent_client_protocol::schema::{
+    PermissionOptionKind, PlanEntryStatus, ToolCallStatus, ToolKind,
+};
+use ai::agent::file_locations::{group_file_contexts_for_display, FileLocations};
 
 use crate::ai::blocklist::block::view_impl::common::{
     MaybeShimmeringText, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
     BLOCKED_ACTION_MESSAGE_FOR_READING_FILES, BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
 };
-use crate::ai::blocklist::inline_action::aws_bedrock_credentials_error::AwsBedrockCredentialsErrorView;
 use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
-use crate::ai::blocklist::view_util::format_credits;
-use crate::ai::skills::SkillOpenOrigin;
 use crate::ai::skills::{
     icon_override_for_skill_name, render_skill_button, skill_path_from_file_path,
 };
 
 use crate::code::editor_management::CodeSource;
-use crate::terminal::shared_session::SharedSessionStatus;
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
@@ -34,27 +37,22 @@ use crate::AIAgentTodoList;
 #[allow(unused_imports)]
 use std::path::{Component, Path, PathBuf};
 
-use ai::agent::action::{
-    RequestComputerUseRequest, SuggestPromptRequest, UploadArtifactRequest, UseComputerRequest,
-};
+use ai::agent::action::{RequestComputerUseRequest, SuggestPromptRequest, UseComputerRequest};
 use ai::skills::SkillReference;
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 use ui_components::{button, Component as _, Options as _};
 use warp_core::ui::theme::color::internal_colors;
 #[allow(unused_imports)]
 use warp_util::path::{common_path, CleanPathResult};
 use warpui::elements::new_scrollable::SingleAxisConfig;
-use warpui::elements::{
-    ChildAnchor, NewScrollable, OffsetPositioning, ParentAnchor, ParentOffsetBounds, Stack,
-};
+use warpui::elements::NewScrollable;
 use warpui::EntityId;
 
 use crate::ai::blocklist::block::{
     CollapsibleElementState, CollapsibleExpansionState, FinishReason, ImportedCommentGroup,
 };
 use indexmap::IndexMap;
-use std::{cell::OnceCell, cmp::Ordering, collections::HashMap, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
 use crate::{
@@ -113,13 +111,12 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::channel::ChannelState;
 
 use super::common::{
-    format_elapsed_seconds, render_debug_footer, render_failed_output, render_informational_footer,
-    render_output_status_text, render_scrollable_collapsible_content, render_text_sections,
-    DebugFooterProps, FailedOutputProps, FindContext, TextSectionsProps,
-    STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
+    format_elapsed_seconds, render_debug_footer, render_failed_output, render_output_status_text,
+    render_scrollable_collapsible_content, render_text_sections, DebugFooterProps,
+    FailedOutputProps, FindContext, TextSectionsProps, STATUS_FOOTER_VERTICAL_PADDING,
+    STATUS_ICON_SIZE_DELTA,
 };
 use super::imported_comments::render_imported_comments;
-use super::orchestration;
 use super::todos::render_todos;
 use super::CONTENT_HORIZONTAL_PADDING;
 use super::{
@@ -127,12 +124,11 @@ use super::{
     render_citation_chips, todos::render_completed_todo_items, WithContentItemSpacing,
     CONTENT_ITEM_VERTICAL_MARGIN,
 };
-use crate::ai::blocklist::inline_action::run_agents_card_view::RunAgentsCardView;
 use warpui::{
     elements::{
-        Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-        Empty, Expanded, Fill, Flex, FormattedTextElement, Hoverable, MainAxisAlignment,
-        MainAxisSize, ParentElement, Radius, Shrinkable, Text, Wrap,
+        Align, Border, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+        CrossAxisAlignment, Expanded, Fill, Flex, FormattedTextElement, Hoverable,
+        MainAxisAlignment, MainAxisSize, ParentElement, Radius, Shrinkable, Text, Wrap,
     },
     keymap::Keystroke,
     platform::{Cursor, OperatingSystem},
@@ -142,8 +138,6 @@ use warpui::{
     },
     Action, AppContext, Element, ModelHandle, SingletonEntity, View, ViewHandle,
 };
-
-const BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT: &str = "Grant access to upload this artifact?";
 
 /// Data required to render the AI block output component.
 #[derive(Copy, Clone)]
@@ -161,6 +155,7 @@ pub(crate) struct Props<'a> {
     pub(super) requested_commands: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_mcp_tools: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_edits: &'a IndexMap<AIAgentActionId, RequestedEdit>,
+    pub(super) acp_diff_views: &'a HashMap<String, RequestedEdit>,
     pub(super) unit_test_suggestions:
         &'a HashMap<AIAgentActionId, ViewHandle<SuggestedUnitTestsView>>,
     pub(super) todo_list_states: &'a HashMap<MessageId, TodoListElementState>,
@@ -175,7 +170,6 @@ pub(crate) struct Props<'a> {
     pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
     pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
-    pub(super) request_refunded_count: Option<i32>,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
     pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
     pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
@@ -186,19 +180,9 @@ pub(crate) struct Props<'a> {
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) has_accepted_edits: bool,
     pub(super) finish_reason: Option<&'a FinishReason>,
-    pub(super) is_usage_footer_expanded: bool,
-    pub(super) shared_session_status: &'a SharedSessionStatus,
     pub(super) terminal_view_id: EntityId,
     pub(super) is_conversation_transcript_viewer: bool,
-    pub(super) aws_bedrock_credentials_error_view:
-        Option<&'a ViewHandle<AwsBedrockCredentialsErrorView>>,
     pub(super) imported_comments: &'a HashMap<AIAgentActionId, ImportedCommentGroup>,
-    /// Per-orchestrate-action card view. Each `RunAgentsCardView` owns
-    /// its own edit state, button + picker handles, and in-flight
-    /// spawning snapshot; AIBlock just lazily creates the view per
-    /// `AIAgentActionId` and embeds it via `ChildView` when the action
-    /// is rendered. Multi-card lifecycle = AIBlock lifecycle.
-    pub(crate) run_agents_card_views: &'a HashMap<AIAgentActionId, ViewHandle<RunAgentsCardView>>,
     #[cfg(feature = "local_fs")]
     pub(crate) resolved_code_block_paths:
         &'a HashMap<std::path::PathBuf, Option<std::path::PathBuf>>,
@@ -208,12 +192,6 @@ pub(crate) struct Props<'a> {
     pub(super) thinking_display_mode: crate::settings::ThinkingDisplayMode,
     pub(super) conversation_has_imported_comments: bool,
     pub(super) ask_user_question_view: Option<&'a ViewHandle<AskUserQuestionView>>,
-    /// `true` when this block belongs to a cloud agent pane that is still in its setup
-    /// phase (running environment startup commands before the first agent turn). Used to
-    /// hide the response footer (thumbs up/down, credit usage, fork) until the agent has
-    /// produced real output — otherwise the footer renders awkwardly above the still-
-    /// pending optimistic user prompt.
-    pub(super) is_cloud_agent_pre_first_exchange: bool,
 }
 
 pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
@@ -258,7 +236,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         && !is_output_for_static_prompt_suggestions
                         && !is_conversation_in_progress
                         && request_type.is_active()
-                        && !props.is_cloud_agent_pre_first_exchange
                         && !status
                             .error()
                             .map(|e| e.is_invalid_api_key())
@@ -511,10 +488,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             let action_status =
                                 props.action_model.as_ref(app).get_action_status(id);
 
-                            let is_preprocessing = action_status
-                                .clone()
-                                .is_some_and(|status| status.is_preprocessing());
-                            if !is_preprocessing && !status.is_streaming() {
+                            if !status.is_streaming() {
                                 if let Some(requested_edit) = props.requested_edits.get(id) {
                                     // Don't render the requested edit if the diffs are empty for passive code diffs.
                                     if request_type.is_passive_code_diff()
@@ -742,14 +716,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::UploadArtifact(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_upload_artifact(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::RequestComputerUse(request),
                             id,
                             ..
@@ -757,71 +723,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             should_render_footer = false;
                             output_items
                                 .add_child(render_request_computer_use(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::StartAgent {
-                                    version: _,
-                                    name,
-                                    prompt,
-                                    execution_mode,
-                                    lifecycle_subscription: _,
-                                },
-                            id,
-                            ..
-                        }) if FeatureFlag::Orchestration.is_enabled() => {
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            output_items.add_child(orchestration::render_start_agent(
-                                props,
-                                id,
-                                name,
-                                prompt,
-                                execution_mode,
-                                &output_message.id,
-                                app,
-                            ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RunAgents(_req),
-                            id,
-                            ..
-                        }) if FeatureFlag::RunAgentsTool.is_enabled() => {
-                            // Embed the per-action `RunAgentsCardView`
-                            // via `ChildView`. The view itself handles
-                            // the streaming gate and in-flight dispatch
-                            // states (a card is mid-dispatch when its
-                            // `is_spawning()` getter returns true).
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            if let Some(card_view) = props.run_agents_card_views.get(id) {
-                                let is_spawning = card_view.as_ref(app).is_spawning();
-                                if !status.is_streaming() || is_spawning {
-                                    output_items.add_child(ChildView::new(card_view).finish());
-                                }
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::SendMessageToAgent {
-                                    addresses,
-                                    subject,
-                                    message,
-                                },
-                            id,
-                            ..
-                        }) if FeatureFlag::Orchestration.is_enabled() => {
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            output_items.add_child(orchestration::render_send_message(
-                                props,
-                                id,
-                                addresses,
-                                subject,
-                                message,
-                                &output_message.id,
-                                app,
-                            ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::InsertCodeReviewComments { repo_path, .. },
@@ -862,17 +763,11 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::WebSearch(web_search_status) => {
-                            if !FeatureFlag::WebSearchUI.is_enabled() {
-                                continue;
-                            }
-
-                            // Render the WebSearch inline at its first position in the message stream
                             if let Some(web_search_view) =
                                 props.web_search_views.get(&output_message.id)
                             {
                                 output_items.add_child(ChildView::new(web_search_view).finish());
                             } else {
-                                // No view yet, log warning
                                 log::warn!(
                                     "[WebSearch] No view found for WebSearch message id={:?}, status={web_search_status:?}",
                                     output_message.id
@@ -880,34 +775,40 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::WebFetch(web_fetch_status) => {
-                            if !FeatureFlag::WebFetchUI.is_enabled() {
-                                continue;
-                            }
-
-                            // Render the WebFetch inline at its first position in the message stream
                             if let Some(web_fetch_view) =
                                 props.web_fetch_views.get(&output_message.id)
                             {
                                 output_items.add_child(ChildView::new(web_fetch_view).finish());
                             } else {
-                                // No view yet, log warning
                                 log::warn!(
                                     "[WebFetch] No view found for WebFetch message id={:?}, status={web_fetch_status:?}",
                                     output_message.id
                                 );
                             }
                         }
-                        AIAgentOutputMessageType::MessagesReceivedFromAgents { messages }
-                            if FeatureFlag::Orchestration.is_enabled() =>
-                        {
-                            output_items.add_child(
-                                orchestration::render_messages_received_from_agents(
-                                    messages,
-                                    props,
-                                    &output_message.id,
-                                    app,
-                                ),
-                            );
+                        AIAgentOutputMessageType::AcpToolCall(tool_call) => {
+                            should_render_footer = false;
+                            output_items.add_child(render_acp_tool_call(
+                                tool_call,
+                                props.acp_diff_views.get(&tool_call.id),
+                                props,
+                                action_index,
+                                AcpContentSectionIndices {
+                                    text: &mut text_section_index,
+                                    code: &mut code_section_index,
+                                    table: &mut table_section_index,
+                                    image: &mut image_section_index,
+                                },
+                                app,
+                            ));
+                        }
+                        AIAgentOutputMessageType::AcpPlan(plan) => {
+                            should_render_footer = false;
+                            output_items.add_child(render_acp_plan(plan, app));
+                        }
+                        AIAgentOutputMessageType::AcpPermission(request) => {
+                            should_render_footer = false;
+                            output_items.add_child(render_acp_permission(request, app));
                         }
                         AIAgentOutputMessageType::DebugOutput { text } => {
                             if ChannelState::enable_debug_features() {
@@ -954,32 +855,10 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 icons::yellow_running_icon(appearance)
                             };
 
-                            // Resolve which conversation is being searched. If
-                            // conversation_id is set and differs from the current
-                            // conversation, try to resolve a display name from
-                            // the history model; otherwise label it "this
-                            // conversation".
-                            let conversation_label =
-                                conversation_id.as_ref().and_then(|target_id| {
-                                    let history = BlocklistAIHistoryModel::as_ref(app);
-                                    let token = ServerConversationToken::new(target_id.clone());
-                                    let local_id =
-                                        history.find_conversation_id_by_server_token(&token);
-                                    // If the target resolves to the current conversation,
-                                    // show "this conversation" instead.
-                                    let is_current = local_id.is_some_and(|id| {
-                                        conversation.is_some_and(|c| c.id() == id)
-                                    });
-                                    if is_current {
-                                        return None;
-                                    }
-                                    let target_conversation =
-                                        local_id.and_then(|id| history.conversation(&id));
-                                    let title = target_conversation
-                                        .and_then(|c| c.title())
-                                        .map(|q| truncate_from_end(&q, 40));
-                                    Some(title.unwrap_or_else(|| target_id.clone()))
-                                });
+                            let conversation_label = conversation_id
+                                .as_ref()
+                                .filter(|target_id| !target_id.is_empty())
+                                .map(|target_id| truncate_from_end(target_id, 40));
 
                             let done = is_finished || is_cancelled;
                             let verb = if done { "Searched" } else { "Searching" };
@@ -1060,7 +939,11 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         }
                         _ => (),
                     };
-                    if let AIAgentOutputMessageType::Action(..) = output_message.message {
+                    if matches!(
+                        output_message.message,
+                        AIAgentOutputMessageType::Action(..)
+                            | AIAgentOutputMessageType::AcpToolCall(..)
+                    ) {
                         action_index += 1;
                     }
                 }
@@ -1087,34 +970,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 {
                     output_items.add_child(footer);
                 }
-
-                if let Some(request_refunded_count) = props.request_refunded_count {
-                    match request_refunded_count.cmp(&1) {
-                        Ordering::Equal | Ordering::Less => {
-                            output_items.add_child(
-                                render_informational_footer(
-                                    app,
-                                    "Sorry you had a bad experience with this interaction. We've refunded you 1 credit. We appreciate your feedback!"
-                                        .to_string(),
-                                )
-                                .with_agent_output_item_spacing(app)
-                                .finish(),
-                            );
-                        }
-                        Ordering::Greater => {
-                            output_items.add_child(
-                                render_informational_footer(
-                                    app,
-                                    format!(
-                                        "Sorry you had a bad experience with this interaction. We've refunded you {request_refunded_count} credits. We appreciate your feedback!"
-                                    ),
-                                )
-                                .with_agent_output_item_spacing(app)
-                                .finish(),
-                            );
-                        }
-                    }
-                }
             }
         }
     }
@@ -1129,8 +984,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         invalid_api_key_button_handle: &props
                             .state_handles
                             .invalid_api_key_button_handle,
-                        aws_bedrock_credentials_error_view: props
-                            .aws_bedrock_credentials_error_view,
                         icon_right_margin: 16.,
                     },
                     app,
@@ -1144,33 +997,17 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 && !error.is_invalid_api_key()
             {
                 output_items.add_child(
-                    render_informational_footer(
-                        app,
-                        "This response won't count towards your usage.".to_string(),
-                    )
-                    .with_agent_output_item_spacing(app)
-                    .finish(),
-                );
-
-                output_items.add_child(
                     render_debug_footer(
                         DebugFooterProps {
-                            conversation: props.model.conversation(app),
                             model: props.model,
                             debug_copy_button_handle: props
                                 .state_handles
                                 .debug_copy_button_handle
                                 .clone(),
-                            submit_issue_button_handle: props
-                                .state_handles
-                                .submit_issue_button_handle
-                                .clone(),
-                            should_render_feedback_below: false,
                         },
                         |debug_id, ctx| {
                             ctx.dispatch_typed_action(AIBlockAction::CopyDebugId(debug_id))
                         },
-                        |ctx| ctx.dispatch_typed_action(AIBlockAction::OpenFeedbackDocs),
                         app,
                     )
                     .with_agent_output_item_spacing(app)
@@ -1350,7 +1187,7 @@ fn render_search_codebase(
                                             ctx.dispatch_typed_action(
                                                 WorkspaceAction::ShowSettingsPageWithSearch {
                                                     search_query: "Autonomy".to_string(),
-                                                    section: Some(SettingsSection::WarpAgent),
+                                                    section: Some(SettingsSection::AI),
                                                 },
                                             );
                                         })),
@@ -1382,27 +1219,25 @@ fn render_search_codebase(
 
     let requested_action = match status.as_ref() {
         Some(status) => match status {
-            AIActionStatus::Preprocessing | AIActionStatus::Queued => {
-                match props.search_codebase_view.get(id) {
-                    Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                        ChildView::new(search_codebase_view).finish()
-                    }
-                    _ => {
-                        let root_repo_path = root_repo_path?;
-                        renderable_action(
-                            props,
-                            id,
-                            format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
-                            app,
-                            footer,
-                            appearance,
-                            Some(status),
-                        )
-                        .render(app)
-                        .finish()
-                    }
+            AIActionStatus::Queued => match props.search_codebase_view.get(id) {
+                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
+                    ChildView::new(search_codebase_view).finish()
                 }
-            }
+                _ => {
+                    let root_repo_path = root_repo_path?;
+                    renderable_action(
+                        props,
+                        id,
+                        format!("Search in {}", root_repo_path.to_string_lossy()).as_str(),
+                        app,
+                        footer,
+                        appearance,
+                        Some(status),
+                    )
+                    .render(app)
+                    .finish()
+                }
+            },
             AIActionStatus::Blocked => {
                 let root_repo_path = root_repo_path?;
 
@@ -1703,6 +1538,22 @@ fn render_read_skill(
     skill_reference: &SkillReference,
     app: &AppContext,
 ) -> Box<dyn Element> {
+    render_read_skill_action(
+        props,
+        skill_reference,
+        action_icon(id, props.action_model, props.model, app).finish(),
+        app,
+    )
+    .render(app)
+    .finish()
+}
+
+fn render_read_skill_action(
+    props: Props,
+    skill_reference: &SkillReference,
+    icon: Box<dyn Element>,
+    app: &AppContext,
+) -> RenderableAction {
     let appearance = Appearance::as_ref(app);
     let skill = SkillManager::as_ref(app).skill_by_reference(skill_reference);
 
@@ -1717,16 +1568,13 @@ fn render_read_skill(
     );
 
     let mut renderable_action = RenderableAction::new_with_formatted_text(formatted_text, app);
-    renderable_action =
-        renderable_action.with_icon(action_icon(id, props.action_model, props.model, app).finish());
+    renderable_action = renderable_action.with_icon(icon);
 
-    // Renders the 'open skill' button for known, non-bundled skills.
     if let Some(skill) = skill {
         if !skill.is_bundled() {
             let source = CodeSource::Skill {
                 reference: skill_reference.clone(),
                 path: skill.path.clone(),
-                origin: SkillOpenOrigin::ReadSkill,
             };
 
             let skill_icon_override = icon_override_for_skill_name(&skill.name);
@@ -1747,7 +1595,711 @@ fn render_read_skill(
         }
     }
 
-    renderable_action.render(app).finish()
+    renderable_action
+}
+
+fn render_acp_tool_call(
+    tool_call: &AcpToolCall,
+    diff_view: Option<&RequestedEdit>,
+    props: Props,
+    action_index: usize,
+    section_indices: AcpContentSectionIndices<'_>,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let footer = render_acp_tool_call_footer(
+        tool_call,
+        props,
+        section_indices.text,
+        section_indices.code,
+        section_indices.table,
+        section_indices.image,
+        app,
+    );
+
+    let render_kind = acp_tool_call_render_kind(tool_call, diff_view.is_some());
+
+    if matches!(render_kind, AcpToolCallRenderKind::FileDiff) && footer.is_none() {
+        let diff_view = diff_view.expect("file diff render kind requires a diff view");
+        return render_requested_edits_output_message(diff_view, None, false, app);
+    }
+
+    let rendered_tool_call = match AcpToolCallSurfaceKind::from(render_kind) {
+        AcpToolCallSurfaceKind::RenderableAction => {
+            let mut action =
+                render_acp_tool_call_action(render_kind, tool_call, props, action_index, app);
+            if let Some(footer) = footer {
+                action = action.with_footer(footer);
+            }
+            action.render(app).finish()
+        }
+        AcpToolCallSurfaceKind::Header => {
+            render_acp_tool_call_header(tool_call, render_kind, footer, app)
+        }
+    };
+
+    if let Some(diff_view) = diff_view {
+        return Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_spacing(CONTENT_ITEM_VERTICAL_MARGIN)
+            .with_child(rendered_tool_call)
+            .with_child(render_requested_edits_output_message(
+                diff_view, None, false, app,
+            ))
+            .finish();
+    }
+
+    rendered_tool_call
+}
+
+struct AcpContentSectionIndices<'a> {
+    text: &'a mut usize,
+    code: &'a mut usize,
+    table: &'a mut usize,
+    image: &'a mut usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcpToolCallRenderKind {
+    FileDiff,
+    ReadSkill,
+    ReadLocations,
+    Read,
+    EditLocations,
+    Edit,
+    DeleteLocations,
+    Delete,
+    MoveLocations,
+    Move,
+    SearchLocations,
+    Search,
+    Execute,
+    Think,
+    Fetch,
+    SwitchMode,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcpToolCallSurfaceKind {
+    RenderableAction,
+    Header,
+}
+
+impl From<AcpToolCallRenderKind> for AcpToolCallSurfaceKind {
+    fn from(render_kind: AcpToolCallRenderKind) -> Self {
+        match render_kind {
+            AcpToolCallRenderKind::ReadSkill
+            | AcpToolCallRenderKind::ReadLocations
+            | AcpToolCallRenderKind::EditLocations
+            | AcpToolCallRenderKind::DeleteLocations
+            | AcpToolCallRenderKind::MoveLocations
+            | AcpToolCallRenderKind::SearchLocations => Self::RenderableAction,
+            AcpToolCallRenderKind::FileDiff
+            | AcpToolCallRenderKind::Read
+            | AcpToolCallRenderKind::Edit
+            | AcpToolCallRenderKind::Delete
+            | AcpToolCallRenderKind::Move
+            | AcpToolCallRenderKind::Search
+            | AcpToolCallRenderKind::Execute
+            | AcpToolCallRenderKind::Think
+            | AcpToolCallRenderKind::Fetch
+            | AcpToolCallRenderKind::SwitchMode
+            | AcpToolCallRenderKind::Other => Self::Header,
+        }
+    }
+}
+
+fn acp_tool_call_render_kind(
+    tool_call: &AcpToolCall,
+    has_diff_view: bool,
+) -> AcpToolCallRenderKind {
+    if has_diff_view {
+        return AcpToolCallRenderKind::FileDiff;
+    }
+
+    match tool_call.kind {
+        ToolKind::Read if acp_tool_call_skill_path(tool_call).is_some() => {
+            AcpToolCallRenderKind::ReadSkill
+        }
+        ToolKind::Read if !tool_call.locations.is_empty() => AcpToolCallRenderKind::ReadLocations,
+        ToolKind::Read => AcpToolCallRenderKind::Read,
+        ToolKind::Edit if !tool_call.locations.is_empty() => AcpToolCallRenderKind::EditLocations,
+        ToolKind::Edit => AcpToolCallRenderKind::Edit,
+        ToolKind::Delete if !tool_call.locations.is_empty() => {
+            AcpToolCallRenderKind::DeleteLocations
+        }
+        ToolKind::Delete => AcpToolCallRenderKind::Delete,
+        ToolKind::Move if !tool_call.locations.is_empty() => AcpToolCallRenderKind::MoveLocations,
+        ToolKind::Move => AcpToolCallRenderKind::Move,
+        ToolKind::Search if !tool_call.locations.is_empty() => {
+            AcpToolCallRenderKind::SearchLocations
+        }
+        ToolKind::Search => AcpToolCallRenderKind::Search,
+        ToolKind::Execute => AcpToolCallRenderKind::Execute,
+        ToolKind::Think => AcpToolCallRenderKind::Think,
+        ToolKind::Fetch => AcpToolCallRenderKind::Fetch,
+        ToolKind::SwitchMode => AcpToolCallRenderKind::SwitchMode,
+        ToolKind::Other => AcpToolCallRenderKind::Other,
+        _ => unreachable!("unhandled ACP ToolKind"),
+    }
+}
+
+fn render_acp_tool_call_action(
+    render_kind: AcpToolCallRenderKind,
+    tool_call: &AcpToolCall,
+    props: Props,
+    action_index: usize,
+    app: &AppContext,
+) -> RenderableAction {
+    match render_kind {
+        AcpToolCallRenderKind::ReadSkill => {
+            let skill_reference = acp_tool_call_skill_reference(tool_call, app)
+                .expect("read skill render kind requires a skill reference");
+            render_read_skill_action(
+                props,
+                &skill_reference,
+                acp_tool_call_icon(tool_call.status, app).finish(),
+                app,
+            )
+        }
+        AcpToolCallRenderKind::ReadLocations
+        | AcpToolCallRenderKind::EditLocations
+        | AcpToolCallRenderKind::DeleteLocations
+        | AcpToolCallRenderKind::MoveLocations
+        | AcpToolCallRenderKind::SearchLocations => {
+            render_acp_tool_call_locations_action(tool_call, props, action_index, app)
+        }
+        AcpToolCallRenderKind::FileDiff
+        | AcpToolCallRenderKind::Read
+        | AcpToolCallRenderKind::Edit
+        | AcpToolCallRenderKind::Delete
+        | AcpToolCallRenderKind::Move
+        | AcpToolCallRenderKind::Search
+        | AcpToolCallRenderKind::Execute
+        | AcpToolCallRenderKind::Think
+        | AcpToolCallRenderKind::Fetch
+        | AcpToolCallRenderKind::SwitchMode
+        | AcpToolCallRenderKind::Other => {
+            unreachable!("ACP header tool calls should not render as RenderableAction")
+        }
+    }
+}
+
+fn render_acp_tool_call_locations_action(
+    tool_call: &AcpToolCall,
+    props: Props,
+    action_index: usize,
+    app: &AppContext,
+) -> RenderableAction {
+    let appearance = Appearance::as_ref(app);
+    let locations = acp_tool_call_location_display_strings(
+        tool_call,
+        props.shell_launch_data,
+        props.current_working_directory,
+    );
+    let formatted_locations = render_read_files_text(
+        props.into(),
+        locations.iter(),
+        app,
+        appearance,
+        action_index,
+    );
+
+    RenderableAction::new_with_formatted_text(formatted_locations, app)
+        .with_icon(acp_tool_call_icon(tool_call.status, app).finish())
+}
+
+fn render_acp_tool_call_header(
+    tool_call: &AcpToolCall,
+    render_kind: AcpToolCallRenderKind,
+    footer: Option<Box<dyn Element>>,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let has_footer = footer.is_some();
+
+    let mut header = HeaderConfig::new(tool_call.title.clone(), app)
+        .with_selectable_text()
+        .with_soft_wrap_title()
+        .with_icon(acp_tool_call_icon(tool_call.status, app))
+        .with_corner_radius_override(if has_footer {
+            CornerRadius::with_top(Radius::Pixels(8.))
+        } else {
+            CornerRadius::with_all(Radius::Pixels(8.))
+        });
+
+    if matches!(render_kind, AcpToolCallRenderKind::Execute) {
+        header = header.with_font_family(appearance.monospace_font_family());
+    }
+
+    let mut content = Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+        .with_child(Clipped::new(header.render(app)).finish());
+
+    if let Some(footer) = footer {
+        content.add_child(
+            Container::new(footer)
+                .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+                .with_vertical_padding(12.)
+                .with_background(theme.background())
+                .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
+                .finish(),
+        );
+    }
+
+    Container::new(content.finish())
+        .with_margin_left(CONTENT_HORIZONTAL_PADDING + icon_size(app) + 16.)
+        .with_margin_right(CONTENT_HORIZONTAL_PADDING)
+        .with_margin_bottom(CONTENT_ITEM_VERTICAL_MARGIN)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
+        .with_border(Border::all(1.).with_border_fill(theme.surface_2()))
+        .finish()
+}
+
+fn acp_tool_call_location_display_strings(
+    tool_call: &AcpToolCall,
+    shell_launch_data: Option<&ShellLaunchData>,
+    current_working_directory: Option<&String>,
+) -> Vec<String> {
+    let mut order = Vec::new();
+    let mut groups: HashMap<String, Vec<std::ops::Range<usize>>> = HashMap::new();
+
+    for location in &tool_call.locations {
+        let path = location.path.to_string_lossy().to_string();
+        let entry = groups.entry(path.clone()).or_insert_with(|| {
+            order.push(path);
+            Vec::new()
+        });
+        if let Some(line) = location.line {
+            let line = line as usize;
+            entry.push(line..line);
+        }
+    }
+
+    order
+        .iter()
+        .map(|path| {
+            let locations = FileLocations {
+                name: path.clone(),
+                lines: groups.get(path).cloned().unwrap_or_default(),
+            };
+            locations.to_user_message(shell_launch_data, current_working_directory, None)
+        })
+        .collect()
+}
+
+fn acp_tool_call_skill_reference(
+    tool_call: &AcpToolCall,
+    app: &AppContext,
+) -> Option<SkillReference> {
+    let skill_path = acp_tool_call_skill_path(tool_call)?;
+    let skill_manager = SkillManager::as_ref(app);
+    Some(skill_manager.reference_for_skill_path(&skill_path))
+}
+
+fn acp_tool_call_skill_path(tool_call: &AcpToolCall) -> Option<PathBuf> {
+    if !matches!(tool_call.kind, ToolKind::Read) {
+        return None;
+    }
+
+    let mut skill_path = None;
+    for location in &tool_call.locations {
+        let candidate = skill_path_from_file_path(&location.path)?;
+        if location.path != candidate {
+            return None;
+        }
+        if skill_path
+            .as_ref()
+            .is_some_and(|existing| existing != &candidate)
+        {
+            return None;
+        }
+        skill_path = Some(candidate);
+    }
+
+    skill_path
+}
+
+fn render_acp_tool_call_footer(
+    tool_call: &AcpToolCall,
+    props: Props,
+    text_section_index: &mut usize,
+    code_section_index: &mut usize,
+    table_section_index: &mut usize,
+    image_section_index: &mut usize,
+    app: &AppContext,
+) -> Option<Box<dyn Element>> {
+    let sections = acp_tool_call_content_sections(tool_call);
+    if sections.is_empty() {
+        return None;
+    }
+
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let text_color = blended_colors::text_main(theme, theme.surface_1());
+
+    fn open_code_block_action(source: CodeSource) -> AIBlockAction {
+        AIBlockAction::OpenCodeInWarp { source }
+    }
+
+    fn copy_code_action(snippet: String) -> AIBlockAction {
+        AIBlockAction::CopyAIBlockCodeSnippet(snippet)
+    }
+
+    Some(render_text_sections(
+        TextSectionsProps {
+            model: props.model,
+            starting_text_section_index: text_section_index,
+            starting_code_section_index: code_section_index,
+            starting_table_section_index: table_section_index,
+            starting_image_section_index: image_section_index,
+            sections: &sections,
+            text_color,
+            selectable: true,
+            find_context: props.find_context,
+            current_working_directory: props.current_working_directory,
+            shell_launch_data: props.shell_launch_data,
+            embedded_code_editor_views: props.editor_views,
+            code_snippet_button_handles: &props.state_handles.normal_response_code_snippet_buttons,
+            table_section_handles: &props.state_handles.table_section_handles,
+            image_section_tooltip_handles: &props.state_handles.image_section_tooltip_handles,
+            is_ai_input_enabled: props.is_ai_input_enabled,
+            open_code_block_action_factory: Some(&open_code_block_action),
+            copy_code_action_factory: Some(&copy_code_action),
+            detected_links: Some(props.detected_links_state),
+            secret_redaction_state: props.secret_redaction_state,
+            is_selecting_text: props.state_handles.selection_handle.is_selecting(),
+            item_spacing: CONTENT_ITEM_VERTICAL_MARGIN,
+            #[cfg(feature = "local_fs")]
+            resolved_code_block_paths: Some(props.resolved_code_block_paths),
+            #[cfg(feature = "local_fs")]
+            resolved_blocklist_image_sources: Some(props.resolved_blocklist_image_sources),
+        },
+        app,
+    ))
+}
+
+#[cfg(test)]
+fn format_acp_tool_call_content(tool_call: &AcpToolCall) -> Option<String> {
+    let text = tool_call
+        .content
+        .iter()
+        .filter_map(format_acp_tool_call_content_item)
+        .filter(|part| !part.trim().is_empty())
+        .join("\n\n");
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+#[cfg(test)]
+fn format_acp_tool_call_content_item(content: &ToolCallContent) -> Option<String> {
+    match content {
+        ToolCallContent::Content(content) => format_acp_content_block(&content.content),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+fn format_acp_content_block(content: &ContentBlock) -> Option<String> {
+    match content {
+        ContentBlock::Text(text) => Some(text.text.clone()),
+        _ => None,
+    }
+}
+
+fn render_acp_plan(plan: &AcpPlan, app: &AppContext) -> Box<dyn Element> {
+    match acp_plan_surface_kind(plan) {
+        AcpPlanSurfaceKind::PlanCard => render_acp_plan_card(plan, app),
+    }
+}
+
+fn render_acp_permission(request: &AcpPermissionRequest, app: &AppContext) -> Box<dyn Element> {
+    match acp_permission_surface_kind(request) {
+        AcpPermissionSurfaceKind::PermissionCard => render_acp_permission_card(request, app),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcpPlanSurfaceKind {
+    PlanCard,
+}
+
+fn acp_plan_surface_kind(_plan: &AcpPlan) -> AcpPlanSurfaceKind {
+    AcpPlanSurfaceKind::PlanCard
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AcpPermissionSurfaceKind {
+    PermissionCard,
+}
+
+fn acp_permission_surface_kind(_request: &AcpPermissionRequest) -> AcpPermissionSurfaceKind {
+    AcpPermissionSurfaceKind::PermissionCard
+}
+
+fn render_acp_plan_card(plan: &AcpPlan, app: &AppContext) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let has_entries = !plan.plan.entries.is_empty();
+    let header = HeaderConfig::new("Plan", app)
+        .with_icon(acp_plan_icon(plan, app))
+        .with_corner_radius_override(if has_entries {
+            CornerRadius::with_top(Radius::Pixels(8.))
+        } else {
+            CornerRadius::with_all(Radius::Pixels(8.))
+        });
+
+    let mut content = Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+        .with_child(Clipped::new(header.render(app)).finish());
+
+    if has_entries {
+        let entries = plan
+            .plan
+            .entries
+            .iter()
+            .map(|entry| render_acp_plan_entry(entry, app))
+            .collect_vec();
+
+        content.add_child(
+            Container::new(Flex::column().with_children(entries).finish())
+                .with_padding_top(12.)
+                .with_background(theme.background())
+                .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
+                .finish(),
+        );
+    }
+
+    render_acp_card_shell(content.finish(), theme.accent().into(), app)
+}
+
+fn render_acp_plan_entry(
+    entry: &agent_client_protocol::schema::PlanEntry,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let text_color = blended_colors::text_main(theme, theme.surface_1());
+    let icon = Container::new(
+        ConstrainedBox::new(acp_plan_entry_icon(&entry.status, app).finish())
+            .with_width(icon_size(app) - 4.)
+            .with_height(icon_size(app) - 4.)
+            .finish(),
+    )
+    .with_margin_right(12.)
+    .finish();
+    let text = Text::new(
+        entry.content.clone(),
+        appearance.ui_font_family(),
+        appearance.monospace_font_size(),
+    )
+    .with_color(text_color)
+    .finish();
+
+    Container::new(
+        Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(icon)
+            .with_child(Shrinkable::new(1., text).finish())
+            .finish(),
+    )
+    .with_margin_left(INLINE_ACTION_HORIZONTAL_PADDING)
+    .with_margin_right(INLINE_ACTION_HORIZONTAL_PADDING)
+    .with_margin_bottom(12.)
+    .finish()
+}
+
+fn render_acp_permission_card(
+    request: &AcpPermissionRequest,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let title = request
+        .tool_call_update
+        .fields
+        .title
+        .as_deref()
+        .unwrap_or(request.tool_call_id.as_str());
+    let selected_option = request.selected_option_id.as_ref().and_then(|option_id| {
+        request
+            .options
+            .iter()
+            .find(|option| option.option_id == *option_id)
+    });
+
+    let header_title = if let Some(option) = selected_option {
+        format!("Permission selected: {}", option.name)
+    } else {
+        "Permission requested".to_string()
+    };
+    let appearance = Appearance::as_ref(app);
+    let theme = appearance.theme();
+    let has_options = request.selected_option_id.is_none() && !request.options.is_empty();
+    let has_body = !title.trim().is_empty();
+    let icon = if selected_option.is_some() {
+        inline_action_icons::green_check_icon(appearance)
+    } else {
+        icons::yellow_stop_icon(appearance)
+    };
+    let header = HeaderConfig::new(header_title, app)
+        .with_icon(icon)
+        .with_soft_wrap_title()
+        .with_corner_radius_override(if has_body || has_options {
+            CornerRadius::with_top(Radius::Pixels(8.))
+        } else {
+            CornerRadius::with_all(Radius::Pixels(8.))
+        });
+
+    let mut content = Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+        .with_child(Clipped::new(header.render(app)).finish());
+
+    if has_body {
+        content.add_child(
+            Container::new(
+                Text::new(
+                    title.to_string(),
+                    appearance.ui_font_family(),
+                    appearance.monospace_font_size(),
+                )
+                .with_color(blended_colors::text_main(theme, theme.surface_1()))
+                .with_selectable(true)
+                .finish(),
+            )
+            .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+            .with_vertical_padding(12.)
+            .with_background(theme.background())
+            .with_corner_radius(if has_options {
+                CornerRadius::with_all(Radius::Pixels(0.))
+            } else {
+                CornerRadius::with_bottom(Radius::Pixels(8.))
+            })
+            .finish(),
+        );
+    }
+
+    if has_options {
+        content.add_child(
+            Container::new(render_acp_permission_options(request, app))
+                .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+                .with_padding_bottom(12.)
+                .with_background(theme.background())
+                .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
+                .finish(),
+        );
+    }
+
+    render_acp_card_shell(content.finish(), theme.surface_2().into(), app)
+}
+
+fn render_acp_permission_options(
+    request: &AcpPermissionRequest,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let appearance = Appearance::as_ref(app);
+    let mut row = Wrap::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_spacing(8.)
+        .with_run_spacing(8.);
+
+    for option in &request.options {
+        let request_id = request.request_id.clone();
+        let option_id = option.option_id.clone();
+        let label = option.name.clone();
+        let theme = acp_permission_option_theme(option.kind);
+        row.add_child(button::Button::default().render(
+            appearance,
+            button::Params {
+                content: button::Content::Label(label.into()),
+                theme,
+                options: button::Options {
+                    size: button::Size::Small,
+                    on_click: Some(Box::new(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(AIBlockAction::SelectAcpPermissionOption {
+                            request_id: request_id.clone(),
+                            option_id: option_id.clone(),
+                        });
+                    })),
+                    ..button::Options::default(appearance)
+                },
+            },
+        ));
+    }
+
+    row.finish()
+}
+
+fn render_acp_card_shell(
+    content: Box<dyn Element>,
+    border_fill: Fill,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    Container::new(content)
+        .with_margin_left(CONTENT_HORIZONTAL_PADDING + icon_size(app) + 16.)
+        .with_margin_right(CONTENT_HORIZONTAL_PADDING)
+        .with_margin_bottom(CONTENT_ITEM_VERTICAL_MARGIN)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
+        .with_border(Border::all(1.).with_border_fill(border_fill))
+        .finish()
+}
+
+fn acp_permission_option_theme(kind: PermissionOptionKind) -> &'static dyn button::Theme {
+    match kind {
+        PermissionOptionKind::AllowOnce | PermissionOptionKind::AllowAlways => {
+            &button::themes::Primary
+        }
+        PermissionOptionKind::RejectOnce | PermissionOptionKind::RejectAlways => {
+            &button::themes::Secondary
+        }
+        _ => &button::themes::Secondary,
+    }
+}
+
+fn acp_tool_call_icon(status: ToolCallStatus, app: &AppContext) -> warpui::elements::Icon {
+    let appearance = Appearance::as_ref(app);
+    match status {
+        ToolCallStatus::Pending => icons::gray_circle_icon(appearance),
+        ToolCallStatus::InProgress => icons::yellow_running_icon(appearance),
+        ToolCallStatus::Completed => inline_action_icons::green_check_icon(appearance),
+        ToolCallStatus::Failed => inline_action_icons::red_x_icon(appearance),
+        _ => icons::gray_circle_icon(appearance),
+    }
+}
+
+fn acp_plan_icon(plan: &AcpPlan, app: &AppContext) -> warpui::elements::Icon {
+    let appearance = Appearance::as_ref(app);
+    if plan.plan.entries.is_empty() {
+        icons::gray_circle_icon(appearance)
+    } else if plan
+        .plan
+        .entries
+        .iter()
+        .any(|entry| matches!(entry.status, PlanEntryStatus::InProgress))
+    {
+        icons::yellow_running_icon(appearance)
+    } else if plan
+        .plan
+        .entries
+        .iter()
+        .all(|entry| matches!(entry.status, PlanEntryStatus::Completed))
+    {
+        inline_action_icons::green_check_icon(appearance)
+    } else {
+        icons::gray_circle_icon(appearance)
+    }
+}
+
+fn acp_plan_entry_icon(status: &PlanEntryStatus, app: &AppContext) -> warpui::elements::Icon {
+    let appearance = Appearance::as_ref(app);
+    match status {
+        PlanEntryStatus::Pending => icons::pending_icon(appearance),
+        PlanEntryStatus::InProgress => icons::in_progress_icon(appearance),
+        PlanEntryStatus::Completed => icons::succeeded_icon(appearance),
+        _ => icons::pending_icon(appearance),
+    }
 }
 
 fn render_read_files(
@@ -1831,7 +2383,6 @@ fn render_read_files(
         let source = CodeSource::Skill {
             reference,
             path: skill.path.clone(),
-            origin: SkillOpenOrigin::ReadFiles,
         };
         let skill_icon_override = icon_override_for_skill_name(&skill.name);
         let open_button = render_skill_button(
@@ -2260,20 +2811,6 @@ fn render_suggest_new_conversation(
         );
     }
 
-    if props.shared_session_status.is_viewer() {
-        let header_element = HeaderConfig::new("Start a new conversation", app)
-            .with_icon(gray_stop_icon(appearance))
-            .render(app);
-
-        return Some(
-            header_element
-                .with_agent_output_item_spacing(app)
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-                .with_background_color(blended_colors::neutral_2(theme))
-                .finish(),
-        );
-    }
-
     let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
     let new_conversation_header_text =
@@ -2639,92 +3176,6 @@ fn render_read_mcp_resource(
             .with_header(blocked_action_header(
                 action_id.clone(),
                 "OK if I read this MCP resource?",
-                buttons.run_button.clone(),
-                buttons.cancel_button.clone(),
-                props.action_model,
-                props.model,
-                app,
-            ))
-            .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(action_id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            renderable_action = renderable_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        renderable_action = renderable_action
-            .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-    }
-
-    renderable_action.render(app).finish()
-}
-
-fn format_upload_artifact_text(
-    request: &UploadArtifactRequest,
-    result: Option<&UploadArtifactResult>,
-) -> String {
-    let mut lines = vec![format!("Upload artifact: {}", request.file_path)];
-
-    if let Some(description) = request.description.as_deref() {
-        lines.push(format!("Description: {description}"));
-    }
-
-    match result {
-        Some(UploadArtifactResult::Success {
-            artifact_uid,
-            filepath,
-            ..
-        }) => {
-            lines.push(format!("Status: uploaded artifact {artifact_uid}"));
-            if let Some(filepath) = filepath.as_deref() {
-                lines.push(format!("Uploaded file: {filepath}"));
-            }
-        }
-        Some(UploadArtifactResult::Error(error)) => {
-            lines.push(format!("Status: upload failed: {error}"));
-        }
-        Some(UploadArtifactResult::Cancelled) => {}
-        None => {}
-    }
-
-    lines.join("\n")
-}
-
-fn render_upload_artifact(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &UploadArtifactRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let status = props.action_model.as_ref(app).get_action_status(action_id);
-    let result = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .and_then(|result| match &result.result {
-            AIAgentActionResultType::UploadArtifact(upload_result) => Some(upload_result),
-            _ => None,
-        });
-
-    let text = format_upload_artifact_text(request, result);
-    let mut renderable_action = RenderableAction::new(&text, app);
-
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        let buttons = props
-            .action_buttons
-            .get(action_id)
-            .expect("Button states must exist for each requested action.");
-
-        renderable_action = renderable_action
-            .with_header(blocked_action_header(
-                action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT,
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -3143,7 +3594,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         );
     }
 
-    if !props.shared_session_status.is_finished_viewer() && !FeatureFlag::AgentView.is_enabled() {
+    if !FeatureFlag::AgentView.is_enabled() {
         let ui_builder = appearance.ui_builder().clone();
         let continue_button = icon_button(
             appearance,
@@ -3193,10 +3644,8 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         flex.add_child(fork_button);
     }
 
-    flex.add_child(render_usage_button(props, app));
-
     // Review changes button.
-    if props.has_accepted_edits && !props.shared_session_status.is_viewer() {
+    if props.has_accepted_edits {
         // Only show Review Changes button if we're in a git repository
         let is_in_git_repo = props
             .current_working_directory
@@ -3214,7 +3663,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     }
 
     // "Open all review comments" bulk-import button.
-    if props.conversation_has_imported_comments && !props.shared_session_status.is_viewer() {
+    if props.conversation_has_imported_comments {
         flex.add_child(
             Container::new(ChildView::new(props.open_all_comments_button).finish())
                 .with_margin_left(4.)
@@ -3223,145 +3672,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
     }
 
     Some(flex.finish().with_content_item_spacing().finish())
-}
-
-/// Renders the usage button that, on click, will expand & collapse the usage summary footer.
-fn render_usage_button(props: Props, app: &AppContext) -> Box<dyn Element> {
-    let Some(conversation) = props.model.conversation(app) else {
-        return Empty::new().finish();
-    };
-
-    // If this conversation has no usage metadata (e.g. a forked conversation from
-    // mid-way through a prior conversation where the server did not send
-    // ConversationUsageMetadata), avoid rendering the usage button entirely.
-    let has_any_usage = conversation.credits_spent() > 0.0
-        || conversation.credits_spent_for_last_block().is_some()
-        || !conversation.token_usage().is_empty()
-        || conversation.tool_usage_metadata().total_tool_calls() > 0;
-    if !has_any_usage {
-        return Empty::new().finish();
-    }
-
-    let appearance = Appearance::as_ref(app);
-    let ui_builder = appearance.ui_builder().clone();
-
-    let expansion_icon = if props.is_usage_footer_expanded {
-        Icon::ChevronDown
-    } else {
-        Icon::ChevronRight
-    };
-
-    let total_credits_spent = conversation.credits_spent();
-    let mut credit_usage_text = format_credits(total_credits_spent);
-    if let Some(credits_spent_for_last_block) = conversation.credits_spent_for_last_block() {
-        // Only show the credits spent for the last block if it is different from the total credits spent
-        // and we spent a non-zero amount of credits for the last block.
-        // Avoid showing the credits spent for the last block if the request failed, as we refund user
-        // credits in that case (so no credits were in fact spent).
-        if credits_spent_for_last_block > 0.0
-            && total_credits_spent != credits_spent_for_last_block
-            && props.model.status(app).error().is_none()
-        {
-            // If the first part of the decimal is 0, we just display the whole number.
-            if credits_spent_for_last_block.fract() < 0.1 {
-                credit_usage_text = format!(
-                    "{credit_usage_text} (+{})",
-                    credits_spent_for_last_block.trunc() as i32
-                );
-            } else {
-                credit_usage_text =
-                    format!("{credit_usage_text} (+{credits_spent_for_last_block:.1})");
-            }
-        }
-    }
-
-    let icon_size = icon_size(app);
-    let button_row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_size(MainAxisSize::Min)
-        .with_child(
-            Container::new(
-                Text::new_inline(
-                    credit_usage_text,
-                    appearance.ui_font_family(),
-                    appearance.monospace_font_size(),
-                )
-                .with_color(
-                    appearance
-                        .theme()
-                        .sub_text_color(appearance.theme().background())
-                        .into(),
-                )
-                .with_selectable(false)
-                .finish(),
-            )
-            .with_padding_top(2.)
-            .with_margin_left(4.)
-            .finish(),
-        )
-        .with_child(
-            Container::new(
-                // Expansion icon
-                ConstrainedBox::new(
-                    expansion_icon
-                        .to_warpui_icon(
-                            appearance
-                                .theme()
-                                .sub_text_color(appearance.theme().background()),
-                        )
-                        .finish(),
-                )
-                .with_width(icon_size)
-                .with_height(icon_size)
-                .finish(),
-            )
-            .with_margin_top(1.)
-            .finish(),
-        );
-
-    Hoverable::new(
-        props.state_handles.usage_button_handle.clone(),
-        |mouse_state| {
-            let mut content = Container::new(button_row.finish());
-
-            if mouse_state.is_hovered() || mouse_state.is_clicked() {
-                let background = if mouse_state.is_clicked() {
-                    appearance.theme().background()
-                } else {
-                    blended_colors::neutral_4(appearance.theme()).into()
-                };
-
-                content = content
-                    .with_background(background)
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
-
-                // Show tooltip on hover or while clicked
-                let mut stack = Stack::new().with_child(content.finish());
-                let tooltip = ui_builder
-                    .tool_tip("Show credit usage details".to_string())
-                    .build()
-                    .finish();
-                stack.add_positioned_overlay_child(
-                    tooltip,
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., 8.),
-                        ParentOffsetBounds::WindowByPosition,
-                        ParentAnchor::BottomMiddle,
-                        ChildAnchor::TopMiddle,
-                    ),
-                );
-
-                stack.finish()
-            } else {
-                content.finish()
-            }
-        },
-    )
-    .on_click(|ctx, _, _| {
-        ctx.dispatch_typed_action(AIBlockAction::ToggleIsUsageFooterExpanded);
-    })
-    .with_cursor(Cursor::PointingHand)
-    .finish()
 }
 
 pub fn action_icon<V: View>(
@@ -3374,7 +3684,6 @@ pub fn action_icon<V: View>(
     let status = action_model.as_ref(app).get_action_status(action_id);
     match status {
         Some(status) => match status {
-            AIActionStatus::Preprocessing => icons::gray_circle_icon(appearance),
             AIActionStatus::Queued => icons::gray_stop_icon(appearance),
             AIActionStatus::Blocked => icons::yellow_stop_icon(appearance),
             AIActionStatus::RunningAsync => icons::yellow_running_icon(appearance),
@@ -3785,9 +4094,6 @@ fn conversation_search_phase(task: &crate::ai::agent::task::Task) -> Conversatio
         for message in &output.messages {
             if let AIAgentOutputMessageType::Action(action) = &message.message {
                 let new_phase = match &action.action {
-                    AIAgentActionType::FetchConversation { .. } => {
-                        Some(ConversationSearchPhase::ListingMessages)
-                    }
                     AIAgentActionType::Grep { queries, .. } if !queries.is_empty() => {
                         Some(ConversationSearchPhase::Grepping {
                             patterns: queries.clone(),

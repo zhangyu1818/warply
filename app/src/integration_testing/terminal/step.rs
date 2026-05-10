@@ -5,9 +5,10 @@ use std::time::Duration;
 use warpui::{
     async_assert,
     integration::{AssertionOutcome, TestStep},
-    Event, SingletonEntity,
+    Event,
 };
 
+use crate::integration_testing::command_palette::open_command_palette_and_run_action;
 use crate::integration_testing::terminal::{
     assert_context_menu_is_open, assert_long_running_block_executing,
 };
@@ -19,10 +20,6 @@ use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::shell::ShellType;
 use crate::{
     cmd_or_ctrl_shift, integration_testing::terminal::validate_block_output_on_finished_block,
-};
-use crate::{
-    integration_testing::command_palette::open_command_palette_and_run_action,
-    settings::PrivacySettings,
 };
 use crate::{
     integration_testing::{
@@ -48,14 +45,7 @@ pub fn wait_until_bootstrapped_single_pane_for_tab(tab_index: usize) -> TestStep
 }
 
 pub fn initialize_secret_regexes() -> TestStep {
-    new_step_with_default_assertions("Initialize default secret regexes").with_action(
-        move |app, _, _| {
-            let privacy_settings = PrivacySettings::handle(app);
-            privacy_settings.update(app, |me, ctx| {
-                me.initialize_default_regexes_once(ctx);
-            });
-        },
-    )
+    new_step_with_default_assertions("Initialize default secret regexes")
 }
 
 pub fn wait_until_bootstrapped_pane(tab_index: usize, pane_index: usize) -> TestStep {

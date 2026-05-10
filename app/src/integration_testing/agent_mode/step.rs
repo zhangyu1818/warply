@@ -167,18 +167,10 @@ fn print_conversation_id_assertion(
         let terminal_view = terminal_view(app, window_id, 0, 0);
         BlocklistAIHistoryModel::handle(app).read(app, |history_model, _| {
             if let Some(conversation) = history_model.active_conversation(terminal_view.id()) {
-                if let Some(token) = conversation.server_conversation_token() {
-                    // The debug link within the container will be using host.docker.internal, but we're opening
-                    // from outside the container.
-                    let debug_link = token
-                        .debug_link()
-                        .replace("host.docker.internal", "localhost");
-                    println!("Conversation ID (debug link): {debug_link}");
-                    return AssertionOutcome::Success;
-                }
+                println!("Conversation ID: {}", conversation.id());
+                return AssertionOutcome::Success;
             }
-            // If we don't have a conversation token yet, keep polling
-            AssertionOutcome::failure("Waiting for conversation token to be available".to_string())
+            AssertionOutcome::failure("Waiting for conversation to be available".to_string())
         })
     }
 }
@@ -202,22 +194,6 @@ pub fn set_preferred_agent_mode_llm(llm_id: &str) -> TestStep {
                 llm_preferences.update_preferred_agent_mode_llm(&llm_id, terminal_view_id, ctx);
             });
             async_assert!(true, "Successfully updated preferred agent mode LLM")
-        },
-    )
-}
-
-/// Sets the preferred coding LLM. Note that the server currently ignores this.
-pub fn set_preferred_coding_llm(llm_id: &str) -> TestStep {
-    let llm_id = LLMId::from(llm_id);
-    TestStep::new(&format!("Set preferred coding LLM to {llm_id}")).add_named_assertion(
-        "Update preferred coding LLM",
-        move |app, window_id| {
-            let llm_id = llm_id.clone();
-            let terminal_view_id = terminal_view(app, window_id, 0, 0).id();
-            LLMPreferences::handle(app).update(app, |llm_preferences, ctx| {
-                llm_preferences.update_preferred_coding_llm(&llm_id, Some(terminal_view_id), ctx);
-            });
-            async_assert!(true, "Successfully updated preferred coding LLM")
         },
     )
 }

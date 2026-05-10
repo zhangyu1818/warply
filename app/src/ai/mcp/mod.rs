@@ -1,5 +1,5 @@
 #[cfg(not(target_family = "wasm"))]
-use crate::server::datetime_ext::DateTimeExt;
+use crate::datetime_ext::DateTimeExt;
 #[cfg(not(target_family = "wasm"))]
 use chrono::DateTime;
 use std::collections::HashMap;
@@ -15,13 +15,13 @@ use crate::{
             persistence::CloudModel,
         },
         GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType, Revision, ServerCloudObject,
+        JsonObjectType,
     },
     drive::{
-        items::{mcp_server::WarpDriveMCPServer, WarpDriveItem},
+        items::{mcp_server::LocalObjectMCPServer, LocalObjectItem},
         CloudObjectTypeAndId,
     },
-    server::{ids::SyncId, sync_queue::QueueItem},
+    object_ids::SyncId,
 };
 #[cfg(not(target_family = "wasm"))]
 use diesel::{QueryDsl, RunQueryDsl, SqliteConnection};
@@ -31,7 +31,6 @@ use strum_macros::EnumIter;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::Icon;
 
-pub mod manager;
 pub mod templatable_manager;
 #[cfg(not(target_family = "wasm"))]
 pub use templatable_manager::McpIntegration;
@@ -157,8 +156,6 @@ mod tests {
     }
 }
 
-pub mod gallery;
-pub use gallery::MCPGalleryManager;
 use warpui::{AppContext, SingletonEntity as _};
 pub mod templatable;
 pub use templatable::JsonTemplate;
@@ -215,7 +212,6 @@ pub struct MCPServer {
 pub enum MCPServerState {
     NotRunning,
     Starting,
-    Authenticating,
     Running,
     ShuttingDown,
     FailedToStart,
@@ -316,40 +312,21 @@ impl StringModel for MCPServer {
         self.name.clone()
     }
 
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateMCPServer {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
-    }
-
-    fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {
-        if let ServerCloudObject::MCPServer(server_mcp_server) = server_cloud_object {
-            return Some(server_mcp_server.model.clone().string_model);
-        }
-        None
-    }
-
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
         None
     }
 
-    fn renders_in_warp_drive(&self) -> bool {
+    fn renders_as_local_object(&self) -> bool {
         false
     }
 
-    fn to_warp_drive_item(
+    fn to_local_object_item(
         &self,
         id: SyncId,
         _appearance: &Appearance,
         mcp_server: &CloudMCPServer,
-    ) -> Option<Box<dyn WarpDriveItem>> {
-        Some(Box::new(WarpDriveMCPServer::new(
+    ) -> Option<Box<dyn LocalObjectItem>> {
+        Some(Box::new(LocalObjectMCPServer::new(
             CloudObjectTypeAndId::GenericStringObject {
                 object_type: GenericStringObjectFormat::Json(JsonObjectType::MCPServer),
                 id,
@@ -686,27 +663,6 @@ impl MCPServer {
             templatable_mcp_server_installation: None,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum Author {
-    CurrentUser,
-    OtherUser { name: String },
-    Unknown,
-}
-
-#[derive(Debug, Clone)]
-pub enum MCPServerUpdate {
-    CloudTemplate {
-        publisher: Author,
-        new_version_ts: i64,
-        json_template: JsonTemplate,
-    },
-    Gallery {
-        name: String,
-        new_version: i32,
-        json_template: JsonTemplate,
-    },
 }
 
 #[cfg(test)]

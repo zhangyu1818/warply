@@ -1,5 +1,4 @@
 use crate::features::FeatureFlag;
-use crate::report_if_error;
 use crate::settings::{InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionsEvent};
@@ -1558,9 +1557,9 @@ impl CurrentPrompt {
         let current = *SessionSettings::as_ref(ctx).github_pr_chip_default_validation;
         if current != GithubPrPromptChipDefaultValidation::Suppressed {
             SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-                report_if_error!(settings
+                let _ = settings
                     .github_pr_chip_default_validation
-                    .set_value(GithubPrPromptChipDefaultValidation::Suppressed, ctx));
+                    .set_value(GithubPrPromptChipDefaultValidation::Suppressed, ctx);
             });
         }
     }
@@ -1586,9 +1585,9 @@ impl CurrentPrompt {
             .unwrap_or(false);
         if gh_on_path {
             SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-                report_if_error!(settings
+                let _ = settings
                     .github_pr_chip_default_validation
-                    .set_value(GithubPrPromptChipDefaultValidation::Unvalidated, ctx));
+                    .set_value(GithubPrPromptChipDefaultValidation::Unvalidated, ctx);
             });
         }
     }
@@ -1597,9 +1596,9 @@ impl CurrentPrompt {
         let current = *SessionSettings::as_ref(ctx).github_pr_chip_default_validation;
         if current == GithubPrPromptChipDefaultValidation::Unvalidated {
             SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-                report_if_error!(settings
+                let _ = settings
                     .github_pr_chip_default_validation
-                    .set_value(GithubPrPromptChipDefaultValidation::Validated, ctx));
+                    .set_value(GithubPrPromptChipDefaultValidation::Validated, ctx);
             });
         }
     }

@@ -24,7 +24,6 @@ mod comments;
 mod header;
 mod imported_comments;
 mod input;
-mod orchestration;
 pub mod output;
 pub mod query;
 mod todos;
@@ -57,7 +56,6 @@ use crate::appearance::Appearance;
 use crate::settings::{AISettings, InputModeSettings, InputSettings};
 use crate::terminal::model::blocks::{BlockHeightItem, RemovableBlocklistItem, RichContentItem};
 use crate::terminal::model::rich_content::RichContentType;
-use crate::terminal::TerminalView;
 use crate::util::truncation::truncate_from_end;
 
 use super::secret_redaction::SecretRedactionState;
@@ -662,10 +660,10 @@ pub fn render_citation(
     let theme = appearance.theme();
 
     let (icon, name) = match citation {
-        AIAgentCitation::WarpDriveObject { uid } => {
+        AIAgentCitation::LocalObject { uid } => {
             let item = CloudModel::as_ref(app)
                 .get_by_uid(uid)?
-                .to_warp_drive_item(appearance)?;
+                .to_local_object_item(appearance)?;
             (
                 item.icon(appearance, Some(theme.active_ui_text_color())),
                 item.display_name().unwrap_or(String::from("Untitled")),
@@ -782,7 +780,7 @@ pub fn render_autonomy_checkbox_setting_speedbump_footer(
                                 ctx.dispatch_typed_action(
                                     WorkspaceAction::ShowSettingsPageWithSearch {
                                         search_query: "Autonomy".to_string(),
-                                        section: Some(SettingsSection::WarpAgent),
+                                        section: Some(SettingsSection::AI),
                                     },
                                 );
                             })),
@@ -812,9 +810,8 @@ impl View for AIBlock {
                 .finish();
         }
 
-        // When the backing conversation has been cleared (e.g., after logout/reset), skip rendering.
-        // This can happen right after the user logs out, when the window is still potentially rendering for a few frames
-        // but the history model has already been cleared. It's safe to just skip rendering in this case.
+        // When the backing conversation has been cleared, skip rendering.
+        // The window can still render for a few frames after the history model has already been cleared.
         let Some(conversation) =
             BlocklistAIHistoryModel::as_ref(app).conversation(&self.client_ids.conversation_id)
         else {
@@ -892,39 +889,11 @@ impl View for AIBlock {
                 contents.add_child(header.with_content_item_spacing().finish());
                 did_render_header = true;
             }
-            // Derive the display info for the participant who initiated this exchange.
-            // For non-shared sessions, this is just the current user.
-            // For shared sessions, this is the user who initiated the request.
-            let (avatar_display_name, profile_image_path, avatar_color) = self
-                .model
-                .response_initiator(app)
-                .and_then(|participant_id| {
-                    app.view_with_id::<TerminalView>(self.window_id, self.terminal_view_id)
-                        .and_then(|terminal_view| {
-                            terminal_view.read(app, |view, app| {
-                                view.shared_session_presence_manager().and_then(move |pm| {
-                                    pm.as_ref(app).get_participant(&participant_id).map(
-                                        |participant| {
-                                            // Get the display info from the participant
-                                            // who sent this query.
-                                            (
-                                                participant.info.profile_data.display_name.clone(),
-                                                participant.info.profile_data.photo_url.clone(),
-                                                Some(participant.color),
-                                            )
-                                        },
-                                    )
-                                })
-                            })
-                        })
-                })
-                // Fallback to the current user's info if this is not a shared session
-                // or the participant is not found.
-                .unwrap_or((
-                    self.user_display_name.clone(),
-                    self.profile_image_path.clone(),
-                    None,
-                ));
+            let (avatar_display_name, profile_image_path, avatar_color) = (
+                self.user_display_name.clone(),
+                self.profile_image_path.clone(),
+                None,
+            );
             if let Some(rendered_query) = query::maybe_render(
                 query::Props {
                     user_display_name: &avatar_display_name,
@@ -985,17 +954,8 @@ impl View for AIBlock {
 
         let has_accepted_edits = self.has_accepted_file_edits_since_last_query(app);
         let terminal_model = self.terminal_model.lock();
-        let shared_session_status = terminal_model.shared_session_status().clone();
         let is_conversation_transcript_viewer = terminal_model.is_conversation_transcript_viewer();
         drop(terminal_model);
-
-        let is_cloud_agent_pre_first_exchange =
-            crate::terminal::view::ambient_agent::is_cloud_agent_pre_first_exchange(
-                self.ambient_agent_view_model.as_ref(),
-                &self.agent_view_controller,
-                &self.terminal_model,
-                app,
-            );
 
         contents.add_child(output::render(
             output::Props {
@@ -1012,6 +972,7 @@ impl View for AIBlock {
                 requested_commands: &self.requested_commands,
                 requested_mcp_tools: &self.requested_mcp_tools,
                 requested_edits: &self.requested_edits,
+                acp_diff_views: &self.acp_diff_views,
                 unit_test_suggestions: &self.unit_tests_suggestions,
                 todo_list_states: &self.todo_list_states,
                 collapsible_block_states: &self.collapsible_block_states,
@@ -1034,7 +995,6 @@ impl View for AIBlock {
                 manage_rules_button: &self.manage_rules_button,
                 keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
                 response_rating: &self.response_rating,
-                request_refunded_count: self.request_refunded_count,
                 search_codebase_view: &self.search_codebase_view,
                 web_search_views: &self.web_search_views,
                 web_fetch_views: &self.web_fetch_views,
@@ -1045,15 +1005,9 @@ impl View for AIBlock {
                 has_accepted_edits,
                 current_todo_list: self.current_todo_list(app),
                 finish_reason: self.finish_reason.as_ref(),
-                is_usage_footer_expanded: self.is_usage_footer_expanded,
-                shared_session_status: &shared_session_status,
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
-                aws_bedrock_credentials_error_view: self
-                    .aws_bedrock_credentials_error_view
-                    .as_ref(),
                 imported_comments: &self.imported_comments,
-                run_agents_card_views: &self.run_agents_card_views,
                 #[cfg(feature = "local_fs")]
                 resolved_code_block_paths: &self.resolved_code_block_paths,
                 #[cfg(feature = "local_fs")]
@@ -1064,7 +1018,6 @@ impl View for AIBlock {
                     .is_latest_non_passive_exchange_in_root_task(app)
                     && self.has_imported_comments_in_current_thread(app),
                 ask_user_question_view: self.ask_user_question_view.as_ref(),
-                is_cloud_agent_pre_first_exchange,
             },
             app,
         ));
@@ -1291,19 +1244,16 @@ impl AIAgentInput {
             | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. }
             | AIAgentInput::ActionResult { .. }
             | AIAgentInput::MessagesReceivedFromAgents { .. }
             | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::PassiveSuggestionResult { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => None,
+            | AIAgentInput::PassiveSuggestionResult { .. } => None,
         }
     }
 }

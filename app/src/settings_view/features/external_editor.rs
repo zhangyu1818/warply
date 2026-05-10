@@ -1,5 +1,3 @@
-use std::{cell::RefCell, collections::HashMap};
-
 use settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 use warpui::{
@@ -10,16 +8,11 @@ use warpui::{
 
 use crate::{
     appearance::Appearance,
-    report_if_error, send_telemetry_from_ctx,
-    server::telemetry::TelemetryEvent,
     settings_view::settings_page::{
-        render_body_item, render_dropdown_item, AdditionalInfo, LocalOnlyIconState, ToggleState,
+        render_body_item, render_dropdown_item, AdditionalInfo, ToggleState,
     },
     util::file::external_editor::{
-        settings::{
-            EditorChoice, EditorLayout, OpenCodePanelsFileEditor, OpenFileEditor, OpenFileLayout,
-            PreferMarkdownViewer, PreferTabbedEditorView,
-        },
+        settings::{EditorChoice, EditorLayout, PreferMarkdownViewer, PreferTabbedEditorView},
         EditorSettings, SUPPORTED_EDITORS,
     },
     view_components::{Dropdown, DropdownItem},
@@ -45,7 +38,6 @@ pub struct ExternalEditorView {
     tabbed_editor_view_mouse_state: SwitchStateHandle,
     prefer_markdown_viewer_switch: SwitchStateHandle,
     markdown_viewer_mouse_state: MouseStateHandle,
-    local_only_icon_states: RefCell<HashMap<String, MouseStateHandle>>,
 }
 
 impl ExternalEditorView {
@@ -112,7 +104,6 @@ impl ExternalEditorView {
             tabbed_editor_view_mouse_state: Default::default(),
             prefer_markdown_viewer_switch: Default::default(),
             markdown_viewer_mouse_state: Default::default(),
-            local_only_icon_states: Default::default(),
         }
     }
 
@@ -183,86 +174,36 @@ impl ExternalEditorView {
     }
 
     /// Handles [`ExternalEditorAction::SetEditor`] by updating the external editor settings.
-    fn set_editor(&mut self, editor: &EditorChoice, ctx: &mut ViewContext<Self>) {
-        EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings.open_file_editor.set_value(*editor, ctx));
-        });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FeaturesPageAction {
-                action: "SetEditor".to_string(),
-                value: format!("{editor:?}")
-            },
-            ctx
-        );
+    fn set_editor(&mut self, _editor: &EditorChoice, ctx: &mut ViewContext<Self>) {
+        EditorSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
     }
 
-    fn set_code_panels_editor(&mut self, editor: &EditorChoice, ctx: &mut ViewContext<Self>) {
-        EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings
-                .open_code_panels_file_editor
-                .set_value(*editor, ctx));
-        });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FeaturesPageAction {
-                action: "SetCodePanelsEditor".to_string(),
-                value: format!("{editor:?}")
-            },
-            ctx
-        );
+    fn set_code_panels_editor(&mut self, _editor: &EditorChoice, ctx: &mut ViewContext<Self>) {
+        EditorSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
     }
 
     // Handles [`ExternalEditorAction::SetLayout`] by updating the external editor layout settings.
-    fn set_layout(&mut self, layout: &EditorLayout, ctx: &mut ViewContext<Self>) {
-        EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings.open_file_layout.set_value(*layout, ctx));
-        });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FeaturesPageAction {
-                action: "SetLayout".to_string(),
-                value: format!("{layout:?}")
-            },
-            ctx
-        );
+    fn set_layout(&mut self, _layout: &EditorLayout, ctx: &mut ViewContext<Self>) {
+        EditorSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
     }
 
     /// Handles [`ExternalEditorAction::TogglePreferMarkdownViewer`]
     /// preference.
     fn toggle_prefer_markdown_viewer(&mut self, ctx: &mut ViewContext<Self>) {
-        let new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
+        let _new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
             let new_value = settings.prefer_markdown_viewer.toggle_and_save_value(ctx);
-            report_if_error!(new_value);
             new_value.unwrap_or(PreferMarkdownViewer::default_value())
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FeaturesPageAction {
-                action: "TogglePreferMarkdownViewer".to_string(),
-                value: new_value.to_string()
-            },
-            ctx
-        );
     }
 
     /// Handles [`ExternalEditorAction::TogglePreferTabbedEditorView`] by updating the tabbed file viewer preference.
     fn toggle_prefer_tabbed_editor_view(&mut self, ctx: &mut ViewContext<Self>) {
-        let new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
+        let _new_value = EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
             let new_value = settings
                 .prefer_tabbed_editor_view
                 .toggle_and_save_value(ctx);
-            report_if_error!(new_value);
             new_value.unwrap_or(PreferTabbedEditorView::default_value())
         });
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::FeaturesPageAction {
-                action: "ToggleTabbedEditorView".to_string(),
-                value: new_value.to_string()
-            },
-            ctx
-        );
     }
 }
 
@@ -283,12 +224,6 @@ impl View for ExternalEditorView {
             "Choose an editor to open file links",
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                OpenFileEditor::storage_key(),
-                OpenFileEditor::sync_to_cloud(),
-                &mut self.local_only_icon_states.borrow_mut(),
-                app,
-            ),
             None,
             &self.editor_dropdown,
         );
@@ -298,12 +233,6 @@ impl View for ExternalEditorView {
             "Choose an editor to open files from the code review panel, project explorer, and global search",
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                OpenCodePanelsFileEditor::storage_key(),
-                OpenCodePanelsFileEditor::sync_to_cloud(),
-                &mut self.local_only_icon_states.borrow_mut(),
-                app,
-            ),
             None,
             &self.code_panels_editor_dropdown,
         );
@@ -313,12 +242,6 @@ impl View for ExternalEditorView {
             "Choose a layout to open files in Warp",
             None,
             None,
-            LocalOnlyIconState::for_setting(
-                OpenFileLayout::storage_key(),
-                OpenFileLayout::sync_to_cloud(),
-                &mut self.local_only_icon_states.borrow_mut(),
-                app,
-            ),
             None,
             &self.layout_dropdown,
         );
@@ -332,12 +255,6 @@ impl View for ExternalEditorView {
             column.add_child(render_body_item::<ExternalEditorAction>(
                 TABBED_FILE_VIEWER_TOGGLE_HEADER.into(),
                 None,
-                LocalOnlyIconState::for_setting(
-                    PreferTabbedEditorView::storage_key(),
-                    PreferTabbedEditorView::sync_to_cloud(),
-                    &mut self.local_only_icon_states.borrow_mut(),
-                    app,
-                ),
                 ToggleState::Enabled,
                 appearance,
                 appearance
@@ -367,12 +284,6 @@ impl View for ExternalEditorView {
                 secondary_text: None,
                 tooltip_override_text: None,
             }),
-            LocalOnlyIconState::for_setting(
-                PreferMarkdownViewer::storage_key(),
-                PreferMarkdownViewer::sync_to_cloud(),
-                &mut self.local_only_icon_states.borrow_mut(),
-                app,
-            ),
             ToggleState::Enabled,
             appearance,
             appearance

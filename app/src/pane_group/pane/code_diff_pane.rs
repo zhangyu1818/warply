@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     code_diff_pane_model::CodeDiffPaneModel, DetachType, PaneConfiguration, PaneContent, PaneEvent,
-    PaneId, PaneView, ShareableLink, ShareableLinkError,
+    PaneId, PaneView,
 };
 
 pub struct CodeDiffPane {
@@ -147,13 +147,6 @@ impl PaneContent for CodeDiffPane {
 
     fn has_application_focus(&self, ctx: &mut ViewContext<PaneGroup>) -> bool {
         self.view.is_self_or_child_focused(ctx)
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

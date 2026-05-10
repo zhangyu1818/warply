@@ -1,33 +1,31 @@
 use std::collections::HashSet;
 use std::ops::Range;
-use std::sync::Arc;
 
 use super::super::rich_text_styles;
 use super::NotebooksEditorModel;
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{Owner, Revision, ServerMetadata, ServerPermissions, ServerWorkflow};
+use crate::cloud_object::{
+    CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus, Owner,
+};
 use crate::editor::InteractionState;
+use crate::identity::LocalIdentityProvider;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::notebooks::editor::model::DEBOUNCED_RESIZE_PERIOD;
 use crate::notebooks::editor::notebook_command::NotebookCommand;
 use crate::notebooks::editor::view::{RichTextEditorConfig, RichTextEditorView};
 use crate::notebooks::link::{NotebookLinks, SessionSource};
+use crate::object_ids::SyncId;
 use crate::search::files::model::FileSearchModel;
-use crate::server::ids::{ServerId, SyncId};
-use crate::server::server_api::team::MockTeamClient;
-use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::settings::FontSettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel, WorkflowId};
+use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
 use crate::workspace::ActiveSession;
 use crate::UserWorkspaces;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
-use chrono::Utc;
 use futures::prelude::*;
 use itertools::Itertools;
 use markdown_parser::markdown_parser::RUNNABLE_BLOCK_MARKDOWN_LANG;
@@ -128,19 +126,9 @@ fn model_from_markdown(
 
 fn initialize_deps(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
-    let team_client_mock = Arc::new(MockTeamClient::new());
-    let workspace_client_mock = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            team_client_mock.clone(),
-            workspace_client_mock.clone(),
-            vec![],
-            ctx,
-        )
-    });
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
+    app.add_singleton_model(UserWorkspaces::default_mock);
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
+
     initialize_settings_for_tests(app);
 }
 
@@ -1654,39 +1642,36 @@ Second command
     });
 }
 
-// Mock out a server workflow with the given i64 ID.
-fn mock_server_workflow(id: i64, app: &mut App) {
-    let server_id: ServerId = id.into();
-    let workflow_id: WorkflowId = server_id.into();
-    let sync_id = SyncId::ServerId(workflow_id.into());
-    let ts = Utc::now();
-
-    let server_metadata = ServerMetadata {
-        uid: server_id,
-        revision: Revision::now(),
-        metadata_last_updated_ts: ts.into(),
-        trashed_ts: None,
-        folder_id: None,
-        is_welcome_object: false,
-        creator_uid: None,
-        last_editor_uid: None,
-        current_editor_uid: None,
-    };
-
-    let workflow = ServerWorkflow {
-        id: SyncId::ServerId(workflow_id.into()),
-        metadata: server_metadata,
-        permissions: ServerPermissions {
-            space: Owner::mock_current_user(),
-            guests: Vec::new(),
-            permissions_last_updated_ts: ts.into(),
-            anyone_link_sharing: None,
+fn mock_workflow(id: i64, app: &mut App) {
+    let sync_id = SyncId::ServerId(id.into());
+    let workflow = CloudWorkflow::new(
+        sync_id,
+        CloudWorkflowModel::new(Workflow::new(format!("w{id}"), format!("c{id}"))),
+        CloudObjectMetadata {
+            pending_changes_statuses: CloudObjectStatuses {
+                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
+                has_pending_metadata_change: false,
+                has_pending_permissions_change: false,
+                pending_untrash: false,
+                pending_delete: false,
+            },
+            folder_id: None,
+            revision: Default::default(),
+            metadata_last_updated_ts: Default::default(),
+            current_editor_uid: Default::default(),
+            trashed_ts: Default::default(),
+            is_welcome_object: false,
+            creator_uid: None,
+            last_editor_uid: None,
+            last_task_run_ts: None,
         },
-        model: CloudWorkflowModel::new(Workflow::new(format!("w{id}"), format!("c{id}"))),
-    };
+        CloudObjectPermissions {
+            owner: Owner::mock_current_user(),
+        },
+    );
 
     CloudModel::handle(app).update(app, |cloud_model, _| {
-        cloud_model.add_object(sync_id, CloudWorkflow::new_from_server(workflow));
+        cloud_model.add_object(sync_id, workflow);
     });
 }
 
@@ -1697,8 +1682,8 @@ fn test_interleaving_command_and_embedding() {
         app.add_singleton_model(CloudModel::mock);
 
         // IDs are padded to be length 22.
-        mock_server_workflow(123, &mut app);
-        mock_server_workflow(245, &mut app);
+        mock_workflow(123, &mut app);
+        mock_workflow(245, &mut app);
 
         let model_handle = model_from_markdown(
             r#"Text

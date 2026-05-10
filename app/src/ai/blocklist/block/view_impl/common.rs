@@ -24,12 +24,11 @@ use warpui::{
     assets::asset_cache::{AssetCache, AssetSource, AssetState},
     elements::{
         new_scrollable::{ScrollableAppearance, SingleAxisConfig},
-        Align, Axis, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty,
-        EventHandler, Expanded, Fill, Flex, FormattedTextElement, HeadingFontSizeMultipliers,
-        Hoverable, Image as WarpImage, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        NewScrollable, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
-        SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack, Table,
+        Align, Axis, Border, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
+        CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Expanded, Fill,
+        Flex, FormattedTextElement, HeadingFontSizeMultipliers, Image as WarpImage,
+        MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, ParentElement, Radius,
+        SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Table,
         TableColumnWidth, TableConfig, TableHeader, TableVerticalSizing, Text, Wrap,
     },
     fonts::{Properties, Weight},
@@ -50,19 +49,7 @@ use crate::terminal::find::BlockListMatch;
 use crate::terminal::grid_renderer::{FOCUSED_MATCH_COLOR, MATCH_COLOR};
 use crate::{
     ai::{
-        agent::{conversation::AIConversation, icons, ShellCommandDelay},
-        blocklist::{
-            block::status_bar::BlocklistAIStatusBarAction, history_model::BlocklistAIHistoryModel,
-            BlocklistAIActionModel, ShellCommandExecutor,
-        },
-        loading::shimmering_warp_loading_text,
-    },
-    terminal::{self, TerminalModel},
-    util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
-    workspaces::{user_workspaces::UserWorkspaces, workspace::CustomerType},
-};
-use crate::{
-    ai::{
+        acp::acp_raw_image_id_from_source,
         agent::{
             icons::red_stop_icon, AIAgentAction, AIAgentActionType, AIAgentInput,
             AIAgentOutputMessageType, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
@@ -81,7 +68,6 @@ use crate::{
                 CodeSnippetButtonHandles,
             },
             inline_action::{
-                aws_bedrock_credentials_error::AwsBedrockCredentialsErrorView,
                 inline_action_header::{
                     INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
                 },
@@ -93,7 +79,6 @@ use crate::{
             view_util::error_color,
             TextLocation,
         },
-        AIRequestUsageModel,
     },
     code::{editor::view::CodeEditorView, editor_management::CodeSource},
     notebooks::editor::{markdown_table_appearance, rich_text_styles},
@@ -111,10 +96,21 @@ use crate::{
     workspace::WorkspaceAction,
 };
 use crate::{
+    ai::{
+        agent::{icons, ShellCommandDelay},
+        blocklist::{
+            block::status_bar::BlocklistAIStatusBarAction, BlocklistAIActionModel,
+            ShellCommandExecutor,
+        },
+        loading::shimmering_warp_loading_text,
+    },
+    terminal::{self, TerminalModel},
+    util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
+};
+use crate::{
     search::slash_command_menu::static_commands::commands,
     settings::{FontSettings, InputSettings},
 };
-use warp_core::channel::ChannelState;
 use warp_editor::content::{
     edit::resolve_asset_source_relative_to_directory, mermaid_diagram::mermaid_asset_source,
 };
@@ -130,11 +126,9 @@ const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
 const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
 const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
 
-pub const LOAD_OUTPUT_MESSAGE: &str = "Warping...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
-pub const LOAD_OUTPUT_MESSAGE_FOR_RUN_AGENTS: &str = "Spawning agents...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION: &str = "Preparing question...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN: &str = "Generating plan...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN: &str = "Updating plan...";
@@ -180,15 +174,7 @@ pub struct WarpingProps<'a, V> {
     pub model: &'a dyn AIBlockModel<View = V>,
     pub shimmering_text_handle: &'a ShimmeringTextStateHandle,
     pub summarization_start_time: Option<instant::Instant>,
-    pub hide_responses_button: Option<(ButtonProps<'a>, bool)>,
-    pub take_over_lrc_control_button: Option<ButtonProps<'a>>,
-    pub auto_execute_button: Option<ButtonProps<'a>>,
-    pub queue_next_prompt_button: Option<ButtonProps<'a>>,
     pub stop_button: Option<ButtonProps<'a>>,
-    /// Inline `Check now` affordance displayed alongside `Last seen by agent ...`
-    /// in the warping indicator. When set, the agent's pending poll future is
-    /// short-circuited on click and a fresh snapshot is returned immediately.
-    pub force_refresh_button: Option<ForceRefreshButtonProps<'a>>,
     pub action_model: &'a BlocklistAIActionModel,
     pub terminal_model: &'a TerminalModel,
     pub default_warping_text: String,
@@ -201,12 +187,6 @@ pub struct ButtonProps<'a> {
     pub button_handle: &'a MouseStateHandle,
     pub keystroke: Option<&'a Keystroke>,
     pub is_active: bool,
-}
-
-pub struct ForceRefreshButtonProps<'a> {
-    pub button_handle: &'a MouseStateHandle,
-    /// The block the force-refresh should target.
-    pub block_id: crate::terminal::model::block::BlockId,
 }
 
 pub fn render_warping_indicator<V: View>(
@@ -247,19 +227,6 @@ pub fn render_warping_indicator<V: View>(
         })
     });
 
-    let is_last_message_run_agents = output_to_render.as_ref().is_some_and(|output| {
-        let output = output.get();
-        output.messages.last().is_some_and(|m| {
-            matches!(
-                m.message,
-                AIAgentOutputMessageType::Action(AIAgentAction {
-                    action: AIAgentActionType::RunAgents(_),
-                    ..
-                })
-            )
-        })
-    });
-
     let is_last_message_asking_user_question = output_to_render.as_ref().is_some_and(|output| {
         let output = output.get();
         output.messages.last().is_some_and(|m| {
@@ -288,25 +255,21 @@ pub fn render_warping_indicator<V: View>(
         .any(|input| matches!(input, AIAgentInput::FetchReviewComments { .. }));
 
     let summarization_type: Option<SummarizationType> =
-        if FeatureFlag::SummarizationCancellationConfirmation.is_enabled() {
-            output_to_render.as_ref().and_then(|output| {
-                let output = output.get();
-                output.messages.last().and_then(|m| {
-                    if let AIAgentOutputMessageType::Summarization {
-                        finished_duration: None,
-                        summarization_type,
-                        ..
-                    } = m.message
-                    {
-                        Some(summarization_type)
-                    } else {
-                        None
-                    }
-                })
+        output_to_render.as_ref().and_then(|output| {
+            let output = output.get();
+            output.messages.last().and_then(|m| {
+                if let AIAgentOutputMessageType::Summarization {
+                    finished_duration: None,
+                    summarization_type,
+                    ..
+                } = m.message
+                {
+                    Some(summarization_type)
+                } else {
+                    None
+                }
             })
-        } else {
-            None
-        };
+        });
 
     let mut should_render_waiting_icon = false;
     let mut non_shimmering_text = None;
@@ -345,8 +308,6 @@ pub fn render_warping_indicator<V: View>(
         LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
     } else if is_last_message_requesting_file_edits {
         LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
-    } else if is_last_message_run_agents && FeatureFlag::RunAgentsTool.is_enabled() {
-        LOAD_OUTPUT_MESSAGE_FOR_RUN_AGENTS.to_string()
     } else if is_last_message_asking_user_question {
         LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
     } else if is_searching_web {
@@ -450,42 +411,6 @@ pub fn render_warping_indicator<V: View>(
 
     let mut buttons_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
     let mut has_buttons = false;
-    if let Some((hide_responses_button_props, should_hide_responses)) = props.hide_responses_button
-    {
-        has_buttons = true;
-        buttons_row.add_child(render_hide_responses_button(
-            hide_responses_button_props,
-            should_hide_responses,
-            appearance,
-        ));
-    }
-
-    if let Some(take_over_button_props) = props.take_over_lrc_control_button {
-        has_buttons = true;
-        buttons_row.add_child(render_switch_control_to_user_button(
-            "Take over",
-            "Take over control of the command",
-            take_over_button_props,
-            appearance,
-        ));
-    }
-
-    if let Some(autoexecute_button_props) = props.auto_execute_button {
-        has_buttons = true;
-        buttons_row.add_child(render_auto_approve_button(
-            autoexecute_button_props,
-            appearance,
-        ));
-    }
-
-    if let Some(queue_button_props) = props.queue_next_prompt_button {
-        has_buttons = true;
-        buttons_row.add_child(render_queue_next_prompt_button(
-            queue_button_props,
-            appearance,
-        ));
-    }
-
     if let Some(stop_button_props) = props.stop_button {
         has_buttons = true;
         buttons_row = buttons_row
@@ -502,23 +427,12 @@ pub fn render_warping_indicator<V: View>(
         MaybeShimmeringText::Static(message.into())
     };
 
-    // Only render `Check now` when we also have non-shimmering text, since that's the
-    // row we're appending to. This naturally scopes the affordance to situations where
-    // `Last seen by agent ...` is visible.
-    let non_shimmering_suffix = match (&non_shimmering_text, props.force_refresh_button) {
-        (Some(_), Some(force_refresh_button_props)) => Some(render_force_refresh_inline(
-            force_refresh_button_props,
-            appearance,
-        )),
-        _ => None,
-    };
-
     render_warping_indicator_base(
         WarpingIndicatorProps {
             icon: should_render_waiting_icon.then(|| icons::gray_clock_icon(appearance).finish()),
             warping_indicator_text,
             non_shimmering_text,
-            non_shimmering_suffix,
+            non_shimmering_suffix: None,
             buttons: if has_buttons {
                 Some(buttons_row.finish())
             } else {
@@ -767,47 +681,6 @@ fn render_image_source_link(props: ImageSourceLinkProps<'_>, app: &AppContext) -
     )
 }
 
-fn render_hide_responses_button(
-    props: ButtonProps,
-    should_hide_responses: bool,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let theme = appearance.theme();
-    let button_text = if should_hide_responses {
-        "Show responses"
-    } else {
-        "Hide responses"
-    };
-    let text = Container::new(
-        Text::new(
-            button_text,
-            appearance.ui_font_family(),
-            get_keybinding_font_size(appearance),
-        )
-        .with_color(theme.foreground().into())
-        .finish(),
-    )
-    .finish();
-
-    let tooltip_text = if should_hide_responses {
-        "Show agent responses"
-    } else {
-        "Hide agent responses"
-    };
-
-    render_warping_indicator_button(
-        props.button_handle.clone(),
-        appearance,
-        text,
-        props.keystroke,
-        tooltip_text.to_string(),
-        props.is_active,
-        |ctx| {
-            ctx.dispatch_typed_action(BlocklistAIStatusBarAction::ToggleHideResponses);
-        },
-    )
-}
-
 pub fn render_switch_control_to_user_button(
     text: &'static str,
     tooltip: &'static str,
@@ -862,150 +735,12 @@ fn render_stop_button(props: ButtonProps, appearance: &Appearance) -> Box<dyn El
     )
 }
 
-fn render_queue_next_prompt_button(
-    props: ButtonProps,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let icon_color = if props.is_active {
-        appearance.theme().accent()
-    } else {
-        appearance.theme().disabled_ui_text_color()
-    };
-    let icon_size = get_icon_size(appearance);
-    let icon = Container::new(
-        ConstrainedBox::new(Icon::ClockPlus.to_warpui_icon(icon_color).finish())
-            .with_height(icon_size)
-            .with_width(icon_size)
-            .finish(),
-    )
-    .finish();
-
-    let tooltip_text = if props.is_active {
-        "Auto-queue is on: your next prompt will be queued"
-    } else {
-        "Auto-queue next prompt while agent is responding"
-    };
-
-    render_warping_indicator_button(
-        props.button_handle.clone(),
-        appearance,
-        icon,
-        props.keystroke,
-        tooltip_text.to_string(),
-        props.is_active,
-        |ctx| {
-            ctx.dispatch_typed_action(TerminalAction::ToggleQueueNextPrompt);
-        },
-    )
-}
-
-fn render_auto_approve_button(props: ButtonProps, appearance: &Appearance) -> Box<dyn Element> {
-    let icon = if props.is_active {
-        Icon::FastForwardFilled
-    } else {
-        Icon::FastForward
-    };
-    let icon_size = get_icon_size(appearance);
-    let icon = Container::new(
-        ConstrainedBox::new(
-            icon.to_warpui_icon(appearance.theme().active_ui_text_color())
-                .finish(),
-        )
-        .with_height(icon_size)
-        .with_width(icon_size)
-        .finish(),
-    )
-    .finish();
-
-    let tooltip_text = if props.is_active {
-        "Turn off auto-approve all agent actions"
-    } else {
-        "Auto-approve all agent actions for this task"
-    };
-
-    render_warping_indicator_button(
-        props.button_handle.clone(),
-        appearance,
-        icon,
-        props.keystroke,
-        tooltip_text.to_string(),
-        props.is_active,
-        |ctx| {
-            ctx.dispatch_typed_action(TerminalAction::ToggleAutoexecuteMode);
-        },
-    )
-}
-
 fn get_keybinding_font_size(appearance: &Appearance) -> f32 {
     appearance.ui_font_size() - 1.
 }
 
 fn get_icon_size(appearance: &Appearance) -> f32 {
     appearance.ui_font_size() + 1.
-}
-
-/// Renders the inline `Check now` affordance displayed alongside
-/// `Last seen by agent ...` in the warping indicator. On click, short-circuits the
-/// agent's pending poll timer for the given block and delivers a fresh snapshot.
-fn render_force_refresh_inline(
-    props: ForceRefreshButtonProps<'_>,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let theme = appearance.theme();
-    let ui_builder = appearance.ui_builder().clone();
-    let sub_text_color = blended_colors::text_sub(theme, theme.surface_1());
-    let hovered_text_color: ColorU = theme.foreground().into();
-    let font_family = appearance.ui_font_family();
-    let font_size = appearance.monospace_font_size() - 2.;
-    let block_id = props.block_id;
-    let block_id_for_click = block_id.clone();
-
-    Hoverable::new(props.button_handle.clone(), move |state| {
-        let color = if state.is_hovered() {
-            hovered_text_color
-        } else {
-            sub_text_color
-        };
-
-        // Mirror `render_output_status_text` exactly: same `Text` configuration plus
-        // the `Container::with_margin_top(1.)` wrapper so this sits on the same
-        // baseline as the adjacent `Last seen by agent ...` text.
-        let text = Text::new(" · Check now".to_string(), font_family, font_size)
-            .with_color(color)
-            .with_style(Properties::default())
-            .with_clip(ClipConfig::end())
-            .with_selectable(false)
-            .soft_wrap(false)
-            .finish();
-        let text_with_margin = Container::new(text).with_margin_top(1.).finish();
-
-        // Tooltip overlay, positioned above the element on hover. Same pattern as
-        // `render_ai_follow_up_icon` in `view_util.rs`.
-        let mut stack = Stack::new().with_child(text_with_margin);
-        if state.is_hovered() {
-            let tool_tip = ui_builder
-                .tool_tip("Ask the agent to check this command now, skipping its timer.".to_owned())
-                .build()
-                .finish();
-            stack.add_positioned_overlay_child(
-                tool_tip,
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., -4.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::TopLeft,
-                    ChildAnchor::BottomLeft,
-                ),
-            );
-        }
-        stack.finish()
-    })
-    .with_cursor(Cursor::PointingHand)
-    .on_click(move |ctx, _, _| {
-        ctx.dispatch_typed_action(BlocklistAIStatusBarAction::ForceRefreshAgentView {
-            block_id: block_id_for_click.clone(),
-        });
-    })
-    .finish()
 }
 
 fn render_warping_indicator_button<F>(
@@ -1782,6 +1517,12 @@ fn blocklist_image_asset_source(
     current_working_directory: Option<&String>,
     resolved_blocklist_image_sources: Option<&ResolvedBlocklistImageSources>,
 ) -> Option<AssetSource> {
+    if let Some(asset_id) = acp_raw_image_id_from_source(source) {
+        return Some(AssetSource::Raw {
+            id: asset_id.to_string(),
+        });
+    }
+
     match resolved_blocklist_image_sources {
         Some(cache) => cache.get(source).cloned().flatten(),
         None => Some(resolve_asset_source_relative_to_directory(
@@ -1796,6 +1537,12 @@ fn blocklist_image_asset_source(
     source: &str,
     current_working_directory: Option<&String>,
 ) -> Option<AssetSource> {
+    if let Some(asset_id) = acp_raw_image_id_from_source(source) {
+        return Some(AssetSource::Raw {
+            id: asset_id.to_string(),
+        });
+    }
+
     Some(resolve_asset_source_relative_to_directory(
         source,
         current_working_directory.map(Path::new),
@@ -2320,6 +2067,10 @@ fn finite_positive_visual_size(size: Option<f32>) -> Option<f32> {
 }
 
 fn is_supported_blocklist_image_source(source: &str) -> bool {
+    if acp_raw_image_id_from_source(source).is_some() {
+        return true;
+    }
+
     if source.starts_with("http://") || source.starts_with("https://") {
         return false;
     }
@@ -2960,7 +2711,6 @@ pub(crate) fn resolve_absolute_file_path(
 pub struct FailedOutputProps<'a> {
     pub error: &'a RenderableAIError,
     pub invalid_api_key_button_handle: &'a MouseStateHandle,
-    pub aws_bedrock_credentials_error_view: Option<&'a ViewHandle<AwsBedrockCredentialsErrorView>>,
     pub is_ai_input_enabled: bool,
     pub icon_right_margin: f32,
 }
@@ -2969,19 +2719,8 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
     let appearance = Appearance::as_ref(app);
 
     let error_text = match props.error {
-        RenderableAIError::QuotaLimit => {
-            let ai_request_usage_model = AIRequestUsageModel::as_ref(app);
-            let formatted_next_refresh_time = ai_request_usage_model
-                .next_refresh_time()
-                .format("%B %d")
-                .to_string();
-
-            format!(
-                "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
-            )
-        }
         RenderableAIError::ServerOverloaded => {
-            "Warp is currently overloaded. Please try again later.".to_string()
+            "AI provider is currently overloaded. Please try again later.".to_string()
         }
         RenderableAIError::InternalWarpError => {
             format!("{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}")
@@ -3020,17 +2759,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
                 .with_icon(inline_action_icons::cancelled_icon(appearance).finish())
                 .render(app)
                 .finish();
-        }
-        RenderableAIError::AwsBedrockCredentialsExpiredOrInvalid { model_name } => {
-            // Use the rich stateful view if it exists, otherwise show a simple error message
-            if let Some(view) = props.aws_bedrock_credentials_error_view {
-                return ChildView::new(view).finish();
-            }
-            // Fallback for contexts that don't have the stateful view (e.g. CLI subagent)
-            format!(
-                "{ERROR_APOLOGY_TEXT}\n\nAWS credentials expired or missing for {model_name}. \
-                 Please refresh your AWS credentials."
-            )
         }
     };
 
@@ -3144,7 +2872,7 @@ fn render_invalid_api_key_error(
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
                 search_query: "api keys".to_string(),
-                section: Some(SettingsSection::WarpAgent),
+                section: Some(SettingsSection::AI),
             });
         })
         .finish();
@@ -3172,120 +2900,27 @@ fn render_invalid_api_key_error(
         .finish()
 }
 
-pub fn render_informational_footer(app: &AppContext, text: String) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-
-    Text::new_inline(
-        text,
-        appearance.ui_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(
-        appearance
-            .theme()
-            .disabled_text_color(appearance.theme().background())
-            .into(),
-    )
-    .with_selectable(false)
-    .finish()
-}
-
 pub(crate) struct DebugFooterProps<'a, V: View> {
-    pub conversation: Option<&'a AIConversation>,
     pub model: &'a dyn AIBlockModel<View = V>,
     pub debug_copy_button_handle: MouseStateHandle,
-    pub submit_issue_button_handle: MouseStateHandle,
-    pub should_render_feedback_below: bool,
 }
 
 pub(crate) fn render_debug_footer<V: View>(
     props: DebugFooterProps<'_, V>,
     on_copy_debug_id: impl Fn(String, &mut EventContext) + 'static,
-    on_open_feedback: impl Fn(&mut EventContext) + 'static,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
 
-    // get debug info (similar to CopyExternalDebuggingId)
-    let conversation_token = props.conversation.and_then(|conversation| {
-        BlocklistAIHistoryModel::as_ref(app)
-            .conversation(&conversation.id())
-            .and_then(|convo| convo.server_conversation_token())
-    });
-    let Some(conversation_token) = conversation_token else {
+    let server_output_id = props.model.server_output_id(app);
+    let Some(request_id) = server_output_id else {
         return Empty::new().finish();
     };
-    let server_output_id = props.model.server_output_id(app);
-    let debug_info = if let Some(request_id) = server_output_id {
-        serde_json::json!({
-            "request_id": request_id,
-            "conversation_id": conversation_token.as_str()
-        })
-        .to_string()
-    } else {
-        serde_json::json!({
-            "conversation_id": conversation_token.as_str()
-        })
-        .to_string()
-    };
+    let debug_info = serde_json::json!({
+        "request_id": request_id
+    })
+    .to_string();
 
-    // Check if we should show the submit button (hide for dogfood and enterprise users)
-    let is_dogfood = ChannelState::channel().is_dogfood();
-    let is_enterprise_user = UserWorkspaces::as_ref(app)
-        .current_team()
-        .is_some_and(|team| team.billing_metadata.customer_type == CustomerType::Enterprise);
-    let submit_button = if !is_dogfood && !is_enterprise_user {
-        let submit_button_style = UiComponentStyles {
-            font_color: Some(
-                appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into(),
-            ),
-            border_width: Some(1.),
-            border_color: Some(
-                appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into(),
-            ),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            padding: Some(Coords {
-                top: 4.,
-                bottom: 4.,
-                left: 8.,
-                right: 8.,
-            }),
-            font_size: Some(appearance.monospace_font_size()),
-            font_family_id: Some(appearance.ui_font_family()),
-            ..Default::default()
-        };
-        let submit_button_hover_style = UiComponentStyles {
-            background: Some(blended_colors::neutral_4(appearance.theme()).into()),
-            ..submit_button_style
-        };
-        Some(
-            appearance
-                .ui_builder()
-                .button(
-                    warpui::ui_components::button::ButtonVariant::Text,
-                    props.submit_issue_button_handle,
-                )
-                .with_centered_text_label("Send Feedback".to_string())
-                .with_style(submit_button_style)
-                .with_hovered_styles(submit_button_hover_style)
-                .with_clicked_styles(submit_button_hover_style)
-                .build()
-                .on_click(move |ctx, _, _| {
-                    on_open_feedback(ctx);
-                })
-                .finish(),
-        )
-    } else {
-        None
-    };
-
-    // render the conversation's debug id so screenshots automatically show the debug id
     let debug_text = Text::new(
         format!("Debug information: {debug_info}"),
         appearance.ui_font_family(),
@@ -3299,7 +2934,6 @@ pub(crate) fn render_debug_footer<V: View>(
     )
     .finish();
 
-    // render a button to copy the debug id to the clipboard
     let copy_button_style = UiComponentStyles {
         font_color: Some(
             appearance
@@ -3343,17 +2977,6 @@ pub(crate) fn render_debug_footer<V: View>(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_size(MainAxisSize::Max);
 
-    // In narrow views, render the submit button in a separate row below.
-    // Otherwise, place it inline in the debug row.
-    let stacked_submit_button = if props.should_render_feedback_below {
-        submit_button
-    } else {
-        if let Some(submit_button) = submit_button {
-            debug_row.add_child(Container::new(submit_button).with_margin_right(8.).finish());
-        }
-        None
-    };
-
     debug_row.add_child(
         Shrinkable::new(
             1.0,
@@ -3363,14 +2986,7 @@ pub(crate) fn render_debug_footer<V: View>(
     );
     debug_row.add_child(copy_button_with_tooltip);
 
-    if let Some(submit_button) = stacked_submit_button {
-        let mut column = Flex::column();
-        column.add_child(Expanded::new(1.0, debug_row.finish()).finish());
-        column.add_child(Container::new(submit_button).with_margin_top(8.).finish());
-        column.finish()
-    } else {
-        Container::new(Expanded::new(1.0, debug_row.finish()).finish()).finish()
-    }
+    Container::new(Expanded::new(1.0, debug_row.finish()).finish()).finish()
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -3425,7 +3041,6 @@ pub(crate) fn user_query_mode_prefix_highlight_len(mode: UserQueryMode) -> Optio
     match mode {
         UserQueryMode::Normal => None,
         UserQueryMode::Plan => Some(commands::PLAN.name.len()),
-        UserQueryMode::Orchestrate => Some(commands::ORCHESTRATE.name.len()),
     }
 }
 
@@ -3442,9 +3057,7 @@ pub(super) fn query_prefix_highlight_len(
         }
     }
 
-    if displayed_query.starts_with(commands::CREATE_ENVIRONMENT.name) {
-        Some(commands::CREATE_ENVIRONMENT.name.len())
-    } else if displayed_query.starts_with(commands::AGENT.name) {
+    if displayed_query.starts_with(commands::AGENT.name) {
         Some(commands::AGENT.name.len())
     } else if displayed_query.starts_with(commands::NEW.name) {
         Some(commands::NEW.name.len())
@@ -3455,19 +3068,16 @@ pub(super) fn query_prefix_highlight_len(
             | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. }
             | AIAgentInput::ActionResult { .. }
             | AIAgentInput::MessagesReceivedFromAgents { .. }
             | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::PassiveSuggestionResult { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => None,
+            | AIAgentInput::PassiveSuggestionResult { .. } => None,
         }
     }
 }

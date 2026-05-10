@@ -2,22 +2,13 @@
 mod native;
 #[cfg(not(target_family = "wasm"))]
 pub use native::McpIntegration;
-#[cfg(not(target_family = "wasm"))]
-mod oauth;
 #[cfg(target_family = "wasm")]
 mod wasm;
 
-#[cfg(not(target_family = "wasm"))]
-use diesel::SqliteConnection;
-#[cfg(not(target_family = "wasm"))]
-use parking_lot::Mutex;
-use std::collections::{HashMap, HashSet};
-#[cfg(not(target_family = "wasm"))]
-use std::sync::Arc;
+use std::collections::HashMap;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
-use crate::ai::mcp::FileBasedMCPManager;
 use crate::ai::mcp::{templatable_installation::TemplatableMCPServerInstallation, MCPServerState};
 use futures_util::stream::AbortHandle;
 use uuid::Uuid;
@@ -47,17 +38,6 @@ pub struct TemplatableMCPServerManager {
 
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     spawned_servers: HashMap<Uuid, SpawnedServerInfo>,
-    /// Cached credentials for each server.
-    ///
-    /// We persist these to secure storage, and if they are present when the server is started,
-    /// we use them instead of going through the OAuth flow again.
-    #[cfg(not(target_family = "wasm"))]
-    server_credentials: oauth::PersistedCredentialsMap,
-    /// Cached credentials for file-based servers, keyed by installation hash.
-    #[cfg(not(target_family = "wasm"))]
-    file_based_server_credentials: oauth::FileBasedPersistedCredentialsMap,
-    #[cfg(not(target_family = "wasm"))]
-    database_connection: Option<Arc<Mutex<SqliteConnection>>>,
     /// Error messages for failed servers, keyed by installation UUID.
     server_error_messages: HashMap<Uuid, String>,
     /// Spawner for running tasks in the context of this manager.
@@ -72,66 +52,23 @@ pub struct TemplatableMCPServerManager {
     /// reconnection completes, all waiters are notified with the result.
     #[cfg(not(target_family = "wasm"))]
     pending_reconnections: HashMap<Uuid, Vec<ReconnectResultSender>>,
-    /// Maps the OAuth CSRF `state` token to the installation UUID of the server whose
-    /// authorization flow is in progress.
-    ///
-    /// Populated just before opening the authorization URL; removed once the callback
-    /// is received or the spawn task terminates.
-    #[cfg(not(target_family = "wasm"))]
-    pending_oauth_csrf: HashMap<String, Uuid>,
-    /// UUIDs of MCP servers started via the Oz CLI. We track these so they can be distinguished from
-    /// file-based ephemeral MCP servers, which are directory-scoped.
-    cli_spawned_server_uuids: HashSet<Uuid>,
 }
 
 /// Information about a spawned server task.
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 struct SpawnedServerInfo {
     abort_handle: AbortHandle,
-    #[cfg(not(target_family = "wasm"))]
-    oauth_result_tx: async_channel::Sender<oauth::CallbackResult>,
 }
 
 /// Information about a single connected MCP server.
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct TemplatableMCPServerInfo {
-    name: String,
     service: rmcp::service::RunningService<
         rmcp::RoleClient,
         Box<dyn rmcp::service::DynService<rmcp::RoleClient>>,
     >,
     resources: Vec<rmcp::model::Resource>,
     tools: Vec<rmcp::model::Tool>,
-    installation_id: Uuid,
-    description: Option<String>,
-    /// Whether the underlying transport uses authentication.
-    ///
-    /// TODO(vorporeal): Use this to display a toast when server authentication and connection is complete, and
-    /// to provide a "log out" button.
-    #[allow(dead_code)]
-    is_authenticated_transport: bool,
-}
-
-impl TemplatableMCPServerInfo {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn resources(&self) -> &Vec<rmcp::model::Resource> {
-        &self.resources
-    }
-
-    pub fn tools(&self) -> &Vec<rmcp::model::Tool> {
-        &self.tools
-    }
-
-    pub fn installation_id(&self) -> Uuid {
-        self.installation_id
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
-    }
 }
 
 /// The current status of the Figma MCP server.
@@ -148,12 +85,6 @@ pub enum FigmaMcpStatus {
 }
 
 impl TemplatableMCPServerManager {
-    pub fn get_installed_templatable_servers(
-        &self,
-    ) -> &HashMap<Uuid, TemplatableMCPServerInstallation> {
-        &self.locally_installed_servers
-    }
-
     pub fn get_installed_server(
         &self,
         installation_uuid: &Uuid,
@@ -203,26 +134,10 @@ impl TemplatableMCPServerManager {
         self.is_server_active(uuid) || self.spawned_servers.contains_key(&uuid)
     }
 
-    pub fn get_server_state(&self, installation_uuid: Uuid) -> Option<MCPServerState> {
-        self.server_states.get(&installation_uuid).copied()
-    }
-
-    pub fn get_server_error_message(&self, installation_uuid: Uuid) -> Option<&str> {
-        self.server_error_messages
-            .get(&installation_uuid)
-            .map(|s| s.as_str())
-    }
-
     pub fn resources(&self) -> impl Iterator<Item = &rmcp::model::Resource> {
         self.active_servers
             .values()
             .flat_map(|server| server.resources.iter())
-    }
-
-    pub fn tools(&self) -> impl Iterator<Item = &rmcp::model::Tool> {
-        self.active_servers
-            .values()
-            .flat_map(|server| server.tools.iter())
     }
 
     /// Returns a reconnecting peer for a server that has the given resource.
@@ -245,13 +160,6 @@ impl TemplatableMCPServerManager {
             .map(|(installation_uuid, _)| {
                 super::reconnecting_peer::ReconnectingPeer::new(*installation_uuid, spawner.clone())
             })
-    }
-
-    pub fn tools_for_server(&self, uuid: Uuid) -> Vec<rmcp::model::Tool> {
-        self.active_servers
-            .get(&uuid)
-            .map(|server| server.tools.clone())
-            .unwrap_or_default()
     }
 
     /// Returns the JSON Schema `input_schema` for a named tool across active MCP servers.
@@ -306,55 +214,14 @@ impl TemplatableMCPServerManager {
             })
             .map(|(uuid, _)| uuid)
     }
-
-    /// Returns installed templatable servers that are currently active.
-    pub fn get_active_templatable_servers(&self) -> HashMap<Uuid, &TemplatableMCPServerInfo> {
-        self.locally_installed_servers
-            .keys()
-            .filter_map(|uuid| self.active_servers.get(uuid).map(|info| (*uuid, info)))
-            .collect()
-    }
-
-    /// Returns file-based MCP servers that are currently active and in scope for the given working directory.
-    pub fn get_active_file_based_servers(
-        &self,
-        cwd: &std::path::Path,
-        app: &warpui::AppContext,
-    ) -> HashMap<Uuid, &TemplatableMCPServerInfo> {
-        FileBasedMCPManager::as_ref(app)
-            .get_servers_for_working_directory(cwd, app)
-            .iter()
-            .filter_map(|installation| {
-                let uuid = installation.uuid();
-                self.active_servers.get(&uuid).map(|info| (uuid, info))
-            })
-            .collect()
-    }
-
-    /// Returns CLI-spawned ephemeral servers (started via `oz agent run --mcp`) that are currently active.
-    pub fn get_active_cli_spawned_servers(&self) -> HashMap<Uuid, &TemplatableMCPServerInfo> {
-        self.cli_spawned_server_uuids
-            .iter()
-            .filter_map(|uuid| self.active_servers.get(uuid).map(|info| (*uuid, info)))
-            .collect()
-    }
 }
 
 #[derive(Debug)]
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub enum TemplatableMCPServerManagerEvent {
-    StateChanged {
-        uuid: Uuid,
-        state: MCPServerState,
-    },
-    // TODO(aeybel) Right now most of the app doesn't use these events to communicate
-    // We should change them so this manager is source of truth and all communication goes through here
-    #[allow(dead_code)]
-    ServerInstallationAdded(Uuid),
-    #[allow(dead_code)]
-    ServerInstallationDeleted(Uuid),
+    StateChanged,
+    ServerInstallationDeleted,
     TemplatableMCPServersUpdated,
-    LegacyServerConverted,
 }
 
 impl Entity for TemplatableMCPServerManager {

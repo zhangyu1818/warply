@@ -5,8 +5,8 @@ use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 use crate::{
     app_state::LeafContents,
     pane_group::{
-        pane::{welcome_view::WelcomeView, ShareableLink, ShareableLinkError},
-        BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView,
+        pane::welcome_view::WelcomeView, BackingView, PaneConfiguration, PaneContent, PaneGroup,
+        PaneView,
     },
 };
 
@@ -85,13 +85,6 @@ impl PaneContent for WelcomePane {
             .as_ref(ctx)
             .child(ctx)
             .update(ctx, BackingView::focus_contents)
-    }
-
-    fn shareable_link(
-        &self,
-        _ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError> {
-        Ok(ShareableLink::Base)
     }
 
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {

@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use futures::{channel::oneshot, future::BoxFuture, FutureExt};
+use futures::channel::oneshot;
 use itertools::Itertools;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
     ai::{
@@ -13,21 +13,15 @@ use crate::{
             AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
             SearchCodebaseFailureReason, SearchCodebaseRequest, SearchCodebaseResult,
         },
-        blocklist::{action_model::execute::get_server_output_id, BlocklistAIPermissions},
+        blocklist::BlocklistAIPermissions,
         get_relevant_files::controller::{
             GetRelevantFilesController, GetRelevantFilesControllerEvent, GetRelevantFilesError,
         },
     },
-    features::FeatureFlag,
-    send_telemetry_from_ctx,
     terminal::model::session::active_session::ActiveSession,
-    TelemetryEvent,
 };
 
-use super::{
-    read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput,
-    PreprocessActionInput,
-};
+use super::{read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct SearchCodebaseExecutor {
     active_session: ModelHandle<ActiveSession>,
@@ -181,69 +175,14 @@ impl SearchCodebaseExecutor {
                 AIAgentActionType::SearchCodebase(SearchCodebaseRequest {
                     query,
                     partial_paths,
-                    codebase_path,
+                    codebase_path: _,
                 }),
             ..
         } = action
         else {
             return ActionExecution::InvalidAction;
         };
-        let codebase_path = codebase_path.as_ref().map(PathBuf::from);
-
-        let Some(current_working_directory) = self
-            .active_session
-            .as_ref(ctx)
-            .current_working_directory()
-            .map(PathBuf::from)
-        else {
-            // This should really never happen; it implies that we don't know what the
-            // current working directory is, which is never the case.
-            return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
-                SearchCodebaseResult::Failed {
-                    reason: SearchCodebaseFailureReason::MissingCurrentWorkingDirectory,
-                    message: "The search failed. Try another way to locate the relevant files."
-                        .to_string(),
-                },
-            ));
-        };
-
-        let search_dir;
-        let is_cross_repo;
-        if FeatureFlag::CrossRepoContext.is_enabled() {
-            is_cross_repo = codebase_path
-                .as_ref()
-                .is_some_and(|path| !current_working_directory.starts_with(path));
-            search_dir = codebase_path.unwrap_or(current_working_directory);
-        } else {
-            is_cross_repo = false;
-            search_dir = current_working_directory;
-        }
-        let server_output_id = get_server_output_id(input.conversation_id, ctx);
-        send_telemetry_from_ctx!(
-            TelemetryEvent::SearchCodebaseRequested {
-                action_id: id.clone(),
-                server_output_id,
-                is_cross_repo,
-            },
-            ctx
-        );
-
         let Some(root_dir_for_search) = self.root_repo_paths.get(id) else {
-            let action_id = id.clone();
-
-            // Check if directory exists on background thread since its a sys call; no need to block
-            // main thread since its just for telemetry.
-            let _ = ctx.spawn(async move { search_dir.exists() }, |_, exists, ctx| {
-                let error = if exists {
-                    "The codebase isn't indexed".to_string()
-                } else {
-                    "The codebase doesn't exist".to_string()
-                };
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::SearchCodebaseRepoUnavailable { action_id, error },
-                    ctx
-                );
-            });
             return ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Failed {
                 message: "The search failed because the codebase is not available. Try another way to locate the relevant files.".to_owned(),
                 reason: SearchCodebaseFailureReason::CodebaseNotIndexed
@@ -325,63 +264,6 @@ impl SearchCodebaseExecutor {
             .update(ctx, |controller, ctx| {
                 controller.cancel_request_for_action(action_id, ctx)
             });
-    }
-
-    fn get_root_repo_path_for_request(
-        &self,
-        request: &SearchCodebaseRequest,
-        app: &AppContext,
-    ) -> Option<PathBuf> {
-        let SearchCodebaseRequest { codebase_path, .. } = request;
-        let codebase_path = codebase_path.as_deref().map(PathBuf::from);
-        let Some(pwd) = self
-            .active_session
-            .as_ref(app)
-            .current_working_directory()
-            .map(PathBuf::from)
-        else {
-            // This should never really happen, since we should always have a pwd.
-            log::warn!("No pwd found for search codebase request");
-            return None;
-        };
-
-        let search_dir = if FeatureFlag::CrossRepoContext.is_enabled() {
-            match codebase_path {
-                Some(codebase_path) if codebase_path == Path::new(".") => pwd,
-                Some(codebase_path) => codebase_path,
-                None => pwd,
-            }
-        } else {
-            pwd
-        };
-
-        self.get_relevant_files_controller
-            .as_ref(app)
-            .root_directory_for_search(&search_dir, app)
-    }
-
-    /// In the preprocessing step, we determine the root of the repo path for the codebase to be
-    /// searched, and cache it. This is used downstream to render UI thats derived from the root
-    /// repo path, which isn't really trivially computable from the `action` itself.
-    pub(super) fn preprocess_action(
-        &mut self,
-        input: PreprocessActionInput,
-        ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        let AIAgentAction {
-            id,
-            action: AIAgentActionType::SearchCodebase(request),
-            ..
-        } = input.action
-        else {
-            log::error!("Expected a SearchCodebase action when preprocessing action");
-            return futures::future::ready(()).boxed();
-        };
-
-        if let Some(root_repo_path) = self.get_root_repo_path_for_request(request, ctx) {
-            self.root_repo_paths.insert(id.clone(), root_repo_path);
-        }
-        futures::future::ready(()).boxed()
     }
 }
 

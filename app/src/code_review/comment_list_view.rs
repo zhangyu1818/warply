@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use crate::ai::AIRequestUsageModel;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
 use crate::code_review::comment_rendering::CommentViewCard;
@@ -8,10 +7,8 @@ use crate::code_review::comments::{
     AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin,
     ReviewCommentBatch, ReviewCommentBatchEvent,
 };
-use crate::code_review::CodeReviewTelemetryEvent;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
-use crate::send_telemetry_from_ctx;
 use crate::settings::AISettings;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, SecondaryTheme,
@@ -281,7 +278,7 @@ impl CommentListView {
     }
 
     pub fn debug_state(&self, ctx: &AppContext) -> CommentListDebugState {
-        let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
+        let ai_available = true;
         let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
         let sendable_comments = self
             .comments_by_id
@@ -291,7 +288,6 @@ impl CommentListView {
         let send_button_tooltip_text = Self::send_button_tooltip_text(
             &self.review_destination,
             sendable_comments > 0,
-            ai_available,
             ai_enabled,
         )
         .into_owned();
@@ -905,7 +901,6 @@ impl CommentListView {
     fn send_button_tooltip_text(
         destination: &ReviewDestination,
         has_sendable_comments: bool,
-        ai_available: bool,
         ai_enabled: bool,
     ) -> Cow<'static, str> {
         if let ReviewDestination::Cli(agent) = destination {
@@ -918,8 +913,6 @@ impl CommentListView {
             }
         } else if !ai_enabled {
             Cow::Borrowed("AI must be enabled to send comments to Agent")
-        } else if !ai_available {
-            Cow::Borrowed("Agent code review requires AI credits")
         } else if matches!(destination, ReviewDestination::None) {
             Cow::Borrowed("All terminals are busy")
         } else if !has_sendable_comments {
@@ -930,21 +923,18 @@ impl CommentListView {
     }
 
     fn render_send_button(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
-        let ai_available = AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(ctx);
         let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
         let has_sendable_comments = self.has_non_outdated_comments();
 
-        // CLI agents don't consume AI credits, so bypass the ai_available check.
         let enable_send = match &self.review_destination {
             ReviewDestination::None => false,
             ReviewDestination::Cli(_) => has_sendable_comments,
-            ReviewDestination::Warp => ai_available && has_sendable_comments,
+            ReviewDestination::Warp => ai_enabled && has_sendable_comments,
         };
 
         let tooltip_text = Self::send_button_tooltip_text(
             &self.review_destination,
             has_sendable_comments,
-            ai_available,
             ai_enabled,
         );
 
@@ -1183,14 +1173,6 @@ impl TypedActionView for CommentListView {
                     for comment in self.comments_by_id.values_mut() {
                         comment.card.refresh_last_updated_duration();
                     }
-
-                    // Telemetry: comment list view expanded.
-                    send_telemetry_from_ctx!(
-                        CodeReviewTelemetryEvent::CommentListExpanded {
-                            comment_count: self.comments_by_id.len(),
-                        },
-                        ctx
-                    );
                 }
                 ctx.notify();
             }
@@ -1275,7 +1257,6 @@ impl TypedActionView for CommentListView {
                 self.close_overflow_menu(ctx);
             }
             CommentListAction::JumpToCommentLocation(comment_id) => {
-                send_telemetry_from_ctx!(CodeReviewTelemetryEvent::CommentListItemClicked, ctx);
                 ctx.emit(CommentListEvent::JumpToCommentLocation(*comment_id));
             }
         }

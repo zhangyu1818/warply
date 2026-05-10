@@ -1,7 +1,7 @@
 use super::event::{parse_event, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventType};
 use super::{
     CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
-    CLIAgentSessionStatus, CLIAgentSessionsModel,
+    CLIAgentSessionStatus,
 };
 use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;
@@ -111,7 +111,6 @@ fn parse_session_start_notification() {
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
 
     assert_eq!(notif.event, CLIAgentEventType::SessionStart);
-    assert_eq!(notif.payload.plugin_version.as_deref(), Some("1.1.0"));
 }
 
 #[test]
@@ -254,9 +253,7 @@ fn apply_event_preserves_input_session() {
         should_auto_toggle_input: false,
         listener: None,
         remote_host: None,
-        plugin_version: None,
         draft_text: None,
-        custom_command_prefix: None,
     };
 
     let event = CLIAgentEvent {
@@ -275,150 +272,4 @@ fn apply_event_preserves_input_session() {
     session.apply_event(&event);
 
     assert_eq!(session.input_state, input_state);
-}
-
-#[test]
-fn is_remote_returns_true_when_remote_host_is_set() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        plugin_version: None,
-        draft_text: None,
-        remote_host: Some("user@devbox".to_owned()),
-        custom_command_prefix: None,
-    };
-    assert!(session.is_remote());
-}
-
-#[test]
-fn is_remote_returns_false_when_remote_host_is_none() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        remote_host: None,
-        plugin_version: None,
-        draft_text: None,
-        custom_command_prefix: None,
-    };
-    assert!(!session.is_remote());
-}
-
-#[test]
-fn local_failure_is_shared_across_local_sessions() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn local_failure_does_not_affect_remote_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    let remote = Some("user@devbox".to_owned());
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &remote));
-}
-
-#[test]
-fn remote_failure_does_not_affect_local() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, Some("user@devbox".to_owned()));
-
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-}
-
-#[test]
-fn remote_failures_are_independent_per_host() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    let host_a = Some("user@host-a".to_owned());
-    let host_b = Some("user@host-b".to_owned());
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, host_a.clone());
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &host_a));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Claude, &host_b));
-}
-
-#[test]
-fn failure_tracking_is_independent_per_agent() {
-    let mut model = CLIAgentSessionsModel::new();
-
-    model.record_plugin_auto_failure(CLIAgent::Claude, None);
-
-    assert!(model.has_plugin_auto_failed(CLIAgent::Claude, &None));
-    assert!(!model.has_plugin_auto_failed(CLIAgent::Gemini, &None));
-}
-
-#[test]
-fn session_start_sets_plugin_version() {
-    let mut session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        plugin_version: None,
-        draft_text: None,
-        remote_host: None,
-        custom_command_prefix: None,
-    };
-
-    let event = CLIAgentEvent {
-        v: 1,
-        agent: CLIAgent::Claude,
-        event: CLIAgentEventType::SessionStart,
-        session_id: Some("abc".to_owned()),
-        cwd: Some("/tmp".to_owned()),
-        project: Some("proj".to_owned()),
-        payload: CLIAgentEventPayload {
-            plugin_version: Some("1.5.0".to_owned()),
-            ..Default::default()
-        },
-    };
-
-    session.apply_event(&event);
-    assert_eq!(session.plugin_version.as_deref(), Some("1.5.0"));
-}
-
-#[test]
-fn session_start_without_plugin_version_leaves_none() {
-    let mut session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        plugin_version: None,
-        draft_text: None,
-        remote_host: None,
-        custom_command_prefix: None,
-    };
-
-    let event = CLIAgentEvent {
-        v: 1,
-        agent: CLIAgent::Claude,
-        event: CLIAgentEventType::SessionStart,
-        session_id: Some("abc".to_owned()),
-        cwd: None,
-        project: None,
-        payload: CLIAgentEventPayload::default(),
-    };
-
-    session.apply_event(&event);
-    assert_eq!(session.plugin_version, None);
 }

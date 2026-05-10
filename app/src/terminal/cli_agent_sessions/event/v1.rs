@@ -53,7 +53,6 @@ pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {
             summary: raw.summary,
             tool_name: raw.tool_name,
             tool_input_preview,
-            plugin_version: raw.plugin_version,
         },
     })
 }
@@ -72,5 +71,4 @@ struct RawEvent {
     summary: Option<String>,
     tool_name: Option<String>,
     tool_input: Option<serde_json::Value>,
-    plugin_version: Option<String>,
 }

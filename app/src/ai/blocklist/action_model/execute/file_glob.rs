@@ -2,8 +2,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::future::BoxFuture;
-use futures::FutureExt;
 use itertools::Itertools;
 use warpui::r#async::FutureExt as AsyncFutureExt;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -17,12 +15,10 @@ use crate::ai::paths::{host_native_absolute_path, join_paths, shell_native_absol
 use crate::terminal::model::session::ExecuteCommandOptions;
 use crate::{
     ai::agent::AIAgentActionResultType,
-    send_telemetry_from_app_ctx,
     terminal::{
         model::session::active_session::ActiveSession, model::session::Session, shell::ShellType,
         ShellLaunchData,
     },
-    TelemetryEvent,
 };
 use warp_core::features::FeatureFlag;
 
@@ -30,7 +26,7 @@ const FILE_GLOB_TIMEOUT: Duration = Duration::from_secs(10);
 
 use super::{
     get_server_output_id, is_git_repository, ActionExecution, AnyActionExecution,
-    ExecuteActionInput, PreprocessActionInput,
+    ExecuteActionInput,
 };
 
 pub struct FileGlobExecutor {
@@ -39,8 +35,7 @@ pub struct FileGlobExecutor {
 }
 
 fn log_file_glob_error(conversation_id: AIConversationId, ctx: &mut AppContext) {
-    let server_output_id = get_server_output_id(conversation_id, ctx);
-    send_telemetry_from_app_ctx!(TelemetryEvent::FileGlobToolFailed { server_output_id }, ctx);
+    let _server_output_id = get_server_output_id(conversation_id, ctx);
 }
 
 impl FileGlobExecutor {
@@ -149,12 +144,7 @@ impl FileGlobExecutor {
                             log::warn!("Executing file_glob resulted in error: {e:?}");
                             log_file_glob_error(conversation_id_clone, ctx);
                         }
-                        FileGlobV2Result::Success { .. } => {
-                            send_telemetry_from_app_ctx!(
-                                TelemetryEvent::FileGlobToolSucceeded,
-                                ctx
-                            );
-                        }
+                        FileGlobV2Result::Success { .. } => {}
                         _ => {}
                     }
                     // Convert FileGlobV2Result to FileGlobResult if the request was not V2.
@@ -175,14 +165,6 @@ impl FileGlobExecutor {
                 }
             },
         )
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _action: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 
     pub(super) fn can_execute_in_parallel(&self, ctx: &AppContext) -> bool {

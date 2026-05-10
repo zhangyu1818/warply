@@ -1,8 +1,6 @@
 pub use crate::util::openable_file_type::EditorLayout;
 use serde::{Deserialize, Deserializer, Serialize};
-use settings::{
-    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
-};
+use settings::{macros::define_settings_group, SupportedPlatforms};
 
 #[derive(
     Debug,
@@ -72,7 +70,6 @@ define_settings_group!(EditorSettings, settings: [
         type: EditorChoice,
         default: EditorChoice::SystemDefault,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "code.editor.open_file_editor",
         max_table_depth: 0,
@@ -82,7 +79,6 @@ define_settings_group!(EditorSettings, settings: [
         type: EditorChoice,
         default: EditorChoice::Warp,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "code.editor.open_code_panels_file_editor",
         max_table_depth: 0,
@@ -92,7 +88,6 @@ define_settings_group!(EditorSettings, settings: [
         type: EditorLayout,
         default: EditorLayout::SplitPane,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "code.editor.open_file_layout",
         description: "The layout used when opening files in the editor.",
@@ -101,7 +96,6 @@ define_settings_group!(EditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "code.editor.prefer_markdown_viewer",
         description: "Whether to use the Markdown viewer when opening Markdown files.",
@@ -110,7 +104,6 @@ define_settings_group!(EditorSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "code.editor.prefer_tabbed_editor_view",
         description: "Whether to prefer opening files in a tabbed editor view.",
@@ -119,9 +112,8 @@ define_settings_group!(EditorSettings, settings: [
         type: OpenConversationPreference,
         default: OpenConversationPreference::NewTab,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
-        toml_path: "agents.warp_agent.other.open_conversation_layout_preference",
+        toml_path: "ai.conversations.open_layout_preference",
         description: "Whether to open agent conversations in a new tab or a split pane.",
     },
 ]);

@@ -1,9 +1,7 @@
 pub mod event;
 pub mod listener;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) mod plugin_manager;
-
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
@@ -54,7 +52,7 @@ pub enum CLIAgentInputState {
     Closed,
     /// The rich input editor is open.
     Open {
-        /// How this session was opened (for telemetry).
+        /// How this session was opened.
         entrypoint: CLIAgentInputEntrypoint,
         /// The input config that was active before opening rich input.
         previous_input_config: InputConfig,
@@ -63,7 +61,7 @@ pub enum CLIAgentInputState {
     },
 }
 
-/// Why the CLI agent rich input was closed (for telemetry).
+/// Why the CLI agent rich input was closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum CLIAgentRichInputCloseReason {
     /// User explicitly closed (Escape, Ctrl-G, footer button).
@@ -86,15 +84,9 @@ pub enum CLIAgentInputEntrypoint {
     /// Automatically opened when the CLI agent resumed work (left a blocked state)
     /// and the auto-show setting is enabled.
     AutoShow,
-    /// Rich input was opened to mirror a shared-session participant's state.
-    SharedSessionSync,
 }
 
 impl CLIAgentSessionContext {
-    pub(crate) fn display_title(&self) -> Option<String> {
-        self.latest_user_prompt().or_else(|| self.title_like_text())
-    }
-
     pub(crate) fn latest_user_prompt(&self) -> Option<String> {
         self.query
             .as_deref()
@@ -127,9 +119,6 @@ pub struct CLIAgentSession {
     /// `None` for sessions created by command detection alone.
     /// Dropping this handle cleans up the listener's PTY event subscription.
     pub listener: Option<ModelHandle<CLIAgentSessionListener>>,
-    /// The plugin version reported by the `SessionStart` event.
-    /// `None` if the plugin predates version reporting or hasn't connected yet.
-    pub plugin_version: Option<String>,
     /// `None` when the session is local.
     /// `Some("user@hostname")` when running over SSH (warpified or legacy).
     /// Used as a key for per-host plugin install failure tracking.
@@ -137,17 +126,9 @@ pub struct CLIAgentSession {
     /// Draft text saved from the rich input composer when it was closed.
     /// Restored into the editor when the composer is reopened.
     pub draft_text: Option<String>,
-    /// When the session was detected via a custom toolbar command pattern,
-    /// the first word of the command (the binary/alias the user typed).
-    /// Used to customize plugin instructions and force manual install mode.
-    pub custom_command_prefix: Option<String>,
 }
 
 impl CLIAgentSession {
-    pub fn is_remote(&self) -> bool {
-        self.remote_host.is_some()
-    }
-
     /// Applies an event to this session, updating context and status.
     /// Returns the new status if it changed, or `None` if the event was irrelevant.
     fn apply_event(&mut self, event: &CLIAgentEvent) -> Option<CLIAgentSessionStatus> {
@@ -202,10 +183,7 @@ impl CLIAgentSession {
             // IdlePrompt means the agent is sitting at its prompt waiting for input.
             // This should not affect status — otherwise it would override Success after a Stop event.
             CLIAgentEventType::IdlePrompt => return None,
-            CLIAgentEventType::SessionStart => {
-                self.plugin_version = event.payload.plugin_version.clone();
-                return None;
-            }
+            CLIAgentEventType::SessionStart => return None,
             CLIAgentEventType::Unknown(_) => return None,
         };
 
@@ -214,7 +192,7 @@ impl CLIAgentSession {
     }
 }
 
-/// Events emitted by `CLIAgentSessionsModel` for subscribers (e.g., `AgentNotificationsModel`).
+/// Events emitted by `CLIAgentSessionsModel` for subscribers.
 #[allow(dead_code)] // `agent` fields on Started/InputSessionChanged/Ended are used for logging and future subscribers.
 #[derive(Debug, Clone)]
 pub enum CLIAgentSessionsModelEvent {
@@ -271,12 +249,9 @@ impl CLIAgentSessionsModelEvent {
     }
 }
 
-/// Singleton model that tracks pane-scoped CLI agent state and plugin-enriched session context.
+/// Singleton model that tracks pane-scoped CLI agent state.
 pub struct CLIAgentSessionsModel {
     sessions: HashMap<EntityId, CLIAgentSession>,
-    /// Tracks (agent, remote_host) pairs where an auto plugin operation (install or update) has failed.
-    /// Shared across all views so failure in one tab is reflected everywhere.
-    plugin_auto_failures: HashSet<(CLIAgent, Option<String>)>,
 }
 
 impl Entity for CLIAgentSessionsModel {
@@ -289,7 +264,6 @@ impl CLIAgentSessionsModel {
     pub fn new() -> Self {
         Self {
             sessions: HashMap::new(),
-            plugin_auto_failures: HashSet::new(),
         }
     }
 
@@ -307,7 +281,7 @@ impl CLIAgentSessionsModel {
     /// Registers a plugin-backed listener on the session for this terminal.
     ///
     /// If a session for the same agent already exists (e.g. created earlier by
-    /// command detection), it is upgraded with the listener and plugin context.
+    /// command detection), it is updated with the listener and plugin context.
     /// Otherwise a new session is created.
     ///
     /// The optional `cwd` / `project` / `session_id` fields supply initial
@@ -322,7 +296,6 @@ impl CLIAgentSessionsModel {
         cwd: Option<String>,
         project: Option<String>,
         session_id: Option<String>,
-        plugin_version: Option<String>,
         remote_host: Option<String>,
         should_auto_toggle_input: bool,
         listener: ModelHandle<CLIAgentSessionListener>,
@@ -333,10 +306,9 @@ impl CLIAgentSessionsModel {
             .get_mut(&terminal_view_id)
             .filter(|s| s.agent == agent)
         {
-            // Upgrade existing session with plugin context.
+            // Update existing session with plugin context.
             session.status = CLIAgentSessionStatus::InProgress;
             session.listener = Some(listener);
-            session.plugin_version = plugin_version;
             session.remote_host = remote_host;
             session.should_auto_toggle_input = should_auto_toggle_input;
             session.session_context.cwd = cwd.or(session.session_context.cwd.take());
@@ -360,10 +332,8 @@ impl CLIAgentSessionsModel {
                 input_state: CLIAgentInputState::Closed,
                 should_auto_toggle_input,
                 listener: Some(listener),
-                plugin_version,
                 remote_host,
                 draft_text: None,
-                custom_command_prefix: None,
             },
             ctx,
         );
@@ -489,13 +459,6 @@ impl CLIAgentSessionsModel {
         });
     }
 
-    /// Records that an auto plugin operation (install or update) failed for the given agent/host.
-    /// `remote_host` is `None` for local sessions, `Some("user@hostname")` for remote.
-    #[cfg(not(target_family = "wasm"))]
-    pub fn record_plugin_auto_failure(&mut self, agent: CLIAgent, remote_host: Option<String>) {
-        self.plugin_auto_failures.insert((agent, remote_host));
-    }
-
     /// Saves draft text from the rich input composer for the given terminal.
     /// Stores `None` for empty or whitespace-only text.
     pub fn set_draft(&mut self, terminal_view_id: EntityId, text: String) {
@@ -520,12 +483,6 @@ impl CLIAgentSessionsModel {
         self.sessions
             .get_mut(&terminal_view_id)
             .and_then(|s| s.draft_text.take())
-    }
-
-    /// Whether an auto plugin operation has previously failed for this agent on this host.
-    pub fn has_plugin_auto_failed(&self, agent: CLIAgent, remote_host: &Option<String>) -> bool {
-        self.plugin_auto_failures
-            .contains(&(agent, remote_host.clone()))
     }
 }
 

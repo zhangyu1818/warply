@@ -5,11 +5,7 @@ use chrono::{DateTime, Utc};
 use derivative::Derivative;
 use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
-use warp_core::{
-    features::FeatureFlag,
-    ui::{Icon, appearance::Appearance, theme::Fill},
-};
-use warp_graphql::{object_permissions::AccessLevel, scalars::time::ServerTimestamp};
+use warp_core::ui::{Icon, appearance::Appearance, theme::Fill};
 use warpui_core::{
     Element,
     elements::{
@@ -19,16 +15,11 @@ use warpui_core::{
     ui_components::components::UiComponent,
 };
 
-use crate::{
-    auth::UserUid,
-    drive::sharing::{SharingAccessLevel, Subject, TeamKind, UserKind},
-    ids::{FolderId, ServerId, SyncId},
-};
+use crate::{identity::UserUid, ids::SyncId};
 
 /// The type of object id each ObjectType corresponds to.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ObjectIdType {
-    Notebook,
     Workflow,
     Folder,
     GenericStringObject,
@@ -40,7 +31,6 @@ impl ObjectIdType {
     /// APIs are needed.
     pub fn sqlite_prefix(&self) -> &'static str {
         match self {
-            ObjectIdType::Notebook => "Notebook",
             ObjectIdType::Workflow => "Workflow",
             ObjectIdType::Folder => "Folder",
             ObjectIdType::GenericStringObject => "GenericStringObject",
@@ -51,7 +41,6 @@ impl ObjectIdType {
 /// A type for communicating the type of cloud object to/from the server, absent of the object itself.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum ObjectType {
-    Notebook,
     Workflow,
     Folder,
     GenericStringObject(GenericStringObjectFormat),
@@ -61,7 +50,6 @@ impl ObjectType {
     /// Returns the serialized string for the object type, to be used for storing object_type in sqlite.
     pub fn sqlite_object_type_as_str(&self) -> Cow<'_, str> {
         match self {
-            ObjectType::Notebook => "NOTEBOOK".into(),
             ObjectType::Workflow => "WORKFLOW".into(),
             ObjectType::Folder => "FOLDER".into(),
             ObjectType::GenericStringObject(format) => format.to_string().into(),
@@ -69,7 +57,6 @@ impl ObjectType {
     }
 }
 
-const NOTEBOOK_OBJECT_STRING: &str = "notebook";
 const WORKFLOW_OBJECT_STRING: &str = "workflow";
 const PROMPT_OBJECT_STRING: &str = "prompt";
 const FOLDER_OBJECT_STRING: &str = "folder";
@@ -80,7 +67,6 @@ impl FromStr for ObjectType {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            NOTEBOOK_OBJECT_STRING => Ok(Self::Notebook),
             WORKFLOW_OBJECT_STRING => Ok(Self::Workflow),
             PROMPT_OBJECT_STRING => Ok(Self::Workflow),
             FOLDER_OBJECT_STRING => Ok(Self::Folder),
@@ -95,7 +81,6 @@ impl FromStr for ObjectType {
 impl fmt::Display for ObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ObjectType::Notebook => write!(f, "{NOTEBOOK_OBJECT_STRING}"),
             ObjectType::Workflow => write!(f, "{WORKFLOW_OBJECT_STRING}"),
             ObjectType::Folder => write!(f, "{FOLDER_OBJECT_STRING}"),
             ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
@@ -112,7 +97,6 @@ impl fmt::Display for ObjectType {
 impl From<ObjectType> for ObjectIdType {
     fn from(value: ObjectType) -> Self {
         match value {
-            ObjectType::Notebook => ObjectIdType::Notebook,
             ObjectType::Workflow => ObjectIdType::Workflow,
             ObjectType::Folder => ObjectIdType::Folder,
             ObjectType::GenericStringObject(_) => ObjectIdType::GenericStringObject,
@@ -153,31 +137,21 @@ impl ToString for GenericStringObjectFormat {
 /// An object sub-type for objects that implement the JsonModel trait.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub enum JsonObjectType {
-    Preference,
     EnvVarCollection,
     WorkflowEnum,
     AIFact,
     MCPServer,
-    AIExecutionProfile,
     TemplatableMCPServer,
-    CloudEnvironment,
-    ScheduledAmbientAgent,
-    CloudAgentConfig,
 }
 
 impl JsonObjectType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            JsonObjectType::Preference => "PREFERENCE",
             JsonObjectType::EnvVarCollection => "ENVVARCOLLECTION",
             JsonObjectType::WorkflowEnum => "WORKFLOWENUM",
             JsonObjectType::AIFact => "AIFACT",
             JsonObjectType::MCPServer => "MCPSERVER",
-            JsonObjectType::AIExecutionProfile => "AIEXECUTIONPROFILE",
             JsonObjectType::TemplatableMCPServer => "TEMPLATABLEMCPSERVER",
-            JsonObjectType::CloudEnvironment => "CLOUDENVIRONMENT",
-            JsonObjectType::ScheduledAmbientAgent => "SCHEDULEDAMBIENTAGENT",
-            JsonObjectType::CloudAgentConfig => "CLOUDAGENTCONFIG",
         }
     }
 }
@@ -187,54 +161,42 @@ impl TryFrom<&str> for JsonObjectType {
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         match value {
-            "PREFERENCE" => Ok(JsonObjectType::Preference),
             "ENVVARCOLLECTION" => Ok(JsonObjectType::EnvVarCollection),
             "WORKFLOWENUM" => Ok(JsonObjectType::WorkflowEnum),
             "AIFACT" => Ok(JsonObjectType::AIFact),
             "MCPSERVER" => Ok(JsonObjectType::MCPServer),
-            "AIEXECUTIONPROFILE" => Ok(JsonObjectType::AIExecutionProfile),
             "TEMPLATABLEMCPSERVER" => Ok(JsonObjectType::TemplatableMCPServer),
-            "CLOUDENVIRONMENT" => Ok(JsonObjectType::CloudEnvironment),
-            "SCHEDULEDAMBIENTAGENT" => Ok(JsonObjectType::ScheduledAmbientAgent),
-            "CLOUDAGENTCONFIG" => Ok(JsonObjectType::CloudAgentConfig),
             _ => Err(anyhow!("could not convert unknown json object type")),
         }
     }
 }
 
-impl TryFrom<warp_graphql::object::ObjectType> for ObjectIdType {
-    type Error = anyhow::Error;
-    fn try_from(object_type: warp_graphql::object::ObjectType) -> Result<Self, Self::Error> {
-        match object_type {
-            warp_graphql::object::ObjectType::AIConversation => Err(anyhow!(
-                "AIConversation is not a supported object type for this operation"
-            )),
-            warp_graphql::object::ObjectType::Notebook => Ok(ObjectIdType::Notebook),
-            warp_graphql::object::ObjectType::Workflow => Ok(ObjectIdType::Workflow),
-            warp_graphql::object::ObjectType::Folder => Ok(ObjectIdType::Folder),
-            warp_graphql::object::ObjectType::GenericStringObject => {
-                Ok(ObjectIdType::GenericStringObject)
-            }
-            warp_graphql::object::ObjectType::Unknown => {
-                Err(anyhow!("could not convert unknown cloud object type"))
-            }
-        }
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ServerTimestamp(DateTime<Utc>);
+
+impl ServerTimestamp {
+    pub fn new(time: DateTime<Utc>) -> Self {
+        Self(time)
+    }
+
+    pub fn from_unix_timestamp_micros(ms_since_epoch: i64) -> Result<Self> {
+        let date_time = DateTime::from_timestamp_micros(ms_since_epoch)
+            .ok_or_else(|| anyhow!("Unable to convert microseconds into NaiveDateTime"))?;
+        Ok(ServerTimestamp::new(date_time))
+    }
+
+    pub fn timestamp_micros(&self) -> i64 {
+        self.0.timestamp_micros()
+    }
+
+    pub fn utc(&self) -> DateTime<Utc> {
+        self.0
     }
 }
 
-impl From<ObjectType> for warp_graphql::object::ObjectType {
-    fn from(value: ObjectType) -> Self {
-        match value {
-            ObjectType::Notebook => warp_graphql::object::ObjectType::Notebook,
-            ObjectType::Workflow => warp_graphql::object::ObjectType::Workflow,
-            ObjectType::Folder => warp_graphql::object::ObjectType::Folder,
-            ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                JsonObjectType::EnvVarCollection,
-            )) => warp_graphql::object::ObjectType::GenericStringObject,
-            ObjectType::GenericStringObject(gso) => {
-                todo!("Moving is not implemented for {:?}", gso);
-            }
-        }
+impl From<DateTime<Utc>> for ServerTimestamp {
+    fn from(value: DateTime<Utc>) -> Self {
+        ServerTimestamp::new(value)
     }
 }
 
@@ -288,109 +250,20 @@ impl From<DateTime<Utc>> for Revision {
     }
 }
 
-/// The owner for a given object.
 #[derive(Copy, Clone, Debug, Eq, Serialize, Deserialize, Derivative)]
 #[derivative(PartialEq)]
 pub enum Owner {
-    /// The owner of the object is a user (the object is in their personal drive).
     User { user_uid: UserUid },
-    /// The owner of the object is a team (the object is in a team drive).
-    Team { team_uid: ServerId },
 }
 
 impl Owner {
     /// A mock [`Owner`] ID for testing.
     #[cfg(any(test, feature = "test-util"))]
     pub fn mock_current_user() -> Owner {
-        use crate::auth::TEST_USER_UID;
+        use crate::identity::TEST_USER_UID;
 
         Owner::User {
             user_uid: UserUid::new(TEST_USER_UID),
-        }
-    }
-}
-
-impl From<Owner> for Option<ServerId> {
-    fn from(owner: Owner) -> Option<ServerId> {
-        match owner {
-            Owner::User { .. } => None,
-            Owner::Team { team_uid, .. } => Some(team_uid),
-        }
-    }
-}
-
-/// Server representation of an object's container. This corresponds to the `Container` GraphQL
-/// type.
-///
-/// Containers are similar to, but not quite the same as, the [`CloudObjectLocation`] type.
-/// Locations depend on object and user state - an object might currently be in the trash, or
-/// it could be in one user's [shared space](Space::Shared) but another's
-/// [team space](Space::Team). Containers, on the other hand, represent an object's canonical
-/// parent - its one parent folder or drive that permissions are inherited from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ServerObjectContainer {
-    Folder { folder_uid: ServerId },
-    Drive { owner: Owner },
-}
-
-/// Server representation of a user object guest, as part of [`ServerObjectGuest`].
-#[derive(Clone, Debug, PartialEq)]
-pub enum ServerGuestSubject {
-    User { firebase_uid: String },
-    PendingUser { email: Option<String> },
-    Team { team_uid: ServerId },
-}
-
-/// Server representation of a link-sharing setting.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerLinkSharing {
-    pub access_level: AccessLevel,
-    pub source: Option<ServerObjectContainer>,
-}
-
-/// Server representation of an object guest. This corresponds to the `ObjectGuest` GraphQL type.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerObjectGuest {
-    pub subject: ServerGuestSubject,
-    pub access_level: AccessLevel,
-    /// If this guest is inherited, this is the ancestor that it's inherited from.
-    pub source: Option<ServerObjectContainer>,
-}
-
-/// Metadata for a cloud object that was fetched from the server.
-#[derive(Clone, Debug)]
-pub struct ServerMetadata {
-    pub uid: ServerId,
-    pub revision: Revision,
-    pub metadata_last_updated_ts: ServerTimestamp,
-    pub trashed_ts: Option<ServerTimestamp>,
-    pub folder_id: Option<FolderId>,
-    pub is_welcome_object: bool,
-    pub creator_uid: Option<String>,
-    pub last_editor_uid: Option<String>,
-    pub current_editor_uid: Option<String>,
-}
-
-/// Permissions for a cloud object that was fetched from the server.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerPermissions {
-    /// The GraphQL definition of a `Space` is closer to the client's definition of an `Owner` (due
-    /// to sharing). This is also going to migrate back to [ServerMetadata] as part of the
-    /// `Container` migration.
-    pub space: Owner,
-    pub guests: Vec<ServerObjectGuest>,
-    pub anyone_link_sharing: Option<ServerLinkSharing>,
-    pub permissions_last_updated_ts: ServerTimestamp,
-}
-
-impl ServerPermissions {
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn mock_personal() -> Self {
-        Self {
-            space: Owner::mock_current_user(),
-            guests: Vec::new(),
-            anyone_link_sharing: None,
-            permissions_last_updated_ts: DateTime::<Utc>::default().into(),
         }
     }
 }
@@ -418,120 +291,20 @@ pub enum CloudObjectSyncStatus {
 
 const SYNC_ICON_DIMENSIONS: f32 = 16.;
 
-const SYNC_STATUS_TOOLTIP_LOCAL_ONLY: &str = "Saved locally";
 const SYNC_STATUS_TOOLTIP_INFLIGHT: &str = "Saving";
 const SYNC_STATUS_TOOLTIP_ERROR: &str = "Failed to save";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CloudObjectPermissions {
     pub owner: Owner,
-    pub permissions_last_updated_ts: Option<ServerTimestamp>,
-    pub anyone_with_link: Option<CloudLinkSharing>,
-    pub guests: Vec<CloudObjectGuest>,
 }
 
 impl CloudObjectPermissions {
-    pub fn new_from_server(server_permissions: ServerPermissions) -> Self {
-        let guests = if FeatureFlag::SharedWithMe.is_enabled() {
-            server_permissions
-                .guests
-                .into_iter()
-                .map(CloudObjectGuest::from_server)
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let anyone_with_link = if FeatureFlag::SharedWithMe.is_enabled() {
-            server_permissions
-                .anyone_link_sharing
-                .map(CloudLinkSharing::from_server)
-        } else {
-            None
-        };
-
-        Self {
-            owner: server_permissions.space,
-            permissions_last_updated_ts: Some(server_permissions.permissions_last_updated_ts),
-            guests,
-            anyone_with_link,
-        }
-    }
-
     /// Mock permissions for a personal object.
     #[cfg(any(test, feature = "test-util"))]
     pub fn mock_personal() -> Self {
         Self {
             owner: Owner::mock_current_user(),
-            permissions_last_updated_ts: Some(Utc::now().into()),
-            guests: Vec::new(),
-            anyone_with_link: None,
-        }
-    }
-
-    /// Returns `true` if the given user has direct personal access to this object —
-    /// either via an explicit user guest ACL entry or via link sharing.
-    /// Returns `false` if the only access is through a team guest ACL.
-    pub fn has_direct_user_access(&self, user_uid: UserUid) -> bool {
-        self.anyone_with_link.is_some() || self.guests.iter().any(|g| g.subject.is_user(user_uid))
-    }
-
-    /// Updates self from new permissions information received from the server
-    pub fn update_from_new_permissions_ts(&mut self, server_permissions: ServerPermissions) {
-        self.owner = server_permissions.space;
-        self.permissions_last_updated_ts = Some(server_permissions.permissions_last_updated_ts);
-        if FeatureFlag::SharedWithMe.is_enabled() {
-            self.guests = server_permissions
-                .guests
-                .into_iter()
-                .map(CloudObjectGuest::from_server)
-                .collect();
-            self.anyone_with_link = server_permissions
-                .anyone_link_sharing
-                .map(CloudLinkSharing::from_server);
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CloudLinkSharing {
-    pub access_level: SharingAccessLevel,
-    // If this sharing setting was inherited, the `source` identifies the container it's inherited
-    // from.
-    pub source: Option<ServerObjectContainer>,
-}
-
-impl CloudLinkSharing {
-    pub fn from_server(server_link_sharing: ServerLinkSharing) -> Self {
-        Self {
-            access_level: server_link_sharing.access_level.into(),
-            source: server_link_sharing.source,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CloudObjectGuest {
-    pub subject: Subject,
-    pub access_level: SharingAccessLevel,
-    /// If this guest was added to a container object, the `source` identifies that object.
-    pub source: Option<ServerObjectContainer>,
-}
-
-impl CloudObjectGuest {
-    pub fn from_server(server_guest: ServerObjectGuest) -> Self {
-        let subject = match server_guest.subject {
-            ServerGuestSubject::User { firebase_uid } => {
-                Subject::User(UserKind::Account(UserUid::new(&firebase_uid)))
-            }
-            ServerGuestSubject::PendingUser { email } => Subject::PendingUser { email },
-            ServerGuestSubject::Team { team_uid } => Subject::Team(TeamKind::Team { team_uid }),
-        };
-
-        Self {
-            subject,
-            access_level: server_guest.access_level.into(),
-            source: server_guest.source,
         }
     }
 }
@@ -544,42 +317,13 @@ pub struct CloudObjectMetadata {
     pub pending_changes_statuses: CloudObjectStatuses,
     pub trashed_ts: Option<ServerTimestamp>,
     pub folder_id: Option<SyncId>,
-    /// Welcome objects are created on the server when a user first receives
-    /// access to Warp Drive as part of onboarding.
     pub is_welcome_object: bool,
     pub last_editor_uid: Option<String>,
     pub creator_uid: Option<String>,
-    /// The "last used" timestamp for this environment.
-    ///
-    /// This is populated via `GetCloudEnvironments` from
-    /// `CloudEnvironment.lastTaskCreated.createdAt`.
-    /// Only applicable for CloudEnvironment objects.
     pub last_task_run_ts: Option<ServerTimestamp>,
 }
 
 impl CloudObjectMetadata {
-    pub fn new_from_server(server_metadata: ServerMetadata) -> Self {
-        Self {
-            revision: Some(server_metadata.revision),
-            current_editor_uid: server_metadata.current_editor_uid,
-            metadata_last_updated_ts: Some(server_metadata.metadata_last_updated_ts),
-            pending_changes_statuses: CloudObjectStatuses {
-                content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
-            },
-            trashed_ts: server_metadata.trashed_ts,
-            folder_id: server_metadata.folder_id.map(|id| id.into()),
-            is_welcome_object: server_metadata.is_welcome_object,
-            creator_uid: server_metadata.creator_uid,
-            last_editor_uid: server_metadata.last_editor_uid,
-            // last_task_run_ts is populated separately via GetCloudEnvironments query
-            last_task_run_ts: None,
-        }
-    }
-
     /// Creates a new set of metadata with reasonable defaults for a test:
     /// * Content and metadata timestamps set to now
     /// * No editor information
@@ -626,28 +370,6 @@ impl CloudObjectMetadata {
     pub fn set_current_editor(&mut self, editor_uid: Option<String>) {
         self.current_editor_uid = editor_uid;
     }
-
-    /// Updates revision and last_editor_uid from server metadata.
-    ///
-    /// This unconditionally updates the revision and last_editor_uid, even if
-    /// there are conflicts, so callers should check for conflicts before calling
-    /// this.
-    pub fn update_revision_from_server(&mut self, server_metadata: &ServerMetadata) {
-        self.revision = Some(server_metadata.revision.clone());
-        self.last_editor_uid = server_metadata.last_editor_uid.clone();
-    }
-
-    /// Updates self from a new metadata received from the server
-    pub fn update_from_new_metadata_ts(&mut self, server_metadata: ServerMetadata) {
-        // Overwriting the metadata from an MetadataUpdated RTC message shouldn't overwrite
-        // the versioning of the object's data: the revision timestamp, has_pending_changes, conflict_status
-        // (if the object data is not being updated, the data versioning should stay the same.
-        self.current_editor_uid = server_metadata.current_editor_uid;
-        self.trashed_ts = server_metadata.trashed_ts;
-        self.folder_id = server_metadata.folder_id.map(|folder_id| folder_id.into());
-        self.creator_uid = server_metadata.creator_uid;
-        self.metadata_last_updated_ts = Some(server_metadata.metadata_last_updated_ts);
-    }
 }
 
 /// A struct holding the different statuses of pending changes that a cloud object might have.
@@ -689,7 +411,6 @@ impl CloudObjectStatuses {
 
     pub fn render_icon(
         &self,
-        sync_queue_is_dequeueing: bool,
         hover_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
@@ -699,7 +420,6 @@ impl CloudObjectStatuses {
             _ => false,
         };
 
-        let should_show_local_only_indicator = has_in_flight_requests && !sync_queue_is_dequeueing;
         let should_show_syncing_indicator = has_in_flight_requests
             || self.has_pending_metadata_change
             || self.has_pending_permissions_change
@@ -709,12 +429,7 @@ impl CloudObjectStatuses {
             CloudObjectSyncStatus::Errored | CloudObjectSyncStatus::InConflict
         );
 
-        let icon_and_tooltip_text = if should_show_local_only_indicator {
-            Some((
-                Icon::Laptop.to_warpui_icon(theme.main_text_color(theme.surface_1())),
-                SYNC_STATUS_TOOLTIP_LOCAL_ONLY,
-            ))
-        } else if should_show_syncing_indicator {
+        let icon_and_tooltip_text = if should_show_syncing_indicator {
             Some((
                 Icon::Refresh.to_warpui_icon(theme.sub_text_color(theme.surface_2())),
                 SYNC_STATUS_TOOLTIP_INFLIGHT,
@@ -769,230 +484,8 @@ impl CloudObjectStatuses {
     }
 }
 
-// Used for event tracking purposes, matches
-// up with GraphQL enum of the same name.
 #[derive(Copy, Default, Clone, Debug, Eq, PartialEq)]
 pub enum CloudObjectEventEntrypoint {
-    TeamSettings,
-    ResourceCenter,
-    UniversalSearch,
-    ManagementUI,
-    Blocklist,
-    ImportModal,
-    Onboarding,
     #[default]
     Unknown,
-}
-
-// GraphQL conversion impls.
-
-impl From<GenericStringObjectFormat>
-    for warp_graphql::generic_string_object::GenericStringObjectFormat
-{
-    fn from(format: GenericStringObjectFormat) -> Self {
-        use warp_graphql::generic_string_object::GenericStringObjectFormat as GraphQLFormat;
-        match format {
-            GenericStringObjectFormat::Json(JsonObjectType::Preference) => {
-                GraphQLFormat::JsonPreference
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) => {
-                GraphQLFormat::JsonEnvVarCollection
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::WorkflowEnum) => {
-                GraphQLFormat::JsonWorkflowEnum
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::AIFact) => GraphQLFormat::JsonAIFact,
-            GenericStringObjectFormat::Json(JsonObjectType::MCPServer) => {
-                GraphQLFormat::JsonMCPServer
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::AIExecutionProfile) => {
-                GraphQLFormat::JsonAIExecutionProfile
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::TemplatableMCPServer) => {
-                GraphQLFormat::JsonTemplatableMCPServer
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::CloudEnvironment) => {
-                GraphQLFormat::JsonCloudEnvironment
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::ScheduledAmbientAgent) => {
-                GraphQLFormat::JsonScheduledAmbientAgent
-            }
-            GenericStringObjectFormat::Json(JsonObjectType::CloudAgentConfig) => {
-                unreachable!("JsonCloudAgentConfig is no longer present in GraphQL schema")
-            }
-        }
-    }
-}
-
-impl From<CloudObjectEventEntrypoint> for warp_graphql::object::CloudObjectEventEntrypoint {
-    fn from(entrypoint: CloudObjectEventEntrypoint) -> Self {
-        use warp_graphql::object::CloudObjectEventEntrypoint as GraphQLEntrypoint;
-        match entrypoint {
-            CloudObjectEventEntrypoint::TeamSettings => GraphQLEntrypoint::TeamSettings,
-            CloudObjectEventEntrypoint::ResourceCenter => GraphQLEntrypoint::ResourceCenter,
-            CloudObjectEventEntrypoint::UniversalSearch => GraphQLEntrypoint::UniversalSearch,
-            CloudObjectEventEntrypoint::ManagementUI => GraphQLEntrypoint::DriveIndex,
-            CloudObjectEventEntrypoint::Blocklist => GraphQLEntrypoint::Blocklist,
-            CloudObjectEventEntrypoint::ImportModal => GraphQLEntrypoint::ImportModal,
-            CloudObjectEventEntrypoint::Onboarding => GraphQLEntrypoint::Onboarding,
-            CloudObjectEventEntrypoint::Unknown => GraphQLEntrypoint::Unknown,
-        }
-    }
-}
-
-impl TryFrom<warp_graphql::object::ObjectMetadata> for ServerMetadata {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::object::ObjectMetadata) -> Result<Self, Self::Error> {
-        let folder_id: Option<FolderId> = match value.parent {
-            warp_graphql::object::Container::FolderContainer(folder_container) => {
-                Some(folder_container.folder_uid.into_inner().into())
-            }
-            _ => None,
-        };
-        let metadata = ServerMetadata {
-            uid: ServerId::from_string_lossy(value.uid.inner()),
-            revision: value.revision_ts.into(),
-            metadata_last_updated_ts: value.metadata_last_updated_ts,
-            trashed_ts: value.trashed_ts,
-            folder_id,
-            is_welcome_object: value.is_welcome_object,
-            creator_uid: value.creator_uid.map(|uid| uid.into_inner()),
-            last_editor_uid: value.last_editor_uid.map(|uid| uid.into_inner()),
-            current_editor_uid: value.current_editor_uid.map(|uid| uid.into_inner()),
-        };
-        Ok(metadata)
-    }
-}
-
-impl TryFrom<warp_graphql::object_permissions::ObjectPermissions> for ServerPermissions {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        value: warp_graphql::object_permissions::ObjectPermissions,
-    ) -> Result<Self, Self::Error> {
-        let server_object_guests: Result<Vec<ServerObjectGuest>, _> = value
-            .guests
-            .into_iter()
-            .map(|guest| guest.try_into())
-            .collect();
-        let object_permissions = ServerPermissions {
-            space: value.space.try_into()?,
-            guests: server_object_guests?,
-            anyone_link_sharing: match value.anyone_link_sharing {
-                Some(sharing) => Some(sharing.try_into()?),
-                None => None,
-            },
-            permissions_last_updated_ts: value.last_updated_ts,
-        };
-        Ok(object_permissions)
-    }
-}
-
-impl TryFrom<warp_graphql::object_permissions::ObjectGuest> for ServerObjectGuest {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::object_permissions::ObjectGuest) -> Result<Self, Self::Error> {
-        let object_guest = ServerObjectGuest {
-            subject: value.subject.try_into()?,
-            access_level: value.access_level,
-            source: match value.source {
-                Some(container) => Some(container.try_into()?),
-                None => None,
-            },
-        };
-        Ok(object_guest)
-    }
-}
-
-impl TryFrom<warp_graphql::object_permissions::GuestSubject> for ServerGuestSubject {
-    type Error = anyhow::Error;
-
-    fn try_from(
-        value: warp_graphql::object_permissions::GuestSubject,
-    ) -> Result<Self, Self::Error> {
-        match value {
-            warp_graphql::object_permissions::GuestSubject::UserGuest(user_guest) => {
-                let guest_subject = ServerGuestSubject::User {
-                    firebase_uid: user_guest.firebase_uid.into_inner(),
-                };
-                Ok(guest_subject)
-            }
-            warp_graphql::object_permissions::GuestSubject::PendingUserGuest(guest) => {
-                Ok(ServerGuestSubject::PendingUser { email: guest.email })
-            }
-            warp_graphql::object_permissions::GuestSubject::TeamGuest(team_guest) => {
-                Ok(ServerGuestSubject::Team {
-                    team_uid: ServerId::from_string_lossy(team_guest.uid.inner()),
-                })
-            }
-            warp_graphql::object_permissions::GuestSubject::Unknown => {
-                anyhow::bail!("Unknown GuestSubject type")
-            }
-        }
-    }
-}
-
-impl TryFrom<warp_graphql::object_permissions::LinkSharing> for ServerLinkSharing {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::object_permissions::LinkSharing) -> Result<Self, Self::Error> {
-        Ok(ServerLinkSharing {
-            access_level: value.access_level,
-            source: value.source.map(TryInto::try_into).transpose()?,
-        })
-    }
-}
-
-impl TryFrom<warp_graphql::object::Container> for ServerObjectContainer {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::object::Container) -> Result<Self, Self::Error> {
-        match value {
-            warp_graphql::object::Container::FolderContainer(folder) => {
-                Ok(ServerObjectContainer::Folder {
-                    folder_uid: ServerId::from_string_lossy(folder.folder_uid.inner()),
-                })
-            }
-            warp_graphql::object::Container::Space(space) => Ok(ServerObjectContainer::Drive {
-                owner: space.try_into()?,
-            }),
-            warp_graphql::object::Container::Unknown => {
-                anyhow::bail!("Unknown Container type")
-            }
-        }
-    }
-}
-
-impl TryFrom<warp_graphql::object::Space> for Owner {
-    type Error = anyhow::Error;
-
-    fn try_from(value: warp_graphql::object::Space) -> Result<Self, Self::Error> {
-        let owner = match value.type_ {
-            warp_graphql::object::SpaceType::Team => Owner::Team {
-                team_uid: ServerId::from_string_lossy(value.uid.inner()),
-            },
-            warp_graphql::object::SpaceType::User => Owner::User {
-                user_uid: UserUid::new(value.uid.inner()),
-            },
-        };
-        Ok(owner)
-    }
-}
-
-impl From<Owner> for warp_graphql::object_permissions::Owner {
-    fn from(owner: Owner) -> Self {
-        use warp_graphql::object_permissions::Owner as GraphQLOwner;
-        use warp_graphql::object_permissions::OwnerType;
-        match owner {
-            Owner::User { user_uid } => GraphQLOwner {
-                type_: OwnerType::User,
-                uid: Some(cynic::Id::new(user_uid.to_string())),
-            },
-            Owner::Team { team_uid, .. } => GraphQLOwner {
-                type_: OwnerType::Team,
-                uid: Some(cynic::Id::new(team_uid)),
-            },
-        }
-    }
 }

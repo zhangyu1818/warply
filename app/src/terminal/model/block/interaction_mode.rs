@@ -86,7 +86,7 @@ impl Block {
             .and_then(|metadata| metadata.subagent_task_id())
     }
 
-    pub fn upgrade_cli_subagent_task_id(&mut self, new_task_id: TaskId) -> anyhow::Result<()> {
+    pub fn promote_cli_subagent_task_id(&mut self, new_task_id: TaskId) -> anyhow::Result<()> {
         if let InteractionMode::Agent(AgentInteractionMetadata {
             subagent_task_id: Some(ref mut task_id),
             ..
@@ -95,7 +95,7 @@ impl Block {
             *task_id = new_task_id;
             Ok(())
         } else {
-            Err(anyhow!("Tried to upgrade CLI subagent task ID for block with no prior CLI subagent task ID."))
+            Err(anyhow!("Tried to promote CLI subagent task ID for block with no prior CLI subagent task ID."))
         }
     }
 

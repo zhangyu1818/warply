@@ -1,11 +1,10 @@
-use futures::{future::BoxFuture, FutureExt};
 use warpui::{Entity, ModelContext};
 
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionResultType, AIAgentActionType, SuggestNewConversationResult,
 };
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 /// Whether the client accepted or rejected the new conversation. We make this a separate type from
 /// `SuggestNewConversationResult` for more ergonomic threading of the message_id through
@@ -69,14 +68,6 @@ impl SuggestNewConversationExecutor {
                 ),
             }
         })
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _action: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 
     pub fn complete_suggest_new_conversation_action(&self, decision: NewConversationDecision) {

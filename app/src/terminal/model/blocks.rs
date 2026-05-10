@@ -329,9 +329,6 @@ pub struct BlockList {
 
     obfuscate_secrets: ObfuscateSecrets,
 
-    /// `true` if client-side telemetry for user-generated AI data is enabled.
-    is_ai_ugc_telemetry_enabled: bool,
-
     /// Persisted info about the scroll position before a filter is applied. This
     /// data is used return users to their original scroll position after a
     /// filter is removed.
@@ -350,7 +347,7 @@ pub struct BlockList {
     /// of the blocklist. After any other insertion, this item is automatically
     /// removed and re-appended so it stays last.
     pinned_to_bottom: Option<EntityId>,
-    is_executing_oz_environment_startup_commands: bool,
+    is_executing_agent_environment_startup_commands: bool,
 }
 
 #[cfg(debug_assertions)]
@@ -558,7 +555,6 @@ impl BlockList {
         honor_ps1: bool,
         is_inverted: bool,
         obfuscate_secrets: ObfuscateSecrets,
-        is_ai_ugc_telemetry_enabled: bool,
     ) -> Self {
         let mut block_list = Self::new_internal(
             sizes,
@@ -570,7 +566,6 @@ impl BlockList {
             honor_ps1,
             is_inverted,
             obfuscate_secrets,
-            is_ai_ugc_telemetry_enabled,
         );
         block_list.initialize(restored_blocks);
         block_list
@@ -607,7 +602,6 @@ impl BlockList {
         honor_ps1: bool,
         is_inverted: bool,
         obfuscate_secrets: ObfuscateSecrets,
-        is_ai_ugc_telemetry_enabled: bool,
     ) -> Self {
         let bootstrap_stage = BootstrapStage::RestoreBlocks;
         let block_heights = SumTree::new();
@@ -640,12 +634,11 @@ impl BlockList {
             last_populated_precmd_payload: None,
             cached_prompt_data: None,
             obfuscate_secrets,
-            is_ai_ugc_telemetry_enabled,
             scroll_position_before_filter: None,
             is_inverted,
             agent_view_state: AgentViewState::Inactive,
             pinned_to_bottom: None,
-            is_executing_oz_environment_startup_commands: false,
+            is_executing_agent_environment_startup_commands: false,
         }
     }
 
@@ -686,81 +679,6 @@ impl BlockList {
         // When shell input arrives, the block will be started (see the `input` handler).
         // This ensures sessions without a shell (like cloude mode) don't permanently trigger is_active_and_long_running()
         // since the block will never be finished.
-    }
-
-    pub(super) fn load_shared_session_scrollback(&mut self, scrollback: &[SerializedBlock]) {
-        // When we're loading the shared session scrollback, first check
-        // if there's an unfinished block; if there is, finish it because it
-        // will otherwise remain unfinished in perpetuity.
-        if !self.active_block().finished() {
-            self.active_block_mut().finish(0);
-        }
-
-        // Simulate finishing bootstrapping once we get the scrollback, since the scrollback contains the active prompt.
-        self.set_bootstrapped();
-        let mut processor: Processor = Processor::new();
-
-        let Some((active_block, completed_blocks)) = scrollback.split_last() else {
-            return;
-        };
-
-        for block in completed_blocks {
-            if block.start_ts.is_some() && block.completed_ts.is_some() {
-                self.restore_block(block, BootstrapStage::PostBootstrapPrecmd, &mut processor);
-            } else {
-                log::warn!("A non-active scrollback block was either not started or not completed");
-            }
-        }
-
-        // The last block being restored is the active block
-        // (potentially long-running) and has the latest prompt.
-        debug_assert!(active_block.completed_ts.is_none());
-        self.restore_block(
-            active_block,
-            BootstrapStage::PostBootstrapPrecmd,
-            &mut processor,
-        );
-    }
-
-    pub(super) fn append_followup_shared_session_scrollback(
-        &mut self,
-        scrollback: &[SerializedBlock],
-    ) {
-        self.set_bootstrapped();
-        let mut processor = Processor::new();
-
-        let Some((active_block, completed_blocks)) = scrollback.split_last() else {
-            return;
-        };
-
-        for block in completed_blocks {
-            if self.block_index_for_id(&block.id).is_some() {
-                continue;
-            }
-            if block.start_ts.is_some() && block.completed_ts.is_some() {
-                self.finish_active_block_before_followup_append();
-                self.restore_block(block, BootstrapStage::PostBootstrapPrecmd, &mut processor);
-            } else {
-                log::warn!("A non-active follow-up scrollback block was either not started or not completed");
-            }
-        }
-
-        if self.block_index_for_id(&active_block.id).is_none() {
-            debug_assert!(active_block.completed_ts.is_none());
-            self.finish_active_block_before_followup_append();
-            self.restore_block(
-                active_block,
-                BootstrapStage::PostBootstrapPrecmd,
-                &mut processor,
-            );
-        }
-    }
-
-    fn finish_active_block_before_followup_append(&mut self) {
-        if !self.active_block().finished() {
-            self.active_block_mut().finish(0);
-            self.update_active_block_height();
-        }
     }
 
     /// This is an important function in the block list lifecycle. After this
@@ -1322,23 +1240,23 @@ impl BlockList {
         }
     }
 
-    pub fn is_executing_oz_environment_startup_commands(&self) -> bool {
-        self.is_executing_oz_environment_startup_commands
+    pub fn is_executing_agent_environment_startup_commands(&self) -> bool {
+        self.is_executing_agent_environment_startup_commands
     }
 
-    pub fn set_is_executing_oz_environment_startup_commands(
+    pub fn set_is_executing_agent_environment_startup_commands(
         &mut self,
         is_executing_startup_commands: bool,
     ) {
-        self.is_executing_oz_environment_startup_commands = is_executing_startup_commands;
+        self.is_executing_agent_environment_startup_commands = is_executing_startup_commands;
         if is_executing_startup_commands {
             self.active_block_mut().hide();
             self.active_block_mut()
-                .set_is_oz_environment_startup_command(true);
+                .set_is_agent_environment_startup_command(true);
         } else {
             self.active_block_mut().unhide();
             self.active_block_mut()
-                .set_is_oz_environment_startup_command(false);
+                .set_is_agent_environment_startup_command(false);
         }
     }
 
@@ -1633,12 +1551,12 @@ impl BlockList {
         modified_blocks
     }
 
-    /// Attaches every non-oz-startup block in the list to `conversation_id` so each block is
+    /// Attaches every non-agent-startup block in the list to `conversation_id` so each block is
     /// visible while that conversation is the active one in agent view. Skips blocks flagged
-    /// as `is_oz_environment_startup_command` since those are hidden by their own mechanism.
+    /// as `is_agent_environment_startup_command` since those are hidden by their own mechanism.
     pub fn attach_non_startup_blocks_to_conversation(&mut self, conversation_id: AIConversationId) {
         for block in &mut self.blocks {
-            if block.is_oz_environment_startup_command() {
+            if block.is_agent_environment_startup_command() {
                 continue;
             }
             if let AgentViewVisibility::Agent {
@@ -2533,7 +2451,6 @@ impl BlockList {
             self.blocks.len().into(),
             honor_ps1,
             self.obfuscate_secrets,
-            self.is_ai_ugc_telemetry_enabled,
             self.agent_view_state.active_conversation_id(),
         );
         if let Some(is_local) = restored_block_was_local {
@@ -2553,8 +2470,8 @@ impl BlockList {
             }
         }
 
-        if self.is_executing_oz_environment_startup_commands {
-            block.set_is_oz_environment_startup_command(true);
+        if self.is_executing_agent_environment_startup_commands {
+            block.set_is_agent_environment_startup_command(true);
             block.hide();
         }
 
@@ -2587,7 +2504,6 @@ impl BlockList {
             BlockIndex::zero(),
             false,
             self.obfuscate_secrets,
-            self.is_ai_ugc_telemetry_enabled,
             None,
         )
     }
@@ -2600,16 +2516,6 @@ impl BlockList {
         for block in self.blocks.iter_mut() {
             block.set_obfuscate_secrets(obfuscate_secrets);
         }
-    }
-
-    /// Sets whether subsequent blocks (including the active block) have their grids obfuscated.
-    pub(super) fn set_obfuscate_secrets_for_subsequent_blocks(
-        &mut self,
-        obfuscate_secrets: ObfuscateSecrets,
-    ) {
-        self.obfuscate_secrets = obfuscate_secrets;
-        self.active_block_mut()
-            .set_obfuscate_secrets(obfuscate_secrets);
     }
 
     /// Sets whether the grids of the specified block should be obfuscated.
@@ -3239,51 +3145,6 @@ impl BlockList {
 
     /// Insert a rich content item immediately after the given removable item.
     /// Returns true if insertion succeeded.
-    pub(in crate::terminal) fn insert_rich_content_after_item(
-        &mut self,
-        after_item: RemovableBlocklistItem,
-        item: RichContentItem,
-    ) -> bool {
-        let Some(current_index) = self
-            .removable_blocklist_item_positions
-            .get(&after_item)
-            .copied()
-        else {
-            return false;
-        };
-
-        let view_id = item.view_id;
-
-        // Recreate block heights tree with new item inserted.
-        let (new_tree, inserted_index) = {
-            let mut cursor = self.block_heights.cursor::<TotalIndex, ()>();
-            let mut prefix = cursor.slice(&(current_index + 1), SeekBias::Right);
-            let inserted_index = TotalIndex(prefix.summary().total_count);
-            prefix.push(BlockHeightItem::RichContent(item));
-            prefix.push_tree(cursor.suffix());
-            (prefix, inserted_index)
-        };
-
-        self.block_heights = new_tree;
-        self.update_block_height_indices(BlockHeightUpdate::Insertion(inserted_index), true);
-
-        // If there is an item at the index that we are inserting into,
-        // we should shift that item forward by one.
-        self.removable_blocklist_item_positions
-            .values_mut()
-            .for_each(|pos| {
-                if *pos == inserted_index {
-                    pos.0 += 1;
-                }
-            });
-
-        self.removable_blocklist_item_positions
-            .insert(RemovableBlocklistItem::RichContent(view_id), inserted_index);
-        self.event_proxy.send_wakeup_event();
-
-        true
-    }
-
     pub(in crate::terminal) fn set_marked_text(
         &mut self,
         marked_text: &str,

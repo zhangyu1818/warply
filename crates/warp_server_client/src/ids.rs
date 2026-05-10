@@ -330,18 +330,6 @@ pub trait ToServerId {
     fn to_server_id(&self) -> ServerId;
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerIdAndType {
-    pub id: ServerId,
-    pub id_type: ObjectIdType,
-}
-
-impl ServerIdAndType {
-    pub fn sqlite_type_and_uid_hash(&self) -> HashedSqliteId {
-        self.id.sqlite_type_and_uid_hash(self.id_type)
-    }
-}
-
 /// string_id_traits is a macro used for generating implementations for the type aliases on
 /// ServerId, implements different To/From and Display, and HashableId traits.
 /// Takes type and desired prefix for HashableId.

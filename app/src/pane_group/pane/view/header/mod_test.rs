@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
     elements::Empty, platform::WindowStyle, App, AppContext, Element, Entity, TypedActionView,
@@ -7,24 +6,20 @@ use warpui::{
 
 use crate::{
     ai::blocklist::BlocklistAIHistoryModel,
-    auth::AuthStateProvider,
     cloud_object::model::persistence::CloudModel,
+    http_api::HttpApiProvider,
+    identity::LocalIdentityProvider,
     menu::MenuItemFields,
     pane_group::{focus_state::PaneFocusHandle, BackingView, PaneConfiguration, PaneId, PaneView},
-    server::server_api::{object::MockObjectClient, ServerApiProvider},
     settings_view::keybindings::KeybindingChangedNotifier,
-    terminal::shared_session::permissions_manager::SessionPermissionsManager,
     test_util::settings::initialize_settings_for_tests,
-    NetworkStatus, SyncQueue, TeamTesterStatus, UpdateManager, UserProfiles, UserWorkspaces,
+    NetworkStatus, UpdateManager, UserWorkspaces,
 };
 
 use super::{Event, OpenOverlay};
 
 #[cfg(test)]
-use crate::server::server_api::workspace::MockWorkspaceClient;
-
 #[cfg(test)]
-use crate::server::server_api::team::MockTeamClient;
 
 /// A dummy view that is also a backing pane view for testing purposes.
 struct TestView {
@@ -100,7 +95,7 @@ impl BackingView for TestView {
 
     fn render_header_content(
         &self,
-        _ctx: &super::HeaderRenderContext<'_>,
+        _ctx: &super::HeaderRenderContext,
         _app: &AppContext,
     ) -> super::HeaderContent {
         super::HeaderContent::simple("Test")
@@ -114,28 +109,14 @@ fn initialize_app(app: &mut App) {
 
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_| NetworkStatus::new());
-    let mock_team_client = Arc::new(MockTeamClient::new());
-    let mock_workspace_client = Arc::new(MockWorkspaceClient::new());
-    app.add_singleton_model(SyncQueue::mock);
-    app.add_singleton_model(|ctx| {
-        UserWorkspaces::mock(
-            mock_team_client.clone(),
-            mock_workspace_client.clone(),
-            vec![],
-            ctx,
-        )
-    });
-    app.add_singleton_model(TeamTesterStatus::new);
-    app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| UserProfiles::new(Vec::new()));
+    app.add_singleton_model(UserWorkspaces::default_mock);
+    app.add_singleton_model(|_| HttpApiProvider::new_for_test());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|ctx| UpdateManager::new(None, Arc::new(MockObjectClient::new()), ctx));
-    app.add_singleton_model(SessionPermissionsManager::new);
+    app.add_singleton_model(|ctx| UpdateManager::new(None, ctx));
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-    #[cfg(feature = "voice_input")]
-    app.add_singleton_model(voice_input::VoiceInput::new);
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
 }
 
 #[test]

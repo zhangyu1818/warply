@@ -3,13 +3,12 @@ use warpui::{
 };
 
 use crate::{
-    cloud_object::{model::persistence::CloudModel, CloudObjectEventEntrypoint, Space},
-    drive::OpenWarpDriveObjectSettings,
-    integration_testing::view_getters::workspace_view,
-    server::{
-        cloud_objects::update_manager::UpdateManager,
-        ids::{ClientId, SyncId},
+    cloud_object::{
+        model::persistence::CloudModel, update_manager::UpdateManager, CloudObjectEventEntrypoint,
+        Space,
     },
+    integration_testing::view_getters::workspace_view,
+    object_ids::{ClientId, SyncId},
     workflows::{manager::WorkflowOpenSource, workflow::Workflow, WorkflowViewMode},
     workspaces::user_workspaces::UserWorkspaces,
 };
@@ -28,11 +27,11 @@ pub fn create_a_personal_workflow(key: impl Into<String>) -> TestStep {
                 update_manager.create_workflow(
                     workflow.clone(),
                     UserWorkspaces::as_ref(ctx)
-                        .personal_drive(ctx)
+                        .current_user_owner(ctx)
                         .expect("User UID must be set in tests"),
                     None,
                     client_id,
-                    CloudObjectEventEntrypoint::ManagementUI,
+                    CloudObjectEventEntrypoint::Unknown,
                     true,
                     ctx,
                 );
@@ -70,7 +69,6 @@ pub fn open_workflow(window_key: impl Into<String>, workflow_key: impl Into<Stri
                 WindowManager::as_ref(ctx).show_window_and_focus_app(*window_id);
                 workspace.open_workflow_in_pane(
                     &WorkflowOpenSource::Existing(*workflow_id),
-                    &OpenWarpDriveObjectSettings::default(),
                     WorkflowViewMode::View,
                     ctx,
                 );

@@ -7,12 +7,12 @@ use crate::ai::execution_profiles::{
     profiles::AIExecutionProfilesModel, AskUserQuestionPermission,
 };
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::update_manager::UpdateManager;
+use crate::identity::LocalIdentityProvider;
 use crate::network::NetworkStatus;
-use crate::server::{cloud_objects::update_manager::UpdateManager, sync_queue::SyncQueue};
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::{team_tester::TeamTesterStatus, user_workspaces::UserWorkspaces};
+use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::LaunchMode;
 use ai::agent::action::AskUserQuestionItem;
 use ai::agent::action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult};
@@ -45,7 +45,7 @@ fn should_autoexecute_returns_false_when_autoapprove_is_enabled_and_profile_alwa
         let executor = app.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let action = build_action("ask-user-question");
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, true, false, ctx)
+            history.start_new_conversation(terminal_view_id, true, ctx)
         });
 
         profiles.update(&mut app, |profiles, ctx| {
@@ -74,10 +74,8 @@ fn initialize_ask_user_question_test(
 ) {
     initialize_settings_for_tests(app);
     let history = app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-    app.add_singleton_model(SyncQueue::mock);
+    app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(|_| NetworkStatus::new());
-    app.add_singleton_model(TeamTesterStatus::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| TemplatableMCPServerManager::default());
@@ -86,17 +84,14 @@ fn initialize_ask_user_question_test(
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });
     app.add_singleton_model(BlocklistAIPermissions::new);
-    // Ensure asking questions is allowed by default regardless of compile-time profile
-    // defaults (e.g. agent_mode_evals overrides ask_user_question to Never).
     profiles.update(app, |profiles, ctx| {
-        if let Some(profile_id) = profiles.create_profile(ctx) {
-            profiles.set_ask_user_question(
-                profile_id,
-                AskUserQuestionPermission::AskExceptInAutoApprove,
-                ctx,
-            );
-            profiles.set_active_profile(terminal_view_id, profile_id, ctx);
-        }
+        let profile_id = profiles.default_profile_id();
+        profiles.set_ask_user_question(
+            profile_id,
+            AskUserQuestionPermission::AskExceptInAutoApprove,
+            ctx,
+        );
+        profiles.set_active_profile(terminal_view_id, profile_id, ctx);
     });
     (history, profiles)
 }
@@ -128,7 +123,7 @@ fn should_autoexecute_returns_true_when_autoapprove_is_enabled_and_profile_allow
         let executor = app.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let action = build_action("ask-user-question");
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, true, false, ctx)
+            history.start_new_conversation(terminal_view_id, true, ctx)
         });
         let result = executor.update(&mut app, |executor, ctx| {
             let input = ExecuteActionInput {
@@ -150,7 +145,7 @@ fn execute_returns_sync_skipped_question_ids_when_autoapprove_is_enabled() {
         let executor = app.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let action = build_action("ask-user-question");
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, true, false, ctx)
+            history.start_new_conversation(terminal_view_id, true, ctx)
         });
 
         let execution = executor.update(&mut app, |executor, ctx| {
@@ -261,13 +256,11 @@ fn should_autoexecute_uses_active_terminal_profile_permission() {
         let executor = app.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         let action = build_action("ask-user-question");
         let conversation_id = history.update(&mut app, |history, ctx| {
-            history.start_new_conversation(terminal_view_id, false, false, ctx)
+            history.start_new_conversation(terminal_view_id, false, ctx)
         });
 
         profiles.update(&mut app, |profiles, ctx| {
-            let profile_id = profiles
-                .create_profile(ctx)
-                .expect("test profile should be created");
+            let profile_id = profiles.default_profile_id();
             profiles.set_ask_user_question(profile_id, AskUserQuestionPermission::Never, ctx);
             profiles.set_active_profile(terminal_view_id, profile_id, ctx);
         });

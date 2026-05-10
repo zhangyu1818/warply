@@ -4,9 +4,7 @@
 //! at runtime, registration silently no-ops — the user-facing setting still
 //! updates, but we don't try to register against a class that isn't there.
 
-use crate::report_if_error;
 use crate::terminal::general_settings::GeneralSettings;
-use ::settings::Setting;
 use warpui::{AppContext, SingletonEntity};
 
 #[allow(deprecated)]
@@ -60,11 +58,7 @@ pub(super) fn maybe_register_app_as_login_item(ctx: &mut AppContext) {
                 }
                 false
             },
-            |settings, app_added_as_login_item, ctx| {
-                report_if_error!(settings
-                    .app_added_as_login_item
-                    .set_value(app_added_as_login_item, ctx));
-            },
+            |_settings, _app_added_as_login_item, _ctx| {},
         );
     });
 }

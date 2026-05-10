@@ -9,10 +9,6 @@ use web_sys::console;
 /// Initializes the global logger for the application.
 /// Note: On WASM, `config` is ignored since we always log to the browser console.
 pub fn init(_config: LogConfig) -> Result<()> {
-    // Set a panic hook that captures panic stack traces and writes them out
-    // via console.error().
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-
     // Increase the limit on number of frames in a printed stack trace.  This
     // typically defaults to 10, which is too short to be useful for Rust.
     // js-sys doesn't have bindings for `Error.stackTraceLimit`, so we set
@@ -160,27 +156,12 @@ impl Log for WasmLogger {
                 Level::Warn => {
                     console::warn_4(&s, &JsValue::from(&style.lvl_warn), &tgt_style, &args_style)
                 }
-                Level::Error => {
-                    let error = format!(
-                        "ERROR: {}\n\n{}:{}",
-                        record.args(),
-                        record.file().unwrap_or_else(|| record.target()),
-                        record
-                            .line()
-                            .map_or_else(|| "[Unknown]".to_string(), |line| line.to_string()),
-                    );
-                    // Send error logs to Sentry.
-                    warp_web_event_bus::emit_event(warp_web_event_bus::WarpEvent::ErrorLogged {
-                        error,
-                    });
-
-                    console::error_4(
-                        &s,
-                        &JsValue::from(&style.lvl_error),
-                        &tgt_style,
-                        &args_style,
-                    )
-                }
+                Level::Error => console::error_4(
+                    &s,
+                    &JsValue::from(&style.lvl_error),
+                    &tgt_style,
+                    &args_style,
+                ),
             }
         }
     }

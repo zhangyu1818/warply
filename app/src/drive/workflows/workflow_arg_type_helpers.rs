@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use crate::{
+    cloud_object::update_manager::UpdateManager,
     cloud_object::{model::persistence::CloudModel, CloudObjectEventEntrypoint, Owner},
     editor::EditorView,
-    server::{cloud_objects::update_manager::UpdateManager, ids::SyncId},
+    object_ids::SyncId,
     workflows::{
         workflow::{Argument, ArgumentType},
         workflow_enum::WorkflowEnum,

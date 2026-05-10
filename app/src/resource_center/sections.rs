@@ -1,17 +1,13 @@
-use warp_core::{context_flag::ContextFlag, features::FeatureFlag};
+use warp_core::context_flag::ContextFlag;
 use warpui::ViewContext;
 
 use super::{
-    ContentItem, ContentSectionData, FeatureItem, FeatureSection, FeatureSectionData,
-    ResourceCenterMainView, Section, Tip, TipAction, TipHint,
+    FeatureItem, FeatureSection, FeatureSectionData, ResourceCenterMainView, Tip, TipAction,
+    TipHint,
 };
 
-pub fn sections(ctx: &mut ViewContext<ResourceCenterMainView>) -> Vec<Section> {
-    let mut sections = vec![Section::Changelog()];
-
-    if FeatureFlag::AvatarInTabBar.is_enabled() {
-        return sections;
-    }
+pub fn sections(ctx: &mut ViewContext<ResourceCenterMainView>) -> Vec<FeatureSectionData> {
+    let mut sections = vec![];
 
     let get_started = FeatureSectionData {
         section_name: FeatureSection::GettingStarted,
@@ -30,7 +26,7 @@ pub fn sections(ctx: &mut ViewContext<ResourceCenterMainView>) -> Vec<Section> {
             ),
             FeatureItem::new(
                 "Take an action on block",
-                "Right click on a block to copy/paste, share, more.",
+                "Right click on a block to copy, paste, and more.",
                 Tip::Hint(TipHint::BlockAction),
                 ctx,
             ),
@@ -48,38 +44,13 @@ pub fn sections(ctx: &mut ViewContext<ResourceCenterMainView>) -> Vec<Section> {
             ),
         ],
     };
-    sections.push(Section::Feature(get_started));
+    sections.push(get_started);
 
     let maximize_warp = FeatureSectionData {
         section_name: FeatureSection::MaximizeWarp,
         items: maximize_warp_items(ctx),
     };
-    sections.push(Section::Feature(maximize_warp));
-
-    let advanced_setup = ContentSectionData {
-        section_name: FeatureSection::AdvancedSetup,
-        items: vec![
-            ContentItem {
-                title: "Use your custom prompt",
-                description: "Set up Warp to honor your PS1 setting",
-                url: "https://docs.warp.dev/terminal/appearance/prompt",
-                button_label: "View documentation",
-            },
-            ContentItem {
-                title: "Integrate Warp with your IDE",
-                description: "Configure Warp to launch from your most used development tools",
-                url: "https://docs.warp.dev/terminal/integrations-and-plugins",
-                button_label: "View documentation",
-            },
-            ContentItem {
-                title: "How Warp uses Warp",
-                description: "Learn how Warp's engineering team uses their favorite features",
-                url: "https://www.warp.dev/blog/how-warp-uses-warp",
-                button_label: "Read article",
-            },
-        ],
-    };
-    sections.push(Section::Content(advanced_setup));
+    sections.push(maximize_warp);
 
     sections
 }

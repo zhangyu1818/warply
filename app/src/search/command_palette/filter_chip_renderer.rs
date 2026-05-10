@@ -1,5 +1,5 @@
 use crate::appearance::Appearance;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
+use crate::drive::cloud_object_styling::local_object_icon_color;
 use crate::drive::DriveObjectType;
 use crate::search::FilterChipRenderer as CommonFilterChipRenderer;
 use crate::search::QueryFilter;
@@ -100,7 +100,6 @@ impl FilterChipRenderer for QueryFilter {
             | QueryFilter::NaturalLanguage
             | QueryFilter::Actions
             | QueryFilter::Sessions
-            | QueryFilter::Drive
             | QueryFilter::LaunchConfigurations
             | QueryFilter::PromptHistory
             | QueryFilter::Files
@@ -122,24 +121,14 @@ impl FilterChipRenderer for QueryFilter {
                 .theme()
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
-            QueryFilter::Workflows => warp_drive_icon_color(appearance, DriveObjectType::Workflow),
-            QueryFilter::Notebooks => warp_drive_icon_color(
-                appearance,
-                DriveObjectType::Notebook {
-                    is_ai_document: false,
-                },
-            ),
-            QueryFilter::Plans => warp_drive_icon_color(
-                appearance,
-                DriveObjectType::Notebook {
-                    is_ai_document: true,
-                },
-            ),
+            QueryFilter::Workflows => {
+                local_object_icon_color(appearance, DriveObjectType::Workflow)
+            }
             QueryFilter::EnvironmentVariables => {
-                warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
+                local_object_icon_color(appearance, DriveObjectType::EnvVarCollection)
             }
             QueryFilter::AgentModeWorkflows => {
-                warp_drive_icon_color(appearance, DriveObjectType::AgentModeWorkflow)
+                local_object_icon_color(appearance, DriveObjectType::AgentModeWorkflow)
             }
         }
     }

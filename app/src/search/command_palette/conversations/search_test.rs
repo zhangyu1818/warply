@@ -22,7 +22,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: true,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: true,
     };
 
@@ -38,7 +37,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: true,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: true,
     };
 
@@ -54,7 +52,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: false,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: false,
     };
 
@@ -70,7 +67,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: false,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: false,
     };
 
@@ -86,7 +82,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: false,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: false,
     };
 
@@ -102,7 +97,6 @@ fn test_conversation_navigation_data_ordering() {
         latest_working_directory: None,
         is_selected: false,
         is_closed: false,
-        server_conversation_token: None,
         is_in_active_pane: false,
     };
 

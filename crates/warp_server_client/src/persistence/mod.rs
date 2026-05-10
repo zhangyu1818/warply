@@ -1,11 +1,7 @@
 //! Persistence utilities for cloud objects.
 
-mod cloud_objects;
-
 use diesel::SqliteConnection;
 use diesel::result::Error;
-
-pub use cloud_objects::{decode_guests, decode_link_sharing, encode_guests, encode_link_sharing};
 
 use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, ObjectIdType, ObjectType, Owner,
@@ -13,7 +9,6 @@ use crate::cloud_object::{
 use crate::ids::SyncId;
 use persistence::model::{NewObjectMetadata, NewObjectPermissions, ObjectMetadata};
 use persistence::schema;
-use warp_core::features::FeatureFlag;
 
 /// The sqlite id of a cloud object.
 pub type CloudObjectId = i32;
@@ -44,8 +39,7 @@ pub fn upsert_cloud_object(
         metadata_last_updated_ts, object_metadata, revision_ts, server_id, trashed_ts,
     };
     use schema::object_permissions::dsl::{
-        anyone_with_link_access_level, anyone_with_link_source, object_guests, object_metadata_id,
-        object_permissions, permissions_last_updated_at, subject_id, subject_type, subject_uid,
+        object_metadata_id, object_permissions, subject_id, subject_type, subject_uid,
     };
 
     use diesel::prelude::*;
@@ -53,40 +47,7 @@ pub fn upsert_cloud_object(
     let (subject_type_value, subject_id_value, subject_uid_value) =
         match cloud_object_permissions.owner {
             Owner::User { user_uid } => ("USER", Some(user_uid.to_string()), user_uid.to_string()),
-            Owner::Team { team_uid } => ("TEAM", None, team_uid.to_string()),
         };
-    let permissions_ts = cloud_object_permissions
-        .permissions_last_updated_ts
-        .map(|ts| ts.timestamp_micros());
-    let guests = if FeatureFlag::SharedWithMe.is_enabled() {
-        match encode_guests(&cloud_object_permissions.guests) {
-            Ok(guests) => Some(guests),
-            Err(err) => {
-                log::warn!("Unable to encode guests: {err:#}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-    let (anyone_with_link_access_level_value, anyone_with_link_source_value) =
-        if FeatureFlag::SharedWithMe.is_enabled() {
-            match cloud_object_permissions
-                .anyone_with_link
-                .as_ref()
-                .map(encode_link_sharing)
-            {
-                Some(Ok((access_level, source))) => (Some(access_level), source),
-                Some(Err(err)) => {
-                    log::warn!("Unable to encode link-sharing setting: {err:#}");
-                    (None, None)
-                }
-                None => (None, None),
-            }
-        } else {
-            (None, None)
-        };
-
     let revision = cloud_object_metadata
         .revision
         .as_ref()
@@ -120,8 +81,6 @@ pub fn upsert_cloud_object(
                 .folder_id
                 .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash(ObjectIdType::Folder));
 
-            // Update the metadata. Note: this is holistic write of all the metadata based on the current state of the in-memory object.
-            // TODO: we need to update author_id as well.
             diesel::update(metadata_filter)
                 .set((
                     revision_ts.eq(revision),
@@ -156,10 +115,6 @@ pub fn upsert_cloud_object(
                         subject_type.eq(subject_type_value),
                         subject_id.eq(subject_id_value),
                         subject_uid.eq(subject_uid_value),
-                        permissions_last_updated_at.eq(permissions_ts),
-                        object_guests.eq(guests),
-                        anyone_with_link_access_level.eq(anyone_with_link_access_level_value),
-                        anyone_with_link_source.eq(anyone_with_link_source_value),
                     ))
                     .execute(conn)?;
             }
@@ -175,9 +130,6 @@ pub fn upsert_cloud_object(
                 shareable_object_id: object_id,
                 is_pending: has_pending_content_changes,
                 retry_count: 0,
-
-                // TODO: we need to deserialize this from graphql.
-                author_id: None,
 
                 // One of these is set below.
                 client_id: None,
@@ -232,10 +184,6 @@ pub fn upsert_cloud_object(
                 subject_type: subject_type_value.to_owned(),
                 subject_id: subject_id_value,
                 subject_uid: subject_uid_value,
-                permissions_last_updated_at: permissions_ts,
-                object_guests: guests,
-                anyone_with_link_access_level: anyone_with_link_access_level_value,
-                anyone_with_link_source: anyone_with_link_source_value,
             };
             diesel::insert_into(schema::object_permissions::dsl::object_permissions)
                 .values(new_object_permissions)

@@ -6,7 +6,6 @@ use super::*;
 #[test]
 fn harness_config_name_round_trips_for_known_variants() {
     for harness in [
-        Harness::Oz,
         Harness::Claude,
         Harness::OpenCode,
         Harness::Gemini,
@@ -24,12 +23,4 @@ fn harness_config_name_round_trips_for_known_variants() {
 fn harness_from_config_name_returns_none_for_unrecognized() {
     assert_eq!(Harness::from_config_name(""), None);
     assert_eq!(Harness::from_config_name("not-a-real-harness"), None);
-}
-
-#[test]
-fn harness_from_config_name_round_trips_unknown() {
-    assert_eq!(
-        Harness::from_config_name(Harness::Unknown.config_name()),
-        Some(Harness::Unknown),
-    );
 }

@@ -72,18 +72,24 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
                 context: context.clone(),
                 referenced_attachments: Default::default(),
             }),
-            AIAgentInput::PassiveSuggestionResult { suggestion: PassiveSuggestionResultType::Prompt { prompt }, context, .. } => Ok(Self::Query {
+            AIAgentInput::PassiveSuggestionResult {
+                suggestion: PassiveSuggestionResultType::Prompt { prompt },
+                context,
+                ..
+            } => Ok(Self::Query {
                 text: prompt.clone(),
                 context: context.clone(),
                 referenced_attachments: Default::default(),
             }),
-            AIAgentInput::PassiveSuggestionResult { suggestion: PassiveSuggestionResultType::CodeDiff { .. }, .. } => Err(anyhow!(
+            AIAgentInput::PassiveSuggestionResult {
+                suggestion: PassiveSuggestionResultType::CodeDiff { .. },
+                ..
+            } => Err(anyhow!(
                 "PassiveSuggestionResult::CodeDiff is not persisted as a query."
             )),
             AIAgentInput::ActionResult { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::CreateEnvironment { .. }
             | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
@@ -91,10 +97,8 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
             | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::SummarizeConversation { .. }
             | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::StartFromAmbientRunPrompt { .. }
             | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. }
-            | AIAgentInput::OrchestrationConfigUpdate { .. } => Err(anyhow::anyhow!(
+            | AIAgentInput::EventsFromAgents { .. } => Err(anyhow::anyhow!(
                 "This input type is not persisted. Only Query inputs are persisted for up-arrow history."
             )),
         }
@@ -212,10 +216,6 @@ pub(crate) enum PersistedAIAgentActionType {
         questions: Vec<AskUserQuestionItem>,
     },
 
-    FetchConversation {
-        conversation_id: String,
-    },
-
     /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
     NotPersisted,
 }
@@ -301,7 +301,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             | AIAgentActionType::CreateDocuments(_)
             | AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::ReadSkill(_)
-            | AIAgentActionType::UploadArtifact(_)
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
             AIAgentActionType::UseComputer(req) => Self::UseComputer {
                 action_summary: req.action_summary.clone(),
@@ -315,14 +314,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             AIAgentActionType::AskUserQuestion { questions } => Self::AskUserQuestion {
                 questions: questions.clone(),
             },
-            AIAgentActionType::FetchConversation { conversation_id } => Self::FetchConversation {
-                conversation_id: conversation_id.clone(),
-            },
-            AIAgentActionType::StartAgent { .. } => Self::NotPersisted,
-            AIAgentActionType::SendMessageToAgent { .. } => Self::NotPersisted,
-            // Orchestrate is rendered from the in-history tool call message;
-            // there is no per-action state we need to persist locally.
-            AIAgentActionType::RunAgents(_) => Self::NotPersisted,
         }
     }
 }
@@ -438,9 +429,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
             })),
             PersistedAIAgentActionType::AskUserQuestion { questions } => {
                 Ok(Self::AskUserQuestion { questions })
-            }
-            PersistedAIAgentActionType::FetchConversation { conversation_id } => {
-                Ok(Self::FetchConversation { conversation_id })
             }
             PersistedAIAgentActionType::NotPersisted => Err(anyhow!(
                 "Restoration is handled through conversation tasks, not persisted blocks."

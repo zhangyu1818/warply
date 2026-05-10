@@ -14,11 +14,8 @@ use super::{
     shell::ShellType,
 };
 use crate::{
-    cloud_object::{
-        model::{persistence::CloudModel, view::CloudViewModel},
-        Space,
-    },
-    server::ids::{ClientId, HashableId as _, SyncId},
+    cloud_object::model::persistence::CloudModel,
+    object_ids::{ClientId, HashableId as _, SyncId},
     terminal::model::session::{Session, SessionId},
     util::dedupe_from_last,
     workflows::{
@@ -232,11 +229,7 @@ impl LinkedWorkflowData {
             LinkedWorkflowData::Id(id) => {
                 let cloud_model = CloudModel::as_ref(ctx);
                 let workflow = cloud_model.get_workflow(id);
-                let workflow_source = match CloudViewModel::as_ref(ctx).object_space(&id.uid(), ctx)
-                {
-                    Some(Space::Team { team_uid }) => WorkflowSource::Team { team_uid },
-                    _ => WorkflowSource::PersonalCloud,
-                };
+                let workflow_source = WorkflowSource::PersonalCloud;
                 workflow.map(|workflow| {
                     (
                         WorkflowType::Cloud(Box::new(workflow.clone())),

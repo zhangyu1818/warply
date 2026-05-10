@@ -1,14 +1,10 @@
 use super::{CollapsibleElementState, CollapsibleExpansionState};
-use crate::ai::agent::StartAgentExecutionMode;
-use crate::ai::blocklist::action_model::{
-    compose_run_agents_child_prompt, run_agents_to_start_agent_mode,
-};
+use crate::ai::acp::AcpToolCall;
 use crate::settings::AISettings;
 use crate::test_util::settings::initialize_settings_for_tests;
-use ai::agent::action::{RunAgentsAgentRunConfig, RunAgentsExecutionMode};
-use ai::skills::SkillReference;
+use agent_client_protocol::schema::{Diff, ToolCall, ToolCallContent, ToolKind};
+use ai::diff_validation::DiffType;
 use settings::Setting;
-use std::path::PathBuf;
 use warpui::{App, SingletonEntity};
 
 #[test]
@@ -94,118 +90,29 @@ fn manual_reexpand_while_streaming_stays_expanded_after_finish() {
 }
 
 #[test]
-fn compose_child_prompt_concatenates_when_both_non_empty() {
-    let composed = compose_run_agents_child_prompt("base", "do X");
-    assert_eq!(composed, "base\n\ndo X");
-}
+fn acp_tool_call_file_diffs_convert_to_code_diff_view_model() {
+    let call = AcpToolCall::from_acp(
+        ToolCall::new("edit-1", "Edit file")
+            .kind(ToolKind::Edit)
+            .content(vec![ToolCallContent::from(
+                Diff::new("src/main.rs", "fn main() {\n    println!(\"hi\");\n}\n")
+                    .old_text("fn main() {}\n"),
+            )]),
+    );
 
-#[test]
-fn compose_child_prompt_uses_base_only_when_per_agent_empty() {
-    let composed = compose_run_agents_child_prompt("base", "");
-    assert_eq!(composed, "base");
-}
+    let diffs = super::acp_tool_call_file_diffs(&call);
 
-#[test]
-fn compose_child_prompt_uses_per_agent_only_when_base_empty() {
-    let composed = compose_run_agents_child_prompt("", "do X");
-    assert_eq!(composed, "do X");
-}
-
-#[test]
-fn compose_child_prompt_returns_empty_when_both_empty() {
-    let composed = compose_run_agents_child_prompt("", "");
-    assert_eq!(composed, "");
-}
-
-#[test]
-fn compose_child_prompt_treats_whitespace_only_base_as_empty() {
-    let composed = compose_run_agents_child_prompt("   \n", "do X");
-    assert_eq!(composed, "do X");
-}
-
-fn agent_cfg() -> RunAgentsAgentRunConfig {
-    RunAgentsAgentRunConfig {
-        name: "child".to_string(),
-        prompt: "do X".to_string(),
-        title: "Child".to_string(),
-    }
-}
-
-#[test]
-fn remote_arm_propagates_skills_into_skill_references() {
-    let skills = vec![
-        SkillReference::BundledSkillId("writing-pr-descriptions".to_string()),
-        SkillReference::Path(PathBuf::from("/tmp/skill/SKILL.md")),
-    ];
-    let mode = run_agents_to_start_agent_mode(
-        &RunAgentsExecutionMode::Remote {
-            environment_id: "env-1".to_string(),
-            worker_host: "warp".to_string(),
-            computer_use_enabled: true,
-        },
-        "oz",
-        "auto",
-        &skills,
-        &agent_cfg(),
-    )
-    .expect("Remote+oz must convert");
-    let StartAgentExecutionMode::Remote {
-        skill_references,
-        environment_id,
-        worker_host,
-        harness_type,
-        model_id,
-        computer_use_enabled,
-        title,
-    } = mode
-    else {
-        panic!("expected Remote start-agent mode");
+    assert_eq!(diffs.len(), 1);
+    assert_eq!(diffs[0].base.file_path, "src/main.rs");
+    assert_eq!(diffs[0].base.content, "fn main() {}\n");
+    let DiffType::Update { deltas, rename } = &diffs[0].diff_type else {
+        panic!("expected update diff");
     };
-    assert_eq!(skill_references, skills);
-    assert_eq!(environment_id, "env-1");
-    assert_eq!(worker_host, "warp");
-    assert_eq!(harness_type, "oz");
-    assert_eq!(model_id, "auto");
-    assert!(computer_use_enabled);
-    assert_eq!(title, "Child");
-}
-
-#[test]
-fn remote_arm_with_empty_skills_propagates_empty_vec() {
-    let mode = run_agents_to_start_agent_mode(
-        &RunAgentsExecutionMode::Remote {
-            environment_id: "env-1".to_string(),
-            worker_host: "warp".to_string(),
-            computer_use_enabled: false,
-        },
-        "claude",
-        "auto",
-        &[],
-        &agent_cfg(),
-    )
-    .expect("Remote+claude must convert");
-    let StartAgentExecutionMode::Remote {
-        skill_references, ..
-    } = mode
-    else {
-        panic!("expected Remote start-agent mode");
-    };
-    assert!(skill_references.is_empty());
-}
-
-#[test]
-fn remote_arm_rejects_opencode() {
-    let err = run_agents_to_start_agent_mode(
-        &RunAgentsExecutionMode::Remote {
-            environment_id: "env-1".to_string(),
-            worker_host: "warp".to_string(),
-            computer_use_enabled: false,
-        },
-        "opencode",
-        "auto",
-        &[],
-        &agent_cfg(),
-    )
-    .expect_err("Remote+opencode must be rejected");
-    assert!(err.to_lowercase().contains("opencode"));
+    assert!(rename.is_none());
+    assert_eq!(deltas.len(), 1);
+    assert_eq!(deltas[0].replacement_line_range, 1..2);
+    assert_eq!(
+        deltas[0].insertion,
+        "fn main() {\n    println!(\"hi\");\n}\n"
+    );
 }

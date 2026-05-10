@@ -1,6 +1,12 @@
+use crate::ai::acp::model::AcpAgentModel;
+use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::search::data_source::Query;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
+use crate::search::SyncDataSource;
+use crate::terminal::input::tests::{add_window_with_bootstrapped_terminal, initialize_app};
+use warpui::SingletonEntity;
 
-use super::prefix_match_bonus;
+use super::{prefix_match_bonus, AcceptSlashCommandOrSavedPrompt, InlineItem};
 
 #[test]
 fn exact_match_returns_full_bonus() {
@@ -58,4 +64,100 @@ fn short_prefix_match_ranks_above_longer_fuzzy_match() {
         short_score > long_score,
         "/new score ({short_score}) should be greater than /figma-create-new-file score ({long_score})"
     );
+}
+
+#[test]
+fn acp_command_inline_item_uses_slash_name_and_input_hint() {
+    use agent_client_protocol::schema::{
+        AvailableCommand, AvailableCommandInput, UnstructuredCommandInput,
+    };
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        app.read(|ctx| {
+            let command = AvailableCommand::new("review", "Review changes").input(
+                AvailableCommandInput::Unstructured(UnstructuredCommandInput::new("optional task")),
+            );
+            let item = InlineItem::from_acp_command(&command, ctx);
+
+            assert_eq!(item.name, "/review");
+            assert_eq!(item.description.as_deref(), Some("Review changes"));
+            assert!(matches!(
+                item.action,
+                AcceptSlashCommandOrSavedPrompt::AcpCommand {
+                    name,
+                    input_hint: Some(_),
+                    ..
+                } if name == "review"
+            ));
+        });
+    });
+}
+
+#[test]
+fn acp_available_commands_are_visible_only_for_active_acp_conversation() {
+    use agent_client_protocol::schema::AvailableCommand;
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let terminal_view_id = terminal.read(&app, |view, _| view.view_id());
+        let input = terminal.read(&app, |view, _| view.input().clone());
+        let slash_command_data_source =
+            input.read(&app, |input, _| input.slash_command_data_source.clone());
+
+        let (conversation_a, conversation_b) =
+            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
+                let conversation_a = history.start_new_conversation(terminal_view_id, false, ctx);
+                let conversation_b = history.start_new_conversation(terminal_view_id, false, ctx);
+                (conversation_a, conversation_b)
+            });
+
+        AcpAgentModel::handle(&app).update(&mut app, |model, _| {
+            model.set_available_commands_for_test(
+                conversation_a,
+                vec![AvailableCommand::new("alpha", "Alpha command")],
+            );
+            model.set_available_commands_for_test(
+                conversation_b,
+                vec![AvailableCommand::new("beta", "Beta command")],
+            );
+        });
+
+        BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
+            history.set_active_conversation_id(conversation_a, terminal_view_id, ctx);
+        });
+
+        slash_command_data_source.read(&app, |data_source, ctx| {
+            assert_eq!(acp_command_names(data_source, ctx, "alpha"), vec!["alpha"]);
+            assert!(acp_command_names(data_source, ctx, "beta").is_empty());
+        });
+
+        BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
+            history.set_active_conversation_id(conversation_b, terminal_view_id, ctx);
+        });
+
+        slash_command_data_source.read(&app, |data_source, ctx| {
+            assert!(acp_command_names(data_source, ctx, "alpha").is_empty());
+            assert_eq!(acp_command_names(data_source, ctx, "beta"), vec!["beta"]);
+        });
+    });
+}
+
+fn acp_command_names(
+    data_source: &super::SlashCommandDataSource,
+    app: &warpui::AppContext,
+    query: &str,
+) -> Vec<String> {
+    data_source
+        .run_query(&Query::from(query), app)
+        .expect("query should run")
+        .into_iter()
+        .filter_map(|result| match result.accept_result() {
+            AcceptSlashCommandOrSavedPrompt::AcpCommand { name, .. } => Some(name),
+            _ => None,
+        })
+        .collect()
 }

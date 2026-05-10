@@ -25,7 +25,7 @@ use crate::{
         EditorOptions, EditorView, Event, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
         TextOptions,
     },
-    server::ids::{ClientId, SyncId},
+    object_ids::{ClientId, SyncId},
     ui_components::{buttons::icon_button, icons::Icon},
     workflows::workflow_enum::EnumVariants,
 };

@@ -1,23 +1,15 @@
 use crate::ai::mcp::templatable_installation::TemplatableMCPServerInstallation;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::MCPProvider;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity};
 
 pub struct FileBasedMCPManager {}
 
 impl FileBasedMCPManager {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         Self {}
-    }
-
-    pub fn get_servers_for_working_directory(
-        &self,
-        _cwd: &Path,
-        _app: &AppContext,
-    ) -> Vec<&TemplatableMCPServerInstallation> {
-        vec![]
     }
 
     pub fn file_based_servers(&self) -> Vec<&TemplatableMCPServerInstallation> {

@@ -3,8 +3,6 @@ mod model_impl;
 
 pub use helper::AIBlockModelHelper;
 pub use model_impl::*;
-use session_sharing_protocol::common::ParticipantId;
-use warp_core::features::FeatureFlag;
 
 use crate::ai::{
     agent::{
@@ -52,13 +50,6 @@ impl AIRequestType {
 
     pub fn is_passive_code_diff(&self) -> bool {
         matches!(self, AIRequestType::Passive(PassiveRequestType::CodeDiff))
-            || (FeatureFlag::PromptSuggestionsViaMAA.is_enabled()
-                && matches!(
-                    self,
-                    AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(
-                        PassiveSuggestionTriggerType::ShellCommandCompleted
-                    ))
-                ))
     }
 
     pub fn is_passive_unit_test_suggestion(&self) -> bool {
@@ -197,12 +188,6 @@ pub trait AIBlockModel {
 
     /// Returns the exchange ID for this block.
     fn exchange_id(&self, _app: &AppContext) -> Option<AIAgentExchangeId> {
-        None
-    }
-
-    /// Returns the participant ID who initiated this exchange, for shared sessions.
-    /// Returns None for local (non-shared) sessions.
-    fn response_initiator(&self, _app: &AppContext) -> Option<ParticipantId> {
         None
     }
 

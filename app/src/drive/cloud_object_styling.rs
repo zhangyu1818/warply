@@ -8,22 +8,13 @@ use warp_core::ui::{
 use super::DriveObjectType;
 use crate::ui_components::blended_colors;
 
-pub fn warp_drive_icon_color(
+pub fn local_object_icon_color(
     appearance: &Appearance,
     cloud_object_type: DriveObjectType,
 ) -> ColorU {
     match cloud_object_type {
         DriveObjectType::Workflow => {
             let color: Fill = appearance.theme().terminal_colors().normal.red.into();
-            color
-                .on_background(
-                    appearance.theme().surface_1(),
-                    MinimumAllowedContrast::NonText,
-                )
-                .into()
-        }
-        DriveObjectType::Notebook { .. } => {
-            let color: Fill = appearance.theme().terminal_colors().normal.blue.into();
             color
                 .on_background(
                     appearance.theme().surface_1(),

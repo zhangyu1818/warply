@@ -5,28 +5,28 @@ use crate::{
     appearance::Appearance,
     cloud_object::CloudObjectMetadata,
     drive::{
-        cloud_object_styling::warp_drive_icon_color, folders::CloudFolder, index::DriveIndexAction,
-        CloudObjectTypeAndId, DriveObjectType,
+        cloud_object_styling::local_object_icon_color, folders::CloudFolder, CloudObjectTypeAndId,
+        DriveObjectType,
     },
     themes::theme::Fill,
     ui_components::icons::Icon,
 };
 
-use super::{WarpDriveItem, WarpDriveItemId};
+use super::{LocalObjectItem, LocalObjectItemId};
 
 #[derive(Clone)]
-pub struct WarpDriveFolder {
+pub struct LocalObjectFolder {
     id: CloudObjectTypeAndId,
     folder: CloudFolder,
 }
 
-impl WarpDriveFolder {
+impl LocalObjectFolder {
     pub fn new(id: CloudObjectTypeAndId, folder: CloudFolder) -> Self {
         Self { id, folder }
     }
 }
 
-impl WarpDriveItem for WarpDriveFolder {
+impl LocalObjectItem for LocalObjectFolder {
     fn display_name(&self) -> Option<String> {
         if self.folder.model().name.is_empty() {
             None
@@ -45,7 +45,7 @@ impl WarpDriveItem for WarpDriveFolder {
 
     fn icon(&self, appearance: &Appearance, color: Option<Fill>) -> Option<Box<dyn Element>> {
         let icon_fill =
-            color.unwrap_or(warp_drive_icon_color(appearance, DriveObjectType::Folder).into());
+            color.unwrap_or(local_object_icon_color(appearance, DriveObjectType::Folder).into());
         let icon = if FeatureFlag::WarpPacks.is_enabled() && self.folder.model().is_warp_pack {
             Icon::PackageCheck
         } else {
@@ -63,36 +63,30 @@ impl WarpDriveItem for WarpDriveFolder {
         Some(self.folder.model().is_open)
     }
 
-    fn click_action(&self) -> Option<DriveIndexAction> {
-        Some(DriveIndexAction::ToggleFolderOpen(self.folder.id))
-    }
-
     fn preview(&self, _: &Appearance) -> Option<Box<dyn Element>> {
         None
     }
 
-    fn warp_drive_id(&self) -> WarpDriveItemId {
-        WarpDriveItemId::Object(self.id)
+    fn local_object_id(&self) -> LocalObjectItemId {
+        LocalObjectItemId::Object(self.id)
     }
 
     fn sync_status_icon(
         &self,
-        sync_queue_is_dequeueing: bool,
         hover_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
-        self.folder.metadata.pending_changes_statuses.render_icon(
-            sync_queue_is_dequeueing,
-            hover_state,
-            appearance,
-        )
+        self.folder
+            .metadata
+            .pending_changes_statuses
+            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, _app: &AppContext) -> Option<String> {
         None
     }
 
-    fn clone_box(&self) -> Box<dyn WarpDriveItem> {
+    fn clone_box(&self) -> Box<dyn LocalObjectItem> {
         Box::new(self.clone())
     }
 }

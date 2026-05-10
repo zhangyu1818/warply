@@ -46,8 +46,8 @@ use crate::{
     drive::workflows::arguments::ArgumentsState,
     editor::InteractionState,
     notebooks::{
+        events::{ActionEntrypoint, BlockInfo},
         styles::block_footer_action_button,
-        telemetry::{ActionEntrypoint, BlockInfo},
     },
     settings::FontSettings,
     terminal::input::{
@@ -504,10 +504,6 @@ impl NotebookCommand {
                 .text_in_range(start + 1..end)
                 .into_string(),
         )
-    }
-
-    pub fn is_dropdown_focused(&self, ctx: &AppContext) -> bool {
-        self.block_type_dropdown.as_ref(ctx).is_focused(ctx)
     }
 
     /// Whether or not this block contains the text cursor

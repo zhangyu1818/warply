@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::channel::oneshot;
-use futures::future::BoxFuture;
 use futures::{select, FutureExt};
 use futures_lite::pin;
 use itertools::Itertools;
@@ -36,9 +35,8 @@ use crate::{
         TerminalModel,
     },
 };
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
-use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct ShellCommandExecutor {
     active_session: ModelHandle<ActiveSession>,
@@ -133,11 +131,7 @@ impl ShellCommandExecutor {
                     Some(self.terminal_view_id),
                     ctx,
                 );
-                if let CommandExecutionPermission::Allowed(reason) = autoexecution_permission {
-                    send_telemetry_from_ctx!(
-                        TelemetryEvent::AutoexecutedAgentModeRequestedCommand { reason },
-                        ctx
-                    );
+                if let CommandExecutionPermission::Allowed(_reason) = autoexecution_permission {
                 } else if let CommandExecutionPermission::Denied(reason) = autoexecution_permission
                 {
                     if AppExecutionMode::as_ref(ctx).is_autonomous() {
@@ -169,17 +163,6 @@ impl ShellCommandExecutor {
                             .has_agent_written_to_block(),
                         _ => false,
                     };
-
-                    if should_autoexecute {
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::CLISubagentActionExecuted {
-                                conversation_id: input.conversation_id,
-                                block_id: block_id.clone(),
-                                is_autoexecuted: true,
-                            },
-                            ctx
-                        );
-                    }
 
                     should_autoexecute
                 }
@@ -655,14 +638,6 @@ impl ShellCommandExecutor {
                 let _ = sender.send(());
             }
         }
-    }
-
-    pub(super) fn preprocess_action(
-        &mut self,
-        _action: PreprocessActionInput,
-        _ctx: &mut ModelContext<Self>,
-    ) -> BoxFuture<'static, ()> {
-        futures::future::ready(()).boxed()
     }
 }
 

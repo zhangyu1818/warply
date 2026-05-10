@@ -15,8 +15,7 @@ use warp_core::{
 fn main() -> Result<()> {
     ChannelState::set(
         ChannelState::new(Channel::Preview, channel_config::load_config!("preview"))
-            .with_additional_features(features::PREVIEW_FLAGS)
-            .with_additional_features(&[features::FeatureFlag::ForceLogin]),
+            .with_additional_features(features::PREVIEW_FLAGS),
     );
 
     warp::run()

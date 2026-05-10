@@ -7,7 +7,6 @@ pub mod file;
 pub mod git;
 pub mod image;
 pub(crate) mod link_detection;
-pub mod links;
 pub mod openable_file_type;
 #[cfg(feature = "local_tty")]
 pub mod path;
@@ -62,6 +61,21 @@ pub fn parse_ascii_u32(bytes: &[u8]) -> Option<u32> {
         result = result.checked_mul(10)?.checked_add((byte - b'0') as u32)?;
     }
     Some(result)
+}
+
+pub fn safe_filename(filename: &str) -> String {
+    filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_control()
+                || matches!(ch, '/' | ':' | '#' | '*' | '<' | '>' | '?' | '\\' | '|')
+            {
+                '_'
+            } else {
+                ch
+            }
+        })
+        .collect()
 }
 
 /// AsciiDebug is intended to make it easy to inspect the contents of byte slices that are mostly ASCII

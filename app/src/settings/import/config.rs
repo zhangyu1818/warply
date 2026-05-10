@@ -303,7 +303,6 @@ impl Config {
     }
 }
 
-/// Used for telemetry.
 #[derive(Clone, Serialize)]
 pub struct ParsedTerminalSetting {
     pub setting_type: SettingType,

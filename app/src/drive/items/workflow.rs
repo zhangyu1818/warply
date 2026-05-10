@@ -1,4 +1,3 @@
-use warp_core::context_flag::ContextFlag;
 use warpui::{
     elements::{Container, Flex, MouseStateHandle, ParentElement},
     fonts::Weight,
@@ -12,26 +11,26 @@ use crate::{
         model::actions::{ObjectActionType, ObjectActions},
         CloudObjectMetadata,
     },
-    drive::{index::DriveIndexAction, CloudObjectTypeAndId, DriveObjectType},
+    drive::{CloudObjectTypeAndId, DriveObjectType},
     themes::theme::Fill,
-    workflows::{CloudWorkflow, WorkflowViewMode},
+    workflows::CloudWorkflow,
 };
 
-use super::{WarpDriveItem, WarpDriveItemId};
+use super::{LocalObjectItem, LocalObjectItemId};
 
 #[derive(Clone)]
-pub struct WarpDriveWorkflow {
+pub struct LocalObjectWorkflow {
     id: CloudObjectTypeAndId,
     workflow: CloudWorkflow,
 }
 
-impl WarpDriveWorkflow {
+impl LocalObjectWorkflow {
     pub fn new(id: CloudObjectTypeAndId, workflow: CloudWorkflow) -> Self {
         Self { id, workflow }
     }
 }
 
-impl WarpDriveItem for WarpDriveWorkflow {
+impl LocalObjectItem for LocalObjectWorkflow {
     fn display_name(&self) -> Option<String> {
         if self.workflow.model().data.name().is_empty() {
             None
@@ -54,19 +53,6 @@ impl WarpDriveItem for WarpDriveWorkflow {
 
     fn secondary_icon(&self, _color: Option<Fill>) -> Option<Box<dyn Element>> {
         None
-    }
-
-    fn click_action(&self) -> Option<DriveIndexAction> {
-        if !ContextFlag::RunWorkflow.is_enabled() {
-            // If we are in a context where we can't run workflows, open it in view mode
-            // by default
-            Some(DriveIndexAction::OpenWorkflowInPane {
-                cloud_object_type_and_id: self.id,
-                open_mode: WorkflowViewMode::View,
-            })
-        } else {
-            Some(DriveIndexAction::RunObject(self.id))
-        }
     }
 
     fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -111,21 +97,19 @@ impl WarpDriveItem for WarpDriveWorkflow {
         Some(modal.finish())
     }
 
-    fn warp_drive_id(&self) -> WarpDriveItemId {
-        WarpDriveItemId::Object(self.id)
+    fn local_object_id(&self) -> LocalObjectItemId {
+        LocalObjectItemId::Object(self.id)
     }
 
     fn sync_status_icon(
         &self,
-        sync_queue_is_dequeueing: bool,
         hover_state: MouseStateHandle,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
-        self.workflow.metadata.pending_changes_statuses.render_icon(
-            sync_queue_is_dequeueing,
-            hover_state,
-            appearance,
-        )
+        self.workflow
+            .metadata
+            .pending_changes_statuses
+            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, app: &AppContext) -> Option<String> {
@@ -133,12 +117,12 @@ impl WarpDriveItem for WarpDriveWorkflow {
             .get_action_history_summary_for_action_type(&self.id.uid(), ObjectActionType::Execute)
     }
 
-    fn clone_box(&self) -> Box<dyn WarpDriveItem> {
+    fn clone_box(&self) -> Box<dyn LocalObjectItem> {
         Box::new(self.clone())
     }
 }
 
-impl WarpDriveWorkflow {
+impl LocalObjectWorkflow {
     fn render_workflow_name(&self, appearance: &Appearance) -> Box<dyn Element> {
         appearance
             .ui_builder()
