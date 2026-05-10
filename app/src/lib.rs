@@ -542,13 +542,7 @@ pub fn run() -> Result<()> {
         }
     }
 
-    // If running as a standalone CLI binary or invoked through a CLI symlink, print help
-    // instead of launching the GUI app.
-    let is_cli_binary = cfg!(feature = "standalone")
-        || warp_cli::binary_name()
-            .is_some_and(|name| name == ChannelState::channel().cli_command_name())
-        || std::env::var_os("WARP_CLI_MODE").is_some();
-    if is_cli_binary {
+    if should_print_cli_help_without_command(std::env::var_os("WARP_CLI_MODE").is_some()) {
         warp_cli::Args::clap_command().print_help()?;
         return Ok(());
     }
@@ -556,6 +550,26 @@ pub fn run() -> Result<()> {
     run_internal(LaunchMode::App {
         args: args.into_app_args(),
     })
+}
+
+fn should_print_cli_help_without_command(cli_mode_env_set: bool) -> bool {
+    cfg!(feature = "standalone") || cli_mode_env_set
+}
+
+#[cfg(test)]
+mod launch_mode_tests {
+    use super::should_print_cli_help_without_command;
+
+    #[cfg(not(feature = "standalone"))]
+    #[test]
+    fn gui_build_without_cli_mode_does_not_print_cli_help() {
+        assert!(!should_print_cli_help_without_command(false));
+    }
+
+    #[test]
+    fn explicit_cli_mode_prints_cli_help() {
+        assert!(should_print_cli_help_without_command(true));
+    }
 }
 
 /// Runs an integration test using the provided test driver.
