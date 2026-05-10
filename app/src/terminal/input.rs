@@ -1893,50 +1893,44 @@ impl Input {
             )
         });
 
-        ctx.subscribe_to_view(&agent_input_footer, |me, _, event, ctx| {
-            match event {
-                AgentInputFooterEvent::SelectFile => {
-                    me.select_image(ctx);
-                }
-                AgentInputFooterEvent::WriteToPty(_)
-                | AgentInputFooterEvent::InsertIntoCLIRichInput(_)
-                | AgentInputFooterEvent::ToggleCodeReviewPane(_)
-                | AgentInputFooterEvent::ToggleFileExplorer(_)
-                | AgentInputFooterEvent::OpenRichInput
-                | AgentInputFooterEvent::HideRichInput => {}
-                AgentInputFooterEvent::ToggledChipMenu { open } => {
-                    me.handle_prompt_event(&PromptDisplayEvent::ToggleMenu { open: *open }, ctx);
-                }
-                AgentInputFooterEvent::TryExecuteChipCommand(cmd) => {
-                    me.handle_prompt_event(
-                        &PromptDisplayEvent::TryExecuteCommand(cmd.clone()),
-                        ctx,
-                    );
-                }
-                AgentInputFooterEvent::OpenCodeReview => {
-                    ctx.emit(Event::OpenCodeReviewPane);
-                }
-                AgentInputFooterEvent::OpenAIDocument {
-                    document_id,
-                    document_version,
-                } => {
-                    ctx.emit(Event::ToggleAIDocumentPane {
-                        document_id: *document_id,
-                        document_version: *document_version,
-                    });
-                }
-                AgentInputFooterEvent::ShowContextMenu { position } => {
-                    let position_id = format!("prompt_area_{}", me.view_id);
-                    let offset = if let Some(prompt_rect) = ctx.element_position_by_id(&position_id)
-                    {
-                        *position - prompt_rect.origin()
-                    } else {
-                        *position
-                    };
-                    ctx.dispatch_typed_action(&TerminalAction::PromptContextMenu {
-                        position_offset_from_prompt: offset,
-                    });
-                }
+        ctx.subscribe_to_view(&agent_input_footer, |me, _, event, ctx| match event {
+            AgentInputFooterEvent::SelectFile => {
+                me.select_image(ctx);
+            }
+            AgentInputFooterEvent::WriteToPty(_)
+            | AgentInputFooterEvent::InsertIntoCLIRichInput(_)
+            | AgentInputFooterEvent::ToggleCodeReviewPane(_)
+            | AgentInputFooterEvent::ToggleFileExplorer(_)
+            | AgentInputFooterEvent::OpenRichInput
+            | AgentInputFooterEvent::HideRichInput => {}
+            AgentInputFooterEvent::ToggledChipMenu { open } => {
+                me.handle_prompt_event(&PromptDisplayEvent::ToggleMenu { open: *open }, ctx);
+            }
+            AgentInputFooterEvent::TryExecuteChipCommand(cmd) => {
+                me.handle_prompt_event(&PromptDisplayEvent::TryExecuteCommand(cmd.clone()), ctx);
+            }
+            AgentInputFooterEvent::OpenCodeReview => {
+                ctx.emit(Event::OpenCodeReviewPane);
+            }
+            AgentInputFooterEvent::OpenAIDocument {
+                document_id,
+                document_version,
+            } => {
+                ctx.emit(Event::ToggleAIDocumentPane {
+                    document_id: *document_id,
+                    document_version: *document_version,
+                });
+            }
+            AgentInputFooterEvent::ShowContextMenu { position } => {
+                let position_id = format!("prompt_area_{}", me.view_id);
+                let offset = if let Some(prompt_rect) = ctx.element_position_by_id(&position_id) {
+                    *position - prompt_rect.origin()
+                } else {
+                    *position
+                };
+                ctx.dispatch_typed_action(&TerminalAction::PromptContextMenu {
+                    position_offset_from_prompt: offset,
+                });
             }
         });
         ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
