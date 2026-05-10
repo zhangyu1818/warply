@@ -42,6 +42,7 @@ The fork removes:
 - `fork-contract.md`: Detailed product and architecture contract.
 - `upstream-merge-guide.md`: Decision process for pulling from original Warp.
 - `change-map.md`: Path-level map of added/replaced/removed/retained code.
+- `upstream-master-audit-2026-05-10.md`: Commit-by-commit audit of `master..upstream/master` as of May 10, 2026.
 
 ## Quick Merge Principle
 

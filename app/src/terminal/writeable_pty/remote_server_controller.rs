@@ -15,9 +15,7 @@ use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEven
 use crate::remote_server::ssh_transport::SshTransport;
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
-use remote_server::setup::{
-    PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform,
-};
+use remote_server::setup::{PreinstallCheckResult, PreinstallStatus, RemoteLibc, RemotePlatform};
 use remote_server::transport::Error;
 
 use super::pty_controller::{EventLoopSender, PtyController};

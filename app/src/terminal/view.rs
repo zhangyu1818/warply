@@ -194,7 +194,6 @@ use crate::identity::LocalIdentityProvider;
 use crate::object_ids::{ObjectUid, SyncId};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::persistence::{self, FinishedCommandMetadata};
-use crate::{safe_error, safe_warn};
 #[cfg(feature = "local_fs")]
 use crate::settings::{
     AISettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
@@ -268,6 +267,7 @@ use crate::workspace::{CommandSearchOptions, ToastStack, WorkspaceAction};
 use crate::workspace::{ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination};
 use crate::AIAgentActionResultType;
 use crate::ActiveSession as WindowActiveSession;
+use crate::{safe_error, safe_warn};
 
 use async_channel::{Receiver, Sender};
 use chrono::{Local, NaiveDateTime};
