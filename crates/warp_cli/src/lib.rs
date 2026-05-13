@@ -20,14 +20,14 @@ pub mod json_filter;
 pub mod mcp;
 pub mod model;
 
-/// Options related to the parent process that spawned this Warp instance.
+/// Options related to the parent process that spawned this Warply instance.
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct ParentOpts {
-    /// The ID of the Warp process that spawned this one.
+    /// The ID of the Warply process that spawned this one.
     ///
-    /// Used by codepaths that attempt to detect when the parent Warp process
+    /// Used by codepaths that attempt to detect when the parent Warply process
     /// has terminated. Guaranteed to be [`None`] when this is the initial
-    /// Warp process, but may also be [`None`] for Warp child processes if the
+    /// Warply process, but may also be [`None`] for Warply child processes if the
     /// child process doesn't need to keep track of its parent.
     #[arg(long = "parent-pid", hide = true)]
     pub pid: Option<u32>,
@@ -42,7 +42,7 @@ pub struct ParentOpts {
 }
 
 /// Hidden worker args used to scope remote-server proxy/daemon sockets by
-/// Warp identity without exposing credentials.
+/// Warply identity without exposing credentials.
 #[derive(Debug, Clone, Default, clap::Args)]
 pub struct RemoteServerIdentityArgs {
     /// Non-secret identity partition key for the remote-server daemon.
@@ -59,17 +59,17 @@ pub struct GlobalOptions {
         global = true,
         value_enum,
         default_value_t = OutputFormat::Pretty,
-        env = "WARP_OUTPUT_FORMAT"
+        env = "WARPLY_OUTPUT_FORMAT"
     )]
     pub output_format: OutputFormat,
 }
 
-/// Command-line argument parser for the main Warp binary. This is used across all channels.
+/// Command-line argument parser for the main Warply binary.
 #[derive(Debug, Default, Parser, Clone)]
 #[command(
-    name = "warp",
-    display_name = "Warp",
-    about = r#"Warp command-line utilities"#
+    name = "warply",
+    display_name = "Warply",
+    about = r#"Warply command-line utilities"#
 )]
 #[clap(args_conflicts_with_subcommands = true)]
 pub struct Args {
@@ -87,15 +87,15 @@ pub struct Args {
     args: AppArgs,
 }
 
-/// Flags for the Warp application. Additional binaries, like test runners, may use this type
+/// Flags for the Warply application. Additional binaries, like test runners, may use this type
 /// along with their own flags, or convert their flags into an `AppArgs` value.
 #[derive(Debug, Default, clap::Args, Clone)]
 pub struct AppArgs {
-    /// Options related to the parent process that spawned this Warp instance.
+    /// Options related to the parent process that spawned this Warply instance.
     #[clap(flatten)]
     pub parent: ParentOpts,
 
-    /// URLs to open in Warp.
+    /// URLs to open in Warply.
     #[arg(hide = true)]
     pub urls: Vec<Url>,
 }
@@ -144,7 +144,7 @@ impl Args {
 
 <bold><underline>Learn more:</underline></bold>
 * Use <bold>{bin_name} help</bold> to learn more about each command
-* Read the documentation at https://docs.warp.dev/reference/cli
+* Read the documentation at https://github.com/zhangyu1818/warply
 "#
         ));
 
@@ -156,12 +156,12 @@ impl Args {
         self.command.as_ref()
     }
 
-    /// Args for the main Warp application, if not running a subcommand.
+    /// Args for the main Warply application, if not running a subcommand.
     pub fn app_args(&self) -> &AppArgs {
         &self.args
     }
 
-    /// Extract the main Warp application args.
+    /// Extract the main Warply application args.
     pub fn into_app_args(self) -> AppArgs {
         self.args
     }
@@ -182,9 +182,9 @@ impl Args {
     }
 }
 
-/// Warp may spawn several worker processes - mostly servers that support the main application.
+/// Warply may spawn several worker processes - mostly servers that support the main application.
 ///
-/// These subcommands run those worker processes, which are bundled into the Warp binary.
+/// These subcommands run those worker processes, which are bundled into the Warply binary.
 #[derive(Debug, Clone, Subcommand)]
 pub enum WorkerCommand {
     /// Run the terminal server.
@@ -231,8 +231,8 @@ pub enum WorkerCommand {
     },
 }
 
-/// CLI-related subcommands. The command-line interface to Warp isn't a full SDK (e.g. with language bindings),
-/// but it allows scripting some Warp functionality.
+/// CLI-related subcommands. The command-line interface to Warply isn't a full SDK (e.g. with language bindings),
+/// but it allows scripting some Warply functionality.
 #[derive(Debug, Clone, Subcommand)]
 pub enum CliCommand {
     /// Manage MCP servers.
@@ -244,13 +244,13 @@ pub enum CliCommand {
     Model(crate::model::ModelCommand),
 }
 
-/// A subcommand of the main Warp application. This includes all [`WorkerCommand`]s as well as app-specific debugging tools.
+/// A subcommand of the main Warply application. This includes all [`WorkerCommand`]s as well as app-specific debugging tools.
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
     #[clap(flatten)]
     Worker(WorkerCommand),
 
-    /// Commands that make up the Warp CLI.
+    /// Commands that make up the Warply CLI.
     #[clap(flatten)]
     CommandLine(Box<CliCommand>),
 
@@ -269,7 +269,7 @@ pub enum Command {
     /// For Powershell, add the following to $PROFILE:
     ///     path\to\warp | Out-String | Invoke-Expression
     ///
-    /// If no shell is provided, this defaults to the shell that Warp was run from.
+    /// If no shell is provided, this defaults to the shell that Warply was run from.
     #[command(verbatim_doc_comment)]
     Completions {
         /// Shell to generate completions for.
@@ -325,7 +325,7 @@ pub fn ripgrep_search_subcommand() -> String {
         .to_string()
 }
 
-/// Returns a flag that sets the current process as the parent of a Warp subcommand to spawn.
+/// Returns a flag that sets the current process as the parent of a Warply subcommand to spawn.
 pub fn parent_flag() -> String {
     let command = <Args as CommandFactory>::command();
     let flag = command

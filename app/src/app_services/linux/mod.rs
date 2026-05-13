@@ -140,12 +140,12 @@ impl ApplicationService {
     }
 }
 
-// A D-Bus client for connecting to an already-running instance of Warp and
+// A D-Bus client for connecting to an already-running instance of Warply and
 // invoking org.freedesktop.Application IPC methods.
 #[proxy(
     interface = "org.freedesktop.Application",
-    default_service = "dev.warp.WarpLocal",
-    default_path = "/dev/warp/WarpLocal",
+    default_service = "dev.zhangyu1818.warply-local",
+    default_path = "/dev/zhangyu1818/warply-local",
     gen_blocking = false
 )]
 trait ExistingApplication {

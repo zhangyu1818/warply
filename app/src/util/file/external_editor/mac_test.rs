@@ -2,10 +2,10 @@ use super::is_warp_bundle;
 
 #[test]
 fn is_warp_bundle_recognises_warp_channels() {
-    assert!(is_warp_bundle("dev.warp.Warp"));
-    assert!(is_warp_bundle("dev.warp.WarpDev"));
-    assert!(is_warp_bundle("dev.warp.WarpPreview"));
-    assert!(is_warp_bundle("dev.warp.WarpOss"));
+    assert!(is_warp_bundle("dev.zhangyu1818.warply"));
+    assert!(is_warp_bundle("dev.zhangyu1818.warply-dev"));
+    assert!(is_warp_bundle("dev.zhangyu1818.warply-preview"));
+    assert!(is_warp_bundle("dev.zhangyu1818.warply-local"));
 }
 
 #[test]

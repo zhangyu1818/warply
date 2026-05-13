@@ -229,7 +229,7 @@ impl FileBasedMCPManager {
     }
 
     /// Returns `true` if the server identified by `hash` is referenced from the global
-    /// Warp config (`~/.warp/.mcp.json`). Global Warp servers always auto-spawn.
+    /// Warply config (`~/.warply/.mcp.json`). Global Warply servers always auto-spawn.
     fn is_global_warp_server(&self, hash: u64) -> bool {
         self.file_based_servers_by_root
             .iter()

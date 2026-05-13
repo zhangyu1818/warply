@@ -542,7 +542,7 @@ pub fn run() -> Result<()> {
         }
     }
 
-    if should_print_cli_help_without_command(std::env::var_os("WARP_CLI_MODE").is_some()) {
+    if should_print_cli_help_without_command(std::env::var_os("WARPLY_CLI_MODE").is_some()) {
         warp_cli::Args::clap_command().print_help()?;
         return Ok(());
     }

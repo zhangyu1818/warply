@@ -102,7 +102,7 @@ This has helped us catch a lot of existing bugs in the system.
 Note that for `async_assert` to actually work, the `set_assertion` needs to **return** with the `async_assert`.
 
 ## How to add a sqlite snapshot?
-* You can copy over a warp.sqlite file from ~/Library/Application\ Support/{warp, dev.warp.Warp-(Dev|Preview|Stable)} directly
+* You can copy over a warply.sqlite file from ~/Library/Application\ Support/dev.zhangyu1818.warply directly
 * You may want to sanitize info that is specific to you, such as cwd or local conversation IDs.
 
 

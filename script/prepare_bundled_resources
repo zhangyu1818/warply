@@ -2,8 +2,8 @@
 #
 # Prepares bundled resources for distribution.
 #
-# This script copies resources that should be bundled with Warp into a
-# destination directory. It is used by macOS and Linux build scripts.
+# This script copies resources that should be bundled with Warply into a
+# destination directory.
 #
 # Usage:
 #   prepare_bundled_resources <destination_directory> [channel] [cargo_profile]
@@ -66,9 +66,9 @@ if [ -n "$GIT_RELEASE_TAG" ]; then
   VERSION_METADATA_DIR="$DEST_DIR/bundled/metadata"
   VERSION_METADATA_PATH="$VERSION_METADATA_DIR/version.json"
 
-  echo "Writing bundled Warp version metadata to $VERSION_METADATA_PATH"
+  echo "Writing bundled Warply version metadata to $VERSION_METADATA_PATH"
   mkdir -p "$VERSION_METADATA_DIR"
-  printf '{\n  "warp_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
+  printf '{\n  "warply_version": "%s"\n}\n' "$GIT_RELEASE_TAG" > "$VERSION_METADATA_PATH"
 fi
 
 # Copy channel-gated skills matching the current release channel.
@@ -95,8 +95,6 @@ ADDITIONAL_LICENSES=(
     "Roboto Font|SIL Open Font License|app/assets/bundled/fonts/roboto/LICENSE.txt"
     "bash-preexec|MIT|app/assets/bundled/bootstrap/bash-preexec-LICENSE.md"
     "Claude API Skill|Apache-2.0|resources/bundled/skills/claude-api/LICENSE.txt"
-    "rudder-sdk-rust|MIT|app/src/server/telemetry/LICENSE-RUDDER-SDK-RUST.txt"
-    "Windows Terminal|MIT|app/assets/windows/LICENSE-WINDOWS-TERMINAL"
     "GitHub Desktop|MIT|app/src/code_review/GITHUB-DESKTOP-LICENSE"
 )
 

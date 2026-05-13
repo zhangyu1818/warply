@@ -24,14 +24,10 @@
 #
 # Once the stapling is done, the app can be shared.
 #
-# Three passwords are read from GCP Secret Manager (or from env if --read-passwords-from-env is set) if you are codesigning.
-# 1) WARP_NOTARIZATION_PASSWORD:  This is an "app-specific password" that
-#    is tied to the zach@warp.dev account.  See https://support.apple.com/en-us/HT204397
-# 2) WARP_DEVELOPER_ID_CERT_PASSWORD: This is a password tied to the private key
-#    of our cert - it is needed to use the cert to sign our binary.
-# 3) WARP_CODESIGN_KEYCHAIN_PASSWORD: This is an arbitrary password only used
-#    in the lifetime of this app for creating the keychain used to sign.  Can
-#    be anything.
+# Signing and notarization secrets are read from env if
+# --read-signing-secrets-from-env is set and codesigning is enabled.
+# WARPLY_APP_STORE_CONNECT_PRIVATE_KEY must be the base64-encoded contents of
+# the App Store Connect `.p8` API key file.
 #
 # See
 # https://github.com/burtonageo/cargo-bundle
@@ -55,11 +51,9 @@ WORKSPACE_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export MACOSX_DEPLOYMENT_TARGET="10.14"
 
 # Constants used later in the script.
-INTEL_ARCH="x86_64"
-INTEL_TARGET="$INTEL_ARCH-apple-darwin"
 ARM_ARCH="aarch64"
 ARM_TARGET="$ARM_ARCH-apple-darwin"
-DEFAULT_ARCH="$(rustc --print cfg | grep target_arch)"
+DEFAULT_TARGET="$ARM_TARGET"
 
 # Function to clean up temporary DMG files
 cleanup_dmg_files() {
@@ -70,7 +64,7 @@ cleanup_dmg_files() {
         find "$target_dir" -name "rw.*.dmg" -type f -delete
     fi
     # Also check if any volumes are mounted and unmount them
-    hdiutil info | grep "/Volumes/Warp.*" | awk '{print $1}' | while read -r disk; do
+    hdiutil info | grep "/Volumes/Warply.*" | awk '{print $1}' | while read -r disk; do
         echo "Unmounting disk image: $disk"
         hdiutil detach "$disk" -force || true
     done
@@ -84,8 +78,14 @@ cleanup_codesign_keychain() {
     fi
 }
 
+cleanup_notarization_api_key() {
+    if [[ -n "${NOTARIZATION_API_KEY_DIR:-}" && -d "$NOTARIZATION_API_KEY_DIR" ]]; then
+        rm -rf "$NOTARIZATION_API_KEY_DIR"
+    fi
+}
+
 # Set up cleanup trap
-trap 'cleanup_dmg_files "$DMG_DIR"; cleanup_codesign_keychain' EXIT
+trap 'cleanup_dmg_files "$DMG_DIR"; cleanup_codesign_keychain; cleanup_notarization_api_key' EXIT
 
 # Define a helper function that uses Python to compute a relative path.
 function relpath() {
@@ -93,20 +93,18 @@ function relpath() {
 }
 
 # Defaults for command-line flags.
-UNIVERSAL_BINARY=true
 BUILD_BINARY=true
-TARGET_ARCH=""
 DMG_NAME_SUFFIX=""
-# By default we build dev bundles.
-RELEASE_CHANNEL="dev"
-FEATURES="release_bundle,cocoa_sentry,extern_plist"
+RELEASE_CHANNEL="oss"
+FEATURES="release_bundle,extern_plist"
 REGISTER_SERVICES=true
 DEBUG=false
-ARTIFACT="app"
 CODESIGN=true
 SELFSIGN=false
 OPEN_AFTER_BUNDLE=false
-READ_PASSWORDS_FROM_ENV=false
+READ_SIGNING_SECRETS_FROM_ENV=false
+NOTARIZATION_API_KEY_DIR=""
+NOTARIZATION_API_KEY_PATH=""
 
 PARAMS=""
 while (( "$#" )); do
@@ -136,7 +134,7 @@ while (( "$#" )); do
       SELFSIGN=false
       shift
       ;;
-    # Sign with a local Apple Development cert instead of the official Warp cert.
+    # Sign with a local Apple Development cert instead of the distribution cert.
     # Useful for local debug builds when you don't have access to the company signing key.
     # Falls back to ad-hoc signing if no Apple Development cert is found.
     --selfsign)
@@ -145,22 +143,14 @@ while (( "$#" )); do
       SELFSIGN=true
       shift
       ;;
-    # Build only for the default target architecture instead of universal binary
-    --nouniversal)
-      echo "Only building for default target $DEFAULT_TARGET, not a universal binary."
-      UNIVERSAL_BINARY=false
-      shift
-      ;;
-    # Build only for a specific architecture (implies --nouniversal)
+    # Build only for a specific architecture.
     --arch)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        if [ "$2" = "x86_64" -o "$2" = "aarch64" ]; then
+        if [ "$2" = "aarch64" ]; then
           echo "Building for specific architecture: $2"
-          TARGET_ARCH=$2
-          UNIVERSAL_BINARY=false
           shift 2
         else
-          echo "Error: --arch must be either x86_64 or aarch64, got '$2'" >&2
+          echo "Error: --arch must be aarch64 for Warply macOS releases, got '$2'" >&2
           exit 1
         fi
       else
@@ -184,7 +174,7 @@ while (( "$#" )); do
       OPEN_AFTER_BUNDLE=true
       shift
       ;;
-    # Specify the release channel (local, dev, preview, stable, oss)
+    # Specify the release channel.
     -c|--channel)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         RELEASE_CHANNEL=$2
@@ -205,29 +195,15 @@ while (( "$#" )); do
         exit 1
       fi
       ;;
-    # Read codesigning passwords from environment variables instead of GCP secret manager
-    --read-passwords-from-env)
-        echo "Reading codesigning passwords from env."
-        READ_PASSWORDS_FROM_ENV=true
+    --read-signing-secrets-from-env)
+        echo "Reading signing secrets from env."
+        READ_SIGNING_SECRETS_FROM_ENV=true
         shift
         ;;
     --features)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         echo "Adding Cargo features: $2"
         FEATURES="$FEATURES,$2"
-        shift 2
-      else
-        echo "Error: Argument for $1 is missing" >&2
-        exit 1
-      fi
-      ;;
-    --artifact)
-      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        if [[ "$2" != "app" && "$2" != "cli" ]]; then
-          echo "Error: --artifact must be either 'app' or 'cli', got '$2'" >&2
-          exit 1
-        fi
-        ARTIFACT="$2"
         shift 2
       else
         echo "Error: Argument for $1 is missing" >&2
@@ -246,21 +222,8 @@ eval set -- "$PARAMS"
 # Infer a cargo profile from the bundle configuration.
 if [[ $DEBUG = true ]]; then
   CARGO_PROFILE="dev"
-elif [[ $RELEASE_CHANNEL = "local" || $RELEASE_CHANNEL = "dev" ]]; then
-  # For dev bundles, we want to enable debug assertions to
-  # catch violations that would otherwise silently pass in
-  # a normal release build (e.g. in stable).
-  if [[ "$ARTIFACT" == "cli" ]]; then
-    CARGO_PROFILE="release-cli-debug_assertions"
-  else
-    CARGO_PROFILE="release-lto-debug_assertions"
-  fi
 else
-  if [[ "$ARTIFACT" == "cli" ]]; then
-    CARGO_PROFILE="release-cli"
-  else
-    CARGO_PROFILE="release-lto"
-  fi
+  CARGO_PROFILE="release-lto"
 fi
 
 TARGET_PROFILE_DIR="$CARGO_PROFILE"
@@ -268,150 +231,78 @@ if [[ "$CARGO_PROFILE" == "dev" ]]; then
   TARGET_PROFILE_DIR="debug"
 fi
 
-if [[ $RELEASE_CHANNEL = "local" ]]; then
-    WARP_BIN="warp"
-    BUNDLE_ID="dev.warp.Warp-Local"
-    WARP_APP_NAME="WarpLocal"
-    WARP_SCHEME_NAME="warplocal"
-    FEATURES="$FEATURES,agent_mode_debug"
-    # For local builds, use different versions of our bundled frameworks (e.g.:
-    # Sentry).  This needs to be exported so it can be referenced by
-    # app/build.rs later, while running `cargo bundle`.
-    export FRAMEWORK_OVERRIDE="dev"
-elif [[ $RELEASE_CHANNEL = "dev" ]]; then
-    WARP_BIN="dev"
-    BUNDLE_ID="dev.warp.Warp-Dev"
-    WARP_APP_NAME="WarpDev"
-    WARP_SCHEME_NAME="warpdev"
-    FEATURES="$FEATURES,agent_mode_debug"
-    # Enable heap usage tracking & profiling using jemalloc through pprof.
-    FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-    # For dev builds, use different versions of our bundled frameworks (e.g.:
-    # Sentry).  This needs to be exported so it can be referenced by
-    # app/build.rs later, while running `cargo bundle`.
-    export FRAMEWORK_OVERRIDE="dev"
-    export HANDLE_MARKDOWN=1
-elif [[ $RELEASE_CHANNEL = "preview" ]]; then
-    WARP_BIN="preview"
-    BUNDLE_ID="dev.warp.Warp-Preview"
-    WARP_APP_NAME="WarpPreview"
-    WARP_SCHEME_NAME="warppreview"
-    FEATURES="$FEATURES,preview_channel"
-    # Enable heap usage tracking & profiling using jemalloc through pprof.
-    FEATURES="$FEATURES,jemalloc_pprof,heap_usage_tracking"
-elif [[ $RELEASE_CHANNEL = "stable" ]]; then
-    WARP_BIN="stable"
-    BUNDLE_ID="dev.warp.Warp-Stable"
-    WARP_APP_NAME="Warp"
-    WARP_SCHEME_NAME="warp"
-elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-    WARP_BIN="warp-oss"
-    BUNDLE_ID="dev.warp.WarpOss"
-    WARP_APP_NAME="WarpOss"
-    WARP_SCHEME_NAME="warposs"
-    # The OSS channel does not ship Sentry, so drop the cocoa_sentry feature
-    # (which would otherwise pull in the Sentry framework dependency).
-    FEATURES="release_bundle,extern_plist"
+if [[ $RELEASE_CHANNEL = "stable" || $RELEASE_CHANNEL = "oss" ]]; then
+    WARPLY_BIN="warply"
+    BUNDLE_ID="dev.zhangyu1818.warply"
+    WARPLY_APP_NAME="Warply"
+    WARPLY_SCHEME_NAME="warply"
+    RELEASE_CHANNEL="oss"
+else
+    echo "Unsupported channel: $RELEASE_CHANNEL" >&2
+    exit 1
 fi
 
 OUT_DIR="target/$TARGET_PROFILE_DIR/bundle/osx"
-DOCK_TILE_PLUGIN_DIR="target/$TARGET_PROFILE_DIR/WarpDockTilePlugin.docktileplugin"
+DOCK_TILE_PLUGIN_DIR="target/$TARGET_PROFILE_DIR/WarplyDockTilePlugin.docktileplugin"
 
-# Handle specific architecture targeting
-if [[ -n "$TARGET_ARCH" ]]; then
-    # Building for a specific architecture
-    if [[ "$TARGET_ARCH" == "$INTEL_ARCH" ]]; then
-        echo "Building specifically for $INTEL_TARGET"
-        DEFAULT_TARGET="$INTEL_TARGET"
-        BUNDLE_DIR="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
-    elif [[ "$TARGET_ARCH" == "$ARM_ARCH" ]]; then
-        echo "Building specifically for $ARM_TARGET"
-        DEFAULT_TARGET="$ARM_TARGET"
-        BUNDLE_DIR="target/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
-    fi
-else
-    # Auto-detect default target based on current architecture
-    if [[ "$DEFAULT_ARCH" == *"$INTEL_ARCH"* ]]; then
-        echo "Default target is $INTEL_TARGET"
-        DEFAULT_TARGET="$INTEL_TARGET"
-        ADDITIONAL_TARGET="$ARM_TARGET"
-        BUNDLE_DIR="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
-    elif [[ "$DEFAULT_ARCH" == *"$ARM_ARCH"* ]]; then
-        echo "Default target is $ARM_TARGET"
-        DEFAULT_TARGET="$ARM_TARGET"
-        ADDITIONAL_TARGET="$INTEL_TARGET"
-        BUNDLE_DIR="target/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
-    fi
-fi
+BUNDLE_DIR="target/$ARM_TARGET/$TARGET_PROFILE_DIR/bundle/osx"
+echo "Building specifically for $ARM_TARGET"
 
 # Set artifact-specific configuration.
-if [[ "$ARTIFACT" == cli ]]; then
-  UNIVERSAL_BINARY=false
-  OPEN_AFTER_BUNDLE=false
-  FEATURES="$FEATURES,standalone"
-elif [[ "$ARTIFACT" == app ]]; then
-  FEATURES="$FEATURES,gui,nld_improvements"
-fi
+FEATURES="$FEATURES,gui,nld_improvements"
 
-# If we're building a universal bundle for the app artifact, make sure the additional target is available.
-if [[ $UNIVERSAL_BINARY = true ]]; then
-    rustup target add "$ADDITIONAL_TARGET"
-fi
+rustup target add "$ARM_TARGET"
 
 # If we only want to check that compilation will succeed, perform the checks
 # then exit.  We use this script to invoke `cargo check` to ensure that we are
 # using the same feature flags and profile that we would be using in production.
 if [[ "$CHECK_ONLY" == "true" ]]; then
-  cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
-  if [[ $UNIVERSAL_BINARY = true && "$ARTIFACT" != "cli" ]]; then
-    cargo check --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
-  fi
+  cargo check --profile "$CARGO_PROFILE" --bin "$WARPLY_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
   exit 0
 fi
 
-DMG_DIR="$BUNDLE_DIR/dmg/$WARP_BIN"
-DMG_NAME="$WARP_APP_NAME.dmg"
+DMG_DIR="$BUNDLE_DIR/dmg/$WARPLY_BIN"
+DMG_NAME="$WARPLY_APP_NAME.dmg"
 if [[ -z "$FINAL_DMG_NAME" && -n "$DMG_NAME_SUFFIX" ]]; then
-  FINAL_DMG_NAME="$WARP_APP_NAME-$DMG_NAME_SUFFIX.dmg"
+  FINAL_DMG_NAME="$WARPLY_APP_NAME-$DMG_NAME_SUFFIX.dmg"
 else
-  FINAL_DMG_NAME="$WARP_APP_NAME.dmg"
+  FINAL_DMG_NAME="$WARPLY_APP_NAME.dmg"
 fi
 
 # First clean up and prep the outdir
 mkdir -p "$OUT_DIR"
-rm -R "$OUT_DIR/$WARP_APP_NAME.app" || echo "No old app to remove"
+rm -R "$OUT_DIR/$WARPLY_APP_NAME.app" || echo "No old app to remove"
 rm -R "$OUT_DIR/$FINAL_DMG_NAME" || echo "No old dmg to remove"
 
 ###########################
 ## Step 1: Build the app ##
 ###########################
 
-if [[ "$ARTIFACT" == "app" ]]; then
-  if [[ $BUILD_BINARY != true ]]; then
-    echo "Skipping binary build due to --skip-build flag"
-    export CARGO_BUNDLE_SKIP_BUILD=1
-  fi
+if [[ $BUILD_BINARY != true ]]; then
+  echo "Skipping binary build due to --skip-build flag"
+  export CARGO_BUNDLE_SKIP_BUILD=1
+fi
 
-  pushd app > /dev/null
-  echo "Building and bundling $DEFAULT_TARGET for channel $RELEASE_CHANNEL and bundle id $BUNDLE_ID with profile $CARGO_PROFILE"
-  cargo bundle --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
-  popd > /dev/null
+pushd app > /dev/null
+echo "Building and bundling $DEFAULT_TARGET for channel $RELEASE_CHANNEL and bundle id $BUNDLE_ID with profile $CARGO_PROFILE"
+cargo bundle --profile "$CARGO_PROFILE" --bin "$WARPLY_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
+popd > /dev/null
 
-  echo "Adding rpath to support mac frameworks (e.g. Sentry)"
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/MacOS/$WARP_BIN"
+echo "Adding rpath to support mac frameworks"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/MacOS/$WARPLY_BIN"
 
-  export WARP_SCHEME_NAME
-  export WARP_PLIST_PATH="$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/Info.plist"
-  ./script/update_plist
+export WARPLY_SCHEME_NAME
+export WARPLY_PLIST_PATH="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Info.plist"
+./script/update_plist
 
-  if [[ $REGISTER_SERVICES = true ]]; then
+if [[ $REGISTER_SERVICES = true ]]; then
     plutil -insert NSServices -xml "
     <array>
       <dict>
         <key>NSMenuItem</key>
         <dict>
           <key>default</key>
-          <string>New $WARP_APP_NAME Tab Here</string>
+          <string>New $WARPLY_APP_NAME Tab Here</string>
         </dict>
         <key>NSMessage</key>
         <string>openTab</string>
@@ -430,7 +321,7 @@ if [[ "$ARTIFACT" == "app" ]]; then
         <key>NSMenuItem</key>
         <dict>
           <key>default</key>
-          <string>New $WARP_APP_NAME Window Here</string>
+          <string>New $WARPLY_APP_NAME Window Here</string>
         </dict>
         <key>NSMessage</key>
         <string>openWindow</string>
@@ -445,203 +336,105 @@ if [[ "$ARTIFACT" == "app" ]]; then
           <string>public.plain-text</string>
         </array>
       </dict>
-    </array>" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
-  fi
+    </array>" "$BUNDLE_DIR"/$WARPLY_APP_NAME.app/Contents/Info.plist
+fi
 
-  # Temporary key that ChatGPT Desktop can use to determine if the latest version of Warp supports the ChatGPT integration.
-  # Once support has been rolled out for a sufficient amount of time we (and ChatGPT) can remove this.
-  plutil -insert SUPPORTS_CHAT_GPT_WORK_WITH_APPS -bool true "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+plutil -insert LSBackgroundOnly -bool false "$BUNDLE_DIR"/$WARPLY_APP_NAME.app/Contents/Info.plist
 
-  # Add LSBackgroundOnly key and set it to false since we need a UI app
-  plutil -insert LSBackgroundOnly -bool false "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+plutil -insert SMAuthorizedClients -xml "<array><string>$BUNDLE_ID</string></array>" "$BUNDLE_DIR"/$WARPLY_APP_NAME.app/Contents/Info.plist
 
-  # Add SMAuthorizedClients for macOS 13+ (Ventura) to support login item functionality
-  plutil -insert SMAuthorizedClients -xml "<array><string>$BUNDLE_ID</string></array>" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+if [[ -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARPLY_BIN.dSYM" ]]; then
+  echo "Copying .dSYM into $OUT_DIR/$WARPLY_BIN.dSYM"
+  cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARPLY_BIN.dSYM" "$OUT_DIR/"
+fi
 
-  if [[ $UNIVERSAL_BINARY = true ]]; then
-      if [[ $BUILD_BINARY = true ]]; then
-          echo "Building $ADDITIONAL_TARGET to include in universal binary"
+echo "Creating PlugIns directory and copying pre-built DockTilePlugin..."
+mkdir -p "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/PlugIns"
+cp -R "$DOCK_TILE_PLUGIN_DIR" "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/PlugIns/"
 
-          pushd app > /dev/null
-          cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$ADDITIONAL_TARGET" --features "$FEATURES"
-          popd > /dev/null
-      else
-          echo "Skipping build of $ADDITIONAL_TARGET due to --skip-build flag"
-      fi
+echo "Updating plist with dock tile plugin entries"
+plutil -insert NSDockTilePlugIn -string "WarplyDockTilePlugin.docktileplugin" "$BUNDLE_DIR"/$WARPLY_APP_NAME.app/Contents/Info.plist
+plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARPLY_APP_NAME.app/Contents/PlugIns/WarplyDockTilePlugin.docktileplugin/Contents/Info.plist
 
-      tmp_bundle_dir=$(mktemp -d -t ci-XXXXXXXXXX)
+BUNDLED_RESOURCES_DIR="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Resources"
+echo "Preparing bundled resources..."
+"$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"
 
-      echo "Adding rpath to both binaries for universal executable"
-      install_name_tool -add_rpath "@executable_path/../Frameworks" "target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
-      install_name_tool -add_rpath "@executable_path/../Frameworks"  "target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
+"$WORKSPACE_ROOT_DIR/script/compile_icon" "$RELEASE_CHANNEL" "$BUNDLE_DIR/$WARPLY_APP_NAME.app"
 
-      echo "Building universal binary using lipo."
-      lipo -create -output "$tmp_bundle_dir/$WARP_BIN" \
-          "target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" \
-          "target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
+HELPERS_DIR="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Helpers"
+if [[ ",$FEATURES," =~ ",heap_usage_tracking," ]]; then
+  echo "Bundling pprof..."
+  "$WORKSPACE_ROOT_DIR/script/prepare_bundled_pprof" "$HELPERS_DIR"
+fi
 
-      # Compute the real absolute path to the dSYM file, factoring in symlinks.
-      # Starting in Rust 1.56, the generated dSYMs are symlinks to files within the target/dep directory. For example,
-      # a dSYM for dev may be symlinked to target/deps/dev-080cf7e291fb066d.dSYM. This means the actual debug symbols are
-      # would be located at dev.dSYM/Contents/Resources/DWARF/dev-080cf7e291fb066d.dSYM where dev.dSYM is symlink to
-      # deps/dev-080cf7e291fb066d.dSYM. To fix this, parse out the actual name of the directory that the dSYM is
-      # symlinked to, since this is also the name of file that contains the debug symbols within the dSYM.
-      INTEL_DSYM_NAME=$(basename "$(realpath target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM)" .dSYM)
-      INTEL_DSYM_PATH="target/$INTEL_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$INTEL_DSYM_NAME"
-      ARM_DSYM_NAME=$(basename "$(realpath target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM)" .dSYM)
-      ARM_DSYM_PATH="target/$ARM_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM/Contents/Resources/DWARF/$ARM_DSYM_NAME"
-      if [[ -e "$INTEL_DSYM_PATH" && -e "$ARM_DSYM_PATH" ]]; then
-        echo "Building universal binary .dSYM using lipo and storing in $OUT_DIR/$WARP_BIN.dSYM"
+CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/warply"
 
-        # Use lipo to merge the .dSYM files into a single universal .dSYM file.
-        # It expects the base name for the file (with the .dSYM suffix removed).
-        lipo -create -output "$OUT_DIR/$WARP_BIN.dSYM" "${INTEL_DSYM_PATH}" "${ARM_DSYM_PATH}"
-      fi
-
-      echo "Storing result in $BUNDLE_DIR, replacing $DEFAULT_TARGET binary with fat binary."
-      mv "$tmp_bundle_dir/$WARP_BIN" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/MacOS"
-  elif [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
-    echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
-  fi
-
-  # Note that the dock tile plugin is pre-built for both arm64 and x86_64 so we don't need to run lipo on it.
-  echo "Creating PlugIns directory and copying pre-built DockTilePlugin..."
-  mkdir -p "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/PlugIns"
-  cp -R "$DOCK_TILE_PLUGIN_DIR" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/PlugIns/"
-
-  echo "Updating plist with dock tile plugin entries"
-  plutil -insert NSDockTilePlugIn -string "WarpDockTilePlugin.docktileplugin" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
-  plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/PlugIns/WarpDockTilePlugin.docktileplugin/Contents/Info.plist
-
-  BUNDLED_RESOURCES_DIR="$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/Resources"
-  echo "Preparing bundled resources..."
-  "$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"
-
-  "$WORKSPACE_ROOT_DIR/script/compile_icon" "$RELEASE_CHANNEL" "$BUNDLE_DIR/$WARP_APP_NAME.app"
-
-  HELPERS_DIR="$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/Helpers"
-  if [[ ",$FEATURES," =~ ",heap_usage_tracking," ]]; then
-    echo "Bundling pprof..."
-    "$WORKSPACE_ROOT_DIR/script/prepare_bundled_pprof" "$HELPERS_DIR"
-  fi
-
-  # Determine CLI wrapper script path based on release channel.  Each channel's
-  # value here must match `Channel::cli_command_name` in the Rust source.
-  if [[ $RELEASE_CHANNEL = "stable" ]]; then
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/oz"
-  elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/warp-oss"
-  else
-    CLI_SCRIPT_PATH="$BUNDLED_RESOURCES_DIR/bin/oz-$RELEASE_CHANNEL"
-  fi
-
-  echo "Creating Resources/bin directory and CLI wrapper script..."
-  mkdir -p "$BUNDLED_RESOURCES_DIR/bin"
+echo "Creating Resources/bin directory and CLI wrapper script..."
+mkdir -p "$BUNDLED_RESOURCES_DIR/bin"
   
-  cat > "$CLI_SCRIPT_PATH" << 'EOF'
+cat > "$CLI_SCRIPT_PATH" << 'EOF'
 #!/bin/bash
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec -a "$0" "$script_dir/../../MacOS/WARP_BIN_PLACEHOLDER" "$@"
+exec -a "$0" "$script_dir/../../MacOS/WARPLY_BIN_PLACEHOLDER" "$@"
 EOF
   
-  # Replace the placeholder with the actual binary name
-  sed -i '' "s/WARP_BIN_PLACEHOLDER/$WARP_BIN/" "$CLI_SCRIPT_PATH"
+sed -i '' "s/WARPLY_BIN_PLACEHOLDER/$WARPLY_BIN/" "$CLI_SCRIPT_PATH"
   
-  # Make the script executable
-  chmod +x "$CLI_SCRIPT_PATH"
+chmod +x "$CLI_SCRIPT_PATH"
 
-  # Store the built artifact locations for GitHub Actions outputs.
-  BINARY_PATH="target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN"
-  DMG_PATH="$OUT_DIR/$FINAL_DMG_NAME"
-elif [[ "$ARTIFACT" == "cli" ]]; then
-  if [[ $BUILD_BINARY == true ]]; then
-    # Create Info.plist before building the app, since it's embedded at build time.
-    # Apple's codesigning tools will detect Info.plist files in the same directory as an executable.
-    # This breaks the code signature, so we must use a different location for the file.
-    mkdir -p "$BUNDLE_DIR"
-    export WARP_PLIST_PATH="$BUNDLE_DIR/cli-info.plist"
-    cp app/assets/resources/mac/CLI-Info.plist "$WARP_PLIST_PATH"
-
-    export WARP_PLIST_NO_FILE_TYPES=true
-    ./script/update_plist
-    plutil -insert CFBundleIdentifier -string "$BUNDLE_ID" "$WARP_PLIST_PATH"
-    plutil -insert CFBundleName -string "$WARP_BIN" "$WARP_PLIST_PATH"
-    plutil -insert CFBundleExecutable -string "$WARP_BIN" "$WARP_PLIST_PATH"
-
-    export "INFO_PLIST_PATH=$(realpath "$WARP_PLIST_PATH")"
-    pushd app > /dev/null
-    echo "Building $DEFAULT_TARGET for channel $RELEASE_CHANNEL with profile $CARGO_PROFILE"
-    cargo build --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
-    popd > /dev/null
-  else
-    echo "Skipping binary build due to --skip-build flag"
-  fi
-
-  echo "Copying binary into $OUT_DIR/$WARP_BIN"
-  cp "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN" "$OUT_DIR/$WARP_BIN"
-
-  if [[ -n "$TARGET_ARCH" && -e "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" ]]; then
-    echo "Copying .dSYM into $OUT_DIR/$WARP_BIN.dSYM"
-    cp -HR "target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARP_BIN.dSYM" "$OUT_DIR/"
-  fi
-
-  echo "Preparing CLI resources directory"
-  BUNDLED_RESOURCES_DIR="$OUT_DIR/resources"
-  "$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"
-
-
-  # Set the primary binary path to output.
-  BINARY_PATH="$OUT_DIR/$WARP_BIN"
-else
-  echo "Unsupported artifact: $ARTIFACT" >&2
-  exit 1
-fi
+BINARY_PATH="target/$DEFAULT_TARGET/$TARGET_PROFILE_DIR/$WARPLY_BIN"
+DMG_PATH="$OUT_DIR/$FINAL_DMG_NAME"
 
 ##########################################
 ## Step 2: Create code-signing keychain ##
 ##########################################
 
-if [[ $READ_PASSWORDS_FROM_ENV != true ]]; then
-  echo "Skipping code-signing because passwords are not available in environment."
+if [[ $READ_SIGNING_SECRETS_FROM_ENV != true ]]; then
+  echo "Skipping code-signing because signing secrets are not available in environment."
   CODESIGN=false
 fi
 
 if [[ $CODESIGN = true ]]; then
-  # TODO - does this need to change per user?  Seems like it's tied to the WARP_NOTARIZATION_PASSWORD password.
-  APPLE_TEAM_ID="2BBY89MBSN"
-  CODESIGN_KEYCHAIN_NAME="warp-codesign-keychain"
+  APPLE_TEAM_ID="${WARPLY_APPLE_TEAM_ID:?WARPLY_APPLE_TEAM_ID must be set for code signing}"
+  CODESIGN_KEYCHAIN_NAME="warply-codesign-keychain"
 
   echo "Starting codesigning..."
 
-  if [[ $READ_PASSWORDS_FROM_ENV = true ]]; then
-    if [ -z "$WARP_NOTARIZATION_PASSWORD" ] ; then
-      echo "WARP_NOTARIZATION_PASSWORD must be set for code signing"
-      exit 1
-    fi
+  if [[ $READ_SIGNING_SECRETS_FROM_ENV = true ]]; then
+    for secret_name in \
+      WARPLY_DEVELOPER_ID_CERT \
+      WARPLY_DEVELOPER_ID_CERT_PASSWORD \
+      WARPLY_CODESIGN_KEYCHAIN_PASSWORD \
+      WARPLY_APP_STORE_CONNECT_KEY_ID \
+      WARPLY_APP_STORE_CONNECT_ISSUER_ID \
+      WARPLY_APP_STORE_CONNECT_PRIVATE_KEY; do
+      if [ -z "${!secret_name}" ] ; then
+        echo "$secret_name must be set for code signing"
+        exit 1
+      fi
+    done
 
-    if [ -z "$WARP_DEVELOPER_ID_CERT_PASSWORD" ] ; then
-      echo "WARP_DEVELOPER_ID_CERT_PASSWORD must be set for code signing"
+    NOTARIZATION_API_KEY_DIR="$(mktemp -d)"
+    NOTARIZATION_API_KEY_PATH="$NOTARIZATION_API_KEY_DIR/AuthKey_${WARPLY_APP_STORE_CONNECT_KEY_ID}.p8"
+    if ! printf '%s' "$WARPLY_APP_STORE_CONNECT_PRIVATE_KEY" | base64 -d > "$NOTARIZATION_API_KEY_PATH"; then
+      echo "Failed to decode WARPLY_APP_STORE_CONNECT_PRIVATE_KEY"
       exit 1
     fi
-
-    if [ -z "$WARP_CODESIGN_KEYCHAIN_PASSWORD" ] ; then
-      echo "WARP_CODESIGN_KEYCHAIN_PASSWORD must be set for code signing"
-      exit 1
-    fi
+    chmod 600 "$NOTARIZATION_API_KEY_PATH"
   fi
 
   security delete-keychain $CODESIGN_KEYCHAIN_NAME || echo "No existing keychain to clean up".
 
   echo "Creating $CODESIGN_KEYCHAIN_NAME keychain."
-  security create-keychain -p "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
+  security create-keychain -p "$WARPLY_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
   security list-keychains -s $CODESIGN_KEYCHAIN_NAME
   security set-keychain-settings -t 3600 -u $CODESIGN_KEYCHAIN_NAME
 
   echo "Unlocking keychain and setting cert."
-  security unlock-keychain -p "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
-  security import <(echo "$WARP_DEVELOPER_ID_CERT" | base64 -d) -f pkcs12 -P "$WARP_DEVELOPER_ID_CERT_PASSWORD" -k $CODESIGN_KEYCHAIN_NAME -T /usr/bin/codesign
-  security set-key-partition-list -S "apple-tool:,apple:" -s -k "$WARP_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
+  security unlock-keychain -p "$WARPLY_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
+  security import <(echo "$WARPLY_DEVELOPER_ID_CERT" | base64 -d) -f pkcs12 -P "$WARPLY_DEVELOPER_ID_CERT_PASSWORD" -k $CODESIGN_KEYCHAIN_NAME -T /usr/bin/codesign
+  security set-key-partition-list -S "apple-tool:,apple:" -s -k "$WARPLY_CODESIGN_KEYCHAIN_PASSWORD" $CODESIGN_KEYCHAIN_NAME
 fi
 
 ##############################
@@ -656,59 +449,31 @@ if [[ $SELFSIGN = true ]]; then
   else
     echo "Found Apple Development certificate"
   fi
-  if [[ "$ARTIFACT" == app ]]; then
-    echo "Self-signing $BUNDLE_DIR/$WARP_APP_NAME.app with ${SIGNING_CERT}..."
-    codesign --force --deep --options runtime --sign "$SIGNING_CERT" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Debug-Entitlements.plist
-  elif [[ "$ARTIFACT" == cli ]]; then
-    echo "Self-signing $OUT_DIR/$WARP_BIN with ${SIGNING_CERT}..."
-    codesign --force --options runtime --sign "$SIGNING_CERT" "$OUT_DIR/$WARP_BIN" --entitlements script/Debug-Entitlements.plist
-  fi
+  echo "Self-signing $BUNDLE_DIR/$WARPLY_APP_NAME.app with ${SIGNING_CERT}..."
+  codesign --force --deep --options runtime --sign "$SIGNING_CERT" "$BUNDLE_DIR/$WARPLY_APP_NAME.app" --entitlements script/Debug-Entitlements.plist
 elif [[ $CODESIGN = true ]]; then
-  if [[ "$ARTIFACT" == app ]]; then
-    echo "Codesigning $BUNDLE_DIR/$WARP_APP_NAME.app..."
-    # Use --deep so we sign bundled frameworks as well
-    codesign --deep -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$BUNDLE_DIR/$WARP_APP_NAME.app" --entitlements script/Entitlements.plist
-  elif [[ "$ARTIFACT" == cli ]]; then
-    echo "Codesigning $OUT_DIR/$WARP_BIN..."
-    codesign -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$OUT_DIR/$WARP_BIN" --entitlements script/Entitlements.plist
-
-    # Create the .zip for notarization in a separate location - otherwise, Apple's codesigning
-    # tools decide that it's a sealed resource that belongs to the binary and needs to also be signed.
-    NOTARIZATION_ARTIFACT="$BUNDLE_DIR/${WARP_BIN}_notarize.zip"
-    if [[ -e "$NOTARIZATION_ARTIFACT" ]]; then
-      echo "Removing old notarization artifact..."
-      rm "$NOTARIZATION_ARTIFACT"
-    fi
-
-    # Create a .zip archive to notarize.
-    ditto -c -k "$OUT_DIR/$WARP_BIN" "$NOTARIZATION_ARTIFACT"
-    
-    # It's not possible to staple notarization tickets to standalone binaries:
-    # https://developer.apple.com/documentation/security/customizing-the-notarization-workflow?language=objc#Staple-the-ticket-to-your-distribution
-    STAPLE_TICKET=false
-  fi
+  echo "Codesigning $BUNDLE_DIR/$WARPLY_APP_NAME.app..."
+  codesign --deep -f -o runtime --timestamp -s "$APPLE_TEAM_ID" "$BUNDLE_DIR/$WARPLY_APP_NAME.app" --entitlements script/Entitlements.plist
 fi
 
 ########################
 ## Step 4: Create DMG ##
 ########################
 
-if [[ "$ARTIFACT" = app ]]; then
-  function create_warp_dmg() {
+function create_warply_dmg() {
     echo "Creating $DMG_DIR/$DMG_NAME..."
     rm "$DMG_DIR/$DMG_NAME" || true
     local source_folder="$1"
 
     local args=(
-      --volname Warp
-      # For --no-internet-enable, see https://github.com/create-dmg/create-dmg/issues/179
+      --volname Warply
       --no-internet-enable
       --background app/assets/resources/mac/warp_install_image.png
       --icon-size 128
       --window-size 700 500
       --format UDZO
       --app-drop-link 550 250
-      --icon "$WARP_APP_NAME.app" 150 250
+      --icon "$WARPLY_APP_NAME.app" 150 250
       # macOS 26.4 Beta has issues with mounting HFS+ DMGs, so we're using APFS instead.
       # APFS has been supported as a DMG filesystem since macOS 10.13, and we target 10.14
       # as our minimum version.
@@ -726,35 +491,34 @@ if [[ "$ARTIFACT" = app ]]; then
     args+=("$DMG_DIR/$DMG_NAME" "$source_folder")
 
     create-dmg "${args[@]}"
-  }
+}
 
   # If we're codesigning, stage the signed app and use that to create the DMG.
   # Otherwise, create a DMG from the bundle dir directly.
-  if [[ $CODESIGN = true ]]; then
+if [[ $CODESIGN = true ]]; then
     if test -d "$DMG_DIR"; then
       echo "Clearing old dmg directory $DMG_DIR"
       rm -r "$DMG_DIR"
     fi
     echo "Creating $DMG_DIR"
     mkdir -p "$DMG_DIR"
-    cp -R "$BUNDLE_DIR/$WARP_APP_NAME.app" "$DMG_DIR"
+    cp -R "$BUNDLE_DIR/$WARPLY_APP_NAME.app" "$DMG_DIR"
 
-    create_warp_dmg "$DMG_DIR"
+    create_warply_dmg "$DMG_DIR"
 
     echo "Codesigning $DMG_DIR/$DMG_NAME..."
     codesign -s "$APPLE_TEAM_ID" --timestamp "$DMG_DIR/$DMG_NAME"
 
     NOTARIZATION_ARTIFACT="$DMG_DIR/$DMG_NAME"
     STAPLE_TICKET=true
-  else
+else
     echo "Creating $DMG_DIR"
     mkdir -p "$DMG_DIR"
 
     echo "Cleaning up any existing DMG files before creating new ones..."
     cleanup_dmg_files "$DMG_DIR"
 
-    create_warp_dmg "$BUNDLE_DIR"
-  fi
+    create_warply_dmg "$BUNDLE_DIR"
 fi
 
 ##############################
@@ -763,7 +527,7 @@ fi
 
 if [[ $CODESIGN = true ]]; then
   echo "Uploading $NOTARIZATION_ARTIFACT to Apple for notarization..."
-  xcrun notarytool submit "$NOTARIZATION_ARTIFACT" --apple-id "$WARP_NOTARIZATION_APPLE_ID" --password "$WARP_NOTARIZATION_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+  xcrun notarytool submit "$NOTARIZATION_ARTIFACT" --key "$NOTARIZATION_API_KEY_PATH" --key-id "$WARPLY_APP_STORE_CONNECT_KEY_ID" --issuer "$WARPLY_APP_STORE_CONNECT_ISSUER_ID" --wait
 
   if [[ $STAPLE_TICKET = true ]]; then
     echo "Attempting to staple the notarization ticket to $NOTARIZATION_ARTIFACT..."
@@ -775,13 +539,8 @@ if [[ $CODESIGN = true ]]; then
     exit 1
   fi
 
-  # Verify the notarization results (this is format-dependent)
   echo "Verifying notarization ticket..."
-  if [[ "$ARTIFACT" = app ]]; then
-    xcrun stapler validate "$DMG_DIR/$DMG_NAME"
-  elif [[ "$ARTIFACT" = cli ]]; then
-    spctl -a -t open --context context:primary-signature -vv "$OUT_DIR/$WARP_BIN"
-  fi
+  xcrun stapler validate "$DMG_DIR/$DMG_NAME"
 fi
 
 
@@ -789,36 +548,18 @@ fi
 ## Step 6: Copy and output artifacts ##
 #######################################
 
-if [[ "$ARTIFACT" = app ]]; then
-  echo "Copying dmg and app to $OUT_DIR"
-  cp -R "$BUNDLE_DIR/$WARP_APP_NAME.app" "$OUT_DIR"
-  cp "$DMG_DIR/$DMG_NAME" "$OUT_DIR/$FINAL_DMG_NAME"
-fi
+echo "Copying dmg and app to $OUT_DIR"
+cp -R "$BUNDLE_DIR/$WARPLY_APP_NAME.app" "$OUT_DIR"
+cp "$DMG_DIR/$DMG_NAME" "$OUT_DIR/$FINAL_DMG_NAME"
 
 # If this is being run within a GitHub action, set an output variable with the
 # location of the artifacts so they can be referenced by subsequent actions.
 if [ "${GITHUB_ACTIONS}" == "true" ]; then
   echo "::echo::on"
 
-  # For individual architecture builds, output binary information
-  if [[ -n "$TARGET_ARCH" ]]; then
-    echo "binary_path=$BINARY_PATH" >> "$GITHUB_OUTPUT"
-    echo "target_arch=$TARGET_ARCH" >> "$GITHUB_OUTPUT"
-    echo "rust_target=$DEFAULT_TARGET" >> "$GITHUB_OUTPUT"
-    
-    # If the dSYM is available, output both its path and its realpath.
-    # The realpath is needed because the dSYM is a symlink, and when preserving
-    # the build artifacts, we want to preserve both the symlink and its target.
-    DSYM_PATH="${BINARY_PATH}.dSYM"
-    if [[ -d "$DSYM_PATH" ]]; then
-      echo "dsym_path=$DSYM_PATH" >> "$GITHUB_OUTPUT"
-
-      # If the dSYM is a symlink, output its real path.
-      if [[ -L "$DSYM_PATH" ]]; then
-        echo "dsym_realpath=$(relpath $(realpath $DSYM_PATH))" >> "$GITHUB_OUTPUT"
-      fi
-    fi
-  fi
+  echo "binary_path=$BINARY_PATH" >> "$GITHUB_OUTPUT"
+  echo "target_arch=$ARM_ARCH" >> "$GITHUB_OUTPUT"
+  echo "rust_target=$DEFAULT_TARGET" >> "$GITHUB_OUTPUT"
 
   echo "dock_tile_plugin_dir=$DOCK_TILE_PLUGIN_DIR" >> "$GITHUB_OUTPUT"
   echo "frameworks_dir=app/frameworks/${FRAMEWORK_OVERRIDE:-default}" >> "$GITHUB_OUTPUT"

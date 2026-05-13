@@ -41,7 +41,7 @@ pub(super) enum PluginRef {
     /// Refers to plugin source on disk.
     Path(PathBuf),
 
-    /// Refers to a "built-in" plugin bundled with the Warp binary.
+    /// Refers to a "built-in" plugin bundled with the Warply binary.
     BuiltIn(BuiltInPluginType),
 }
 

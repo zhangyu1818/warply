@@ -109,7 +109,7 @@ const COMMANDS_COUNT_LIMIT: i64 = 10000;
 
 use warp_server_client::persistence::{upsert_cloud_object, CloudObjectId};
 
-const WARP_SQLITE_FILE_NAME: &str = "warp.sqlite";
+const WARPLY_SQLITE_FILE_NAME: &str = "warply.sqlite";
 
 /// When delete a cloud object, this callback is used to delete the cloud
 /// object. It takes the id of the cloud object to delete as a parameter.
@@ -266,38 +266,6 @@ pub(super) fn init_db() -> Result<SqliteConnection> {
         );
     }
 
-    // Migrate old SQLite files into the secure application container.
-    let old_db_path = warp_core::paths::state_dir().join(WARP_SQLITE_FILE_NAME);
-    if old_db_path != db_path && old_db_path.exists() && !db_path.exists() {
-        match std::fs::rename(&old_db_path, &db_path) {
-            Ok(_) => {
-                safe_info!(
-                    safe: ("Migrated SQLite database into application container"),
-                    full: ("Migrated SQLite database from `{}` to `{}`", old_db_path.display(), db_path.display())
-                );
-
-                // Also migrate the associated WAL and SHM files.
-                let old_wal = old_db_path.with_extension("sqlite-wal");
-                let old_shm = old_db_path.with_extension("sqlite-shm");
-                let new_wal = db_path.with_extension("sqlite-wal");
-                let new_shm = db_path.with_extension("sqlite-shm");
-
-                if let Err(err) = std::fs::rename(&old_wal, &new_wal) {
-                    if err.kind() != std::io::ErrorKind::NotFound {}
-                } else {
-                    log::info!("Migrated SQLite WAL into application container");
-                }
-
-                if let Err(err) = std::fs::rename(&old_shm, &new_shm) {
-                    if err.kind() != std::io::ErrorKind::NotFound {}
-                } else {
-                    log::info!("Migrated SQLite shared memory file into application container");
-                }
-            }
-            Err(_err) => {}
-        }
-    }
-
     setup_database(&database_file_path())
 }
 
@@ -323,9 +291,7 @@ fn setup_database(database_path: &Path) -> Result<SqliteConnection> {
 /// Integration tests that initialize the database with known data should use
 /// this function to determine where to create the database file.
 pub fn database_file_path() -> PathBuf {
-    warp_core::paths::secure_state_dir()
-        .unwrap_or_else(warp_core::paths::state_dir)
-        .join(WARP_SQLITE_FILE_NAME)
+    warp_core::paths::state_dir().join(WARPLY_SQLITE_FILE_NAME)
 }
 
 fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<WriterHandles> {

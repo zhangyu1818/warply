@@ -32,14 +32,14 @@ mod binary_detection {
 
     #[test]
     fn extensionless_shell_script_is_not_binary() {
-        // Regression test for QUALITY-507: an extensionless shell script (e.g.
-        // `script/linux/bundle`) was being classified as binary solely because
-        // its basename isn't in the known extensionless-text allow-list.
+        // Regression test for QUALITY-507: an extensionless shell script was
+        // being classified as binary solely because its basename isn't in the
+        // known extensionless-text allow-list.
         let dir = TempDir::new().expect("create tempdir");
         let path = write_file(
             &dir,
             "bundle",
-            b"#!/usr/bin/env bash\n#\n# Builds a Warp binary and bundles it up for distribution.\n\nset -e\n",
+            b"#!/usr/bin/env bash\n#\n# Builds a Warply binary and bundles it up for distribution.\n\nset -e\n",
         );
         assert!(!block_on(should_read_as_binary(&path)));
     }

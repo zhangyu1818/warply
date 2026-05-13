@@ -25,7 +25,7 @@ fn test_split_path() {
     let path = TypedPathBuf::from_unix("/Users/warpuser");
     let split_path = SplitPath::new(
         path.to_path(),
-        "~/Warp.app",
+        "~/Warply.app",
         Some("/Users/warpuser"),
         &['/'],
     );
@@ -35,37 +35,37 @@ fn test_split_path() {
         SplitPath {
             directory_absolute_path: path.clone(),
             directory_relative_path_name: "~/".to_owned(),
-            file_name: "Warp.app".to_owned()
+            file_name: "Warply.app".to_owned()
         }
     );
 
     let split_path = SplitPath::new(
         path.to_path(),
-        "Warp.app/Contents",
+        "Warply.app/Contents",
         Some("/Users/warpuser"),
         &['/'],
     );
     assert_eq!(
         split_path,
         SplitPath {
-            directory_absolute_path: TypedPathBuf::from("/Users/warpuser/Warp.app/"),
-            directory_relative_path_name: "Warp.app/".to_owned(),
+            directory_absolute_path: TypedPathBuf::from("/Users/warpuser/Warply.app/"),
+            directory_relative_path_name: "Warply.app/".to_owned(),
             file_name: "Contents".to_owned()
         }
     );
 
     let split_path = SplitPath::new(
         path.to_path(),
-        "Warp.app/macOS/bin/warp.o",
+        "Warply.app/macOS/bin/warply.o",
         Some("/Users/warpuser"),
         &['/'],
     );
     assert_eq!(
         split_path,
         SplitPath {
-            directory_absolute_path: TypedPathBuf::from("/Users/warpuser/Warp.app/macOS/bin/"),
-            directory_relative_path_name: "Warp.app/macOS/bin/".to_owned(),
-            file_name: "warp.o".to_owned()
+            directory_absolute_path: TypedPathBuf::from("/Users/warpuser/Warply.app/macOS/bin/"),
+            directory_relative_path_name: "Warply.app/macOS/bin/".to_owned(),
+            file_name: "warply.o".to_owned()
         }
     );
 }

@@ -31,7 +31,7 @@ pub struct ChannelState {
 impl ChannelState {
     pub fn init() -> Self {
         let channel = Channel::Oss;
-        let app_id = AppId::new("dev", "warp", "WarpOss");
+        let app_id = AppId::new("dev", "zhangyu1818", "warply");
         Self {
             channel,
             additional_features: Default::default(),
@@ -81,11 +81,11 @@ impl ChannelState {
     /// Returns a profile name for isolating user data. This should be used to
     /// sandbox how user data is stored.
     ///
-    /// This is a debugging tool for isolating development instances of Warp, and is not
+    /// This is a debugging tool for isolating development instances of Warply, and is not
     /// supported in release builds.
     pub fn data_profile() -> Option<String> {
         if cfg!(debug_assertions) {
-            std::env::var("WARP_DATA_PROFILE").ok()
+            std::env::var("WARPLY_DATA_PROFILE").ok()
         } else {
             None
         }
@@ -94,7 +94,7 @@ impl ChannelState {
     /// Returns a value that should be used for namespacing persisted data.
     ///
     /// In release builds, this is identical to the app ID; in debug builds,
-    /// it optionally includes a suffix derived from the `WARP_DATA_PROFILE`
+    /// it optionally includes a suffix derived from the `WARPLY_DATA_PROFILE`
     /// environment variable.
     pub fn data_domain() -> String {
         match Self::data_profile() {
@@ -148,13 +148,13 @@ impl ChannelState {
 
     pub fn url_scheme() -> &'static str {
         match Self::channel() {
-            Channel::Stable => "warp",
-            Channel::Preview => "warppreview",
-            Channel::Dev => "warpdev",
+            Channel::Stable => "warply",
+            Channel::Preview => "warplypreview",
+            Channel::Dev => "warplydev",
             // Dummy value--integration tests shouldn't support URL schemes.
-            Channel::Integration => "warpintegration",
-            Channel::Local => "warplocal",
-            Channel::Oss => "warposs",
+            Channel::Integration => "warplyintegration",
+            Channel::Local => "warplylocal",
+            Channel::Oss => "warply",
         }
     }
 }

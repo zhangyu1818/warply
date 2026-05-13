@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# Run this script once to prepare your machine to develop Warp. This script is
+# Run this script once to prepare your machine to develop Warply. This script is
 # a work in progress, and may be incomplete.
 
 set -e
 
-. "$PWD/script/warp_sudo"
+. "$PWD/script/warply_sudo"
 
 DEVELOPER_DIR="$(xcode-select -p 2>/dev/null || true)"
 if [ -z "$DEVELOPER_DIR" ] || [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ] || [ "$DEVELOPER_DIR" = "/Library/Developer/CommandLineTools" ]; then
@@ -27,7 +27,7 @@ if [ -z "$DEVELOPER_DIR" ] || [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ] || [ 
         exit 1
     fi
     echo "Selected Xcode at $XCODE_APP"
-    warp_sudo xcode-select --switch "$XCODE_APP/Contents/Developer"
+    warply_sudo xcode-select --switch "$XCODE_APP/Contents/Developer"
 fi
 # Mimic actually launching XCode, which performs some necessary set-up of the
 # development environment.
@@ -58,30 +58,10 @@ cargo install cargo-bundle --git=https://github.com/burtonageo/cargo-bundle --re
 brew update
 
 brew install jq
-brew install getsentry/tools/sentry-cli
 brew install clang-format
 brew install create-dmg
 brew install multitime
-brew install powershell
 brew install pkgconf
 brew install llvm
 
-# Install PSScriptAnalyzer for PowerShell linting
-pwsh -Command "Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser"
-
-if ! [ "$(command -v docker)" ]; then
-    brew install --cask docker
-fi
-
-if ! [ "$(command -v gcloud)" ]; then
-    brew install google-cloud-sdk
-fi
-
-if [[ -z $(gcloud auth print-identity-token) ]]; then
-    echo "gcloud CLI authentication missing.  Press enter to continue..."
-    read var
-    gcloud auth login
-fi
-
-# Needed for building for Mac ARM machines (e.g. M1)
 rustup target add aarch64-apple-darwin

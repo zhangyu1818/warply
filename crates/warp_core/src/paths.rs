@@ -24,31 +24,26 @@ use crate::{
     AppId,
 };
 
-/// The name of the directory in which to put non-global Warp-specific files.
+/// The name of the directory in which to put non-global Warply-specific files.
 ///
 /// This should be used, for example, as the base directory under which
 /// repository workflows would be stored (in "./.warp/workflows").
-pub const WARP_CONFIG_DIR: &str = ".warp";
+pub const WARPLY_CONFIG_DIR: &str = ".warply";
 
-/// The name of the folder that stores Warp execution logs and network logs.
-/// This is currently only used on Windows to maintain backwards compatibility.
-pub const WARP_LOGS_DIR: &str = "logs";
+/// The name of the folder that stores Warply execution logs and network logs.
+pub const WARPLY_LOGS_DIR: &str = "logs";
 
 fn base_warp_config_dir_name() -> String {
     match ChannelState::channel() {
-        // Preview shares the same directory as Stable for backward
-        // compatibility — existing users already have config in `.warp`.
-        Channel::Stable | Channel::Preview => WARP_CONFIG_DIR.to_owned(),
-        Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
-        Channel::Dev => format!("{WARP_CONFIG_DIR}-dev"),
-        Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
-        Channel::Local => format!("{WARP_CONFIG_DIR}-local"),
+        Channel::Stable | Channel::Preview | Channel::Oss => WARPLY_CONFIG_DIR.to_owned(),
+        Channel::Dev => format!("{WARPLY_CONFIG_DIR}-dev"),
+        Channel::Integration => format!("{WARPLY_CONFIG_DIR}-integration"),
+        Channel::Local => format!("{WARPLY_CONFIG_DIR}-local"),
     }
 }
-/// Returns the home-relative Warp config directory name for the current channel and data profile.
+/// Returns the home-relative Warply config directory name for the current channel and data profile.
 ///
-/// This preserves the historical `.warp*` directory shape while still isolating dev, local,
-/// integration, oss, and optional development profiles.
+/// This isolates dev, local, integration, oss, and optional development profiles.
 pub fn warp_home_config_dir_name() -> String {
     let base_dir_name = base_warp_config_dir_name();
 
@@ -59,10 +54,10 @@ pub fn warp_home_config_dir_name() -> String {
     }
 }
 
-/// Returns the home-relative Warp config directory for the current channel and data profile.
+/// Returns the home-relative Warply config directory for the current channel and data profile.
 ///
 /// Unlike [`data_dir`] and [`config_local_dir`] on non-macOS platforms, this intentionally keeps
-/// Warp-authored, user-facing config under a `.warp*` directory in the home directory instead of
+/// Warply-authored, user-facing config under a `.warply*` directory in the home directory instead of
 /// using the platform XDG/AppData project directories.
 pub fn warp_home_config_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|home_dir| home_dir.join(warp_home_config_dir_name()))
@@ -78,20 +73,19 @@ pub fn warp_home_mcp_config_file_path() -> Option<PathBuf> {
 
 /// Returns the macOS config directory name for the current channel.
 ///
-/// Stable uses `.warp`, while other channels include a channel suffix
-/// (e.g., `.warp-dev`, `.warp-local`).
+/// Stable uses `.warply`, while other channels include a channel suffix
+/// (e.g., `.warply-dev`, `.warply-local`).
 ///
 /// These suffixes are persisted on disk as directory names and must not be
 /// changed once established, or existing user data will be orphaned.
 #[cfg(target_os = "macos")]
 fn macos_config_dir_name() -> String {
     match ChannelState::channel() {
-        Channel::Stable => WARP_CONFIG_DIR.to_owned(),
-        Channel::Preview => format!("{WARP_CONFIG_DIR}-preview"),
-        Channel::Oss => format!("{WARP_CONFIG_DIR}-oss"),
-        Channel::Dev => format!("{WARP_CONFIG_DIR}-dev"),
-        Channel::Integration => format!("{WARP_CONFIG_DIR}-integration"),
-        Channel::Local => format!("{WARP_CONFIG_DIR}-local"),
+        Channel::Stable | Channel::Oss => WARPLY_CONFIG_DIR.to_owned(),
+        Channel::Preview => format!("{WARPLY_CONFIG_DIR}-preview"),
+        Channel::Dev => format!("{WARPLY_CONFIG_DIR}-dev"),
+        Channel::Integration => format!("{WARPLY_CONFIG_DIR}-integration"),
+        Channel::Local => format!("{WARPLY_CONFIG_DIR}-local"),
     }
 }
 
@@ -153,31 +147,6 @@ pub fn state_dir() -> PathBuf {
         .to_owned()
 }
 
-/// Returns the path to the secure directory for non-portable application state data.
-///
-/// Prefer this over [`state_dir`] where possible.
-///
-/// On macOS, this will use the App Group container directory if available.
-pub fn secure_state_dir() -> Option<PathBuf> {
-    // Do not use the secure state directory in integration tests, which have a temporary home directory instead.
-    if ChannelState::channel() == Channel::Integration {
-        return None;
-    }
-
-    #[cfg(target_os = "macos")]
-    if let Some(app_group_root) = app_group_container_path() {
-        // The macOS project_path is the bundle ID (i.e. `dev.warp.Warp-Stable`).
-        let project_dirs = project_dirs()?;
-        return Some(
-            app_group_root
-                .join("Library/Application Support")
-                .join(project_dirs.project_path()),
-        );
-    }
-
-    None
-}
-
 /// Returns the path to the directory containing the user's custom themes.
 pub fn themes_dir() -> PathBuf {
     data_dir().join("themes")
@@ -236,21 +205,7 @@ fn project_dirs_for_app_id(
     app_id: AppId,
     data_profile: Option<&str>,
 ) -> Option<directories::ProjectDirs> {
-    cfg_if::cfg_if! {
-        if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            // Adjust the base application name so that we end up with
-            // directories like "warp-terminal" and "warp-terminal-dev", to
-            // match our Linux package name.
-            let base_app_name = match app_id.application_name() {
-                "Warp" => "Warp-Terminal".to_owned(),
-                "WarpOss" => "Warp-Oss".to_owned(),
-                other if other.starts_with("Warp") => other.replace("Warp", "Warp-Terminal-"),
-                _ => app_id.application_name().to_owned(),
-            };
-        } else {
-            let base_app_name = app_id.application_name().to_owned();
-        }
-    }
+    let base_app_name = app_id.application_name().to_owned();
     let app_name = if let Some(data_profile) = data_profile {
         format!("{base_app_name}-{data_profile}")
     } else {
@@ -259,57 +214,21 @@ fn project_dirs_for_app_id(
     directories::ProjectDirs::from(app_id.qualifier(), app_id.organization(), &app_name)
 }
 
-/// Returns the path to the app's secure group container on macOS.
-///
-/// Returns `None` if the container URL cannot be resolved or converted.
-///
-/// See:
-/// * [Configuring app groups](https://developer.apple.com/documentation/Xcode/configuring-app-groups)
-/// * The [App Groups entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.application-groups?language=objc)
-/// * [`containerURLForSecurityApplicationGroupIdentifier`](https://developer.apple.com/documentation/foundation/filemanager/containerurl(forsecurityapplicationgroupidentifier:)?language=objc)
-#[cfg(target_os = "macos")]
-pub fn app_group_container_path() -> Option<PathBuf> {
-    use std::sync::LazyLock;
-    static CONTAINER_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-        use objc2_foundation::{NSFileManager, NSString};
-
-        let fm = NSFileManager::defaultManager();
-        // Keep in sync with Entitlements.plist
-        let group_id = format!("{}.dev.warp", crate::macos::APPLE_TEAM_ID);
-        let group_id = NSString::from_str(&group_id);
-        // containerURLForSecurityApplicationGroupIdentifier always returns a value on macOS (unlike iOS).
-        // We have to double-check that the path points to a directory we can actually use. In addition to
-        // macOS returning a path that may not exist, processes may list the container directory without
-        // having permissions to read to or write from it.
-        if let Some(url) = fm.containerURLForSecurityApplicationGroupIdentifier(&group_id) {
-            if let Some(ns_path) = url.path() {
-                let path = PathBuf::from(ns_path.to_string());
-                if tempfile::tempfile_in(&path).is_ok() {
-                    return Some(path);
-                }
-            }
-        }
-
-        None
-    });
-    LazyLock::force(&CONTAINER_PATH).clone()
-}
-
-/// Returns the path to resources included in the Warp distribution.
+/// Returns the path to resources included in the Warply distribution.
 ///
 /// Unlike [`warpui::AssetProvider`] assets, which are generally embedded in the binary, these are
-/// stored on the filesystem alongside the rest of Warp.
+/// stored on the filesystem alongside the rest of Warply.
 ///
 /// ## macOS
-/// The resources directory is `$APP_DIR/Contents/Resources` (e.g. `/Applications/Warp.app/Contents/Resources`).
+/// The resources directory is `$APP_DIR/Contents/Resources` (e.g. `/Applications/Warply.app/Contents/Resources`).
 ///
 /// ## Linux
 /// The resources directory is `$INSTALL_DIR/resources`, where `$INSTALL_DIR` depends on the
-/// specific package manager. For example, on Ubuntu this might be `/opt/warpdotdev/warp-terminal/resources`.
+/// specific package manager. For example, on Ubuntu this might be `/opt/warply/warply/resources`.
 ///
 /// ## Windows
 /// The resources directory is `$INSTALL_DIR/resources`, where `$INSTALL_DIR` is the directory
-/// containing the Warp executable (e.g. `C:\Program Files\WarpDev\resources`).
+/// containing the Warply executable.
 pub fn bundled_resources_dir() -> Option<PathBuf> {
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {

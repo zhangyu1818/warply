@@ -1567,7 +1567,7 @@ impl AppContext {
     #[cfg(not(debug_assertions))]
     pub fn register_binding_validator<T: View>(
         &mut self,
-        binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
+        _binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
     ) {
     }
 
@@ -1589,7 +1589,7 @@ impl AppContext {
     #[cfg(not(debug_assertions))]
     pub fn set_default_binding_validator(
         &mut self,
-        binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
+        _binding_validator: impl Fn(BindingLens) -> IsBindingValid + 'static,
     ) {
     }
 
@@ -4243,7 +4243,7 @@ impl AppContext {
             window_bounds: WindowBounds::ExactPosition(RectF::new(origin, size)),
             anchor_new_windows_from_closed_position:
                 NextNewWindowsHasThisWindowsBoundsUponClose::No,
-            window_instance: Some("dev.warp.warpui-debug".to_owned()),
+            window_instance: Some("dev.zhangyu1818.warplyui-debug".to_owned()),
             title: Some("View Tree Debugger".to_owned()),
             ..Default::default()
         };

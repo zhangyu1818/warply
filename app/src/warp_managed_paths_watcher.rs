@@ -14,7 +14,7 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 #[cfg(not(target_family = "wasm"))]
 use watcher::{BulkFilesystemWatcher, BulkFilesystemWatcherEvent};
 
-/// Duration between filesystem watch events for the Warp managed paths watcher, in milliseconds.
+/// Duration between filesystem watch events for the Warply managed paths watcher, in milliseconds.
 #[cfg(not(target_family = "wasm"))]
 const WARP_MANAGED_PATHS_WATCHER_DEBOUNCE_MILLI_SECS: u64 = 500;
 
@@ -30,7 +30,7 @@ pub(crate) fn ensure_warp_watch_roots_exist() {
     let data_dir = warp_data_dir();
     if let Err(err) = fs::create_dir_all(&data_dir) {
         log::warn!(
-            "Failed to create Warp data directory {}: {err}",
+            "Failed to create Warply data directory {}: {err}",
             data_dir.display()
         );
     }
@@ -39,7 +39,7 @@ pub(crate) fn ensure_warp_watch_roots_exist() {
     if config_local_dir != data_dir {
         if let Err(err) = fs::create_dir_all(&config_local_dir) {
             log::warn!(
-                "Failed to create Warp config directory {}: {err}",
+                "Failed to create Warply config directory {}: {err}",
                 config_local_dir.display()
             );
         }
@@ -250,7 +250,7 @@ impl WarpManagedPathsWatcher {
                 data_dir.clone(),
                 WatchFilter::with_filter(Arc::new(move |path| !path.starts_with(&worktrees_dir))),
                 RecursiveMode::Recursive,
-                "Warp data directory",
+                "Warply data directory",
             );
             if should_register_config_local_dir {
                 Self::register_path(
@@ -259,7 +259,7 @@ impl WarpManagedPathsWatcher {
                     config_local_dir.clone(),
                     WatchFilter::accept_all(),
                     RecursiveMode::Recursive,
-                    "Warp config directory",
+                    "Warply config directory",
                 );
             }
             if let Some(warp_home_skills_dir) = warp_home_skills_dir() {
@@ -274,7 +274,7 @@ impl WarpManagedPathsWatcher {
                         warp_home_skills_dir,
                         WatchFilter::accept_all(),
                         RecursiveMode::Recursive,
-                        "Warp home skills directory",
+                        "Warply home skills directory",
                     );
                 }
             }
@@ -294,7 +294,7 @@ impl WarpManagedPathsWatcher {
                             path == warp_home_mcp_config_path
                         })),
                         RecursiveMode::NonRecursive,
-                        "Warp home MCP config directory",
+                        "Warply home MCP config directory",
                     );
                 }
             }
@@ -390,14 +390,14 @@ mod tests {
                 assert_eq!(path.config_path, warp_home_mcp_config_path);
             }
             (_, _, None) => {}
-            _ => panic!("Expected Warp MCP path when home directory is available"),
+            _ => panic!("Expected Warply MCP path when home directory is available"),
         }
     }
 
     #[test]
     fn filter_repository_update_by_prefix_keeps_only_matching_paths() {
-        let skills_dir = PathBuf::from("/tmp/.warp-local/skills");
-        let other_dir = PathBuf::from("/tmp/.warp-local/worktrees/repo");
+        let skills_dir = PathBuf::from("/tmp/.warply-local/skills");
+        let other_dir = PathBuf::from("/tmp/.warply-local/worktrees/repo");
         let skill_file = skills_dir.join("deploy").join("SKILL.md");
         let other_file = other_dir.join("README.md");
 
