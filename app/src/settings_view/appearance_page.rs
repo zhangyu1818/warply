@@ -71,7 +71,7 @@ use warpui::elements::{
 };
 use warpui::fonts::{FamilyId, FontInfo, Weight};
 use warpui::keymap::{ContextPredicate, FixedBinding};
-use warpui::platform::{Cursor, FilePickerConfiguration, GraphicsBackend};
+use warpui::platform::{Cursor, FilePickerConfiguration};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::radio_buttons::{
@@ -938,14 +938,9 @@ impl AppearanceSettingsPageView {
         // have any integration tests which interact with the font dropdown, and
         // loading them in the background slows down test execution.
         if ChannelState::channel() != Channel::Integration {
-            // There's no such thing as a "system font" on the web, so the
-            // `all_system_fonts` API doesn't exist.
-            #[cfg(not(target_family = "wasm"))]
-            {
-                let all_system_fonts = warpui::fonts::Cache::handle(ctx)
-                    .update(ctx, |font_cache, ctx| font_cache.all_system_fonts(ctx));
-                ctx.spawn(all_system_fonts, Self::set_system_fonts);
-            }
+            let all_system_fonts = warpui::fonts::Cache::handle(ctx)
+                .update(ctx, |font_cache, ctx| font_cache.all_system_fonts(ctx));
+            ctx.spawn(all_system_fonts, Self::set_system_fonts);
         }
         let font_family_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
@@ -1457,13 +1452,8 @@ impl AppearanceSettingsPageView {
             },
         );
 
-        // If we're on a non-Linux platform, render the dropdown item in the
-        // actual font.  We currently don't do this on Linux because
-        // pre-loading all of the fonts is too expensive.
-        if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
-            if let Some(family_id) = ctx.font_cache().family_id_for_name(&font_name) {
-                initial_dropdown_item = initial_dropdown_item.with_font_override(family_id);
-            }
+        if let Some(family_id) = ctx.font_cache().family_id_for_name(&font_name) {
+            initial_dropdown_item = initial_dropdown_item.with_font_override(family_id);
         }
 
         initial_dropdown_item
@@ -1789,13 +1779,8 @@ impl AppearanceSettingsPageView {
                         let mut dropdown =
                             DropdownItem::new(name, AppearancePageAction::SetFontFamily(name_move));
 
-                        // If we're on a non-Linux platform, render the dropdown item in the
-                        // actual font.  We currently don't do this on Linux because
-                        // pre-loading all of the fonts is too expensive.
-                        if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
-                            if let Some(family_id) = family {
-                                dropdown = dropdown.with_font_override(*family_id)
-                            }
+                        if let Some(family_id) = family {
+                            dropdown = dropdown.with_font_override(*family_id)
                         }
 
                         Some(dropdown)
@@ -1850,13 +1835,8 @@ impl AppearanceSettingsPageView {
                     let mut dropdown =
                         DropdownItem::new(name, AppearancePageAction::SetAIFontFamily(name_move));
 
-                    // If we're on a non-Linux platform, render the dropdown item in the
-                    // actual font.  We currently don't do this on Linux because
-                    // pre-loading all of the fonts is too expensive.
-                    if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
-                        if let Some(family_id) = family {
-                            dropdown = dropdown.with_font_override(*family_id)
-                        }
+                    if let Some(family_id) = family {
+                        dropdown = dropdown.with_font_override(*family_id)
                     }
 
                     Some(dropdown)
@@ -2331,7 +2311,7 @@ impl SettingsWidget for CreateCustomThemeWidget {
                 .ui_builder()
                 .link(
                     "Create your own custom theme".to_string(),
-                    Some("https://docs.warp.dev/terminal/appearance/custom-themes".to_string()),
+                    Some("https://docs.warply.local/terminal/appearance/custom-themes".to_string()),
                     None,
                     self.mouse_state.clone(),
                 )
@@ -2803,25 +2783,19 @@ impl SettingsWidget for WindowOpacityWidget {
             None,
         ));
         if let Some(window) = app.windows().platform_window(view.window_id) {
-            // Skip showing the warning for OpenGL since WGPU often incorrectly reports it as not
-            // supporting alpha.
-            if !window.supports_transparency() && window.graphics_backend() != GraphicsBackend::Gl {
+            if !window.supports_transparency() {
                 let mut message = Cow::Borrowed(
                     "The selected graphics settings may not support rendering transparent windows.",
                 );
                 let gpu_settings = GPUSettings::as_ref(app);
-                if (gpu_settings
+                if gpu_settings
                     .prefer_low_power_gpu
                     .is_supported_on_current_platform()
-                    && GPUState::as_ref(app).is_low_power_gpu_available())
-                    || gpu_settings
-                        .preferred_backend
-                        .is_supported_on_current_platform()
+                    && GPUState::as_ref(app).is_low_power_gpu_available()
                 {
-                    message.to_mut().push_str(
-                        " Try changing the settings for the graphics backend or integrated GPU in \
-                        Features > System.",
-                    );
+                    message
+                        .to_mut()
+                        .push_str(" Try changing the integrated GPU setting in Features > System.");
                 }
 
                 col.add_child(
@@ -2867,7 +2841,7 @@ impl SettingsWidget for WindowBlurWidget {
         let label_info = AdditionalInfo {
             mouse_state: self.info_button.clone(),
             on_click_action: Some(AppearancePageAction::OpenUrl(
-                "https://docs.warp.dev/terminal/appearance/size-opacity-blurring".into(),
+                "https://docs.warply.local/terminal/appearance/size-opacity-blurring".into(),
             )),
             secondary_text: None,
             tooltip_override_text: None,
@@ -2942,7 +2916,7 @@ impl SettingsWidget for WindowBlurTextureWidget {
             None,
         ));
         if let Some(window) = app.windows().platform_window(view.window_id) {
-            if !window.supports_transparency() && window.graphics_backend() != GraphicsBackend::Gl {
+            if !window.supports_transparency() {
                 col.add_child(
                     Container::new(
                         FormattedTextElement::from_str(
@@ -4582,7 +4556,8 @@ impl SettingsWidget for AltScreenPaddingWidget {
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_mouse_state.clone(),
                 on_click_action: Some(AppearancePageAction::OpenUrl(
-                    "https://docs.warp.dev/terminal/more-features/full-screen-apps#padding".into(),
+                    "https://docs.warply.local/terminal/more-features/full-screen-apps#padding"
+                        .into(),
                 )),
                 secondary_text: None,
                 tooltip_override_text: None,

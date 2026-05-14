@@ -9,6 +9,7 @@ This map explains the large fork baseline change at a path level.
 | `app/src/ai/acp/` | Added ACP backend, config options, event mapping, model, terminal/file capability plumbing, permission handling, thread state, and tests. | Preserve as the only agent backend. Port upstream ideas here only if they fit ACP. |
 | `app/src/ai/blocklist/` | Retained AgentView shell and adapted it to ACP request flow and ACP-native output rendering. | Port generic UI fixes. Reject old cloud-agent controls and server-backed action execution. |
 | `app/src/ai/agent/` | Simplified conversation/task data toward local ACP history and local transcript representation. | Preserve local persistence semantics. Do not restore server transcript APIs. |
+| `app/src/ai/execution_profiles/` | Execution profiles are retained for local permissions only. Old Warp model/profile selector UI, profile model fields, context-window overrides, and legacy model preference migration were removed. | Port permission/profile usability fixes only. Do not restore model selection; ACP config chooses the active model/backend. |
 | `app/src/ai/terminal_suggestions/` | Added OpenAI-compatible suggestions client/provider/tests. | Keep provider endpoint/model/key configurable. |
 | `app/src/ai/predict/terminal_input_suggestions.rs` | Replaced hosted AI input suggestion request path for Next Command. | Port context improvements, not hosted API calls. |
 | `app/src/ai/predict/terminal_prompt_suggestions.rs` | Added OpenAI-compatible prompt suggestions path. | Keep separate from ACP Agent. |
@@ -31,8 +32,10 @@ This map explains the large fork baseline change at a path level.
 | `crates/isolation_platform/` | Hosted/cloud isolation. | Reject. |
 | `crates/onboarding/` | Product onboarding and marketing flows. | Reject. |
 | `crates/voice_input/` | Voice input/transcription. | Reject. |
+| Codex modal/deeplink and old model selector state | Upstream Codex marketing modal, `codex` URI host, root open-codex actions, per-terminal LLM override snapshots, and `llm_model_override` persistence migration. | Reject. ACP/session settings are the only model/backend configuration surface. |
 | `crates/warp_core/src/telemetry.rs`, `crates/warpui_core/src/telemetry/`, app focus telemetry | External telemetry/event queues. | Reject. |
 | `script/sentry_create_release.sh`, `script/sentry_upload_dif.sh` | Sentry release/upload. | Reject. |
+| Linux/Windows host platform paths under `app/src/`, `crates/warpui/`, `crates/computer_use/`, `crates/warpui_extras/`, `crates/command/`, `crates/warp_util/`, and `docker/` | Native host implementation and packaging/build support for non-macOS targets. | Reject; this fork packages macOS only. Preserve SSH/remote terminal code separately. |
 
 ## Retained Generic Warp Code
 
@@ -46,6 +49,25 @@ This map explains the large fork baseline change at a path level.
 | Local object/persistence model | Needed by workflows, prompts, AI facts, MCP, conversation history. | Inspect carefully before accepting or removing. |
 | `crates/remote_server/` | Remote terminal support. | Keep SSH/local behavior; reject Warp-account auth requirements. |
 | OS launch-at-login | Operating-system setting, not account login. | Keep unless product scope changes. |
+| macOS platform integration | Only maintained native host platform. | Accept compatible AppKit/windowing/signing/secure-storage/preferences fixes. |
+
+## 2026-05 macOS-Only Host Cleanup
+
+- Local WSL/MSYS2 shell discovery, shell launch, startup-directory conversion, path conversion, shell indicators, and bootstrap compatibility branches were removed.
+- Shell bootstrap assets now use the POSIX DCS JSON path only; ConPTY, MSYS2, and Windows OSC/reset-grid branches are no longer retained.
+- Local PTY spawning, terminal-manager startup, local command execution, history reads, persisted path encoding, Node runtime installation, LSP command spawning, and MCP stdio spawning were reduced to macOS/POSIX host behavior.
+- Host UI/keybinding/platform abstractions were folded to macOS: AppKit windowing, native modals, macOS global shortcuts, macOS keybindings, macOS log/font/LSP binary conventions, and Unix path encoding are the maintained paths.
+- Linux/Windows-only settings, keybinding alternatives, integration-test gates, window-instance metadata, and host build aliases were removed instead of kept as compatibility no-ops.
+- SSH remains retained terminal functionality. Remote SSH command execution was kept and simplified around direct `ssh` usage; do not remove SSH, remote-server, or remote terminal code merely because the connected host may be Linux or Windows.
+- No backward-compatibility shims should be added for deleted host platforms or removed Warp cloud/account/agent data.
+
+## 2026-05 Old Warp Model Surface Cleanup
+
+- Removed the Codex integration modal, `codex` custom URI host, related root/workspace actions, and the unused Codex integration image asset.
+- Removed execution-profile model selection UI: base model, coding model, full terminal use model, computer use model, and configurable context-window controls.
+- Removed profile-stored model fields and old `PreferredAgentModeLLMId` inheritance. Execution profiles now represent local permissions and profile naming, not model routing.
+- Removed per-terminal LLM override snapshot/restore paths and the `llm_model_override` persistence migration/schema field.
+- ACP request flow still records the active ACP model on outbound request data; model/backend choice comes from ACP adapter configuration, not old Warp `/model` or profile selectors.
 
 ## Legacy Names Still Present
 
@@ -53,8 +75,8 @@ These names are not enough to decide merge behavior:
 
 - `blocklist`: legacy name for AgentView and AI output code.
 - `CloudObject`: can be local persisted object data after cloud sync removal.
-- `server_id`: can be local schema compatibility.
-- `warp_server_client`: still contains retained shared DTOs/identity/object types after cloud API removal.
+- `server_id`: legacy naming only when still present in retained local-object data; do not add new compatibility fallback around it.
+- `local_object_model`: contains retained shared DTOs/identity/object types after cloud API removal.
 - `remote_server`: remote terminal, not necessarily cloud account auth.
 
 Always inspect call sites and data flow before making a merge decision.
@@ -74,5 +96,13 @@ Every hit should be one of:
 - Legacy local naming with no live cloud dependency.
 - Retained remote-terminal code.
 - Retained local object/persistence code.
+
+Also audit macOS-only host scope:
+
+```bash
+rg -n "target_os = \"linux\"|target_os = \"windows\"|cfg\\(windows\\)|WSL|MSYS2|x11|wayland|winreg|windows-registry|x11rb" app crates Cargo.toml
+```
+
+Allowed hits should be terminal protocol/remote-path data that a macOS client still needs, documentation, or tests that intentionally exercise cross-platform parsing. Native Linux/Windows host code should be removed.
 
 Anything else should be removed or adapted to the fork contract.

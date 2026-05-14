@@ -48,7 +48,6 @@ integration_tests! {
     test_waterfall_input_alt_grid,
     test_undo_redo,
     #[cfg(target_os="macos")]
-    // TODO(alokedesai): Add support for cascading windows when opening new windows via winit.
     test_add_windows_correct_position_and_cascade,
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_find_within_block,
@@ -69,8 +68,6 @@ integration_tests! {
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_multi_block_selections,
     test_input_focused_after_executing_command,
-    // TODO(alokedesai): Determine why this test doesn't reliably pass on CI.
-    #[cfg_attr(target_os="linux", ignore)]
     test_with_launch_config,
     test_command_xray_hover,
     test_command_xray_for_partial_command,
@@ -281,9 +278,6 @@ integration_tests! {
     test_selection_last_to_ai_lines,
     test_restored_ai_block_renders_mermaid_and_local_images,
 
-    // Middle-click-paste is only implemented for Linux right now.
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    test_middle_click_paste,
     test_agent_mode_pane_minimum_size,
 
     test_rule_creation,

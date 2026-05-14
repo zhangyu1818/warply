@@ -10,13 +10,6 @@ fn try_new_unix_absolute() {
 }
 
 #[test]
-fn try_new_windows_absolute() {
-    let p = StandardizedPath::try_new("C:\\Users\\user\\project").unwrap();
-    assert_eq!(p.as_str(), "C:\\Users\\user\\project");
-    assert!(p.is_windows());
-}
-
-#[test]
 fn try_new_normalizes_dot_segments() {
     let p = StandardizedPath::try_new("/home/user/./project/../project/src").unwrap();
     assert_eq!(p.as_str(), "/home/user/project/src");
@@ -29,11 +22,7 @@ fn try_new_rejects_relative() {
 
 #[test]
 fn try_from_local_absolute() {
-    // Use a platform-appropriate absolute path.
-    #[cfg(unix)]
     let (input, expected) = (Path::new("/tmp/test"), "/tmp/test");
-    #[cfg(windows)]
-    let (input, expected) = (Path::new("C:\\Windows"), "C:\\Windows");
 
     let p = StandardizedPath::try_from_local(input).unwrap();
     assert_eq!(p.as_str(), expected);
@@ -50,19 +39,12 @@ fn from_local_canonicalized_existing_path() {
     let existing = std::env::temp_dir();
     let p = StandardizedPath::from_local_canonicalized(&existing).unwrap();
     assert!(!p.as_str().is_empty());
-    // Encoding should match the local OS.
-    #[cfg(unix)]
     assert!(p.is_unix());
-    #[cfg(windows)]
-    assert!(p.is_windows());
 }
 
 #[test]
 fn from_local_canonicalized_nonexistent() {
-    #[cfg(unix)]
     let path = Path::new("/nonexistent_path_xyz_123");
-    #[cfg(windows)]
-    let path = Path::new("C:\\nonexistent_path_xyz_123");
 
     assert!(StandardizedPath::from_local_canonicalized(path).is_err());
 }

@@ -1,11 +1,10 @@
 //! This module defines types used in the context of keyboard events across platforms. The types
-//! are based on winit types, however, we include them in this module to avoid needing to include
-//! the entirety of winit as a dependency for MacOS.
+//! are based on upstream keyboard event types, but are included here to keep the macOS build
+//! independent from larger platform abstraction crates.
 
 use serde::{Deserialize, Serialize};
 
-// The following types and functions are taken from winit's implementation.
-// We redefine them here to avoid needing to include the entirety of winit as a dependency for MacOS.
+// The following types and functions are adapted from upstream keyboard event handling.
 // --------------------------------------------------------------------------------------------------------
 
 /// Contains the platform-native physical key identifier
@@ -13,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// The exact values vary from platform to platform (which is part of why this is a per-platform
 /// enum), but the values are primarily tied to the key's physical location on the keyboard.
 ///
-/// This enum is primarily used to store raw keycodes when Winit doesn't map a given native
+/// This enum is primarily used to store raw keycodes when the platform doesn't map a given native
 /// physical key identifier to a meaningful [`KeyCode`] variant. In the presence of identifiers we
 /// haven't mapped for you yet, this lets you use use [`KeyCode`] to:
 ///

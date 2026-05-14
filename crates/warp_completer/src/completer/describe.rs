@@ -50,7 +50,7 @@ impl TopLevelCommandCaseSensitivity {
 impl From<OperatingSystem> for TopLevelCommandCaseSensitivity {
     fn from(value: OperatingSystem) -> Self {
         match value {
-            OperatingSystem::Mac | OperatingSystem::Windows => Self::CaseInsensitive,
+            OperatingSystem::Mac => Self::CaseInsensitive,
             _ => Self::CaseSensitive,
         }
     }

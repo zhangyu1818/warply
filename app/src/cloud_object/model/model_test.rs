@@ -39,9 +39,6 @@ fn initialize_app(app: &mut App, cached_objects: Vec<Box<dyn CloudObject>>) {
     app.add_singleton_model(|_ctx| CloudModel::new(None, cached_objects));
     app.add_singleton_model(|ctx| UpdateManager::new(None, ctx));
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
-
-    // The start of polling is normally triggered by authentication completion, but
-    // we need to do it manually for tests.
 }
 
 fn mock_permissions() -> CloudObjectPermissions {

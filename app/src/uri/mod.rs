@@ -20,8 +20,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use url::Url;
-use warpui::notification::UserNotification;
-use warpui::{platform::TerminationMode, SingletonEntity as _, TypedActionView};
+use warpui::{SingletonEntity as _, TypedActionView};
 
 use warpui::{AppContext, WindowId};
 
@@ -38,8 +37,6 @@ pub enum UriHost {
     /// A host prefix for a general-purpose home/landing page. Unlike other intent URIs, the home
     /// page behavior may change over time and vary from platform to platform.
     Home,
-    /// Opens a new tab with the Codex model and starts a conversation.
-    Codex,
     /// Actions triggered from Linear integrations (e.g. work on issue).
     Linear,
     /// Focuses a specific terminal pane by its persistent session UUID.
@@ -55,7 +52,6 @@ impl FromStr for UriHost {
             "launch" => Ok(Self::Launch),
             "settings" => Ok(Self::Settings),
             "home" => Ok(Self::Home),
-            "codex" => Ok(Self::Codex),
             "linear" => Ok(Self::Linear),
             "session" => Ok(Self::Session),
             _ => Err(anyhow!("Received url with unexpected host: {}", s)),
@@ -130,15 +126,6 @@ impl UriHost {
             UriHost::Home => {
                 ctx.dispatch_global_action("root_view::open_new", &());
             }
-            UriHost::Codex => {
-                dispatch_action_in_new_or_existing_window(
-                    primary_window_id,
-                    "root_view:open_codex_in_existing_window",
-                    "root_view:open_codex_in_new_window",
-                    &(),
-                    ctx,
-                );
-            }
             UriHost::Linear => match LinearAction::parse(url) {
                 Ok(LinearAction::WorkOnIssue) => {
                     let args = LinearIssueWork::from_url(url);
@@ -201,136 +188,6 @@ impl UriHost {
                 } else {
                     log::warn!("session deep link could not find pane with given UUID");
                 }
-            }
-        }
-    }
-
-    /// When handling this URI action, determine which window(s) should be focused.
-    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
-    fn window_behavior_hint(&self) -> WindowBehaviorHint {
-        use WindowBehaviorHint as W;
-        match self {
-            Self::Settings => W::default(),
-            // These URLs always open new windows.
-            Self::Launch | Self::Home => W::Nothing,
-            // This will actually be handled by [`Action::window_behavior_hint`].
-            Self::Action => W::Nothing,
-            // Codex opens a new tab with AI mode, use default behavior
-            Self::Codex => W::default(),
-            // Linear deeplink opens a new tab with agent view
-            Self::Linear => W::default(),
-            Self::Session => W::Nothing,
-        }
-    }
-}
-
-/// This determines which windows, if any, will become visible on handling a URI. This is a "hint"
-/// because it is platform-dependent, and not all platforms can conform. For example, MacOS
-/// automatically shows the frontmost window, and so the Nothing variant of this is impossible on
-/// MacOS.
-#[derive(Clone, Debug)]
-enum WindowBehaviorHint {
-    /// Determined by the [`get_primary_window`] function.
-    ShowPrimaryWindow(WindowActivationFallbackBehavior),
-    Nothing,
-}
-
-impl Default for WindowBehaviorHint {
-    fn default() -> Self {
-        Self::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow {
-            replace_existing: false,
-        })
-    }
-}
-
-impl WindowBehaviorHint {
-    /// Perform the desired window focus behavior for the URI being handled. This may change the
-    /// "primary window" if a new one has to be created. Return the new primary WindowId.
-    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
-    fn resolve(
-        self,
-        primary_window_id: Option<WindowId>,
-        ctx: &mut AppContext,
-    ) -> Option<WindowId> {
-        match self {
-            Self::ShowPrimaryWindow(fallback_behavior) => {
-                if let Some(window_id) = primary_window_id {
-                    match ctx.windows().windowing_system() {
-                        Some(windowing_system)
-                            if windowing_system.allows_programmatic_window_activation() =>
-                        {
-                            ctx.windows().show_window_and_focus_app(window_id);
-                        }
-                        _ => {
-                            return fallback_behavior.resolve(window_id, ctx);
-                        }
-                    }
-                }
-            }
-            Self::Nothing => {}
-        };
-        primary_window_id
-    }
-}
-
-/// If we're in an environment where we can't fulfill [`WindowBehaviorHint`], and the OS default
-/// behavior isn't acceptable/reliable, e.g. Wayland doesn't allow windows to programmatically show
-/// themselves, try this fallback behavior instead.
-#[derive(Clone, Debug)]
-enum WindowActivationFallbackBehavior {
-    /// If the primary window picked to handle the URL is not the active one, send a native push
-    /// notification.
-    Notify { title: String, description: String },
-    /// Create a new window to handle the URI.
-    NewWindow {
-        /// Close the former "primary window" as determined by [`get_primary_window`]. This should
-        /// generally default to `false` to avoid closing a window with information that the user
-        /// may still want. One exception is the Auth route where the old window just showed the
-        /// auth page.
-        replace_existing: bool,
-    },
-}
-
-impl WindowActivationFallbackBehavior {
-    /// Perform the desired window fallback behavior for the URI being handled. This may change the
-    /// "primary window" if a new one has to be created. Return the new primary WindowId.
-    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
-    fn resolve(self, primary_window_id: WindowId, ctx: &mut AppContext) -> Option<WindowId> {
-        match self {
-            WindowActivationFallbackBehavior::Notify { title, description } => {
-                if ctx
-                    .windows()
-                    .active_window()
-                    .is_some_and(|active_window| active_window == primary_window_id)
-                {
-                    return Some(primary_window_id);
-                }
-                if let Some(view_handle) = ctx
-                    .views_of_type::<Workspace>(primary_window_id)
-                    .filter(|views| !views.is_empty())
-                    .map(|mut views| views.swap_remove(0))
-                {
-                    view_handle.update(ctx, |_, ctx| {
-                        ctx.send_desktop_notification(
-                            UserNotification::new(title, description, None),
-                            |_, err, ctx| {
-                                log::warn!(
-                                    "Error showing URL intent notification on {:?}: {err:?}",
-                                    ctx.window_id()
-                                )
-                            },
-                        );
-                    });
-                }
-                Some(primary_window_id)
-            }
-            WindowActivationFallbackBehavior::NewWindow { replace_existing } => {
-                let new_window_id = open_new_window_get_handles(None, ctx).0;
-                if replace_existing {
-                    ctx.windows()
-                        .close_window(primary_window_id, TerminationMode::Cancellable);
-                }
-                Some(new_window_id)
             }
         }
     }
@@ -437,8 +294,6 @@ impl Action {
     }
 
     fn handle(&self, primary_window_id: Option<WindowId>, url: &Url, ctx: &mut AppContext) {
-        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        let primary_window_id = self.window_behavior_hint().resolve(primary_window_id, ctx);
         match self {
             Self::NewTab | Self::NewWindow => {
                 let window_id = if let Self::NewTab = self {
@@ -510,20 +365,6 @@ impl Action {
             }
         }
     }
-
-    /// When handling this URI action, determine which window(s) should be focused.
-    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
-    fn window_behavior_hint(&self) -> WindowBehaviorHint {
-        use WindowBehaviorHint as W;
-        match self {
-            Self::Docker | Self::OpenRepo | Self::NewAgentConversation => W::default(),
-            Self::NewTab => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::Notify {
-                title: "New tab created".to_owned(),
-                description: "Go to Warp to see your new tab.".to_owned(),
-            }),
-            Self::NewWindow => W::Nothing,
-        }
-    }
 }
 
 /// Handles all incoming urls.
@@ -551,8 +392,6 @@ pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
 
     match validate_custom_uri(url) {
         Ok(host) => {
-            #[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
-            let primary_window_id = host.window_behavior_hint().resolve(primary_window_id, ctx);
             host.handle(primary_window_id, url, ctx);
         }
         Err(e) => {

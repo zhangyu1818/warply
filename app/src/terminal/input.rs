@@ -122,8 +122,8 @@ use crate::{
         AutosuggestionLocation, AutosuggestionType, BaselinePositionComputationMethod,
         CommandXRayAnchor, CrdtOperation, CursorColors, DisplayPoint, EditOrigin, EditorAction,
         EditorDecoratorElements, EditorOptions, EditorSnapshot, EditorView, Event as EditorEvent,
-        ImageContextOptions, InteractionState, PathTransformerFn, PlainTextEditorViewAction,
-        Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
+        ImageContextOptions, InteractionState, PlainTextEditorViewAction, Point as BufferPoint,
+        PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
         PropagateHorizontalNavigationKeys, TextColors, TextRun, MAX_IMAGES_PER_CONVERSATION,
     },
     features::FeatureFlag,
@@ -1647,8 +1647,7 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(
             id!("Input") & id!(flags::IS_ANY_AI_ENABLED) & id!("TerminalView_NonEmptyBlockList"),
         )
-        .with_mac_key_binding("cmd-shift-N")
-        .with_linux_or_windows_key_binding("ctrl-alt-shift-N"),
+        .with_mac_key_binding("cmd-shift-N"),
         EditableBinding::new(
             "input:enable_auto_detection",
             "Trigger Auto Detection",
@@ -1669,8 +1668,7 @@ pub fn init(app: &mut AppContext) {
             InputAction::ClearAndResetAIContextMenuQuery,
         )
         .with_context_predicate(id!("Input") & id!("AIContextMenuOpen") & !id!("IMEOpen"))
-        .with_mac_key_binding("cmd-shift-backspace")
-        .with_linux_or_windows_key_binding("ctrl-shift-backspace"),
+        .with_mac_key_binding("cmd-shift-backspace"),
     ]);
 
     let slash_command_bindings = COMMAND_REGISTRY
@@ -1696,9 +1694,9 @@ pub fn init(app: &mut AppContext) {
             binding = match slash_command_bindings::default_binding_for_command(command.name) {
                 DefaultSlashCommandBinding::None => binding,
                 DefaultSlashCommandBinding::Single(keys) => binding.with_key_binding(keys),
-                DefaultSlashCommandBinding::PerPlatform(keys) => binding
-                    .with_mac_key_binding(keys.mac)
-                    .with_linux_or_windows_key_binding(keys.linux_and_windows),
+                DefaultSlashCommandBinding::PerPlatform(keys) => {
+                    binding.with_mac_key_binding(keys.mac)
+                }
             };
 
             binding
@@ -7398,7 +7396,7 @@ impl Input {
                 }
 
                 // Don't run NLD autodetection when an inline menu is open (slash commands,
-                // conversation menu, model selector), as the buffer contents are being used as
+                // conversation menu), as the buffer contents are being used as
                 // a search query for the menu rather than as a command/prompt.
                 let is_inline_menu_open = self
                     .suggestions_mode_model
@@ -8205,14 +8203,7 @@ impl Input {
                                             .get_root_for_path(Path::new(pwd))?;
                                         let absolute_path = git_repo_path.join(file_path);
 
-                                        // Try to get relative path if it's shorter
-                                        let is_wsl = self
-                                            .active_session(ctx)
-                                            .map(|session| session.is_wsl())
-                                            .unwrap_or(false);
-
                                         let relative_path = warp_util::path::to_relative_path(
-                                            is_wsl,
                                             &absolute_path,
                                             Path::new(pwd),
                                         );
@@ -8267,20 +8258,11 @@ impl Input {
 
                 // If any attachment failed, insert all dropped image paths as text. Apply the
                 // same session-aware path transformation that the editor uses for dropped
-                // non-image paths so the fallback matches the primary drop flow (e.g.
-                // `/mnt/c/...` in a WSL session).
+                // non-image paths so the fallback matches the primary drop flow.
                 if num_attached < image_filepaths.len() {
                     let shell_family = self.editor.read(ctx, |editor, _| editor.shell_family());
-                    let converter = self
-                        .active_session(ctx)
-                        .as_deref()
-                        .and_then(Session::windows_path_converter);
-                    let transformed: Vec<String> = match converter {
-                        Some(convert) => image_filepaths.iter().map(|p| convert(p)).collect(),
-                        None => image_filepaths.clone(),
-                    };
                     let paths_str =
-                        warpui::clipboard_utils::escaped_paths_str(&transformed, shell_family);
+                        warpui::clipboard_utils::escaped_paths_str(&image_filepaths, shell_family);
 
                     self.editor.update(ctx, |editor, ctx| {
                         editor.user_insert(&paths_str, ctx);
@@ -11216,12 +11198,9 @@ impl Input {
             .session_id()
             .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id));
         if let Some(session) = active_session {
-            let transformer: Option<PathTransformerFn> = session
-                .windows_path_converter()
-                .map(|convert| Box::new(convert) as PathTransformerFn);
             self.editor.update(ctx, |editor, _| {
                 editor.set_shell_family(session.shell().shell_type().into());
-                editor.set_drag_drop_path_transformer(transformer);
+                editor.set_drag_drop_path_transformer(None);
             });
             self.input_suggestions.update(ctx, |input_suggestions, _| {
                 input_suggestions.set_path_separators(session.path_separators());

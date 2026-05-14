@@ -28,14 +28,6 @@ pub fn run_integration_test(name: &str) -> Result<(), String> {
                 || k.starts_with("WARPUI_")
                 // Propagate any wgpu-specific variables.
                 || k.starts_with("WGPU_")
-                // Make sure the test knows what X or Wayland server to use.
-                || k == "DISPLAY"
-                || k == "WAYLAND_DISPLAY"
-                // Propagate XDG_RUNTIME_DIR, which is needed for tests to run.
-                // We actively _do not_ want to propagate other XDG_ variables,
-                // as they tend to encode the home directory, which we override
-                // in tests to point to a per-test temporary directory.
-                || k == "XDG_RUNTIME_DIR"
                 // Propagate XAUTHORITY so we can run headless tests using xvfb.
                 || k == "XAUTHORITY"
         });
@@ -64,25 +56,16 @@ pub fn run_integration_test(name: &str) -> Result<(), String> {
                     ));
                 }
                 None => {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::process::ExitStatusExt;
-                        let signal = status
-                            .signal()
-                            .and_then(|signal| nix::sys::signal::Signal::try_from(signal).ok());
-                        if let Some(signal) = signal {
-                            return std::result::Result::Err(format!(
-                                "Test {name} failed due to signal {}",
-                                signal.as_str(),
-                            ));
-                        } else {
-                            return std::result::Result::Err(format!(
-                                "Test {name} failed for unknown reason",
-                            ));
-                        }
-                    }
-                    #[cfg(windows)]
-                    {
+                    use std::os::unix::process::ExitStatusExt;
+                    let signal = status
+                        .signal()
+                        .and_then(|signal| nix::sys::signal::Signal::try_from(signal).ok());
+                    if let Some(signal) = signal {
+                        return std::result::Result::Err(format!(
+                            "Test {name} failed due to signal {}",
+                            signal.as_str(),
+                        ));
+                    } else {
                         return std::result::Result::Err(format!(
                             "Test {name} failed for unknown reason",
                         ));
@@ -110,9 +93,6 @@ macro_rules! integration_tests {
             // ignored twice, once via arguments passed to the macro and once
             // below.
             #[allow(unused_attributes)]
-            // For right now, we only want to run integration tests on macOS
-            // and Linux (iff the run_on_linux feature is enabled).
-            #[cfg_attr(not(any(target_os = "macos", feature = "run_on_linux")), ignore)]
             #[test]
             fn $name() -> Result<(), String> {
                 $crate::common::run_integration_test(stringify!($name))

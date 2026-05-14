@@ -138,10 +138,8 @@ impl warpui::SingletonEntity for PrivatePreferences {}
 #[derive(Debug, Clone)]
 pub enum SupportedPlatforms {
     ALL,
-    DESKTOP, /* Refers to running on device, not web-based, such as Mac, Linux, and Windows */
+    DESKTOP,
     MAC,
-    LINUX,
-    WINDOWS,
     WEB,
     OR(Box<SupportedPlatforms>, Box<SupportedPlatforms>),
 }
@@ -155,15 +153,6 @@ impl SupportedPlatforms {
             }
             SupportedPlatforms::MAC => {
                 cfg!(all(not(target_family = "wasm"), target_os = "macos"))
-            }
-            SupportedPlatforms::LINUX => {
-                cfg!(all(
-                    not(target_family = "wasm"),
-                    any(target_os = "linux", target_os = "freebsd")
-                ))
-            }
-            SupportedPlatforms::WINDOWS => {
-                cfg!(all(not(target_family = "wasm"), target_os = "windows"))
             }
             SupportedPlatforms::WEB => {
                 cfg!(target_family = "wasm")

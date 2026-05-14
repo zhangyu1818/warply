@@ -94,7 +94,6 @@ pub struct WorkspaceState {
     pub is_native_quit_modal_open: bool,
     pub is_suggested_agent_mode_workflow_modal_open: bool,
     pub is_suggested_rule_modal_open: bool,
-    pub is_codex_modal_open: bool,
     pub is_tab_config_params_modal_open: bool,
     pub is_session_config_modal_open: bool,
     pub is_new_worktree_modal_open: bool,
@@ -122,7 +121,6 @@ impl WorkspaceState {
             || self.is_header_toolbar_editor_open
             || self.is_suggested_rule_modal_open
             || self.is_suggested_agent_mode_workflow_modal_open
-            || self.is_codex_modal_open
             || self.is_tab_config_params_modal_open
             || self.is_session_config_modal_open
             || self.is_new_worktree_modal_open
@@ -151,7 +149,6 @@ impl WorkspaceState {
         self.is_header_toolbar_editor_open = false;
         self.is_suggested_rule_modal_open = false;
         self.is_suggested_agent_mode_workflow_modal_open = false;
-        self.is_codex_modal_open = false;
         self.is_tab_config_params_modal_open = false;
         self.is_session_config_modal_open = false;
         self.is_new_worktree_modal_open = false;

@@ -119,9 +119,7 @@ impl ConfigurableItem {
     }
 }
 
-/// Lightweight renderer for non-chip control items (model selector, NLD toggle,
-/// image attach, file explorer, view changes, compose, etc.)
-/// inside the configurator.
+/// Lightweight renderer for non-chip control items inside the configurator.
 pub struct ControlItemRenderer {
     kind: Option<AgentToolbarItemKind>,
     custom_label: Option<String>,

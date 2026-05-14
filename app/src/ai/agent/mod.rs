@@ -1,11 +1,9 @@
 pub(crate) mod conversation;
 pub(crate) mod todos;
 
-pub(crate) mod api;
 pub(crate) mod comment;
 pub(crate) mod icons;
 pub(crate) mod identifiers;
-pub(crate) mod linearization;
 pub(crate) mod redaction;
 pub(crate) mod task;
 mod task_store;
@@ -40,9 +38,7 @@ use std::ops::{Deref, DerefMut, Range};
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
-use warp_multi_agent_api::{diff_hunk as diff_hunk_api, AgentEvent, AgentType};
 
-pub use self::api::{MaybeAIAgentOutputMessage, MessageToAIAgentOutputMessageError};
 use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpToolCall};
 use crate::ai::execution_context::AiExecutionContext;
 use crate::terminal::model::block::BlockId;
@@ -528,14 +524,6 @@ impl AIAgentOutput {
                 }
                 AIAgentOutputMessageType::ArtifactCreated(_) => continue,
                 AIAgentOutputMessageType::SkillInvoked(_) => continue,
-                AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {
-                    result.push(format!("Received {} messages", messages.len()));
-                    last_was_action = false;
-                }
-                AIAgentOutputMessageType::EventsFromAgents { event_ids } => {
-                    result.push(format!("Received {} agent events", event_ids.len()));
-                    last_was_action = false;
-                }
             }
         }
 
@@ -1464,16 +1452,6 @@ pub struct InvokedSkill {
     pub name: String,
 }
 
-/// Data for a single received message, used for rendering in the UI.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ReceivedMessageDisplay {
-    pub message_id: String,
-    pub sender_agent_id: String,
-    pub addresses: Vec<String>,
-    pub subject: String,
-    pub message_body: String,
-}
-
 impl Display for InvokedSkill {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "InvokedSkill: {}", self.name)
@@ -1519,14 +1497,6 @@ pub enum AIAgentOutputMessageType {
     /// Notification that an artifact was created (e.g. a PR).
     ArtifactCreated(ArtifactCreatedData),
     SkillInvoked(InvokedSkill),
-    /// Messages received from other agent conversations.
-    MessagesReceivedFromAgents {
-        messages: Vec<ReceivedMessageDisplay>,
-    },
-    /// Lifecycle events received from other agent conversations.
-    EventsFromAgents {
-        event_ids: Vec<String>,
-    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -1725,12 +1695,6 @@ impl Display for AIAgentOutputMessage {
             AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
                 write!(f, "Skill Invoked: {}", invoked_skill.name)?
             }
-            AIAgentOutputMessageType::MessagesReceivedFromAgents { messages } => {
-                write!(f, "Received {} messages", messages.len())?
-            }
-            AIAgentOutputMessageType::EventsFromAgents { event_ids } => {
-                write!(f, "Received {} agent events", event_ids.len())?
-            }
         }
 
         if !self.citations.is_empty() {
@@ -1879,25 +1843,6 @@ impl AIAgentOutputMessage {
         Self {
             id,
             message: AIAgentOutputMessageType::SkillInvoked(invoked_skill),
-            citations: vec![],
-        }
-    }
-
-    pub fn messages_received_from_agents(
-        id: MessageId,
-        messages: Vec<ReceivedMessageDisplay>,
-    ) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::MessagesReceivedFromAgents { messages },
-            citations: vec![],
-        }
-    }
-
-    pub fn events_from_agents(id: MessageId, event_ids: Vec<String>) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::EventsFromAgents { event_ids },
             citations: vec![],
         }
     }
@@ -2050,67 +1995,11 @@ impl CurrentHead {
     }
 }
 
-impl From<CurrentHead> for warp_multi_agent_api::CurrentRef {
-    fn from(value: CurrentHead) -> Self {
-        Self {
-            r#ref: Some(match value {
-                CurrentHead::BranchName(name) => {
-                    warp_multi_agent_api::current_ref::Ref::BranchName(name)
-                }
-                CurrentHead::HeadlessCommitSha(sha) => {
-                    warp_multi_agent_api::current_ref::Ref::HeadlessCommitSha(sha)
-                }
-            }),
-        }
-    }
-}
-
-impl From<CurrentHead> for diff_hunk_api::Current {
-    fn from(value: CurrentHead) -> Self {
-        match value {
-            CurrentHead::BranchName(name) => diff_hunk_api::Current::CurrentBranchName(name),
-            CurrentHead::HeadlessCommitSha(sha) => {
-                diff_hunk_api::Current::CurrentHeadlessCommitSha(sha)
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiffBase {
     BranchName(String),
     HeadlessCommitSha(String),
     UncommittedChanges,
-}
-
-impl From<DiffBase> for warp_multi_agent_api::BaseRef {
-    fn from(value: DiffBase) -> Self {
-        Self {
-            r#ref: Some(match value {
-                DiffBase::BranchName(name) => warp_multi_agent_api::base_ref::Ref::BranchName(name),
-                DiffBase::HeadlessCommitSha(sha) => {
-                    warp_multi_agent_api::base_ref::Ref::HeadlessCommitSha(sha)
-                }
-                DiffBase::UncommittedChanges => {
-                    warp_multi_agent_api::base_ref::Ref::UncommittedChanges(())
-                }
-            }),
-        }
-    }
-}
-
-impl From<DiffBase> for diff_hunk_api::Base {
-    fn from(value: DiffBase) -> Self {
-        match value {
-            DiffBase::BranchName(branch_name) => diff_hunk_api::Base::BaseBranchName(branch_name),
-            DiffBase::HeadlessCommitSha(sha) => diff_hunk_api::Base::BaseHeadlessCommitSha(sha),
-            DiffBase::UncommittedChanges =>
-            {
-                #[warn(clippy::unit_arg)]
-                diff_hunk_api::Base::UncommittedChanges(())
-            }
-        }
-    }
 }
 
 /// A simplified diff hunk for use in DiffSet attachments
@@ -2120,21 +2009,6 @@ pub struct DiffSetHunk {
     pub diff_content: String,
     pub lines_added: u32,
     pub lines_removed: u32,
-}
-
-impl DiffSetHunk {
-    pub fn convert_to_api(self, file_path: String) -> warp_multi_agent_api::diff_set::DiffHunk {
-        warp_multi_agent_api::diff_set::DiffHunk {
-            file_path,
-            line_range: Some(warp_multi_agent_api::FileContentLineRange {
-                start: self.line_range.start.as_usize() as u32,
-                end: self.line_range.end.as_usize() as u32,
-            }),
-            diff_content: self.diff_content,
-            lines_added: self.lines_added,
-            lines_removed: self.lines_removed,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2338,7 +2212,6 @@ pub enum AIAgentInput {
         referenced_attachments: HashMap<String, AIAgentAttachment>,
         user_query_mode: UserQueryMode,
         running_command: Option<RunningCommand>,
-        intended_agent: Option<AgentType>,
     },
 
     AutoCodeDiffQuery {
@@ -2400,15 +2273,6 @@ pub enum AIAgentInput {
         context: Arc<[AIAgentContext]>,
     },
 
-    /// Messages received from other agent conversations via the message bus.
-    MessagesReceivedFromAgents {
-        messages: Vec<ReceivedMessageInput>,
-    },
-    /// Events received from other agent conversations.
-    EventsFromAgents {
-        events: Vec<AgentEvent>,
-    },
-
     /// The result of a passive suggestion that should be
     /// handled in the active conversation.
     PassiveSuggestionResult {
@@ -2416,16 +2280,6 @@ pub enum AIAgentInput {
         suggestion: PassiveSuggestionResultType,
         context: Arc<[AIAgentContext]>,
     },
-}
-
-/// Data for a single message received by an agent from another agent.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReceivedMessageInput {
-    pub message_id: String,
-    pub sender_agent_id: String,
-    pub addresses: Vec<String>,
-    pub subject: String,
-    pub message_body: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2500,12 +2354,6 @@ impl Display for AIAgentInput {
                     write!(f, "InvokeSkill: {}", skill.name)
                 }
             }
-            Self::MessagesReceivedFromAgents { messages } => {
-                write!(f, "MessagesReceivedFromAgents({} messages)", messages.len())
-            }
-            Self::EventsFromAgents { events } => {
-                write!(f, "EventsFromAgents({} events)", events.len())
-            }
             Self::PassiveSuggestionResult { .. } => write!(f, "PassiveSuggestionResult"),
         }
     }
@@ -2560,8 +2408,6 @@ impl AIAgentInput {
             | Self::TriggerPassiveSuggestion { .. }
             | Self::ResumeConversation { .. }
             | Self::SummarizeConversation { .. }
-            | Self::MessagesReceivedFromAgents { .. }
-            | Self::EventsFromAgents { .. }
             | Self::PassiveSuggestionResult { .. } => None,
         }
     }
@@ -2655,9 +2501,7 @@ impl AIAgentInput {
             | Self::FetchReviewComments { context, .. }
             | Self::InvokeSkill { context, .. }
             | Self::PassiveSuggestionResult { context, .. } => Some(context),
-            Self::SummarizeConversation { .. }
-            | Self::MessagesReceivedFromAgents { .. }
-            | Self::EventsFromAgents { .. } => None,
+            Self::SummarizeConversation { .. } => None,
         }
     }
 
@@ -2684,8 +2528,6 @@ impl AIAgentInput {
             | Self::FetchReviewComments { .. }
             | Self::SummarizeConversation { .. }
             | Self::InvokeSkill { .. }
-            | Self::MessagesReceivedFromAgents { .. }
-            | Self::EventsFromAgents { .. }
             | Self::PassiveSuggestionResult { .. } => None,
         }
     }
@@ -2882,7 +2724,6 @@ pub struct RequestMetadata {
     /// This only applies to `AIAgentInput::UserQuery`.
     pub is_autodetected_user_query: bool,
 
-    /// The entrypoint (onboarding, prompt suggestion, etc.) of the AI conversation.
     pub entrypoint: EntrypointType,
 
     /// Whether this request is an automatic resume triggered by a previous error.
@@ -2951,7 +2792,3 @@ impl Suggestions {
         self.agent_mode_workflows.extend(new_workflows);
     }
 }
-
-#[cfg(test)]
-#[path = "mod_test.rs"]
-mod tests;

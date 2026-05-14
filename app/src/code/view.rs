@@ -1877,13 +1877,7 @@ impl CodeView {
 
         #[cfg(feature = "local_fs")]
         if self.local_path(ctx).is_some() {
-            let reveal_label = if cfg!(target_os = "macos") {
-                "Reveal in Finder"
-            } else if cfg!(target_os = "windows") {
-                "Reveal in Explorer"
-            } else {
-                "Reveal in file manager"
-            };
+            let reveal_label = "Reveal in Finder";
             items.extend([
                 MenuItem::Separator,
                 MenuItemFields::new("Copy file path")

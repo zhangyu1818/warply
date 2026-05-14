@@ -207,10 +207,7 @@ pub fn init(ctx: &mut AppContext) {
             id!("EditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::new_per_platform(
-            PerPlatformKeystroke {
-                mac: "cmd-enter",
-                linux_and_windows: "ctrl-shift-enter",
-            },
+            PerPlatformKeystroke { mac: "cmd-enter" },
             EditorAction::CmdEnter,
             id!("EditorView") & !id!("IMEOpen"),
         ),
@@ -251,13 +248,6 @@ pub fn init(ctx: &mut AppContext) {
         FixedBinding::standard(
             StandardAction::Paste,
             EditorAction::Paste,
-            id!("EditorView") & !id!("IMEOpen"),
-        ),
-        #[cfg(windows)]
-        FixedBinding::custom(
-            CustomAction::WindowsPaste,
-            EditorAction::Paste,
-            "Paste",
             id!("EditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::new(
@@ -324,7 +314,6 @@ pub fn init(ctx: &mut AppContext) {
         FixedBinding::new_per_platform(
             PerPlatformKeystroke {
                 mac: "shift-alt-left",
-                linux_and_windows: "shift-ctrl-left",
             },
             EditorAction::SelectLeftByWord,
             id!("EditorView") & !id!("IMEOpen"),
@@ -337,7 +326,6 @@ pub fn init(ctx: &mut AppContext) {
         FixedBinding::new_per_platform(
             PerPlatformKeystroke {
                 mac: "shift-alt-right",
-                linux_and_windows: "shift-ctrl-right",
             },
             EditorAction::SelectRightByWord,
             id!("EditorView") & !id!("IMEOpen"),
@@ -466,17 +454,6 @@ pub fn init(ctx: &mut AppContext) {
                 id!("EditorView") & !id!("IMEOpen"),
             ),
         ]);
-    }
-
-    // Register Linux-specific `FixedBinding`s.
-    if OperatingSystem::get().is_linux() {
-        // The Emacs banner banner binding is registered as a `FixedBinding` so
-        // that it doesn't get displayed under Settings --> Keyboard Shortcuts.
-        ctx.register_fixed_bindings([FixedBinding::new(
-            "ctrl-e",
-            EditorAction::EmacsBinding,
-            id!("EditorView") & !id!("IMEOpen"),
-        )]);
     }
 
     if ChannelState::channel() == Channel::Integration {
@@ -651,12 +628,10 @@ pub fn init(ctx: &mut AppContext) {
         // `home/end` on Windows and Linux. See https://www.jetbrains.com/help/idea/reference-keymap-win-default.html#caret_navigation.
         EditableBinding::new("editor_view:home", "Home", EditorAction::Home)
             .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_mac_key_binding("cmd-left")
-            .with_linux_or_windows_key_binding("home"),
+            .with_mac_key_binding("cmd-left"),
         EditableBinding::new("editor_view:end", "End", EditorAction::End)
             .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_mac_key_binding("cmd-right")
-            .with_linux_or_windows_key_binding("end"),
+            .with_mac_key_binding("cmd-right"),
         EditableBinding::new(
             "editor_view:cmd_down",
             "Move cursor to the bottom",
@@ -664,8 +639,7 @@ pub fn init(ctx: &mut AppContext) {
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         // Match the behavior of VSCode, see https://code.visualstudio.com/docs/getstarted/keybindings#_basic-editing.
-        .with_mac_key_binding("cmd-down")
-        .with_linux_or_windows_key_binding("ctrl-end"),
+        .with_mac_key_binding("cmd-down"),
         EditableBinding::new(
             "editor_view:cmd_up",
             "Move cursor to the top",
@@ -673,24 +647,21 @@ pub fn init(ctx: &mut AppContext) {
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         // Match the behavior of VSCode, see https://code.visualstudio.com/docs/getstarted/keybindings#_basic-editing.
-        .with_mac_key_binding("cmd-up")
-        .with_linux_or_windows_key_binding("ctrl-home"),
+        .with_mac_key_binding("cmd-up"),
         EditableBinding::new(
             "editor_view:move_to_and_select_buffer_start",
             "Select and move to the top",
             EditorAction::MoveToAndSelectBufferStart,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("cmd-shift-up")
-        .with_linux_or_windows_key_binding("ctrl-shift-home"),
+        .with_mac_key_binding("cmd-shift-up"),
         EditableBinding::new(
             "editor_view:move_to_and_select_buffer_end",
             "Select and move to the bottom",
             EditorAction::MoveToAndSelectBufferEnd,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("cmd-shift-down")
-        .with_linux_or_windows_key_binding("ctrl-shift-end"),
+        .with_mac_key_binding("cmd-shift-down"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
             "Move forward one word",
@@ -754,8 +725,7 @@ pub fn init(ctx: &mut AppContext) {
             EditorAction::DeleteWordLeft,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("alt-backspace")
-        .with_linux_or_windows_key_binding("ctrl-backspace"),
+        .with_mac_key_binding("alt-backspace"),
         EditableBinding::new(
             "editor_view:cut_word_right",
             "Cut word right",
@@ -772,8 +742,7 @@ pub fn init(ctx: &mut AppContext) {
             EditorAction::DeleteWordRight,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("alt-delete")
-        .with_linux_or_windows_key_binding("ctrl-delete"),
+        .with_mac_key_binding("alt-delete"),
         EditableBinding::new(
             "editor_view:clear_lines",
             "Clear selected lines",
@@ -807,8 +776,7 @@ pub fn init(ctx: &mut AppContext) {
         // Intellij uses `ctrl-Y` to delete a line on Windows/Linux whereas VSCode uses
         // `ctrl-shift-k`. We use the former because `ctrl-shift-k` would interfere with the binding
         // to clear all blocks within the blocklist.
-        .with_mac_key_binding("cmd-backspace")
-        .with_linux_or_windows_key_binding("ctrl-y"),
+        .with_mac_key_binding("cmd-backspace"),
         EditableBinding::new(
             "editor_view:insert_newline",
             "Insert newline",
@@ -843,16 +811,14 @@ pub fn init(ctx: &mut AppContext) {
             EditorAction::MoveBackwardOneWord,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("alt-left")
-        .with_linux_or_windows_key_binding("ctrl-left"),
+        .with_mac_key_binding("alt-left"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
             "Move Forward One Word",
             EditorAction::MoveForwardOneWord,
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-        .with_mac_key_binding("alt-right")
-        .with_linux_or_windows_key_binding("ctrl-right"),
+        .with_mac_key_binding("alt-right"),
         EditableBinding::new(
             "editor_view:move_backward_one_subword",
             "Move Backward One Subword",
@@ -4169,13 +4135,6 @@ impl EditorView {
     /// Clears editor buffer if the vim mode allows for it, but does not
     /// clear the undo/redo stack.
     pub fn handle_ctrl_c(&mut self, ctx: &mut ViewContext<Self>) {
-        #[cfg(windows)]
-        // On Windows, if there is selected text, users expect ctrl-c to copy.
-        if !self.selected_text(ctx).is_empty() {
-            self.copy(ctx);
-            return;
-        }
-
         if !self.can_edit(ctx) {
             return;
         }
@@ -8405,8 +8364,8 @@ impl TypedActionView for EditorView {
             }
             if action.is_new_selection() {
                 SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
-                    selection_settings.maybe_write_to_linux_selection_clipboard(
-                        |ctx| ClipboardContent::plain_text(self.selected_text(ctx)),
+                    selection_settings.maybe_copy_on_select(
+                        ClipboardContent::plain_text(self.selected_text(ctx)),
                         ctx,
                     );
                 });

@@ -1,9 +1,6 @@
 #[allow(unused_imports)]
 use crate::clipboard::{Clipboard, ClipboardContent};
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-use {arboard, image::ImageEncoder};
-
 use itertools::Itertools;
 
 /// Supported image file extensions for clipboard operations.
@@ -17,10 +14,6 @@ pub const CLIPBOARD_IMAGE_MIME_TYPES: &[&str] = &[
     "image/gif",  // Animated images
     "image/webp", // Modern format but less compatible
 ];
-
-/// Minimum bytes needed for image format detection.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-const MIN_IMAGE_HEADER_SIZE: usize = 8;
 
 /// Check if a string has an image file extension.
 pub fn has_image_extension(s: &str) -> bool {
@@ -267,150 +260,6 @@ pub fn strip_html_to_plain_text(html: &str) -> String {
     }
 
     out.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Process clipboard image data, preserving original format or converting to PNG.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-pub fn process_clipboard_image(
-    arboard_image: &arboard::ImageData,
-    filename: Option<String>,
-) -> Option<crate::clipboard::ImageData> {
-    let result =
-        try_preserve_original_format(&arboard_image.bytes, filename.clone()).or_else(|| {
-            convert_raw_bitmap_to_png(
-                arboard_image.width,
-                arboard_image.height,
-                arboard_image.bytes.to_vec(),
-                filename,
-            )
-        });
-
-    if result.is_none() {
-        log::warn!(
-            "Failed to process clipboard image: format preservation and PNG conversion both failed"
-        );
-    }
-
-    result
-}
-
-/// Read image data from clipboard, checking for images before expensive filename extraction.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-pub fn read_images_from_clipboard(
-    clipboard: &mut arboard::Clipboard,
-    html_content: &Option<String>,
-    text_content: &str,
-) -> Option<Vec<crate::clipboard::ImageData>> {
-    // First, quickly check if there are any images in the clipboard
-    // This is a fast operation that avoids filename extraction overhead
-    match clipboard.get().image() {
-        Ok(arboard_image) => {
-            // Images found! Now extract filename from clipboard content
-            let filename = extract_filename_from_clipboard_content(html_content, text_content);
-
-            // Process the image with the extracted filename
-            match process_clipboard_image(&arboard_image, filename) {
-                Some(image_data) => Some(vec![image_data]),
-                None => {
-                    log::warn!("Failed to process clipboard image: format detection and conversion both failed");
-                    None
-                }
-            }
-        }
-        Err(arboard::Error::ContentNotAvailable) => None,
-        Err(err) => {
-            log::warn!("Unable to read image from clipboard: {err:?}");
-            None
-        }
-    }
-}
-
-/// Try to preserve original image format using infer crate for detection.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-pub fn try_preserve_original_format(
-    bytes: &[u8],
-    filename: Option<String>,
-) -> Option<crate::clipboard::ImageData> {
-    if bytes.len() < MIN_IMAGE_HEADER_SIZE {
-        return None;
-    }
-
-    // Use infer crate to detect the image format
-    if let Some(kind) = infer::get(bytes) {
-        // Check if it's a supported image format
-        match kind.mime_type() {
-            "image/png" | "image/jpeg" | "image/gif" | "image/webp" => {
-                return Some(crate::clipboard::ImageData {
-                    data: bytes.to_vec(),
-                    mime_type: kind.mime_type().to_string(),
-                    filename,
-                });
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Converts RGBA bitmap data to PNG format, returns None on invalid dimensions/encoding.
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-pub fn convert_raw_bitmap_to_png(
-    width: usize,
-    height: usize,
-    bytes: Vec<u8>,
-    filename: Option<String>,
-) -> Option<crate::clipboard::ImageData> {
-    // Validate dimensions before processing
-    let width_u32 = match width.try_into() {
-        Ok(w) => w,
-        Err(e) => {
-            log::warn!("Invalid width for PNG conversion: {width} - {e}");
-            return None;
-        }
-    };
-
-    let height_u32 = match height.try_into() {
-        Ok(h) => h,
-        Err(e) => {
-            log::warn!("Invalid height for PNG conversion: {height} - {e}");
-            return None;
-        }
-    };
-
-    // Create RGBA image buffer from raw data
-    // Note: arboard should already provide data in RGBA format
-    let img_buffer =
-        image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(width_u32, height_u32, bytes)?;
-
-    // Encode as PNG with optimized settings for speed
-    let mut png_data = Vec::new();
-    let mut cursor = std::io::Cursor::new(&mut png_data);
-
-    // Use fast compression settings to reduce encoding time
-    let encoder = image::codecs::png::PngEncoder::new_with_quality(
-        &mut cursor,
-        image::codecs::png::CompressionType::Fast,
-        image::codecs::png::FilterType::NoFilter,
-    );
-
-    let encode_result = encoder.write_image(
-        &img_buffer,
-        width_u32,
-        height_u32,
-        image::ColorType::Rgba8.into(),
-    );
-
-    match encode_result {
-        Ok(_) => Some(crate::clipboard::ImageData {
-            data: png_data,
-            mime_type: "image/png".to_string(),
-            filename,
-        }),
-        Err(err) => {
-            log::warn!("PNG encoding failed: {err:?}");
-            None
-        }
-    }
 }
 
 pub fn get_image_filepaths_from_paths(paths: &[String]) -> Vec<String> {

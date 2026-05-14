@@ -17,9 +17,6 @@ pub enum FeatureFlag {
     /// If set, generators are executed in-band in all SSH sessions.
     InBandGeneratorsForSSH,
 
-    /// If set, generators are executed using cmd.exe on Windows.
-    RunGeneratorsWithCmdExe,
-
     /// Gates a bindable keyboard action for accepting command corrections.
     CommandCorrectionKey,
 
@@ -159,9 +156,6 @@ pub enum FeatureFlag {
 
     /// Enables image as context for AM.
     ImageAsContext,
-
-    /// UNIX shells running "natively" on Windows via MSYS2.
-    MSYS2Shells,
 
     /// Retry truncated file edit responses from the coding agent.
     RetryTruncatedCodeResponses,
@@ -464,12 +458,6 @@ pub enum FeatureFlag {
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
-
-    /// Gates the user-configurable context window slider in AI settings and
-    /// the execution profile editor. When disabled, the slider is hidden and
-    /// `base_model_context_window_limit` is not sent on outbound requests, so
-    /// the server falls back to its default.
-    ConfigurableContextWindow,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -496,16 +484,13 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
     FeatureFlag::ResizeFix,
     FeatureFlag::AgentModeWorkflows,
-    #[cfg(not(windows))]
     FeatureFlag::SSHTmuxWrapper,
     FeatureFlag::LazySceneBuilding,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
-    FeatureFlag::MSYS2Shells,
     FeatureFlag::RetryTruncatedCodeResponses,
     FeatureFlag::ContextLineReviewComments,
-    FeatureFlag::RunGeneratorsWithCmdExe,
     FeatureFlag::NLDClassifierModelEnabled,
     FeatureFlag::Projects,
     FeatureFlag::MarkdownImages,
@@ -522,7 +507,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RememberFastForwardState,
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,
-    #[cfg(not(windows))]
     FeatureFlag::SshRemoteServer,
     FeatureFlag::DragTabsToWindows,
 ];
@@ -538,14 +522,8 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[
 /// Features enabled for all release builds (i.e.: everything but WarpLocal).
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
-pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    // Marked text is currently only supported on MacOS.
-    #[cfg(target_os = "macos")]
-    FeatureFlag::ImeMarkedText,
-    // Remote server binary is not yet supported on Windows.
-    #[cfg(not(windows))]
-    FeatureFlag::SshRemoteServer,
-];
+pub const RELEASE_FLAGS: &[FeatureFlag] =
+    &[FeatureFlag::ImeMarkedText, FeatureFlag::SshRemoteServer];
 
 /// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
 pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];

@@ -4,7 +4,6 @@ use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
 
-use crate::cloud_object::update_manager::UpdateManager;
 use crate::object_ids::SyncId;
 use crate::persistence::ModelEvent;
 use crate::settings::QuakeModeSettings;
@@ -22,7 +21,6 @@ use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates};
 use crate::window_settings::WindowSettings;
 use crate::workspace::WorkspaceAction;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceRegistry};
-use crate::ChannelState;
 use crate::{
     app_state::{AppState, PaneUuid, WindowSnapshot},
     pane_group::{NewTerminalOptions, PanesLayout},
@@ -217,15 +215,6 @@ pub fn init(app: &mut AppContext) {
     );
 
     app.add_global_action(
-        "root_view:open_codex_in_new_window",
-        open_codex_in_new_window,
-    );
-    app.add_action(
-        "root_view:open_codex_in_existing_window",
-        RootView::open_codex_in_existing_window,
-    );
-
-    app.add_global_action(
         "root_view:open_linear_issue_work_in_new_window",
         open_linear_issue_work_in_new_window,
     );
@@ -264,8 +253,7 @@ pub fn init(app: &mut AppContext) {
             RootViewAction::ToggleFullscreen,
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
-        .with_context_predicate(id!("RootView"))
-        .with_linux_or_windows_key_binding("f11"),
+        .with_context_predicate(id!("RootView")),
     ])
 }
 
@@ -456,12 +444,6 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
             for (idx, window) in app_state.windows.iter().enumerate() {
                 // If this window is a quake window, hide it by default.
                 if window.quake_mode {
-                    // If this is Windows, skip restoring the quake window. Creating a hidden window
-                    // is not supported on Windows. We can't have the quake window visible on
-                    // startup or else it will get mistaken for a normal window.
-                    if cfg!(windows) {
-                        continue;
-                    }
                     let frame_args = quake_mode_config(
                         &KeysSettings::as_ref(ctx)
                             .quake_mode_settings
@@ -482,7 +464,6 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                             anchor_new_windows_from_closed_position:
                                 NextNewWindowsHasThisWindowsBoundsUponClose::No,
                             on_gpu_driver_selected: on_gpu_driver_selected_callback(),
-                            window_instance: Some(ChannelState::app_id().to_string() + "-hotkey"),
                         },
                         |ctx| {
                             let mut view = RootView::new(
@@ -641,19 +622,6 @@ fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppCont
             root_view.workspace.id(),
             &WorkspaceAction::ShowSettingsPage(*section),
         );
-    });
-}
-
-/// Opens a new window and shows the Codex modal.
-fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
-    let root_handle = open_new_window_get_handles(None, ctx).1;
-    root_handle.update(ctx, |root_view, ctx| {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        root_view.workspace.update(ctx, |_, ctx| {
-            let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                workspace.open_codex_modal(ctx)
-            });
-        });
     });
 }
 
@@ -923,7 +891,6 @@ fn toggle_quake_mode_window(global_resource_handles: &GlobalResourceHandles, ctx
                     anchor_new_windows_from_closed_position:
                         warpui::NextNewWindowsHasThisWindowsBoundsUponClose::No,
                     on_gpu_driver_selected: on_gpu_driver_selected_callback(),
-                    window_instance: Some(ChannelState::app_id().to_string() + "-hotkey"),
                     ..Default::default()
                 },
                 |ctx| {
@@ -1246,16 +1213,6 @@ impl RootView {
             self.workspace.id(),
             &WorkspaceAction::ShowSettingsPage(*section),
         );
-        ctx.windows().show_window_and_focus_app(window_id);
-        true
-    }
-
-    /// Opens the Codex modal in an existing window.
-    pub fn open_codex_in_existing_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        let window_id = ctx.window_id();
-        self.workspace.update(ctx, |workspace, ctx| {
-            workspace.open_codex_modal(ctx);
-        });
         ctx.windows().show_window_and_focus_app(window_id);
         true
     }

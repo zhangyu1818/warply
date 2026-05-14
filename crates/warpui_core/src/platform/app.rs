@@ -34,7 +34,7 @@ pub struct AppCallbacks {
     /// Callback for when the user clicks "don't show again" on the warning modal.
     pub on_disable_warning_modal: Option<Box<dyn FnMut(&mut AppContext)>>,
     /// Callback on when the internet reachability to a specific host has changed.
-    /// The host name here could be a string for an IP address or domain (e.g. www.warp.dev).
+    /// The host name here could be a string for an IP address or domain (e.g. www.example.com).
     pub on_internet_reachability_changed: Option<Box<dyn FnMut(bool, &mut AppContext)>>,
     pub on_active_window_changed: Option<Box<dyn FnMut(&mut AppContext)>>,
     pub on_new_window_requested: Option<Box<dyn FnMut(&mut AppContext)>>,
@@ -101,18 +101,6 @@ impl AppCallbackDispatcher {
         }
     }
 
-    // This is not called on Linux or wasm, as there isn't any generic way to
-    // click on/interact with a notification.
-    // TODO(CORE-2322): implement desktop notifications on Windows
-    #[cfg_attr(
-        any(
-            target_os = "linux",
-            target_os = "freebsd",
-            target_os = "windows",
-            target_family = "wasm"
-        ),
-        allow(dead_code)
-    )]
     pub fn notification_clicked(&mut self, response: notification::NotificationResponse) {
         if let Some(callback) = &mut self.callbacks.on_notification_clicked {
             self.ui_app.update(|ctx| callback(response, ctx));
@@ -159,11 +147,6 @@ impl AppCallbackDispatcher {
         }
     }
 
-    // Dead code is allowed on wasm as when we register the network connection
-    // listener on wasm, we don't yet have access to an `AppCallbackDispatcher`,
-    // so we directly check the `Callbacks` object instead.
-    // TODO(CORE-2683): implement events for internet reachability changes
-    #[cfg_attr(any(target_family = "wasm", target_os = "windows"), allow(dead_code))]
     pub fn has_internet_reachability_changed_callback(&self) -> bool {
         self.callbacks.on_internet_reachability_changed.is_some()
     }
@@ -293,20 +276,6 @@ impl AppCallbackDispatcher {
     }
 }
 
-// Functions in AppCallbackDispatcher that relate to application menus.
-//
-// This is marked as `allow(dead_code)` on Linux, as it doesn't support
-// application menus, so these never get called.
-// TODO(CORE-2691): implement native Windows OS app menus
-#[cfg_attr(
-    any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "windows",
-        target_family = "wasm"
-    ),
-    allow(dead_code)
-)]
 impl AppCallbackDispatcher {
     pub fn menu_item_triggered(&mut self, callback: impl FnOnce(&mut AppContext)) {
         self.ui_app.update(callback);
@@ -320,20 +289,6 @@ impl AppCallbackDispatcher {
     }
 }
 
-// Functions in AppCallbackDispatcher that relate to native platform modals.
-//
-// This is marked as `allow(dead_code)` on Linux and WASM, as we do not support
-// native platform modals on these platforms, so these never get called.
-// TODO(CORE-2323): implement native Windows OS modal
-#[cfg_attr(
-    any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "windows",
-        target_family = "wasm"
-    ),
-    allow(dead_code)
-)]
 impl AppCallbackDispatcher {
     pub fn process_platform_modal_response(
         &mut self,

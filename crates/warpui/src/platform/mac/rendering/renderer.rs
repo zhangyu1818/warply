@@ -18,33 +18,21 @@ pub trait Renderer {
 pub enum Device {
     #[allow(dead_code)]
     Metal(metal::Device),
-    #[cfg(wgpu)]
-    WGPU(Box<crate::rendering::wgpu::Resources>),
 }
 impl Device {
     pub fn new(
-        _metal_device: metal::Device,
+        metal_device: metal::Device,
         _native_view: id,
         _native_window: id,
         _gpu_power_preference: GPUPowerPreference,
         on_gpu_device_info: Box<OnGPUDeviceSelected>,
     ) -> Self {
-        #[cfg(not(wgpu))]
-        {
-            let gpu_device_info = get_gpu_device_info(&_metal_device);
-            on_gpu_device_info(gpu_device_info);
-            Device::Metal(_metal_device)
-        }
-
-        #[cfg(wgpu)]
-        {
-            Device::new_wgpu(_native_view, _gpu_power_preference, on_gpu_device_info)
-                .expect("unable to create wgpu device")
-        }
+        let gpu_device_info = get_gpu_device_info(&metal_device);
+        on_gpu_device_info(gpu_device_info);
+        Device::Metal(metal_device)
     }
 }
 
-#[cfg_attr(wgpu, allow(dead_code))]
 fn get_gpu_device_info(device: &metal::Device) -> GPUDeviceInfo {
     let device_type = if is_integrated_gpu(device) {
         GPUDeviceType::IntegratedGpu
@@ -54,8 +42,6 @@ fn get_gpu_device_info(device: &metal::Device) -> GPUDeviceInfo {
     GPUDeviceInfo {
         device_type,
         device_name: device.name().into(),
-        // Mimic wgpu by setting the driver name and info to empty strings when
-        // rendering on Metal. See https://github.com/gfx-rs/wgpu/blob/8129897ccbff869ef48a3b53a4cdd8a8a21840f9/wgpu-hal/src/metal/mod.rs#L135.
         driver_name: String::new(),
         driver_info: String::new(),
         backend: GPUBackend::Metal,

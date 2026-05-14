@@ -1590,10 +1590,7 @@ pub fn test_undo_redo() -> Builder {
         )
         .with_step(
             new_step_with_default_assertions("Redo")
-                .with_per_platform_keystroke(PerPlatformKeystroke {
-                    mac: "shift-cmd-Z",
-                    linux_and_windows: "shift-ctrl-Z",
-                })
+                .with_per_platform_keystroke(PerPlatformKeystroke { mac: "shift-cmd-Z" })
                 .add_assertion(|app, window_id| {
                     let input_view = single_input_view_for_tab(app, window_id, 0);
                     input_view.read(app, |view, ctx| {
@@ -2159,17 +2156,6 @@ pub fn test_ctrl_tab_session_switching() -> Builder {
     #[allow(unused_mut, unused_assignments)]
     let mut builder = new_builder();
 
-    // If linux return early.  For reasons unknown and not worth the time to debug currently
-    // this test fails on linux at the step where the command palette is expected to show.
-    // The feature does work on linux though - there's some underlying issue with our integration
-    // test here.
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    {
-        return builder;
-    }
-
-    // if we are on linux, allow unreachable code
-    #[allow(unreachable_code)]
     {
         builder = new_builder()
             .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -3787,11 +3773,9 @@ pub fn test_open_new_tab_with_specific_shell_from_new_session_menu() -> Builder 
             })
     }
 
-    let test_cases = vec![(ShellType::PowerShell, "(Get-Process -Id $PID).Path")];
+    let test_cases = vec![(ShellType::Zsh, "ps -p $$ -o comm=")];
 
-    let mut builder = new_builder()
-        .set_should_run_test(|| cfg!(windows))
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0));
+    let mut builder = new_builder().with_step(wait_until_bootstrapped_single_pane_for_tab(0));
     let mut tab_index = 1;
 
     for (shell, test_command) in test_cases {
@@ -4053,10 +4037,7 @@ pub fn test_session_navigation_recency_change_tab() -> Builder {
         .with_step(close_command_palette())
         .with_step(
             new_step_with_default_assertions("Navigate to previous tab.")
-                .with_per_platform_keystroke(PerPlatformKeystroke {
-                    mac: "shift-cmd-{",
-                    linux_and_windows: "ctrl-pageup",
-                })
+                .with_per_platform_keystroke(PerPlatformKeystroke { mac: "shift-cmd-{" })
                 .add_assertion(move |app, window_id| {
                     let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
                     terminal_view.read(app, |view, _ctx| {
@@ -6128,7 +6109,6 @@ pub fn test_block_bulk_deletion_using_escape_codes() -> Builder {
                 .with_typed_characters(&["echo hello world"])
                 .with_per_platform_keystroke(PerPlatformKeystroke {
                     mac: "alt-backspace",
-                    linux_and_windows: "ctrl-backspace",
                 })
                 .add_assertion(assert_active_block_output_for_single_terminal_in_tab(
                     "> echo hello ",

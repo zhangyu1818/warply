@@ -1,7 +1,5 @@
 pub(crate) mod atlas;
 pub(crate) mod glyph_cache;
-#[cfg(wgpu)]
-pub mod wgpu;
 
 pub use warpui_core::rendering::*;
 use warpui_core::scene::Dash;
@@ -16,17 +14,7 @@ static LOW_POWER_GPU_AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock:
 /// machines with two GPUs -- a dedicated discrete high-performance GPU and a lower power
 /// integrated GPU.
 pub fn is_low_power_gpu_available() -> bool {
-    *LOW_POWER_GPU_AVAILABLE.get_or_init(|| {
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "macos")] {
-                crate::platform::mac::is_low_power_gpu_available()
-            } else if #[cfg(wgpu)] {
-                warpui_core::r#async::block_on(wgpu::is_low_power_gpu_available())
-            } else {
-                false
-            }
-        }
-    })
+    *LOW_POWER_GPU_AVAILABLE.get_or_init(|| crate::platform::mac::is_low_power_gpu_available())
 }
 
 /// Returns the gap length between each dash to ensure that the stroke begins and ends with a full dash,

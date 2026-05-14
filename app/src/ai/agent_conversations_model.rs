@@ -407,7 +407,6 @@ impl AgentConversationsModel {
                 ctx.emit(AgentConversationsModelEvent::ConversationArtifactsUpdated);
             }
             BlocklistAIHistoryEvent::CreatedSubtask { .. }
-            | BlocklistAIHistoryEvent::PromotedTask { .. }
             | BlocklistAIHistoryEvent::ReassignedExchange { .. }
             | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }

@@ -18,14 +18,12 @@ use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
 #[derive(Debug)]
 pub struct RemoteCommandExecutor {
     control_socket_path: PathBuf,
-    wsl_distro: Option<String>,
 }
 
 impl RemoteCommandExecutor {
-    pub fn new(control_socket_path: PathBuf, wsl_distro: Option<String>) -> Self {
+    pub fn new(control_socket_path: PathBuf) -> Self {
         Self {
             control_socket_path,
-            wsl_distro,
         }
     }
 }
@@ -65,9 +63,7 @@ impl CommandExecutor for RemoteCommandExecutor {
             "-q",
             "-o",
             "PasswordAuthentication=no",
-            // Disable X11 forwarding, as none of our background commands
-            // should need it, and it can cause warnings to appear in the
-            // user's session.
+            // Disable display forwarding for background commands.
             "-o",
             "ForwardX11=no",
             "-o",
@@ -81,17 +77,7 @@ impl CommandExecutor for RemoteCommandExecutor {
             command_str.as_str(),
         ];
 
-        // If the SSH session originated from WSL, the ControlPath also exists inside WSL.
-        // Therefore, SSH commands directly from the Windows host will not work. They must be run
-        // inside that same WSL instance
-        let mut command = match &self.wsl_distro {
-            None => Command::new("ssh"),
-            Some(distro_name) => {
-                let mut command = Command::new("wsl");
-                command.args(["-d", distro_name.as_str(), "-e", "ssh"]);
-                command
-            }
-        };
+        let mut command = Command::new("ssh");
 
         command.args(ssh_args);
         command

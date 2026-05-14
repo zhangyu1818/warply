@@ -48,13 +48,13 @@ pub enum Harness {
 }
 
 impl Harness {
-    pub fn parse_orchestration_harness(value: &str) -> Option<Self> {
+    pub fn parse_harness(value: &str) -> Option<Self> {
         let normalized = value.trim().to_ascii_lowercase().replace('_', "-");
         <Self as ValueEnum>::from_str(&normalized, true).ok()
     }
 
     pub fn parse_local_child_harness(value: &str) -> Option<Self> {
-        match Self::parse_orchestration_harness(value) {
+        match Self::parse_harness(value) {
             Some(harness @ (Self::Claude | Self::OpenCode | Self::Codex)) => Some(harness),
             Some(Self::Gemini) | None => None,
         }

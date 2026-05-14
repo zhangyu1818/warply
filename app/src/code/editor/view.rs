@@ -135,11 +135,6 @@ pub enum CodeEditorEvent {
     DelayedRenderingFlushed,
     /// Emitted when the render state layout has been updated.
     LayoutInvalidated,
-    #[cfg(windows)]
-    WindowsCtrlC {
-        /// True if the `ctrl-c` action was used to copy an active selection.
-        copied_selection: bool,
-    },
     MouseHovered {
         offset: CharOffset,
         cmd: bool,
@@ -1274,12 +1269,6 @@ impl CodeEditorView {
             }
             CodeEditorModelEvent::LayoutInvalidated => {
                 ctx.emit(CodeEditorEvent::LayoutInvalidated);
-            }
-            #[cfg(windows)]
-            CodeEditorModelEvent::WindowsCtrlC { copied_selection } => {
-                ctx.emit(CodeEditorEvent::WindowsCtrlC {
-                    copied_selection: *copied_selection,
-                });
             }
         }
     }

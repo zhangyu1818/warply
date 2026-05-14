@@ -23,7 +23,6 @@ use crate::{
     GlobalResourceHandlesProvider,
 };
 use async_compat::CompatExt as _;
-use cfg_if::cfg_if;
 use rmcp::{transport::ConfigureCommandExt as _, ServiceExt as _};
 use simple_logger::manager::LogManager;
 use simple_logger::SimpleLogger;
@@ -840,22 +839,8 @@ async fn spawn_server(
         TransportType::CLIServer(cli_server) => {
             logger.log("[info] MCP: Using stdio transport".to_string());
 
-            cfg_if! {
-                if #[cfg(windows)] {
-                    // We wrap the command in cmd.exe /c to allow Windows to be responsible for resolving the
-                    // PATH variable rather than depending on the `Command` implementation, which only looks for
-                    // `.exe` files in directories found in PATH.
-                    // https://github.com/rust-lang/rust/issues/37519
-                    let command = "cmd.exe".to_owned();
-                    let args = std::iter::once("/c".to_owned())
-                        .chain(std::iter::once(cli_server.command))
-                        .chain(cli_server.args)
-                        .collect::<Vec<String>>();
-                } else {
-                    let command = cli_server.command;
-                    let args = cli_server.args;
-                }
-            }
+            let command = cli_server.command;
+            let args = cli_server.args;
 
             // Capture the command and configured cwd for diagnostics before they're
             // moved into the Command builder closure.
@@ -879,10 +864,6 @@ async fn spawn_server(
                         }
                         cmd.env(name, value);
                     }
-
-                    // On Windows, ensure that no console window is shown.
-                    #[cfg(windows)]
-                    cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0);
                 }),
             )
             .stderr(std::process::Stdio::piped())

@@ -1,6 +1,5 @@
 use super::{action_log, overlay, TestSetupUtils};
 use crate::keymap::PerPlatformKeystroke;
-use crate::platform::OperatingSystem;
 use crate::{
     event::{Event, KeyEventDetails},
     keymap::Keystroke,
@@ -393,13 +392,7 @@ impl TestStep {
     }
 
     pub fn with_per_platform_keystroke(self, keystrokes: PerPlatformKeystroke) -> Self {
-        let keystroke = if OperatingSystem::get().is_mac() {
-            keystrokes.mac
-        } else {
-            keystrokes.linux_and_windows
-        };
-
-        self.with_keystrokes(&[keystroke])
+        self.with_keystrokes(&[keystrokes.mac])
     }
 
     pub fn with_keystrokes(mut self, keystrokes: &[impl AsRef<str>]) -> Self {

@@ -719,7 +719,7 @@ fn test_keyboard_enhancement_unshifted_keycode_for_shifted_printables() {
     let terminal_model_mock = mock_with_all_keys_as_escape();
 
     // Shifted symbols should use the unshifted keycode in CSI u.
-    // The key_without_modifiers is provided by the platform (e.g., winit or macOS UCKeyTranslate).
+    // The key_without_modifiers is provided by the platform text input layer.
     assert_eq!(
         KeystrokeWithDetails {
             keystroke: &Keystroke::parse("shift-@").unwrap(),

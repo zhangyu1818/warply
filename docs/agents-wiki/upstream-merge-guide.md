@@ -29,6 +29,7 @@ Accept or cherry-pick directly when the change is limited to retained generic be
 - Terminal rendering, blocks, PTY, shell integration, session restoration.
 - Input editor, completions, command parsing, natural language detection.
 - GPUI/Warp UI framework and platform windowing fixes.
+- macOS host platform, packaging, signing, local secure storage, user preferences, launch-at-login, and AppKit/windowing fixes.
 - Local settings infrastructure.
 - Local MCP file parsing.
 - Dependency security updates that do not re-add removed cloud/API/reporting crates.
@@ -47,7 +48,7 @@ Port the behavior manually when upstream touches retained but forked areas:
 | `app/src/ai/terminal_suggestions/` | Keep OpenAI-compatible endpoint/model/key flow. |
 | `app/src/settings/ai.rs` and `app/src/settings_view/ai_page.rs` | Keep only ACP and terminal suggestions settings. |
 | `app/src/terminal/input*` | Keep NLD and `/agent` behavior entering ACP AgentView. |
-| `app/src/cloud_object/` and `crates/warp_server_client/` | Inspect whether the data supports local workflows/prompts/facts/history before accepting. |
+| `app/src/cloud_object/` and `crates/local_object_model/` | Inspect whether the data supports local workflows/prompts/facts/history before accepting. |
 | `crates/persistence/` | Accept migrations/schema only for retained local data. |
 | `crates/remote_server/` | Keep local/SSH terminal behavior; reject account-auth token requirements. |
 
@@ -65,6 +66,7 @@ Reject or strip these upstream changes unless they can be reduced to a retained 
 - Voice input/transcription.
 - Onboarding/marketing UI and assets.
 - Telemetry, crash reporting, Sentry release/upload, event stores.
+- Linux/Windows native host platform implementations, WSL/MSYS2 local host executors, Linux packaging, Windows packaging, and Linux/Windows-only build dependencies.
 
 ## Conflict Examples
 
@@ -88,7 +90,11 @@ Reject if it supports users, teams, billing, cloud refresh, cloud sharing, hoste
 
 ### Upstream changes `Cargo.toml` or `Cargo.lock`
 
-Regenerate dependency state from retained manifests. Do not accept reintroduced GraphQL, Sentry, telemetry, managed-secret, onboarding, old-agent-SDK, or voice-input crates unless a retained local feature explicitly needs them.
+Regenerate dependency state from retained manifests. Do not accept reintroduced GraphQL, Sentry, telemetry, managed-secret, onboarding, old-agent-SDK, voice-input, Linux host, or Windows host crates unless a retained macOS or SSH/remote-terminal feature explicitly needs them.
+
+### Upstream changes Linux or Windows platform paths
+
+Reject Linux/Windows host application, packaging, single-instance, secure-storage, user-preferences, local PTY, WSL/MSYS2, and windowing changes. Do not reject SSH or remote terminal code merely because it can connect to Linux/Windows hosts; inspect whether the code runs on the macOS client or on a remote terminal path.
 
 ## Post-Merge Audit
 
@@ -96,6 +102,7 @@ Run targeted searches and inspect every hit:
 
 ```bash
 rg -n "access token|AuthState|billing|credits|referral|upgrade|Teams|Warp Drive|GraphQL|Sentry|telemetry|crash reporting|agent_sdk|ambient_agents|managed secret|cloud environment" app crates script Cargo.toml
+rg -n "target_os = \"linux\"|target_os = \"windows\"|cfg\\(windows\\)|WSL|MSYS2|x11|wayland|winreg|windows-registry|x11rb" app crates Cargo.toml
 ```
 
 Allowed hits should be documentation, local logs, legacy local naming, or retained remote-terminal/local-object code. Product code that restores removed systems should be removed again.

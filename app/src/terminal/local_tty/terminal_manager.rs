@@ -59,7 +59,6 @@ use super::mio_channel;
 use super::shell::ShellStarter;
 use super::{event_loop::EventLoop, shell::ShellStarterSource};
 
-#[cfg(unix)]
 use {
     super::terminal_attributes::TerminalAttributesPoller,
     crate::terminal::local_tty::terminal_attributes::Event as TerminalAttributesPollerEvent,
@@ -89,7 +88,6 @@ pub struct TerminalManager {
 
     /// The manager is responsible for managing the lifetime
     /// of the terminal attributes poller. None if the event loop has not yet started.
-    #[cfg(unix)]
     #[allow(dead_code)]
     terminal_attributes_poller: Option<ModelHandle<TerminalAttributesPoller>>,
 
@@ -191,7 +189,7 @@ impl TerminalManager {
                 .read(ctx, |shells, ctx| shells.get_user_preferred_shell(ctx))
         });
 
-        let wsl_name_or_shell_starter = ShellStarter::init(preferred_shell.clone());
+        let shell_starter_source_result = ShellStarter::init(preferred_shell.clone());
 
         // If we have explicit restored_blocks, prioritize those (these come from db on startup).
         // Otherwise if there's a conversation we're restoring, get blocks from those.
@@ -216,9 +214,9 @@ impl TerminalManager {
             channel_event_proxy.clone(),
             ShellLaunchState::DeterminingShell {
                 available_shell: Some(preferred_shell),
-                display_name: wsl_name_or_shell_starter
+                display_name: shell_starter_source_result
                     .as_ref()
-                    .map(|wsl_name_or_shell_starter| wsl_name_or_shell_starter.name())
+                    .map(|shell_starter_source_result| shell_starter_source_result.name())
                     .unwrap_or(ShellName::LessDescriptive("Shell".to_owned())),
             },
             ctx,
@@ -321,16 +319,12 @@ impl TerminalManager {
             );
         });
 
-        #[cfg(windows)]
-        let event_loop_tx_clone = event_loop_tx.clone();
-
         // Create the terminal manager itself.
         let terminal_manager = Self {
             event_loop_tx: Arc::new(Mutex::new(event_loop_tx)),
             model,
             event_loop_handle: None,
             view,
-            #[cfg(unix)]
             terminal_attributes_poller: None,
             pty_controller,
             remote_server_controller,
@@ -347,7 +341,7 @@ impl TerminalManager {
 
             ctx.spawn(
                 async move {
-                    match wsl_name_or_shell_starter {
+                    match shell_starter_source_result {
                         Some(starter_source) => starter_source.to_shell_starter_source().await,
                         None => None,
                     }
@@ -366,8 +360,6 @@ impl TerminalManager {
                         startup_directory,
                         env_vars,
                         user_default_shell_unsupported_banner_model_handle,
-                        #[cfg(windows)]
-                        event_loop_tx_clone,
                         event_loop_rx,
                         channel_event_proxy,
                         shell_starter_source,
@@ -389,7 +381,6 @@ impl TerminalManager {
         startup_directory: Option<PathBuf>,
         env_vars: HashMap<OsString, OsString>,
         user_default_shell_unsupported_banner_model_handle: ModelHandle<BannerState>,
-        #[cfg(windows)] event_loop_tx: mio_channel::Sender<Message>,
         event_loop_rx: mio_channel::Receiver<Message>,
         channel_event_proxy: ChannelEventListener,
         shell_starter_source: Option<ShellStarterSource>,
@@ -417,22 +408,13 @@ impl TerminalManager {
                 log::error!("Could not compute fallback shell");
                 self.view.update(ctx, |terminal_view, ctx| {
                     terminal_view.on_pty_spawn_failed(
-                        anyhow::Error::msg("Could not find a fallback shell. If you have PowerShell or WSL installed, please file an issue."),
+                        anyhow::Error::msg("Could not find a fallback shell."),
                         ctx,
                     );
                 });
                 self.model().lock().exit(ExitReason::ShellNotFound);
                 return;
             }
-        };
-
-        // In WSL, default to the WSL home directory, not the native Windows home directory.
-        let startup_directory = if let (ShellStarter::Wsl(wsl_shell_starter), None) =
-            (&shell_starter, &startup_directory)
-        {
-            wsl_shell_starter.home_directory()
-        } else {
-            startup_directory
         };
 
         // Show a "shell unsupported" banner, if applicable.
@@ -459,13 +441,6 @@ impl TerminalManager {
                 executable_path: docker_starter.logical_shell_path().to_owned(),
                 shell_type: docker_starter.shell_type(),
             },
-            ShellStarter::Wsl(shell_starter) => ShellLaunchData::WSL {
-                distro: shell_starter.distribution().to_owned(),
-            },
-            ShellStarter::MSYS2(shell_starter) => ShellLaunchData::MSYS2 {
-                executable_path: shell_starter.logical_shell_path().to_owned(),
-                shell_type: shell_starter.shell_type(),
-            },
         };
 
         // This needs to be done before bootstrapping starts (i.e. before spawning the event loop below).
@@ -485,8 +460,6 @@ impl TerminalManager {
                     shell_starter,
                     env_vars,
                     model.clone(),
-                    #[cfg(windows)]
-                    event_loop_tx,
                     ctx,
                 )
             }) {
@@ -503,7 +476,6 @@ impl TerminalManager {
 
         #[cfg(feature = "integration_tests")]
         let pid = pty.get_pid();
-        #[cfg(unix)]
         let fd = pty.get_fd();
 
         // Create the channel above and pass the receving side to the event loop.
@@ -525,20 +497,15 @@ impl TerminalManager {
             terminal_view.on_active_shell_launch_data_updated(Some(shell_launch_data), ctx);
         });
 
-        // Initialize the terminal attributes poller.
-        // TODO(CORE-2297): Implement TerminalPoller on Windows.
-        #[cfg(unix)]
-        {
-            let terminal_attributes_poller = ctx.add_model(|_| TerminalAttributesPoller::new(fd));
-            TerminalManager::wire_up_terminal_attribute_poller_with_view(
-                &terminal_attributes_poller,
-                &self.view,
-                model.clone(),
-                ctx,
-            );
+        let terminal_attributes_poller = ctx.add_model(|_| TerminalAttributesPoller::new(fd));
+        TerminalManager::wire_up_terminal_attribute_poller_with_view(
+            &terminal_attributes_poller,
+            &self.view,
+            model.clone(),
+            ctx,
+        );
 
-            self.terminal_attributes_poller = Some(terminal_attributes_poller);
-        }
+        self.terminal_attributes_poller = Some(terminal_attributes_poller);
     }
 
     /// Sends bindkey to notify shell process to switch to PS1 logic for prompt
@@ -560,10 +527,7 @@ impl TerminalManager {
 
     fn enqueue_init_script(&self, shell_starter: &ShellStarter) -> Result<(), SendError<Message>> {
         let shell_type = shell_starter.shell_type();
-        if shell_type == crate::terminal::shell::ShellType::Zsh
-            // For more on why this is necessary on Git Bash, see https://linear.app/warpdotdev/issue/CORE-3202.
-            || shell_starter.is_msys2()
-        {
+        if shell_type == crate::terminal::shell::ShellType::Zsh {
             let init_shell_script =
                 crate::terminal::bootstrap::init_shell_script_for_shell(shell_type, &crate::ASSETS);
             let tx = self.event_loop_tx.lock();
@@ -579,7 +543,6 @@ impl TerminalManager {
         shell_starter: ShellStarter,
         env_vars: HashMap<OsString, OsString>,
         model: Arc<FairMutex<TerminalModel>>,
-        #[cfg(windows)] event_loop_tx: mio_channel::Sender<Message>,
         ctx: &mut AppContext,
     ) -> anyhow::Result<Pty> {
         let is_shell_debug_mode_enabled = *DebugSettings::as_ref(ctx)
@@ -609,12 +572,7 @@ impl TerminalManager {
             close_fds: true,
         };
 
-        Pty::new(
-            options,
-            #[cfg(windows)]
-            event_loop_tx,
-            ctx,
-        )
+        Pty::new(options, ctx)
     }
 
     /// Start's the PTY event loop, returning a sender for the event loop and the event loop's join handle.
@@ -642,7 +600,6 @@ impl TerminalManager {
     /// TODO: while there is a lot of notification-heavy logic below, this will eventually
     /// be in a dedicated terminal::NotificationSender. For now though, this logic cannot
     /// live in TerminalView (because termios is a *nix thing).
-    #[cfg(unix)]
     fn wire_up_terminal_attribute_poller_with_view(
         terminal_attributes_poller: &ModelHandle<TerminalAttributesPoller>,
         terminal_view: &ViewHandle<TerminalView>,
@@ -780,7 +737,6 @@ impl TerminalManager {
 /// Determine whether to show password notifications based on the user's settings.
 /// This returns true if the user hasn't set notification settings yet, or if
 /// they have explicitly enabled notifications for password prompts.
-#[cfg(unix)]
 fn show_password_notifications(
     ctx: &ModelContext<Box<dyn crate::terminal::TerminalManager>>,
 ) -> bool {
@@ -798,10 +754,10 @@ pub fn get_shell_starter(
     let preferred_shell = chosen_shell.unwrap_or_else(|| {
         AvailableShells::handle(ctx).read(ctx, |shells, ctx| shells.get_user_preferred_shell(ctx))
     });
-    let shell_starter_or_wsl_name = ShellStarter::init(preferred_shell);
+    let shell_starter_source_result = ShellStarter::init(preferred_shell);
 
     // TODO(alokedesai): Further refactor this function to make it clear that it's expensive.
-    shell_starter_or_wsl_name
+    shell_starter_source_result
         .and_then(|starter| {
             warpui::r#async::block_on(async { starter.to_shell_starter_source().await })
         })
@@ -833,26 +789,6 @@ fn get_shell_starter_internal(
             ShellStarter::Direct(starter)
         }
     }
-}
-
-/// Send a Shutdown event to each PTY's event loop and waits for the
-/// event loop to terminate.
-/// This is needed on Windows to ensure all OpenConsole processes are
-/// cleaned up before the main thread exits.
-#[cfg(windows)]
-pub fn shutdown_all_pty_event_loops(ctx: &mut AppContext) {
-    let terminal_managers: Vec<ModelHandle<Box<dyn crate::terminal::TerminalManager>>> =
-        ctx.models_of_type();
-    terminal_managers.into_iter().for_each(|terminal_manager| {
-        terminal_manager.update(ctx, |terminal_manager, _ctx| {
-            if let Some(manager) = terminal_manager
-                .as_any_mut()
-                .downcast_mut::<TerminalManager>()
-            {
-                manager.shutdown_event_loop();
-            }
-        })
-    })
 }
 
 impl crate::terminal::TerminalManager for TerminalManager {

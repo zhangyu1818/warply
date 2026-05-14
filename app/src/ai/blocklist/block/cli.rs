@@ -178,7 +178,6 @@ pub fn init(app: &mut AppContext) {
         CLISubagentAction::TakeControlOfRunningCommand,
     )
     .with_mac_key_binding("cmd-i")
-    .with_linux_or_windows_key_binding("ctrl-i")
     .with_context_predicate(
         id!(CLISubagentView::ui_name()) & id!(HAS_PENDING_CLI_ACTION_CONTEXT_KEY),
     )]);
@@ -347,17 +346,10 @@ impl CLISubagentView {
         };
 
         let history_model = BlocklistAIHistoryModel::handle(ctx);
-        let mut task_id_clone = task_id.clone();
+        let task_id_clone = task_id.clone();
         ctx.subscribe_to_model(
             &history_model,
             move |me, _history_model, event, ctx| match event {
-                BlocklistAIHistoryEvent::PromotedTask {
-                    optimistic_id: old_id,
-                    server_id: new_id,
-                    ..
-                } if *old_id == task_id_clone => {
-                    task_id_clone = new_id.clone();
-                }
                 BlocklistAIHistoryEvent::AppendedExchange {
                     exchange_id,
                     task_id,
@@ -779,10 +771,6 @@ impl CLISubagentView {
                     CodeEditorEvent::CopiedEmptyText => {
                         ctx.emit(CLISubagentViewEvent::CopiedEmptyText);
                     }
-                    #[cfg(windows)]
-                    CodeEditorEvent::WindowsCtrlC { .. } => {
-                        ctx.emit(CLISubagentViewEvent::WindowsCtrlC);
-                    }
                     _ => {}
                 });
                 self.code_editor_views.push(EmbeddedCodeEditorView {
@@ -925,8 +913,6 @@ impl CLISubagentView {
 pub enum CLISubagentViewEvent {
     TextSelected,
     CopiedEmptyText,
-    #[cfg(windows)]
-    WindowsCtrlC,
 }
 
 impl Entity for CLISubagentView {

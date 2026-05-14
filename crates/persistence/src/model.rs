@@ -5,11 +5,10 @@ use std::collections::HashSet;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
-use warp_multi_agent_api as api;
 
 use super::schema::{
-    agent_conversations, agent_tasks, ai_document_panes, ai_memory_panes, app, blocks,
-    code_pane_tabs, code_panes, code_review_panes, commands, env_var_collection_panes, folders,
+    agent_conversations, ai_document_panes, ai_memory_panes, app, blocks, code_pane_tabs,
+    code_panes, code_review_panes, commands, env_var_collection_panes, folders,
     generic_string_objects, ignored_suggestions, mcp_environment_variables,
     mcp_server_installations, mcp_server_panes, object_actions, object_metadata,
     object_permissions, pane_branches, pane_leaves, pane_nodes, panels, project_rules, projects,
@@ -295,7 +294,6 @@ pub struct TerminalPane {
     pub shell_launch_data: Option<String>,
     /// This is serialized JSON data for an InputConfig struct.
     pub input_config: Option<String>,
-    pub llm_model_override: Option<String>,
     pub active_profile_id: Option<String>,
     /// This is serialized JSON data for a Vec<AIConversationId>.
     pub conversation_ids: Option<String>,
@@ -466,7 +464,6 @@ pub struct NewTerminalPane {
     pub shell_launch_data: Option<String>,
     /// This is serialized JSON data for an InputConfig struct.
     pub input_config: Option<String>,
-    pub llm_model_override: Option<String>,
     pub active_profile_id: Option<String>,
     /// This is serialized JSON data for a Vec<AIConversationId>.
     pub conversation_ids: Option<String>,
@@ -705,17 +702,6 @@ pub struct AgentConversationRecord {
     pub last_modified_at: NaiveDateTime,
 }
 
-#[derive(Debug, PartialEq, Queryable, Selectable)]
-#[diesel(table_name = agent_tasks)]
-#[diesel(primary_key(id))]
-pub struct AgentTaskRecord {
-    pub id: i32,
-    pub conversation_id: String,
-    pub task_id: String,
-    pub task: Vec<u8>,
-    pub last_modified_at: NaiveDateTime,
-}
-
 #[derive(Debug, PartialEq, Queryable, Selectable, Clone)]
 #[diesel(table_name = ai_document_panes)]
 #[diesel(primary_key(id))]
@@ -741,55 +727,6 @@ pub struct NewAIDocumentPane {
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct AgentConversation {
     pub conversation: AgentConversationRecord,
-    pub tasks: Vec<api::Task>,
-}
-
-impl AgentConversation {
-    /// Returns `true` if the conversation is restorable.
-    ///
-    /// A conversation is restorable if:
-    /// - It contains a single task or fewer, OR
-    /// - It contains multiple tasks where every task other than the root task has a parent task ID.
-    pub fn is_restorable(&self) -> bool {
-        if self.tasks.len() <= 1 {
-            return true;
-        }
-
-        // Find the root task(s) - tasks with no parent_task_id or empty parent_task_id
-        let root_tasks: Vec<_> = self
-            .tasks
-            .iter()
-            .filter(|task| {
-                task.dependencies
-                    .as_ref()
-                    .map(|deps| deps.parent_task_id.is_empty())
-                    .unwrap_or(true)
-            })
-            .collect();
-
-        // Must have exactly one root task
-        if root_tasks.len() != 1 {
-            return false;
-        }
-
-        // All non-root tasks must have a non-empty parent_task_id
-        self.tasks.iter().all(|task| {
-            // Root task is always valid
-            if task
-                .dependencies
-                .as_ref()
-                .map(|deps| deps.parent_task_id.is_empty())
-                .unwrap_or(true)
-            {
-                return true;
-            }
-
-            // Non-root tasks must have a non-empty parent_task_id
-            task.dependencies
-                .as_ref()
-                .is_some_and(|deps| !deps.parent_task_id.is_empty())
-        })
-    }
 }
 
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq, Default)]
@@ -814,16 +751,17 @@ impl<'de> Deserialize<'de> for PersistedAutoexecuteMode {
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentConversationData {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reverted_action_ids: Option<HashSet<AIAgentActionId>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts_json: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub run_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub autoexecute_override: Option<PersistedAutoexecuteMode>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub acp_transcript_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_title: Option<String>,
+    pub acp_transcript_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

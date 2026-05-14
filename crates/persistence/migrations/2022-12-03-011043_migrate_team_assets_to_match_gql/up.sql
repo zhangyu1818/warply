@@ -1,4 +1,0 @@
-ALTER TABLE workflows ADD user_can_delete BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE workflows ADD is_pending BOOLEAN NOT NULL DEFAULT FALSE;
-
-ALTER TABLE workflows ADD server_id BIGINTEGER;

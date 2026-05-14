@@ -77,7 +77,7 @@ use crate::{
         },
         DismissibleToast,
     },
-    workspace::{ToastStack, Workspace, WorkspaceAction},
+    workspace::{ToastStack, WorkspaceAction},
 };
 
 use crate::code_review::find_model::CodeReviewFindModel;
@@ -308,7 +308,6 @@ const COMMENT_EDITOR_SCROLL_BUFFER: f32 = 200.0;
 pub const CODE_REVIEW_TOOLTIP_TEXT: &str = "View changes";
 const REMOTE_TEXT: &str = "Diffs only work for local workspaces.";
 const DISABLED_TEXT: &str = "Diffs only work for git repositories.";
-const WSL_TEXT: &str = "Diffs don't currently work in WSL.";
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3116,19 +3115,13 @@ impl CodeReviewView {
     fn session_env(&self, app: &AppContext) -> Option<GitSessionState> {
         let terminal_view = self.terminal_view.as_ref()?.upgrade(app)?;
         terminal_view.read(app, |terminal, ctx| {
-            let session = terminal
-                .active_block_session_id()
-                .and_then(|id| terminal.sessions_model().as_ref(ctx).get(id));
             let is_local = terminal.active_session_is_local(ctx);
             let is_remote = matches!(is_local, Some(false));
-            let is_wsl = session.as_ref().map(|s| s.is_wsl()).unwrap_or(false);
 
             let enablement = if is_remote {
                 CodingPanelEnablementState::RemoteSession {
                     has_remote_server: false,
                 }
-            } else if is_wsl {
-                CodingPanelEnablementState::UnsupportedSession
             } else {
                 CodingPanelEnablementState::Enabled
             };
@@ -3143,7 +3136,7 @@ impl CodeReviewView {
         _app: &AppContext,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        Self::render_wsl_state(appearance, None)
+        Self::render_not_repo_state(appearance, None)
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -3160,14 +3153,6 @@ impl CodeReviewView {
                 ) =>
             {
                 self.render_remote_state_with_buttons(appearance)
-            }
-            Some(state)
-                if matches!(
-                    state.enablement,
-                    CodingPanelEnablementState::UnsupportedSession
-                ) =>
-            {
-                self.render_wsl_state_with_buttons(appearance)
             }
             None => self.render_not_repo_state_with_buttons(appearance),
             Some(_) => self.render_not_repo_state_with_buttons(appearance),
@@ -4288,13 +4273,6 @@ impl CodeReviewView {
         Self::render_no_repo_found_state(appearance, REMOTE_TEXT, open_repo_button)
     }
 
-    pub fn render_wsl_state(
-        appearance: &Appearance,
-        open_repo_button: Option<Box<dyn Element>>,
-    ) -> Box<dyn Element> {
-        Self::render_no_repo_found_state(appearance, WSL_TEXT, open_repo_button)
-    }
-
     pub fn render_not_repo_state(
         appearance: &Appearance,
         open_repo_button: Option<Box<dyn Element>>,
@@ -4307,15 +4285,6 @@ impl CodeReviewView {
         self.render_no_repo_found_state_with_buttons(
             appearance,
             REMOTE_TEXT,
-            InitButtons::OpenRepository,
-        )
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn render_wsl_state_with_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
-        self.render_no_repo_found_state_with_buttons(
-            appearance,
-            WSL_TEXT,
             InitButtons::OpenRepository,
         )
     }
@@ -7628,26 +7597,7 @@ impl BackingView for CodeReviewView {
                 .on_cancel(handle_save_intent(PendingSaveIntent::Cancel))
                 .build();
 
-            if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
-                AppContext::show_native_platform_modal(ctx, dialog);
-            } else if cfg!(all(
-                not(target_family = "wasm"),
-                any(
-                    target_os = "linux",
-                    target_os = "freebsd",
-                    target_os = "windows"
-                )
-            )) {
-                // Find the workspace to show the Warp-native modal
-                if let Some(workspace) = ctx
-                    .views_of_type::<Workspace>(ctx.window_id())
-                    .and_then(|workspaces| workspaces.first().cloned())
-                {
-                    workspace.update(ctx, |view, ctx| {
-                        view.show_native_modal(dialog, ctx);
-                    });
-                }
-            }
+            AppContext::show_native_platform_modal(ctx, dialog);
         } else {
             ctx.emit(CodeReviewViewEvent::Pane(PaneEvent::Close));
         }

@@ -46,13 +46,7 @@ fn main() -> warpui::platform::app::TerminationResult {
     let app_builder =
         platform::AppBuilder::new(platform::AppCallbacks::default(), Box::new(ASSETS), None);
     app_builder.run(move |ctx| {
-        let font_name = if cfg!(target_os = "macos") {
-            ".AppleSystemUIFont".to_string()
-        } else if cfg!(target_os = "windows") {
-            "Segoe UI".to_string()
-        } else {
-            "Noto Sans".to_string()
-        };
+        let font_name = ".AppleSystemUIFont".to_string();
 
         let font_family = warpui::fonts::Cache::handle(ctx).update(ctx, |cache, _ctx| {
             cache.load_system_font(&font_name).unwrap()

@@ -1,11 +1,8 @@
-mod convert;
-
 use std::{fmt::Display, ops::Range, time::SystemTime};
 
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use warp_core::command::ExitCode;
-use warp_multi_agent_api::apply_file_diffs_result::success::UpdatedFileContent;
 use warp_terminal::model::BlockId;
 
 use crate::{
@@ -595,22 +592,6 @@ impl Display for UpdatedFileContext {
     }
 }
 
-impl From<UpdatedFileContext> for Vec<UpdatedFileContent> {
-    fn from(value: UpdatedFileContext) -> Self {
-        // Note: This method only makes sense for FileContexts that have a string content.
-        // TODO: How do we gracefully fail binary files here?
-        let file_content: Vec<warp_multi_agent_api::FileContent> = value.file_context.into();
-
-        file_content
-            .into_iter()
-            .map(|content| UpdatedFileContent {
-                was_edited_by_user: value.was_edited_by_user,
-                file: Some(content),
-            })
-            .collect()
-    }
-}
-
 impl Display for RequestFileEditsResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -1176,6 +1157,48 @@ pub enum AskUserQuestionResult {
     SkippedByAutoApprove {
         question_ids: Vec<String>,
     },
+}
+
+impl From<FileGlobV2Result> for FileGlobResult {
+    fn from(value: FileGlobV2Result) -> Self {
+        match value {
+            FileGlobV2Result::Success {
+                matched_files,
+                warnings: _,
+            } => FileGlobResult::Success {
+                matched_files: matched_files
+                    .into_iter()
+                    .map(|matched_file| matched_file.file_path)
+                    .join("\n"),
+            },
+            FileGlobV2Result::Error(error) => FileGlobResult::Error(error),
+            FileGlobV2Result::Cancelled => FileGlobResult::Cancelled,
+        }
+    }
+}
+
+impl From<CreateDocumentsResult> for AIAgentActionResultType {
+    fn from(result: CreateDocumentsResult) -> Self {
+        AIAgentActionResultType::CreateDocuments(result)
+    }
+}
+
+impl From<EditDocumentsResult> for AIAgentActionResultType {
+    fn from(result: EditDocumentsResult) -> Self {
+        AIAgentActionResultType::EditDocuments(result)
+    }
+}
+
+impl From<ReadDocumentsResult> for AIAgentActionResultType {
+    fn from(result: ReadDocumentsResult) -> Self {
+        AIAgentActionResultType::ReadDocuments(result)
+    }
+}
+
+impl From<ReadSkillResult> for AIAgentActionResultType {
+    fn from(result: ReadSkillResult) -> Self {
+        AIAgentActionResultType::ReadSkill(result)
+    }
 }
 
 impl Display for AskUserQuestionResult {

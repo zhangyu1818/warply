@@ -1,17 +1,13 @@
 use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpTerminalTrace, AcpToolCall};
-use crate::ai::agent::api::convert_conversation::ConvertToExchanges;
 use crate::ai::agent::comment::CodeReview;
-use crate::ai::agent::linearization::compute_task_depths;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{RequestInput, ResponseStreamId, SerializedBlockListItem};
 use crate::ai::llms::LLMId;
 use crate::ai::skills::SkillDescriptor;
 use crate::terminal::general_settings::GeneralSettings;
-use crate::terminal::model::block::{
-    AgentInteractionMetadata, AgentViewVisibility, BlockId, SerializedAIMetadata, SerializedBlock,
-};
-use chrono::{DateTime, Local, TimeZone};
+use crate::terminal::model::block::{AgentViewVisibility, BlockId, SerializedBlock};
+use chrono::{DateTime, Local};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -28,7 +24,6 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::WarpTheme;
-use warp_multi_agent_api::{self as api};
 use warpui::color::ColorU;
 use warpui::{EntityId, ModelContext, SingletonEntity};
 
@@ -41,7 +36,6 @@ use crate::{
             },
             todos::AIAgentTodoList,
             AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText, MarkdownTextSection,
-            MessageToAIAgentOutputMessageError,
         },
         blocklist::{BlocklistAIHistoryEvent, ConversationStatusUpdate},
     },
@@ -53,11 +47,9 @@ use crate::{
     BlocklistAIHistoryModel, GlobalResourceHandlesProvider,
 };
 
-use super::task::{ExtractMessagesError, PromoteOptimisticTaskError, UpdateTaskError};
+use super::task::UpdateTaskError;
 use super::{
     task::{
-        derive_todo_lists_from_root_task,
-        helper::*,
         transaction::{SavedTask, Transaction},
         Task, TaskId,
     },
@@ -90,8 +82,6 @@ pub(crate) struct CommandBlockInfo {
     pub(crate) output: String,
     pub(crate) exit_code: ExitCode,
     pub(crate) ai_metadata: Option<String>,
-    /// The api message ID that this command block was extracted from.
-    /// Used to find the corresponding exchange for timestamp and PWD.
     pub(crate) message_id: String,
 }
 
@@ -241,7 +231,6 @@ impl AcpTranscriptInput {
                 referenced_attachments: Default::default(),
                 user_query_mode,
                 running_command: None,
-                intended_agent: None,
             },
         }
     }
@@ -424,8 +413,6 @@ pub struct AIConversation {
     /// The per-conversation override on the user's usual autonomy settings.
     autoexecute_override: AIConversationAutoexecuteMode,
 
-    /// Map of new exchanges added keyed by ID of response stream corresponding to the MAA API
-    /// request.
     added_exchanges_by_response: HashMap<ResponseStreamId, Vec1<AddedExchange>>,
 
     /// A set of the hidden exchanges.
@@ -448,20 +435,6 @@ pub struct AIConversation {
 
     /// Artifacts created during this conversation (plans, PRs, etc.).
     artifacts: Vec<Artifact>,
-}
-
-pub(crate) fn artifact_from_fork_proto(
-    proto_artifact: &api::message::artifact_event::ConversationArtifact,
-) -> Option<Artifact> {
-    use api::message::artifact_event::conversation_artifact::Artifact as ProtoArtifact;
-
-    match &proto_artifact.artifact {
-        Some(ProtoArtifact::PullRequest(pr)) => Some(Artifact::from(pr.clone())),
-        Some(ProtoArtifact::Screenshot(ss)) => Some(Artifact::from(ss.clone())),
-        Some(ProtoArtifact::Plan(plan)) => Some(Artifact::from(plan.clone())),
-        Some(ProtoArtifact::File(file)) => Some(Artifact::from(file.clone())),
-        None => None,
-    }
 }
 
 impl AIConversation {
@@ -489,120 +462,45 @@ impl AIConversation {
         }
     }
 
-    // TODO: derive todo list state from tasks instead of taking args.
-    //
-    // This would make it possible to fully restore a convo from tasks, instead of having to persist this additional data.
     pub fn new_restored(
         id: AIConversationId,
-        tasks: Vec<api::Task>,
-        conversation_data: Option<AgentConversationData>,
+        conversation_data: AgentConversationData,
     ) -> Result<Self, RestoreConversationError> {
-        let acp_transcript = conversation_data
-            .as_ref()
-            .and_then(|data| data.acp_transcript_json.as_deref())
-            .and_then(AcpTranscript::from_json);
+        let acp_transcript = AcpTranscript::from_json(&conversation_data.acp_transcript_json)
+            .ok_or(RestoreConversationError::NoRootTask)?;
 
-        let api_tasks_by_id: HashMap<String, api::Task> =
-            tasks.into_iter().map(|t| (t.id.clone(), t)).collect();
-
-        // To process a task, we need to reference some of the data in its parent task.  To
-        // avoid cloning, we process the task tree from deepest tasks to shallowest tasks.  This
-        // ensures that children are always processed before their parents, avoiding any need to
-        // clone task data to ensure the parent is available when processing the child.
-        let depths = compute_task_depths(&api_tasks_by_id);
-        let mut task_ids: Vec<String> = api_tasks_by_id.keys().cloned().collect();
-        task_ids.sort_by(|a, b| {
-            depths
-                .get(b.as_str())
-                .unwrap_or(&0)
-                .cmp(depths.get(a.as_str()).unwrap_or(&0))
-        });
-
-        let mut api_tasks_and_exchanges_by_id: HashMap<_, _> = api_tasks_by_id
-            .into_iter()
-            .map(|(id, task)| {
-                let exchanges = task.into_exchanges();
-                (id, (task, exchanges))
-            })
-            .collect();
-
-        let mut tasks_by_id = HashMap::new();
-        let mut root_task = None;
-        for task_id in task_ids {
-            let Some((task, exchanges)) = api_tasks_and_exchanges_by_id.remove(&task_id) else {
-                continue;
-            };
-
-            if let Some(parent_id) = task.parent_id() {
-                if let Some((parent_task, _)) = api_tasks_and_exchanges_by_id.get(parent_id) {
-                    tasks_by_id.insert(
-                        TaskId::new(task.id.clone()),
-                        Task::new_restored_subtask(task, parent_task, exchanges),
-                    );
-                } else {
-                    log::error!(
-                        "Could not find parent task (id: {}) for task (id: {})",
-                        parent_id,
-                        task.id
-                    );
-                }
-            } else if root_task.is_none() {
-                root_task = Some(Task::new_restored_root(task, exchanges.into_iter()));
-            }
+        let mut root_task = Task::new_optimistic_root();
+        let todo_lists = Vec::new();
+        let root_task_id = root_task.id().clone();
+        if let Some(title) = conversation_data.display_title.clone() {
+            root_task.update_description(title);
         }
 
-        let Some(root_task) = root_task.or_else(|| {
-            if acp_transcript.is_some() {
-                Some(Task::new_optimistic_root())
-            } else {
-                None
-            }
-        }) else {
-            return Err(RestoreConversationError::NoRootTask);
+        let reverted_action_ids = conversation_data.reverted_action_ids.unwrap_or_default();
+        let artifacts = conversation_data
+            .artifacts_json
+            .and_then(|json| {
+                serde_json::from_str(&json)
+                    .map_err(|e| log::error!("Failed to deserialize artifacts: {e}"))
+                    .ok()
+            })
+            .unwrap_or_default();
+        let run_id = conversation_data.run_id;
+        let autoexecute_override = if FeatureFlag::RememberFastForwardState.is_enabled() {
+            conversation_data
+                .autoexecute_override
+                .map(Into::into)
+                .unwrap_or_default()
+        } else {
+            AIConversationAutoexecuteMode::default()
         };
-        // Derive todo lists from tasks by replaying UpdateTodos operations
-        let todo_lists = derive_todo_lists_from_root_task(&root_task);
-        let root_task_id = root_task.id().clone();
-        tasks_by_id.insert(root_task.id().clone(), root_task);
+        let fallback_display_title = conversation_data.display_title;
 
-        let (reverted_action_ids, artifacts, run_id, autoexecute_override) =
-            if let Some(data) = conversation_data {
-                let reverted_action_ids = data.reverted_action_ids.unwrap_or_default();
-                let artifacts = data
-                    .artifacts_json
-                    .and_then(|json| {
-                        serde_json::from_str(&json)
-                            .map_err(|e| log::error!("Failed to deserialize artifacts: {e}"))
-                            .ok()
-                    })
-                    .unwrap_or_default();
-                let run_id = data.run_id;
-                let autoexecute_override = if FeatureFlag::RememberFastForwardState.is_enabled() {
-                    data.autoexecute_override
-                        .map(Into::into)
-                        .unwrap_or_default()
-                } else {
-                    AIConversationAutoexecuteMode::default()
-                };
-
-                (reverted_action_ids, artifacts, run_id, autoexecute_override)
-            } else {
-                (
-                    Default::default(),
-                    Vec::new(),
-                    None,
-                    AIConversationAutoexecuteMode::default(),
-                )
-            };
-
-        // Convert these from the persistence type to the runtime one.
         let reverted_action_ids = reverted_action_ids.into_iter().map_into().collect();
 
-        let mut task_store = TaskStore::from_tasks(tasks_by_id, root_task_id.clone());
-        if let Some(acp_transcript) = acp_transcript {
-            for exchange in acp_transcript.into_exchanges() {
-                task_store.append_exchange(&root_task_id, exchange);
-            }
+        let mut task_store = TaskStore::with_root_task(root_task);
+        for exchange in acp_transcript.into_exchanges() {
+            task_store.append_exchange(&root_task_id, exchange);
         }
 
         let status = Self::derive_status_from_root_task(&task_store.root_task());
@@ -625,7 +523,7 @@ impl AIConversation {
             reverted_action_ids,
             dismissed_suggestion_ids: Default::default(),
             optimistic_cli_subagent_subtask_id: None,
-            fallback_display_title: None,
+            fallback_display_title,
             artifacts,
         })
     }
@@ -666,26 +564,6 @@ impl AIConversation {
             .first()
             .and_then(|ex| ex.time_to_first_token_ms)
             .unwrap_or(0)
-    }
-
-    /// Helper to derive an exchange's finish time from its associated task messages.
-    fn finish_time_from_exchange_messages(
-        task: &Task,
-        exchange: &AIAgentExchange,
-    ) -> Option<DateTime<Local>> {
-        task.messages()
-            .filter(|m| !m.id.is_empty())
-            .filter(|m| {
-                let id = MessageId::new(m.id.clone());
-                exchange.added_message_ids.contains(&id)
-            })
-            .filter_map(|m| {
-                m.timestamp.as_ref().and_then(|ts| {
-                    let nanos = if ts.nanos < 0 { 0 } else { ts.nanos as u32 };
-                    Local.timestamp_opt(ts.seconds, nanos).single()
-                })
-            })
-            .max()
     }
 
     /// Derive the conversation status from the root task's exchanges.
@@ -825,44 +703,8 @@ impl AIConversation {
         self.task_id = Some(id);
     }
 
-    /// Returns a flat list of linearized messages across all tasks, interpolating subtask messages
-    /// in between subagent tool calls and results, effectively corresponding to the order in which
-    /// the messages were created and added to the conversation.
-    pub fn all_linearized_messages(&self) -> Vec<&api::Message> {
-        self.task_store.all_linearized_messages()
-    }
-
-    /// Returns all the tasks in this conversation.
-    ///
-    /// Note that until we've fully migrated to the multi-agent endpoint, in reality, each
-    /// conversation is comprised of a single task (the legacy endpoint `GenerateAIAgentOutput` does
-    /// not support multiple tasks within a conversation).
     pub fn all_tasks(&self) -> impl Iterator<Item = &Task> {
         self.task_store.tasks()
-    }
-
-    /// Returns the set of tasks that are still active (relevant to the agent).
-    ///
-    /// This filters the full task list using DFS linearization to determine
-    /// which tasks have open subagent tool calls without corresponding results.
-    pub fn compute_active_tasks(&self) -> Vec<warp_multi_agent_api::Task> {
-        use std::collections::HashMap;
-
-        let root_task_id = self.get_root_task_id().to_string();
-        let all_tasks: HashMap<&str, &warp_multi_agent_api::Task> = self
-            .all_tasks()
-            .filter_map(|task| {
-                let source = task.source()?;
-                Some((source.id.as_str(), source))
-            })
-            .collect();
-        let active_task_ids =
-            crate::ai::agent::linearization::compute_active_task_ids(&root_task_id, &all_tasks);
-        all_tasks
-            .into_values()
-            .filter(|task| active_task_ids.contains(task.id.as_str()))
-            .cloned()
-            .collect()
     }
 
     /// Returns the titles from the CreateDocuments request corresponding to the given action ID (if any).
@@ -1450,36 +1292,6 @@ impl AIConversation {
             }
         }
         Err(UpdateConversationError::ExchangeNotFound)
-    }
-
-    pub fn initialize_output_for_response_stream(
-        &mut self,
-        stream_id: &ResponseStreamId,
-        init_event: warp_multi_agent_api::response_event::StreamInit,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<BlocklistAIHistoryModel>,
-    ) -> Result<(), UpdateConversationError> {
-        let Some(new_exchanges) = self.added_exchanges_by_response.get(stream_id).cloned() else {
-            return Err(UpdateConversationError::NoPendingRequest);
-        };
-
-        let request_id = init_event.request_id.clone();
-        for new_exchange_info in new_exchanges.iter() {
-            self.get_exchange_to_update(new_exchange_info.exchange_id)?
-                .init_output(ServerOutputId::new(request_id.clone()))?;
-            ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                exchange_id: new_exchange_info.exchange_id,
-                terminal_view_id,
-                conversation_id: self.id,
-                is_hidden: self
-                    .hidden_exchanges
-                    .contains(&new_exchange_info.exchange_id),
-            });
-        }
-
-        let run_id = Some(init_event.run_id).filter(|s| !s.is_empty());
-        self.task_id = run_id.as_deref().and_then(|id| id.parse().ok());
-        Ok(())
     }
 
     pub fn initialize_local_output_for_response_stream(
@@ -2180,16 +1992,7 @@ impl AIConversation {
             self.commit_transaction()
         }
 
-        for AddedExchange {
-            exchange_id,
-            task_id,
-        } in added_exchanges.into_iter()
-        {
-            let task = self
-                .task_store
-                .get(&task_id)
-                .ok_or(UpdateConversationError::TaskNotFound)?
-                .clone();
+        for AddedExchange { exchange_id, .. } in added_exchanges.into_iter() {
             let exchange = self.get_exchange_to_update(exchange_id)?;
             let AIAgentOutputStatus::Streaming { output } = &exchange.output_status else {
                 // Skip exchanges that are already finished (e.g., a root task exchange
@@ -2203,10 +2006,7 @@ impl AIConversation {
                 },
             };
 
-            let finish_time = Self::finish_time_from_exchange_messages(&task, exchange)
-                .unwrap_or_else(Local::now);
-
-            exchange.finish_time = Some(finish_time);
+            exchange.finish_time = Some(Local::now());
 
             let is_hidden = self.is_exchange_hidden(exchange_id);
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
@@ -2273,16 +2073,7 @@ impl AIConversation {
             }
         );
 
-        for AddedExchange {
-            exchange_id,
-            task_id,
-        } in added_exchanges.into_iter()
-        {
-            let task = self
-                .task_store
-                .get(&task_id)
-                .ok_or(UpdateConversationError::TaskNotFound)?
-                .clone();
+        for AddedExchange { exchange_id, .. } in added_exchanges.into_iter() {
             let exchange = self.get_exchange_to_update(exchange_id)?;
             let AIAgentOutputStatus::Streaming { output } = &exchange.output_status else {
                 return Err(UpdateConversationError::OutputAlreadyFinished);
@@ -2294,10 +2085,7 @@ impl AIConversation {
                 },
             };
 
-            let finish_time = Self::finish_time_from_exchange_messages(&task, exchange)
-                .unwrap_or_else(Local::now);
-
-            exchange.finish_time = Some(finish_time);
+            exchange.finish_time = Some(Local::now());
 
             let is_hidden = self.is_exchange_hidden(exchange_id);
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
@@ -2320,14 +2108,9 @@ impl AIConversation {
 
     fn mark_exchange_completed(
         &mut self,
-        task_id: &TaskId,
+        _task_id: &TaskId,
         exchange_id: AIAgentExchangeId,
     ) -> Result<&AIAgentExchange, UpdateConversationError> {
-        let task = self
-            .task_store
-            .get(task_id)
-            .ok_or(UpdateConversationError::TaskNotFound)?
-            .clone();
         let exchange = self.get_exchange_to_update(exchange_id)?;
         let AIAgentOutputStatus::Streaming {
             output: Some(output),
@@ -2341,559 +2124,12 @@ impl AIConversation {
             finished_output: FinishedAIAgentOutput::Success { output },
         };
 
-        // Record finish time for this exchange based on the latest message timestamp associated
-        // with this exchange. Fallback to `Local::now()` if no timestamps are present so that
-        // duration calculations always have a sensible value.
-        let finish_time =
-            Self::finish_time_from_exchange_messages(&task, exchange).unwrap_or_else(Local::now);
-
-        exchange.finish_time = Some(finish_time);
+        exchange.finish_time = Some(Local::now());
 
         let exchange = self
             .exchange_with_id(exchange_id)
             .ok_or(UpdateConversationError::ExchangeNotFound)?;
         Ok(exchange)
-    }
-
-    pub fn apply_client_action(
-        &mut self,
-        response_stream_id: &ResponseStreamId,
-        terminal_view_id: EntityId,
-        action: warp_multi_agent_api::client_action::Action,
-        ctx: &mut ModelContext<BlocklistAIHistoryModel>,
-    ) -> Result<(), UpdateConversationError> {
-        use warp_multi_agent_api::client_action::*;
-        match action {
-            Action::BeginTransaction(_) => {
-                self.begin_transaction();
-            }
-            Action::CommitTransaction(_) => {
-                self.commit_transaction();
-            }
-            Action::RollbackTransaction(_) => {
-                log::debug!("Rollback transaction.");
-                self.rollback_transaction(response_stream_id);
-            }
-            Action::CreateTask(CreateTask { task: Some(task) }) => {
-                let task_id = TaskId::new(task.id.clone());
-                // Save an empty task to the transaction
-                self.checkpoint_task(&task_id);
-
-                if let Some(parent_id) = task.parent_id() {
-                    // If we're expecting a server-created CLI subagent subtask, instead of creating
-                    // a net-new subtask, we convert the optimistically-created CLI subtask into a
-                    // server-backed one.
-                    let optimistic_cli_subagent_subtask = self
-                        .optimistic_cli_subagent_subtask_id
-                        .as_ref()
-                        .and_then(|id| self.task_store.remove(id));
-                    let Some(parent_task) = self.task_store.get(&TaskId::new(parent_id.to_owned()))
-                    else {
-                        log::error!(
-                            "Attempted to create task with parent id {parent_id} but no parent task found"
-                        );
-                        return Err(UpdateConversationError::TaskNotFound);
-                    };
-
-                    if let Some(optimistic_subtask) = optimistic_cli_subagent_subtask {
-                        log::debug!(
-                            "Upgrading optimistically created subtask with ID {:?} to server task with ID {:?}",
-                            optimistic_subtask.id(),
-                            task.id
-                        );
-                        self.optimistic_cli_subagent_subtask_id = None;
-                        let optimistic_id = optimistic_subtask.id().clone();
-                        let server_subtask = optimistic_subtask.into_server_created_task(
-                            task,
-                            parent_task.source(),
-                            self.todo_lists.last(),
-                            self.code_review.as_ref(),
-                        )?;
-                        ctx.emit(BlocklistAIHistoryEvent::PromotedTask {
-                            optimistic_id: optimistic_id.clone(),
-                            server_id: server_subtask.id().clone(),
-                            terminal_view_id,
-                        });
-
-                        for new_exchange in self
-                            .added_exchanges_by_response
-                            .get_mut(response_stream_id)
-                            .into_iter()
-                            .flat_map(|new_exchanges| new_exchanges.iter_mut())
-                        {
-                            if new_exchange.task_id == optimistic_id {
-                                new_exchange.task_id = server_subtask.id().clone();
-                            }
-                        }
-                        self.task_store.insert(server_subtask);
-                    } else if let Some(existing_exchange) = self
-                        .added_exchanges_by_response
-                        .get(response_stream_id)
-                        .map(|new_exchanges| new_exchanges.first())
-                        .and_then(|new_exchange| {
-                            self.task_store
-                                .get(&new_exchange.task_id)
-                                .and_then(|t| t.exchange(new_exchange.exchange_id))
-                        })
-                    {
-                        let subtask = Task::new_subtask(
-                            task,
-                            parent_task
-                                .source()
-                                .ok_or(UpdateConversationError::TaskNotInitialized)?,
-                            existing_exchange,
-                            self.todo_lists.last(),
-                            self.code_review.as_ref(),
-                            false,
-                        );
-
-                        // Subtasks can come pre-populated with messages (for example: an advice subagent
-                        // or computer use subagent task created with an initial tool call already present
-                        // in its task messages).
-                        //
-                        // In those cases, we need to ensure an AI block is created for the subtask's
-                        // initial exchange; otherwise the first tool call/result can be "lost" from the
-                        // block list because we only create AI blocks on AppendedExchange events.
-                        //
-                        // TODO(QUALITY-276): We should check if we can generally add exchanges from any
-                        // subtask, or if that breaks things (e.g. in the CLI subagent).
-                        let initial_exchange_ids: Vec<_> = if subtask.is_advice_subagent()
-                            || subtask.is_computer_use_subagent()
-                            || subtask.is_conversation_search_subagent()
-                        {
-                            subtask.exchanges().map(|e| e.id).collect()
-                        } else {
-                            Vec::new()
-                        };
-
-                        let new_exchanges = self
-                            .added_exchanges_by_response
-                            .get_mut(response_stream_id)
-                            .ok_or(UpdateConversationError::NoPendingRequest)?;
-                        new_exchanges.extend(subtask.exchanges().map(|exchange| AddedExchange {
-                            task_id: task_id.clone(),
-                            exchange_id: exchange.id,
-                        }));
-
-                        self.task_store.insert(subtask);
-                        ctx.emit(BlocklistAIHistoryEvent::CreatedSubtask {
-                            conversation_id: self.id,
-                            terminal_view_id,
-                            task_id: task_id.clone(),
-                        });
-
-                        for exchange_id in initial_exchange_ids {
-                            let is_hidden = self.is_exchange_hidden(exchange_id);
-                            ctx.emit(BlocklistAIHistoryEvent::AppendedExchange {
-                                exchange_id,
-                                task_id: task_id.clone(),
-                                terminal_view_id,
-                                conversation_id: self.id,
-                                is_hidden,
-                                response_stream_id: Some(response_stream_id.clone()),
-                            });
-                        }
-                    }
-                } else {
-                    let root_task_id = self.task_store.root_task_id().clone();
-                    if let Some(mut root_task) = self.task_store.remove(&root_task_id) {
-                        let old_id = root_task.id().clone();
-                        root_task = root_task.into_server_created_task(
-                            task,
-                            None,
-                            self.todo_lists.last(),
-                            self.code_review.as_ref(),
-                        )?;
-                        ctx.emit(BlocklistAIHistoryEvent::PromotedTask {
-                            optimistic_id: old_id,
-                            server_id: root_task.id().clone(),
-                            terminal_view_id,
-                        });
-
-                        for AddedExchange {
-                            ref mut task_id, ..
-                        } in self
-                            .added_exchanges_by_response
-                            .get_mut(response_stream_id)
-                            .ok_or(UpdateConversationError::NoPendingRequest)?
-                            .iter_mut()
-                        {
-                            if *task_id == root_task_id {
-                                *task_id = root_task.id().clone();
-                            }
-                        }
-                        self.task_store.set_root_task(root_task);
-                    }
-                }
-            }
-            Action::UpdateTaskDescription(UpdateTaskDescription {
-                task_id,
-                description,
-            }) => {
-                let task_id = TaskId::new(task_id);
-                self.checkpoint_task(&task_id);
-                self.task_store
-                    .modify_task(&task_id, |task| task.update_description(description))
-                    .ok_or(UpdateConversationError::TaskNotFound)?;
-            }
-            Action::AddMessagesToTask(AddMessagesToTask { task_id, messages }) => {
-                for message in messages.iter() {
-                    match message.message.as_ref() {
-                        Some(api::message::Message::UpdateTodos(update)) => {
-                            if let Some(todos_op) = update.operation.as_ref() {
-                                update_todo_list_from_todo_op(
-                                    &mut self.todo_lists,
-                                    todos_op.clone(),
-                                );
-                                ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList {
-                                    terminal_view_id,
-                                });
-                            }
-                        }
-                        Some(api::message::Message::UpdateReviewComments(comments)) => {
-                            if let Some(comments_op) = comments.operation.as_ref() {
-                                if let Some(active_code_review) = self.code_review.as_mut() {
-                                    let resolved_count = update_comment_from_comment_operation(
-                                        active_code_review,
-                                        comments_op.clone(),
-                                    );
-                                    if resolved_count > 0 {
-                                    }
-                                } else {
-                                    log::error!(
-                                        "Received an UpdateReviewComments message but there's no active code review state"
-                                    );
-                                }
-                            }
-                        }
-                        Some(api::message::Message::ArtifactEvent(artifact_event)) => {
-                            match &artifact_event.event {
-                                Some(api::message::artifact_event::Event::Created(
-                                    artifact_created,
-                                )) => {
-                                    match &artifact_created.artifact {
-                                        Some(
-                                            api::message::artifact_event::artifact_created::Artifact::PullRequest(pr),
-                                        ) => {
-                                            self.add_artifact(
-                                                Artifact::from(pr.clone()),
-                                                terminal_view_id,
-                                                ctx,
-                                            );
-                                        }
-                                        Some(
-                                            api::message::artifact_event::artifact_created::Artifact::Screenshot(screenshot),
-                                        ) => {
-                                            self.add_artifact(
-                                                Artifact::from(screenshot.clone()),
-                                                terminal_view_id,
-                                                ctx,
-                                            );
-                                        }
-                                        Some(
-                                            api::message::artifact_event::artifact_created::Artifact::File(file),
-                                        ) => {
-                                            self.add_artifact(
-                                                Artifact::from(file.clone()),
-                                                terminal_view_id,
-                                                ctx,
-                                            );
-                                        }
-                                        None => {}
-                                    }
-                                }
-                                Some(api::message::artifact_event::Event::ForkArtifacts(
-                                    fork_artifacts,
-                                )) => {
-                                    for proto_artifact in &fork_artifacts.artifacts {
-                                        let Some(artifact) =
-                                            artifact_from_fork_proto(proto_artifact)
-                                        else {
-                                            continue;
-                                        };
-                                        self.add_artifact(artifact, terminal_view_id, ctx);
-                                    }
-                                }
-                                None => {}
-                            }
-                        }
-                        Some(api::message::Message::OrchestrationConfigSnapshot(_)) => {}
-                        Some(api::message::Message::ToolCallResult(_)) => {}
-                        Some(api::message::Message::ModelUsed(model_used)) => {
-                            let exchange_id = self
-                                .added_exchanges_by_response
-                                .get(response_stream_id)
-                                .ok_or(UpdateConversationError::NoPendingRequest)?
-                                .last()
-                                .exchange_id;
-                            let exchange = self.get_exchange_to_update(exchange_id)?;
-                            if let Some(output) = exchange.output_status.output() {
-                                let mut output = output.get_mut();
-                                output.model_info = Some(OutputModelInfo {
-                                    model_id: model_used.model_id.clone().into(),
-                                    display_name: model_used.model_display_name.clone(),
-                                    is_fallback: model_used.is_fallback,
-                                });
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                let task_id = TaskId::new(task_id);
-                self.checkpoint_task(&task_id);
-                let current_todo_list = self.todo_lists.last().cloned();
-
-                // Remove the task to relinquish mutable borrow on self, we add it back later.
-                let mut task = self
-                    .task_store
-                    .remove(&task_id)
-                    .ok_or(UpdateConversationError::TaskNotFound)?;
-                let added_exchanges = self
-                    .added_exchanges_by_response
-                    .get(response_stream_id)
-                    .ok_or(UpdateConversationError::NoPendingRequest)?;
-                let exchange_id = if let Some(info) =
-                    added_exchanges.iter().find(|info| info.task_id == task_id)
-                {
-                    info.exchange_id
-                } else {
-                    let existing_exchange = self
-                        .get_task(&added_exchanges.last().task_id)
-                        .ok_or(UpdateConversationError::TaskNotFound)?
-                        .exchange(added_exchanges.last().exchange_id)
-                        .ok_or(UpdateConversationError::ExchangeNotFound)?;
-                    let new_exchange_id = task.append_new_exchange(existing_exchange);
-                    if self.optimistic_cli_subagent_subtask_id.is_some() && task.is_root_task() {
-                        // If we are lazily creating a new exchange at this point, this means we are updating
-                        // a new task for the first time in this response stream.
-                        //
-                        // This is a bit of a hack, but if the optimistic CLI Subagent task is some and this is
-                        // the root task, then this exchange corresponds to "setup" messages in the root task
-                        // for bootstrapping the CLI subagent. In these cases, we don't care about
-                        // surfacing the new root task messages in the UI (e.g. the blocklist) - there would basically
-                        // be an empty AI Block corresponding to the CLI subagent tool call message added to the root
-                        // task, with not user rendered output.
-                        //
-                        // The real fix here is to lazily create exchanges only when there are real messages to be
-                        // rendered, or at the very least, lazily create AI blocks for an exchange only once the exchange
-                        // actually has renderable content.
-                        self.hidden_exchanges.insert(new_exchange_id);
-                    }
-                    new_exchange_id
-                };
-
-                let current_comment_state = self.code_review.as_ref().cloned();
-                task.add_messages(
-                    messages,
-                    exchange_id,
-                    current_todo_list.as_ref(),
-                    current_comment_state.as_ref(),
-                    false,
-                )?;
-
-                self.task_store.insert(task);
-                if !added_exchanges
-                    .iter()
-                    .any(|new_exchange_info| new_exchange_info.exchange_id == exchange_id)
-                {
-                    self.added_exchanges_by_response
-                        .get_mut(response_stream_id)
-                        .ok_or(UpdateConversationError::NoPendingRequest)?
-                        .push(AddedExchange {
-                            task_id: task_id.clone(),
-                            exchange_id,
-                        });
-                    let is_hidden = self.hidden_exchanges.contains(&exchange_id);
-                    ctx.emit(BlocklistAIHistoryEvent::AppendedExchange {
-                        response_stream_id: Some(response_stream_id.clone()),
-                        exchange_id,
-                        task_id: task_id.clone(),
-                        terminal_view_id,
-                        conversation_id: self.id,
-                        is_hidden,
-                    });
-                }
-                ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                    exchange_id,
-                    terminal_view_id,
-                    conversation_id: self.id,
-                    is_hidden: self.is_exchange_hidden(exchange_id),
-                });
-            }
-            Action::UpdateTaskServerData(UpdateTaskServerData {
-                task_id,
-                server_data,
-            }) => {
-                let task_id = TaskId::new(task_id);
-                self.task_store
-                    .modify_task(&task_id, |task| task.update_task_server_data(server_data))
-                    .ok_or(UpdateConversationError::TaskNotFound)?;
-            }
-            Action::UpdateTaskMessage(UpdateTaskMessage {
-                task_id,
-                message: Some(message),
-                mask: Some(mask),
-            }) => {
-                let task_id = TaskId::new(task_id);
-                let exchange_id = self
-                    .added_exchanges_by_response
-                    .get(response_stream_id)
-                    .ok_or(UpdateConversationError::NoPendingRequest)?
-                    .iter()
-                    .find_map(|new_exchange| {
-                        (new_exchange.task_id == task_id).then_some(new_exchange.exchange_id)
-                    })
-                    .ok_or(UpdateConversationError::ExchangeNotFound)?;
-
-                let current_todo_list = self.todo_lists.last().cloned();
-                let current_comment_state = self.code_review.as_ref().cloned();
-                let todos_op = self
-                    .task_store
-                    .modify_task(&task_id, |task| {
-                        task.upsert_message(
-                            message,
-                            exchange_id,
-                            current_todo_list.as_ref(),
-                            current_comment_state.as_ref(),
-                            mask,
-                            false,
-                        )
-                        .map(|msg| msg.todos_op().cloned())
-                    })
-                    .ok_or(UpdateConversationError::TaskNotFound)??;
-                // Update todo list if needed
-                if let Some(todos_op) = todos_op {
-                    update_todo_list_from_todo_op(&mut self.todo_lists, todos_op);
-                    ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList { terminal_view_id });
-                }
-                ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                    exchange_id,
-                    terminal_view_id,
-                    conversation_id: self.id,
-                    is_hidden: self.is_exchange_hidden(exchange_id),
-                });
-            }
-            Action::AppendToMessageContent(AppendToMessageContent {
-                task_id,
-                message: Some(message),
-                mask: Some(mask),
-            }) => {
-                let task_id = TaskId::new(task_id);
-                let exchange_id = self
-                    .added_exchanges_by_response
-                    .get(response_stream_id)
-                    .ok_or(UpdateConversationError::NoPendingRequest)?
-                    .iter()
-                    .find_map(|new_exchange| {
-                        (new_exchange.task_id == task_id).then_some(new_exchange.exchange_id)
-                    })
-                    .ok_or(UpdateConversationError::ExchangeNotFound)?;
-
-                let current_todo_list = self.todo_lists.last().cloned();
-                let current_comment_state = self.code_review.as_ref().cloned();
-                // Update the message and get the updated todos op, if any.
-                let todos_op = self
-                    .task_store
-                    .modify_task(&task_id, |task| {
-                        task.append_to_message_content(
-                            message,
-                            exchange_id,
-                            current_todo_list.as_ref(),
-                            current_comment_state.as_ref(),
-                            mask,
-                        )
-                        .map(|msg| msg.todos_op().cloned())
-                    })
-                    .ok_or(UpdateConversationError::TaskNotFound)??;
-                // Update todo list if needed
-                if let Some(todos_op) = todos_op {
-                    update_todo_list_from_todo_op(&mut self.todo_lists, todos_op);
-                    ctx.emit(BlocklistAIHistoryEvent::UpdatedTodoList { terminal_view_id });
-                }
-                ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                    exchange_id,
-                    terminal_view_id,
-                    conversation_id: self.id,
-                    is_hidden: self.is_exchange_hidden(exchange_id),
-                });
-            }
-            Action::ShowSuggestions(suggestions) => {
-                let exchange_id = self
-                    .added_exchanges_by_response
-                    .get(response_stream_id)
-                    .ok_or(UpdateConversationError::NoPendingRequest)?
-                    .last()
-                    .exchange_id;
-                let exchange_to_update = self.get_exchange_to_update(exchange_id)?;
-                exchange_to_update.update_suggestions(suggestions);
-                ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
-                    exchange_id,
-                    terminal_view_id,
-                    conversation_id: self.id,
-                    is_hidden: self.is_exchange_hidden(exchange_id),
-                });
-            }
-            Action::MoveMessagesToNewTask(MoveMessagesToNewTask {
-                source_task_id,
-                new_task: Some(mut new_task),
-                first_message_id,
-                last_message_id,
-                expected_message_count,
-                replacement_messages,
-            }) => {
-                let source_task_id = TaskId::new(source_task_id);
-                self.checkpoint_task(&source_task_id);
-
-                // Extract messages from the source task (this also inserts replacement messages).
-                let mut extracted_messages = self
-                    .task_store
-                    .modify_task(&source_task_id, |task| {
-                        task.splice_messages(
-                            &first_message_id,
-                            &last_message_id,
-                            expected_message_count,
-                            replacement_messages,
-                        )
-                    })
-                    .ok_or(UpdateConversationError::TaskNotFound)??;
-
-                // Update task_id on each extracted message to reference the new task.
-                for msg in &mut extracted_messages {
-                    msg.task_id = new_task.id.clone();
-                }
-
-                // Append extracted messages to the new task.
-                new_task.messages.extend(extracted_messages);
-
-                // Get the source task's api::Task to look up subagent_params.
-                // At this point, the source task contains the replacement messages (including the
-                // subagent call referencing the new task), so new_summary_subtask can find them.
-                let source_api_task = self
-                    .task_store
-                    .get(&source_task_id)
-                    .and_then(|t| t.source())
-                    .cloned()
-                    .ok_or(UpdateConversationError::TaskNotInitialized)?;
-
-                // Create the subtask and add it to the task store.
-                let subtask = Task::new_moved_messages_subtask(new_task, &source_api_task);
-                self.task_store.insert(subtask);
-
-                // Note: We do NOT emit any BlocklistAIHistoryEvent here because we
-                // intentionally keep the UI unchanged during a live session. The
-                // exchange's client representation (added_message_ids) remains
-                // unmodified, pointing to message IDs that now exist in a subtask.
-            }
-            Action::StartNewConversation(_) => {
-                // New conversations are handled at the BlocklistAIHistoryModel layer
-            }
-            _ => {
-                log::warn!("Received unsupported client action: {action:?}");
-            }
-        }
-
-        Ok(())
     }
 
     pub fn get_exchange_to_update(
@@ -2926,9 +2162,6 @@ impl AIConversation {
     /// 2) The agent has executed a long-running requested command, but before the response stream
     /// finishes (in which the CLI subagent would be spawned), the user pre-empts with a query.
     ///
-    /// In both cases, we optimistically create a subtask for the query, and the next time we receive
-    /// a `CreateTask` client action for a subtask, we promote this optimistic subtask to a
-    /// server-backed task.
     pub fn create_optimistic_cli_subagent_task(
         &mut self,
         block_id: &BlockId,
@@ -2961,35 +2194,11 @@ impl AIConversation {
             .task_store
             .get(subagent_task_id)
             .ok_or(SubagentTaskNotFound)?;
-        let (Some(subagent_params), Some(parent_id)) =
-            (subagent_task.subagent_params(), subagent_task.parent_id())
-        else {
-            return Err(SubagentTaskNotFound);
-        };
-
-        let parent_task = self
-            .task_store
-            .get(&parent_id)
-            .ok_or(SubagentTaskNotFound)?;
-
-        Ok(parent_task
-            .source()
-            .into_iter()
-            .flat_map(|source| source.messages.iter())
-            .any(|message| {
-                message
-                    .tool_call_result()
-                    .is_some_and(|result| result.tool_call_id == subagent_params.tool_call_id)
-            }))
+        Ok(subagent_task.last_exchange().is_some_and(|exchange| {
+            matches!(exchange.output_status, AIAgentOutputStatus::Finished { .. })
+        }))
     }
 
-    /// Returns true if any subagent task is currently active (not yet finished).
-    ///
-    /// This covers both optimistic CLI subagent tasks (created before server
-    /// confirmation) and server-backed subagent tasks. Used to prevent
-    /// piggybacking orchestration events onto followup requests while a
-    /// subagent is active, since subagents cannot interpret those events and
-    /// inserting them breaks tool_use/tool_result ordering requirements.
     pub fn has_active_subagent(&self) -> bool {
         if self.optimistic_cli_subagent_subtask_id.is_some() {
             return true;
@@ -3106,19 +2315,18 @@ impl AIConversation {
                 }
             }
         };
-        let acp_transcript_json = self.acp_transcript_json();
+        let Some(acp_transcript_json) = self.acp_transcript_json() else {
+            return;
+        };
 
-        let event = ModelEvent::UpdateMultiAgentConversation {
+        let event = ModelEvent::UpdateAgentConversation {
             conversation_id: self.id.to_string(),
-            updated_tasks: self
-                .all_tasks()
-                .filter_map(|task| task.source().cloned())
-                .collect(),
             conversation_data: AgentConversationData {
                 reverted_action_ids,
                 artifacts_json,
                 run_id: self.task_id.clone(),
                 autoexecute_override: Some(self.autoexecute_override.into()),
+                display_title: self.fallback_display_title.clone(),
                 acp_transcript_json,
             },
         };
@@ -3132,12 +2340,37 @@ impl AIConversation {
         );
     }
 
-    fn acp_transcript_json(&self) -> Option<String> {
-        AcpTranscript::from_conversation(self).and_then(|transcript| {
-            serde_json::to_string(&transcript)
-                .map_err(|e| log::error!("Failed to serialize ACP transcript: {e}"))
-                .ok()
-        })
+    pub(crate) fn acp_transcript_json(&self) -> Option<String> {
+        Self::serialize_acp_transcript(AcpTranscript::from_conversation(self)?)
+    }
+
+    pub(crate) fn acp_transcript_json_until_exchange(
+        &self,
+        from_exchange_id: AIAgentExchangeId,
+    ) -> Option<String> {
+        let mut found_from_exchange = false;
+        let mut exchanges = Vec::new();
+        for exchange in self.root_task_exchanges() {
+            if found_from_exchange && exchange.has_user_query() {
+                break;
+            }
+            if exchange.id == from_exchange_id {
+                found_from_exchange = true;
+            }
+            if let Some(exchange) = AcpTranscriptExchange::from_exchange(exchange) {
+                exchanges.push(exchange);
+            }
+        }
+
+        found_from_exchange
+            .then_some(AcpTranscript { exchanges })
+            .and_then(Self::serialize_acp_transcript)
+    }
+
+    fn serialize_acp_transcript(transcript: AcpTranscript) -> Option<String> {
+        serde_json::to_string(&transcript)
+            .map_err(|e| log::error!("Failed to serialize ACP transcript: {e}"))
+            .ok()
     }
 
     pub fn rollback_transaction(&mut self, response_stream_id: &ResponseStreamId) {
@@ -3249,193 +2482,8 @@ impl AIConversation {
         s.replace('\n', "\r\n").into_bytes()
     }
 
-    /// Finds the RunShellCommand result for a given tool_call_id.
-    /// Returns both the result and the message ID of the result message.
-    pub(crate) fn find_run_shell_command_result(
-        &self,
-        tool_call_id: &str,
-    ) -> Option<(api::RunShellCommandResult, String)> {
-        let root_task = self.get_root_task()?;
-        let api_task = root_task.source()?;
-
-        // Find the last tool call result with this tool call ID
-        api_task.messages.iter().rev().find_map(|msg| {
-            let result = msg.tool_call_result()?;
-            if result.tool_call_id == tool_call_id {
-                if let Some(api::message::tool_call_result::Result::RunShellCommand(cmd_result)) =
-                    &result.result
-                {
-                    return Some((cmd_result.clone(), msg.id.clone()));
-                }
-            }
-            None
-        })
-    }
-
-    /// Extracts all shell command blocks, in order, from the conversation's API task
-    /// messages.
-    ///
-    /// This includes:
-    /// - RunShellCommand tool calls that completed
-    /// - Attachments from UserQuery/SystemQuery messages
-    /// - Context blocks from UserQuery/SystemQuery/ToolCallResult messages
-    ///
-    /// Returns CommandBlockInfo with command, output, exit_code, and optional ai_metadata.
     fn extract_command_blocks(&self) -> Vec<CommandBlockInfo> {
-        let mut command_blocks = Vec::new();
-
-        // Get the root task's API messages.
-        let Some(root_task) = self.get_root_task() else {
-            return command_blocks;
-        };
-        let Some(api_task) = root_task.source() else {
-            return command_blocks;
-        };
-
-        self.extract_command_blocks_from_messages(&api_task.messages, &mut command_blocks);
-
-        command_blocks
-    }
-
-    /// Extracts command blocks from a list of messages.
-    ///
-    /// This recurses when it encounters a summarization subagent call, producing the list
-    /// of command blocks as it would have been had no summarization ever occurred.
-    fn extract_command_blocks_from_messages(
-        &self,
-        messages: &[api::Message],
-        command_blocks: &mut Vec<CommandBlockInfo>,
-    ) {
-        // Build a map from tool_call_id to (RunShellCommandResult, result_message_id)
-        // for efficient lookup within this message set.
-        let tool_call_results: HashMap<&str, (&api::RunShellCommandResult, &str)> = messages
-            .iter()
-            .filter_map(|msg| {
-                let result = msg.tool_call_result()?;
-                if let Some(api::message::tool_call_result::Result::RunShellCommand(cmd_result)) =
-                    &result.result
-                {
-                    Some((result.tool_call_id.as_str(), (cmd_result, msg.id.as_str())))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for message in messages {
-            let message_id = message.id.clone();
-
-            if let Some(tool_call) = message.tool_call() {
-                // Check if this is a moved-messages subtask (summarization subagent).
-                // If so, extract its command blocks here to maintain chronological order.
-                if let Some(subagent) = tool_call.subagent() {
-                    if subagent.is_summarization() {
-                        let subtask_id = TaskId::new(subagent.task_id.clone());
-                        if let Some(subtask) = self.task_store.get(&subtask_id) {
-                            if let Some(subtask_source) = subtask.source() {
-                                // Recursively extract from subtask (in case of nested summarization).
-                                self.extract_command_blocks_from_messages(
-                                    &subtask_source.messages,
-                                    command_blocks,
-                                );
-                            }
-                        }
-                        // Don't process this message further - it's just a subagent call.
-                        continue;
-                    }
-                }
-
-                // Extract from RunShellCommand tool calls.
-                if let Some(api::message::tool_call::Tool::RunShellCommand(run_cmd)) =
-                    &tool_call.tool
-                {
-                    let tool_call_id = &tool_call.tool_call_id;
-                    let command = &run_cmd.command;
-
-                    // Find the corresponding tool call result in this message set.
-                    if let Some((cmd_result, result_message_id)) =
-                        tool_call_results.get(tool_call_id.as_str())
-                    {
-                        if let Some(api::run_shell_command_result::Result::CommandFinished(
-                            api::ShellCommandFinished {
-                                output: command_output,
-                                exit_code,
-                                ..
-                            },
-                        )) = &cmd_result.result
-                        {
-                            command_blocks.push(CommandBlockInfo {
-                                command: command.clone(),
-                                output: command_output.clone(),
-                                exit_code: ExitCode::from(*exit_code),
-                                ai_metadata: Some(
-                                    serde_json::to_string(&Some(
-                                        Into::<SerializedAIMetadata>::into(
-                                            AgentInteractionMetadata::new_hidden(
-                                                tool_call_id.clone().into(),
-                                                self.id(),
-                                            ),
-                                        ),
-                                    ))
-                                    .unwrap_or_default(),
-                                ),
-                                message_id: (*result_message_id).to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Extract from UserQuery/SystemQuery attachments.
-            let attachments = match message.message.as_ref() {
-                Some(api::message::Message::UserQuery(user_query)) => user_query
-                    .referenced_attachments
-                    .values()
-                    .collect::<Vec<_>>(),
-                Some(api::message::Message::SystemQuery(_)) => {
-                    // SystemQuery doesn't have attachments currently.
-                    vec![]
-                }
-                _ => vec![],
-            };
-
-            for attachment in attachments {
-                // Attachments have ExecutedShellCommand in their value oneof.
-                if let Some(api::attachment::Value::ExecutedShellCommand(cmd)) = &attachment.value {
-                    command_blocks.push(CommandBlockInfo {
-                        command: cmd.command.clone(),
-                        output: cmd.output.clone(),
-                        exit_code: ExitCode::from(cmd.exit_code),
-                        ai_metadata: None,
-                        message_id: message_id.clone(),
-                    });
-                }
-            }
-
-            // Extract from UserQuery/SystemQuery context blocks.
-            let context_blocks = match message.message.as_ref() {
-                Some(api::message::Message::UserQuery(user_query)) => user_query.context.as_ref(),
-                Some(api::message::Message::SystemQuery(system_query)) => {
-                    system_query.context.as_ref()
-                }
-                _ => None,
-            };
-
-            if let Some(context) = context_blocks {
-                #[allow(deprecated)]
-                for executed_shell_command in &context.executed_shell_commands {
-                    if !executed_shell_command.command.is_empty() {
-                        command_blocks.push(CommandBlockInfo {
-                            command: executed_shell_command.command.clone(),
-                            output: executed_shell_command.output.clone(),
-                            exit_code: ExitCode::from(executed_shell_command.exit_code),
-                            ai_metadata: None,
-                            message_id: message_id.clone(),
-                        });
-                    }
-                }
-            }
-        }
+        Vec::new()
     }
 
     /// Converts the conversation into a vector of serialized AI and command blocks.
@@ -3555,14 +2603,15 @@ impl AIConversation {
             .flat_map(|ex| ex.added_message_ids.iter().cloned())
             .collect();
 
-        if let Some(new_todo_lists) = self.task_store.modify_root_task(|root_task| {
-            root_task.truncate_exchanges_from(from_exchange_id);
-            root_task.remove_messages(&message_ids_to_remove);
-
-            // Return updated todo state
-            derive_todo_lists_from_root_task(root_task)
-        }) {
-            self.todo_lists = new_todo_lists;
+        if self
+            .task_store
+            .modify_root_task(|root_task| {
+                root_task.truncate_exchanges_from(from_exchange_id);
+                root_task.remove_messages(&message_ids_to_remove);
+            })
+            .is_some()
+        {
+            self.todo_lists.clear();
         }
 
         // Make sure we don't have stale code review comment state
@@ -3610,91 +2659,18 @@ impl AIConversation {
     }
 }
 
-pub(super) fn update_todo_list_from_todo_op(
-    todo_lists: &mut Vec<AIAgentTodoList>,
-    op: api::message::update_todos::Operation,
-) {
-    use api::message::update_todos::Operation;
-
-    match op {
-        Operation::CreateTodoList(create_todo_list) => {
-            todo_lists.push(
-                AIAgentTodoList::default().with_pending_items(
-                    create_todo_list
-                        .initial_todos
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
-                ),
-            );
-        }
-        Operation::UpdatePendingTodos(update_pending_todos) => {
-            let updated_todo_list = todo_lists.pop().unwrap_or_default().with_pending_items(
-                update_pending_todos
-                    .updated_pending_todos
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            );
-            todo_lists.push(updated_todo_list);
-        }
-        Operation::MarkTodosCompleted(completed_items) => {
-            if let Some(todo_list) = todo_lists.last_mut() {
-                todo_list.mark_todos_complete(completed_items.todo_ids);
-            }
-        }
-    }
-}
-
-pub(super) fn update_comment_from_comment_operation(
-    current_comment_state: &mut CodeReview,
-    op: api::message::update_review_comments::Operation,
-) -> usize {
-    use api::message::update_review_comments::Operation;
-
-    let mut resolved_count = 0usize;
-
-    match op {
-        Operation::AddressReviewComments(addressed_comments) => {
-            for comment_id in addressed_comments.comment_ids {
-                if let Some(item) = current_comment_state
-                    .pending_comments
-                    .iter()
-                    .position(|item| item.id.to_string() == comment_id)
-                    .map(|i| current_comment_state.pending_comments.remove(i))
-                {
-                    current_comment_state.addressed_comments.push(item);
-                    resolved_count += 1;
-                }
-            }
-        }
-    }
-
-    resolved_count
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum UpdateConversationError {
     #[error("Exchange not found.")]
     ExchangeNotFound,
     #[error("Could not update task: {0:?}")]
     UpdateTask(#[from] UpdateTaskError),
-    #[error("Could not promote optimistic task for server task: {0:?}")]
-    PromoteOptimisticTask(#[from] PromoteOptimisticTaskError),
-    #[error("Could not extract messages: {0:?}")]
-    ExtractMessages(#[from] ExtractMessagesError),
     #[error("Task not found.")]
     TaskNotFound,
-    #[error("Task never initialized with CreateTask client action.")]
-    TaskNotInitialized,
-    #[error("Message not found.")]
-    MessageNotFound,
     #[error("Attempted to update already-finished output.")]
     OutputAlreadyFinished,
     #[error("Attempted to update output that was never initialized.")]
     OutputNeverInitialized,
-    #[error("Failed to convert API message to client type: {0}")]
-    ConversionError(#[from] MessageToAIAgentOutputMessageError),
     #[error("No active task")]
     NoActiveTask,
     #[error("No pending request.")]
@@ -3754,8 +2730,6 @@ impl AIAgentExchange {
         match &mut self.output_status {
             AIAgentOutputStatus::Streaming { ref mut output } => {
                 if let Some(shared_output) = output {
-                    // We expect to initialize output that has already been initialized if we retry
-                    // after receiving a StreamInit event but before receiving any ClientActions.
                     shared_output.get_mut().server_output_id = Some(server_output_id);
                 } else {
                     *output = Some(Shared::new(AIAgentOutput {
@@ -3770,16 +2744,6 @@ impl AIAgentExchange {
                 Ok(())
             }
             AIAgentOutputStatus::Finished { .. } => Err(UpdateTaskError::OutputAlreadyFinished),
-        }
-    }
-
-    fn update_suggestions(&self, suggestions: api::Suggestions) {
-        if let AIAgentOutputStatus::Streaming {
-            output: Some(output),
-        } = &self.output_status
-        {
-            let mut output = output.get_mut();
-            output.suggestions = Some(suggestions.into());
         }
     }
 }
@@ -3889,7 +2853,3 @@ impl ConversationStatus {
         matches!(self, ConversationStatus::Error)
     }
 }
-
-#[cfg(test)]
-#[path = "conversation_tests.rs"]
-mod tests;

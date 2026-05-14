@@ -1186,11 +1186,6 @@ impl ansi::Handler for HeaderGrid {
                 let mut processor = Processor::new();
                 self.prompt_and_command_grid.start();
 
-                // We purposefully ignore ignore_next_prompt here (to handle in-band generators
-                // correctly with prompt caching).
-                // Only put the PS1 into the combined grid if we are honoring the PS1.
-                // Otherwise, we only put it into the prompt grid which is used solely for
-                // prompt previews (Edit Prompt modal + onboarding block).
                 if self.honor_ps1 {
                     processor.parse_bytes(
                         self.prompt_and_command_grid_mut(),

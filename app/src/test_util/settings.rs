@@ -18,10 +18,9 @@ pub fn initialize_settings_for_tests_with_mode(
         settings::{
             app_icon::AppIconSettings, init_and_register_user_preferences,
             manager::SettingsManager, AISettings, AccessibilitySettings, AliasExpansionSettings,
-            AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings,
-            EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings, InputSettings,
-            PaneSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
-            VimBannerSettings,
+            AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings, FontSettings,
+            GPUSettings, InputModeSettings, InputSettings, PaneSettings, ScrollSettings,
+            SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
         },
         terminal::{
             general_settings::GeneralSettings, keys_settings::KeysSettings,
@@ -50,8 +49,6 @@ pub fn initialize_settings_for_tests_with_mode(
     CommandSearchSettings::register(app);
     DebugSettings::register(app);
     AppIconSettings::register(app);
-    EmacsBindingsSettings::register(app);
-
     #[cfg(feature = "local_fs")]
     {
         crate::util::file::external_editor::EditorSettings::register(app);
@@ -64,12 +61,6 @@ pub fn initialize_settings_for_tests_with_mode(
     InputSettings::register(app);
     KeysSettings::register(app);
     LigatureSettings::register(app);
-
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    {
-        use crate::settings::LinuxAppConfiguration;
-        LinuxAppConfiguration::register(app);
-    }
 
     SafeModeSettings::register(app);
     ScrollSettings::register(app);

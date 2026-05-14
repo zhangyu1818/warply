@@ -192,12 +192,6 @@ pub enum QueryFilter {
     /// Filter results for skills (used for browsing skills).
     Skills,
 
-    /// Filter results for base agent models in the inline model selector.
-    BaseModels,
-
-    /// Filter results for full terminal use (CLI) models in the inline model selector.
-    FullTerminalUseModels,
-
     /// Include only conversations whose most recent directory matches the session's current working directory.
     CurrentDirectoryConversations,
 }
@@ -233,8 +227,6 @@ impl QueryFilter {
             QueryFilter::DiffSets => "Search diff sets",
             QueryFilter::StaticSlashCommands => "Search static slash commands",
             QueryFilter::Skills => "Search skills",
-            QueryFilter::BaseModels => "Search base models",
-            QueryFilter::FullTerminalUseModels => "Search full terminal use models",
             QueryFilter::CurrentDirectoryConversations => {
                 "Search conversations in current directory"
             }
@@ -265,8 +257,6 @@ impl QueryFilter {
             QueryFilter::StaticSlashCommands => &STATIC_SLASH_COMMANDS_FILTER_ATOM,
             QueryFilter::HistoricalConversations => &NO_FILTER_ATOM,
             QueryFilter::Skills => &NO_FILTER_ATOM,
-            QueryFilter::BaseModels => &NO_FILTER_ATOM,
-            QueryFilter::FullTerminalUseModels => &NO_FILTER_ATOM,
             QueryFilter::CurrentDirectoryConversations => &NO_FILTER_ATOM,
         }
     }
@@ -295,8 +285,6 @@ impl QueryFilter {
             QueryFilter::StaticSlashCommands => "slash commands",
             QueryFilter::HistoricalConversations => "historical conversations",
             QueryFilter::Skills => "skills",
-            QueryFilter::BaseModels => "base models",
-            QueryFilter::FullTerminalUseModels => "full terminal use models",
             QueryFilter::CurrentDirectoryConversations => "current directory conversations",
         }
     }
@@ -333,8 +321,6 @@ impl QueryFilter {
             QueryFilter::DiffSets => Some("bundled/svg/diff.svg"),
             QueryFilter::StaticSlashCommands => None,
             QueryFilter::Skills => None,
-            QueryFilter::BaseModels => None,
-            QueryFilter::FullTerminalUseModels => None,
             QueryFilter::CurrentDirectoryConversations => None,
         }
     }

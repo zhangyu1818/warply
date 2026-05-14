@@ -62,9 +62,7 @@ pub(super) fn current_platform() -> OperatingSystem {
         // https://github.com/mozilla-services/contile/blob/61da2719fa4586fc0b15fe7f47ebbc1586f28a47/src/web/user_agent.rs#L95-L105.
         let os = parsed_user_agent.os.to_lowercase();
         match os.as_str() {
-            _ if os.starts_with("windows") => OperatingSystem::Windows,
             "mac osx" => OperatingSystem::Mac,
-            "linux" => OperatingSystem::Linux,
             _ => OperatingSystem::Other(Some(&parsed_user_agent.os)),
         }
     })

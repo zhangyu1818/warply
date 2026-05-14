@@ -14,7 +14,6 @@ use crate::{
     integration_testing::view_getters::terminal_view,
     BlocklistAIHistoryModel,
 };
-use warp_multi_agent_api as api;
 use warpui::{integration::AssertionCallback, integration_assert, EntityId};
 use warpui::{integration::AssertionOutcome, SingletonEntity};
 
@@ -713,23 +712,6 @@ pub fn assert_latest_task_is_done(
 
             // If we get here, no conversations had completed tasks matching our criteria
             AssertionOutcome::failure("Task is not done in target conversation".to_owned())
-        })
-    })
-}
-
-pub fn hydrate_ai_conversation_assertion(tasks: Vec<api::Task>) -> AssertionCallback {
-    Box::new(move |app, window_id| {
-        let terminal_view = terminal_view(app, window_id, 0, 0);
-        let tasks = tasks.clone();
-
-        terminal_view.update(app, |terminal_view, ctx| {
-            let task_list = api::ConversationData {
-                tasks,
-                ..Default::default()
-            };
-
-            terminal_view.load_conversation_from_tasks(task_list, ctx);
-            AssertionOutcome::Success
         })
     })
 }

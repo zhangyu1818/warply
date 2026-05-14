@@ -8,8 +8,7 @@ use crate::{
     persistence::ModelEvent,
 };
 
-// Re-exported from warp_server_client.
-pub use warp_server_client::ids::FolderId;
+pub use local_object_model::ids::FolderId;
 
 /// The model for a `CloudFolder`.
 #[derive(Clone, Debug, PartialEq)]

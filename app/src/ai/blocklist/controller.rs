@@ -57,7 +57,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use warp_core::assertions::safe_assert;
-use warp_multi_agent_api::{message, Task, ToolType};
 use warpui::r#async::SpawnedFutureHandle;
 
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -100,7 +99,6 @@ pub struct RequestInput {
     pub cli_agent_model_id: LLMId,
     pub computer_use_model_id: LLMId,
     pub request_start_ts: DateTime<Local>,
-    pub supported_tools_override: Option<Vec<ToolType>>,
 }
 
 struct AcpPromptPayload {
@@ -149,11 +147,6 @@ impl RequestInput {
         self.input_messages.values().flatten()
     }
 
-    pub fn with_supported_tools(mut self, tools: Vec<ToolType>) -> Self {
-        self.supported_tools_override = Some(tools);
-        self
-    }
-
     fn new_with_common_fields(
         conversation_id: AIConversationId,
         active_session: &ModelHandle<ActiveSession>,
@@ -191,7 +184,6 @@ impl RequestInput {
             cli_agent_model_id,
             computer_use_model_id,
             request_start_ts: Local::now(),
-            supported_tools_override: None,
         }
     }
 }
@@ -1504,7 +1496,7 @@ impl BlocklistAIController {
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
-        let (conversation_id, active_tasks) = {
+        let conversation_id = {
             let Some(conversation) = history_model
                 .as_ref(ctx)
                 .conversation(&request_input.conversation_id)
@@ -1515,9 +1507,7 @@ impl BlocklistAIController {
                 ));
             };
 
-            let active_tasks = conversation.compute_active_tasks();
-
-            (conversation.id(), active_tasks)
+            conversation.id()
         };
 
         // Cancel any pending auto-resume for this conversation, since the user is sending a new
@@ -1541,8 +1531,6 @@ impl BlocklistAIController {
         request_input.coding_model_id = acp_model_id.clone();
         request_input.cli_agent_model_id = acp_model_id.clone();
         request_input.computer_use_model_id = acp_model_id.clone();
-
-        validate_tool_call_results(request_input.all_inputs(), &active_tasks);
 
         let response_stream_id = ResponseStreamId::new();
         let input_contains_user_query = request_input
@@ -1817,18 +1805,7 @@ fn input_for_query(
         vec![],
         app,
     );
-    let intended_agent = BlocklistAIHistoryModel::as_ref(app)
-        .conversation(&conversation_id)
-        .and_then(|c| c.get_task(task_id))
-        .and_then(|task| {
-            if task.is_root_task() {
-                Some(warp_multi_agent_api::AgentType::Primary)
-            } else if task.is_cli_subagent() {
-                Some(warp_multi_agent_api::AgentType::Cli)
-            } else {
-                None
-            }
-        });
+    let _ = task_id;
     let mut referenced_attachments = parse_context_attachments(&query, context_model, app);
     referenced_attachments.extend(additional_attachments);
     AIAgentInput::UserQuery {
@@ -1838,33 +1815,6 @@ fn input_for_query(
         referenced_attachments,
         user_query_mode,
         running_command,
-        intended_agent,
-    }
-}
-
-/// Validates that tool call results have corresponding tool calls in the task context, otherwise
-/// logs a warning.
-fn validate_tool_call_results<'a>(inputs: impl Iterator<Item = &'a AIAgentInput>, tasks: &[Task]) {
-    let mut tool_call_to_task_map: HashMap<String, String> = HashMap::new();
-    for task in tasks {
-        for message in &task.messages {
-            if let Some(message::Message::ToolCall(tool_call)) = &message.message {
-                tool_call_to_task_map
-                    .insert(tool_call.tool_call_id.clone(), message.task_id.clone());
-            }
-        }
-    }
-
-    for input in inputs {
-        if let AIAgentInput::ActionResult { result, .. } = input {
-            let action_id_str = result.id.to_string();
-
-            if !tool_call_to_task_map.contains_key(&action_id_str) {
-                log::warn!(
-                    "Found tool call result with ID '{action_id_str}' but no corresponding tool call in task context"
-                );
-            }
-        }
     }
 }
 
@@ -1949,7 +1899,6 @@ mod tests {
                     referenced_attachments: Default::default(),
                     user_query_mode: UserQueryMode::Normal,
                     running_command: None,
-                    intended_agent: None,
                 }],
             )]),
             working_directory: Some("/repo".to_string()),
@@ -1958,7 +1907,6 @@ mod tests {
             cli_agent_model_id: LLMId::from("test-model"),
             computer_use_model_id: LLMId::from("test-model"),
             request_start_ts: Local::now(),
-            supported_tools_override: None,
         };
 
         let payload = BlocklistAIController::acp_prompt_from_request(&request_input);

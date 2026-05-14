@@ -108,6 +108,10 @@ fn should_run_tab_context_menu_metadata_test() -> bool {
     starter.shell_type() != ShellType::PowerShell
 }
 
+fn drag_tabs_feature_enabled() -> bool {
+    FeatureFlag::DragTabsToWindows.is_enabled()
+}
+
 fn set_active_tab_name(name: &'static str) -> TestStep {
     TestStep::new("Set active tab name").with_action(move |app, window_id, _| {
         let workspace = workspace_view(app, window_id);
@@ -469,10 +473,6 @@ fn assert_total_tab_count(
     }
 }
 
-fn drag_tabs_feature_enabled() -> bool {
-    cfg!(feature = "drag_tabs_to_windows")
-}
-
 pub fn test_active_session_follows_focus() -> Builder {
     new_builder()
         .set_should_run_test(skip_if_powershell_core_2303)
@@ -617,7 +617,6 @@ pub fn test_focus_panes_on_hover() -> Builder {
 
 pub fn test_close_tab_with_long_running_process() -> Builder {
     new_builder()
-        .set_should_run_test(|| cfg!(any(target_os = "linux", target_os = "freebsd")))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         .with_step(
             new_step_with_default_assertions("Open a new tab")

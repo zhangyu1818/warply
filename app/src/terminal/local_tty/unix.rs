@@ -366,8 +366,8 @@ fn build_host_shell_command(
 ///
 /// Takes a fully-built `Command` and wraps it in the PTY/`pre_exec`
 /// setup: creates the pty pair, applies termios, installs the child
-/// process setup hook (signals, stdio, controlling terminal, close_fds,
-/// Linux OOM rebias), and spawns the command.
+/// process setup hook (signals, stdio, controlling terminal, close_fds),
+/// and spawns the command.
 ///
 /// The `pre_exec` hook has accumulated years of subtle bug fixes
 /// (signal mask handling, TIOCSCTTY cast, etc.); keeping a single copy
@@ -383,7 +383,6 @@ fn spawn_command_in_pty(
     // We need to keep it alive long enough for fork().
     let _file = unsafe { File::from_raw_fd(follower) };
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
     if let Ok(mut termios) = termios::tcgetattr(leader) {
         // Set character encoding to UTF-8.
         termios.input_flags.set(InputFlags::IUTF8, true);

@@ -14,7 +14,7 @@ define_settings_group!(WindowSettings, settings: [
     background_blur_texture: BackgroundBlurTexture {
         type: bool,
         default: false,
-        supported_platforms: SupportedPlatforms::WINDOWS,
+        supported_platforms: SupportedPlatforms::MAC,
         private: false,
         storage_key: "OverrideBlurTexture",
         toml_path: "appearance.window.override_blur_texture",
@@ -127,13 +127,8 @@ impl BackgroundOpacity {
         }
     }
 
-    pub fn is_configurable(&self, window_id: WindowId, app: &AppContext) -> bool {
-        let disable_transparency = app
-            .windows()
-            .platform_window(window_id)
-            .is_some_and(|w| w.uses_native_window_decorations())
-            && cfg!(windows);
-        !disable_transparency
+    pub fn is_configurable(&self, _window_id: WindowId, _app: &AppContext) -> bool {
+        true
     }
 
     fn validate(&self, new_value: u8) -> u8 {

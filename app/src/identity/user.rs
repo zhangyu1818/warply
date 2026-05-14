@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::UserUid;
 
 #[cfg(any(test, feature = "integration_tests"))]
-pub use warp_server_client::identity::{TEST_USER_EMAIL, TEST_USER_UID};
+pub use local_object_model::identity::{TEST_USER_EMAIL, TEST_USER_UID};
 
 #[derive(Debug, Clone)]
 pub struct User {
@@ -41,7 +41,7 @@ impl User {
         Self {
             local_id: UserUid::new("local-user"),
             metadata: UserMetadata {
-                email: "local@warp.local".to_string(),
+                email: "local@warply.local".to_string(),
                 display_name: Some("Local".to_string()),
             },
         }

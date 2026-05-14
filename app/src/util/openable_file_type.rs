@@ -84,8 +84,7 @@ pub fn is_supported_image_file(path: impl AsRef<Path>) -> bool {
 /// Returns true if `path` looks like a shell script the user intends to run when
 /// "Open with Warp" is invoked from Finder/another app via a `file://` URL.
 ///
-/// Policy: extension in {sh, bash, zsh, fish, ksh} with the user-execute bit set on Unix,
-/// or extension in {ps1, bat, cmd} on Windows (no x-bit concept). On Unix, files with no
+/// Policy: extension in {sh, bash, zsh, fish, ksh} with the user-execute bit set. Files with no
 /// extension but a `#!` shebang and the user-execute bit set also qualify.
 ///
 /// Narrow on purpose: this only affects the URI entry point, not "Open in New Tab" from
@@ -102,7 +101,7 @@ pub(crate) fn starts_with_shebang(path: &Path) -> bool {
     }
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 pub fn is_runnable_shell_script(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
 
@@ -124,15 +123,7 @@ pub fn is_runnable_shell_script(path: &Path) -> bool {
     starts_with_shebang(path)
 }
 
-#[cfg(windows)]
-pub fn is_runnable_shell_script(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .is_some_and(|ext| matches!(ext.as_str(), "ps1" | "bat" | "cmd"))
-}
-
-#[cfg(not(any(unix, windows)))]
+#[cfg(not(target_os = "macos"))]
 pub fn is_runnable_shell_script(_path: &Path) -> bool {
     false
 }

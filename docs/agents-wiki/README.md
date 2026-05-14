@@ -23,6 +23,7 @@ The fork keeps:
 
 - Warp terminal GUI.
 - Local terminal sessions and retained remote terminal support.
+- macOS as the only maintained native host platform.
 - ACP agent conversations displayed through Warp AgentView.
 - OpenAI-compatible Next Command and Prompt Suggestions.
 - Local settings and local persistence.
@@ -36,6 +37,7 @@ The fork removes:
 - Cloud GraphQL APIs, managed secrets, hosted isolation.
 - Telemetry, crash reporting, Sentry release upload.
 - Onboarding, marketing surfaces, voice input/transcription.
+- Linux/Windows native host implementations and packaging.
 
 ## Wiki Files
 

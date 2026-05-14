@@ -7,16 +7,10 @@ use std::io;
 use std::path::Path;
 use std::process::{Child, CommandArgs, CommandEnvs, ExitStatus, Output, Stdio};
 
-#[cfg(windows)]
-use {super::windows::JobObject, std::os::windows::io::AsRawHandle};
-
-/// Wrapper around a [`std::process::Command`] that ensures any new Command is set with the windows
-/// `CREATE_NO_WINDOW` flag to avoid a console window temporarily popping up.
+/// Wrapper around a [`std::process::Command`].
 #[derive(Debug)]
 pub struct Command {
     pub(super) inner: std::process::Command,
-    #[cfg(windows)]
-    kill_on_parent_process_close: bool,
     stdin_is_default: bool,
     stdout_is_default: bool,
     stderr_is_default: bool,
@@ -41,19 +35,6 @@ impl Command {
     /// If `program` is not an absolute path, the `PATH` will be searched in
     /// an OS-defined way.
     ///
-    /// The search path to be used may be controlled by setting the
-    /// `PATH` environment variable on the Command,
-    /// but this has some implementation limitations on Windows
-    /// (see issue #37519).
-    ///
-    /// # Platform-specific behavior
-    ///
-    /// Note on Windows: For executable files with the .exe extension,
-    /// it can be omitted when specifying the program for this Command.
-    /// However, if the file has a different extension,
-    /// a filename including the extension needs to be provided,
-    /// otherwise the file won't be found.
-    ///
     /// # Examples
     ///
     /// Basic usage:
@@ -66,41 +47,13 @@ impl Command {
     ///     .expect("sh command failed to start");
     /// ```
     pub fn new<S: AsRef<OsStr>>(program: S) -> Command {
-        #[cfg_attr(not(windows), expect(unused_mut))]
-        let mut inner = std::process::Command::new(program);
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            // We need to set the `CREATE_BREAKAWAY_FROM_JOB` flag to avoid assigning
-            // the process to the same Job Object as the Warp process, otherwise the
-            // process will be killed when the Warp process is killed.
-            let flags = windows::Win32::System::Threading::CREATE_NO_WINDOW.0
-                | windows::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB.0;
-            inner.creation_flags(flags);
-        }
+        let inner = std::process::Command::new(program);
         Self {
             inner,
-            #[cfg(windows)]
-            kill_on_parent_process_close: false,
             stdin_is_default: true,
             stdout_is_default: true,
             stderr_is_default: true,
         }
-    }
-
-    #[cfg(windows)]
-    /// Sets the [process creation flags][1] to be passed to `CreateProcess`.
-    ///
-    /// These will always be ORed with `CREATE_UNICODE_ENVIRONMENT` and `CREATE_NO_WINDOW`.
-    /// The latter is needed to avoid a console window temporarily popping up in Warp.
-    ///
-    /// [1]: https://msdn.microsoft.com/en-us/library/windows/desktop/ms684863(v=vs.85).aspx
-    pub fn creation_flags(&mut self, flags: u32) -> &mut Self {
-        use std::os::windows::process::CommandExt;
-        let flags = windows::Win32::System::Threading::CREATE_NO_WINDOW.0 | flags;
-        self.inner.creation_flags(flags);
-        self
     }
 
     /// Adds an argument to pass to the program.
@@ -131,25 +84,6 @@ impl Command {
     /// escaped characters, word splitting, glob patterns, variable substitution,
     /// etc. have no effect.
     ///
-    /// <div class="warning">
-    ///
-    /// On Windows, use caution with untrusted inputs. Most applications use the
-    /// standard convention for decoding arguments passed to them. These are safe to
-    /// use with `arg`. However, some applications such as `cmd.exe` and `.bat` files
-    /// use a non-standard way of decoding arguments. They are therefore vulnerable
-    /// to malicious input.
-    ///
-    /// In the case of `cmd.exe` this is especially important because a malicious
-    /// argument can potentially run arbitrary shell commands.
-    ///
-    /// See [Windows argument splitting][windows-args] for more details
-    /// or [`raw_arg`] for manually implementing non-standard argument encoding.
-    ///
-    /// [`raw_arg`]: crate::os::windows::process::CommandExt::raw_arg
-    /// [windows-args]: crate::process#windows-argument-splitting
-    ///
-    /// </div>
-    ///
     /// # Examples
     ///
     /// Basic usage:
@@ -178,25 +112,6 @@ impl Command {
     /// literally to the program. This means that shell syntax like quotes,
     /// escaped characters, word splitting, glob patterns, variable substitution, etc.
     /// have no effect.
-    ///
-    /// <div class="warning">
-    ///
-    /// On Windows, use caution with untrusted inputs. Most applications use the
-    /// standard convention for decoding arguments passed to them. These are safe to
-    /// use with `arg`. However, some applications such as `cmd.exe` and `.bat` files
-    /// use a non-standard way of decoding arguments. They are therefore vulnerable
-    /// to malicious input.
-    ///
-    /// In the case of `cmd.exe` this is especially important because a malicious
-    /// argument can potentially run arbitrary shell commands.
-    ///
-    /// See [Windows argument splitting][windows-args] for more details
-    /// or [`raw_arg`] for manually implementing non-standard argument encoding.
-    ///
-    /// [`raw_arg`]: crate::os::windows::process::CommandExt::raw_arg
-    /// [windows-args]: crate::process#windows-argument-splitting
-    ///
-    /// </div>
     ///
     /// # Examples
     ///
@@ -502,23 +417,7 @@ impl Command {
             self.inner.stderr(Stdio::null());
         }
 
-        let child = self.inner.spawn();
-
-        #[cfg(windows)]
-        if self.kill_on_parent_process_close
-            && let Ok(child) = child.as_ref()
-        {
-            let proc_handle = child.as_raw_handle() as isize;
-            if let Err(e) = JobObject::new().assign_process(proc_handle).create() {
-                log::error!(
-                    "Failed to create job object for command {:?}: {:#}",
-                    self.inner.get_program(),
-                    e
-                );
-            }
-        }
-
-        child
+        self.inner.spawn()
     }
 
     /// Executes the command as a child process, waiting for it to finish and
@@ -727,7 +626,7 @@ impl Command {
     /// [POSIX fork() specification]:
     ///     https://pubs.opengroup.org/onlinepubs/9699919799/functions/fork.html
     /// [`std::env`]: mod@crate::env
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     pub unsafe fn pre_exec<F>(&mut self, f: F) -> &mut Self
     where
         F: FnMut() -> io::Result<()> + Send + Sync + 'static,
@@ -735,14 +634,6 @@ impl Command {
         unsafe {
             std::os::unix::process::CommandExt::pre_exec(&mut self.inner, f);
         }
-        self
-    }
-
-    /// Configures the spawned child process to be killed when the parent
-    /// process is closed.
-    #[cfg(windows)]
-    pub fn kill_on_parent_process_close(&mut self) -> &mut Self {
-        self.kill_on_parent_process_close = true;
         self
     }
 }

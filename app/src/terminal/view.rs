@@ -197,10 +197,9 @@ use crate::persistence::{self, FinishedCommandMetadata};
 #[cfg(feature = "local_fs")]
 use crate::settings::{
     AISettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
-    BlockVisibilitySettingsChangedEvent, DebugSettings, DebugSettingsChangedEvent,
-    EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent, InputModeSettings,
-    InputModeSettingsChangedEvent, InputSettings, PaneSettings, PaneSettingsChangedEvent,
-    SelectionSettings, VimBannerSettings,
+    BlockVisibilitySettingsChangedEvent, DebugSettings, DebugSettingsChangedEvent, FontSettings,
+    FontSettingsChangedEvent, InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
+    PaneSettings, PaneSettingsChangedEvent, SelectionSettings, VimBannerSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -226,8 +225,6 @@ use crate::terminal::ligature_settings::{should_use_ligature_rendering, Ligature
 use crate::terminal::local_tty::get_shell_starter;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::shell::ShellStarter;
-#[cfg(all(windows, feature = "local_tty"))]
-use crate::terminal::local_tty::windows::get_user_and_system_env_variable;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::session::{Session, SessionId};
 use crate::terminal::model::{ObfuscateSecrets, RespectObfuscatedSecrets, SecretHandle};
@@ -255,7 +252,7 @@ use crate::themes::theme::WarpTheme;
 use crate::ui_components::icons::{self};
 use crate::util::bindings::{
     custom_tag_to_keystroke, keybinding_name_to_display_string, keybinding_name_to_keystroke,
-    set_custom_keybinding, CustomAction,
+    CustomAction,
 };
 use crate::util::clipboard::clipboard_content_with_escaped_paths;
 #[cfg(feature = "local_fs")]
@@ -320,7 +317,7 @@ use warpui::elements::{
 use warpui::event::ModifiersState;
 use warpui::keymap::Keystroke;
 use warpui::notification::{NotificationSendError, RequestPermissionsOutcome, UserNotification};
-use warpui::platform::{Cursor, OperatingSystem};
+use warpui::platform::Cursor;
 use warpui::r#async::Timer;
 use warpui::windowing::WindowManager;
 
@@ -352,7 +349,6 @@ use crate::ai::AskAIType;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::banner::{
     Banner, BannerAction, BannerEvent, BannerState, BannerTextButton, BannerTextContent,
-    DismissalType,
 };
 use crate::debounce::debounce;
 use crate::editor::{AutosuggestionType, CrdtOperation, EditorAction};
@@ -573,15 +569,15 @@ const BOOTSTRAP_FAILED_DURATION: Duration = Duration::from_secs(7);
 /// during the bootstrap period.
 const ENV_VAR_BOOTSTRAP_FAILED_DURATION: Duration = Duration::from_secs(60);
 const KNOWN_ISSUES_URL: &str =
-    "https://docs.warp.dev/support-and-community/troubleshooting-and-support/known-issues";
+    "https://docs.warply.local/support-and-community/troubleshooting-and-support/known-issues";
 
 /// Link to supported custom prompts.
 const PROMPT_COMPATIBILITY_URL: &str =
-    "https://docs.warp.dev/terminal/appearance/prompt#custom-prompt-compatibility-table";
+    "https://docs.warply.local/terminal/appearance/prompt#custom-prompt-compatibility-table";
 
 /// Link to troubleshooting steps for ControlMaster errors.
 const CONTROLMASTER_ISSUES_URL: &str =
-    "https://docs.warp.dev/terminal/warpify/ssh-legacy#troubleshooting";
+    "https://docs.warply.local/terminal/warpify/ssh-legacy#troubleshooting";
 
 /// Link to instructions on how to update p10k.
 const P10K_UPDATE_INSTRUCTIONS_URL: &str =
@@ -597,9 +593,9 @@ const MIN_DELTA_FOR_TEXT_SELECTION: f32 = 0.5;
 /// Notifications-specific info
 /// TODO (suraj): add documentation for notifications in gitbook
 const NOTIFICATIONS_LEARN_MORE_URL: &str =
-    "https://docs.warp.dev/terminal/more-features/notifications";
+    "https://docs.warply.local/terminal/more-features/notifications";
 pub const NOTIFICATIONS_TROUBLESHOOT_URL: &str =
-    "https://docs.warp.dev/terminal/more-features/notifications#troubleshooting-notifications";
+    "https://docs.warply.local/terminal/more-features/notifications#troubleshooting-notifications";
 
 const DEBOUNCE_PERIOD: Duration = Duration::from_millis(40);
 
@@ -610,13 +606,6 @@ pub const ALIAS_EXPANSION_BANNER_SEEN_KEY: &str = "AliasExpansionBannerSeen";
 /// and triggering the warpification (subshell bootstrapping).
 /// Reached this number after experimenting with different values to find a reliable delay.
 const AUTO_WARPIFY_DELAY: u64 = 1000;
-
-/// Binding names to be customized if the user indicates they prefer
-/// Emacs-style keybindings instead of IDE-style keybindings.
-/// These are specific to non-MacOS desktop platforms.
-const SELECT_ALL_BINDING_NAME: &str = "editor_view:select_all";
-const MOVE_LINE_START_BINDING_NAME: &str = "editor_view:move_to_line_start";
-const MOVE_LINE_END_BINDING_NAME: &str = "editor_view:move_to_line_end";
 
 const DEFAULT_AI_BLOCK_HEIGHT: f32 = 96.;
 
@@ -632,23 +621,6 @@ pub const LONG_RUNNING_AGENT_REQUESTED_COMMAND_USER_TOOK_OVER_CONTEXT_KEY: &str 
 const MINIMUM_WIDTH_TO_AUTO_OPEN_PANE: f32 = 600.0;
 
 lazy_static! {
-    static ref CTRL_SHIFT_A_KEYSTROKE: Keystroke = Keystroke {
-        key: "A".into(),
-        ctrl: true,
-        shift: true,
-        ..Default::default()
-    };
-    static ref CTRL_A_KEYSTROKE: Keystroke = Keystroke {
-        key: "a".into(),
-        ctrl: true,
-        ..Default::default()
-    };
-    static ref CTRL_E_KEYSTROKE: Keystroke = Keystroke {
-        key: "e".into(),
-        ctrl: true,
-        ..Default::default()
-    };
-
     /// The padding between the left of the element and where the grid contents (either via the
     /// `BlockList` or the `AltScreen`) should be rendered.
     pub static ref PADDING_LEFT: f32 = if FeatureFlag::LessHorizontalTerminalPadding.is_enabled() {
@@ -2062,11 +2034,6 @@ pub struct TerminalView {
     incompatible_configuration_banner: ViewHandle<Banner<TerminalAction>>,
     is_incompatible_configuration_banner_open: bool,
 
-    /// Non-MacOS banner to ask if the user prefers MacOS bindings
-    /// or Emacs-style bindings for `ctrl-a` and `ctrl-e`.
-    emacs_bindings_banner: ViewHandle<Banner<TerminalAction>>,
-    is_emacs_bindings_banner_open: bool,
-
     pane_configuration: ModelHandle<PaneConfiguration>,
     focus_handle: Option<PaneFocusHandle>,
 
@@ -3102,47 +3069,6 @@ impl TerminalView {
             me.handle_incompatible_configuration_banner_event(event, ctx);
         });
 
-        let emacs_bindings_banner = ctx.add_typed_action_view(|_| {
-            Banner::new_with_buttons(
-                BannerTextContent::formatted_text(vec![
-                    FormattedTextFragment::plain_text("Did you intend "),
-                    FormattedTextFragment::inline_code("ctrl-a"),
-                    FormattedTextFragment::plain_text("/"),
-                    FormattedTextFragment::inline_code("ctrl-e"),
-                    FormattedTextFragment::plain_text(" to move the cursor?"),
-                ]),
-                // Here, we use DismissalType::Temporary and DismissalType::Permanent variants
-                // as stand-ins for changing bindings vs. leaving them as-is.
-                // TODO(Linear PLAT-512): update Banner to support generic event type.
-                vec![
-                    BannerTextButton::new(
-                        String::from("Yes, use Emacs-style bindings"),
-                        Rc::new(|event_ctx, _app_ctx, _| {
-                            event_ctx.dispatch_typed_action(
-                                BannerAction::<TerminalAction>::Dismiss(DismissalType::Temporary),
-                            );
-                        }),
-                    ),
-                    BannerTextButton::new(
-                        String::from("No, keep IDE bindings"),
-                        Rc::new(|event_ctx, _app_ctx, _| {
-                            event_ctx.dispatch_typed_action(
-                                BannerAction::<TerminalAction>::Dismiss(DismissalType::Permanent),
-                            );
-                        }),
-                    ),
-                ],
-                /* with_close_button */ false,
-            )
-            .with_icon(icons::Icon::HelpCircle)
-        });
-
-        if OperatingSystem::get().is_linux() {
-            ctx.subscribe_to_view(&emacs_bindings_banner, |me, _, event, ctx| {
-                me.handle_emacs_bindings_banner_clicked(event, ctx);
-            });
-        }
-
         let windowing_state_handle = WindowManager::handle(ctx);
         ctx.subscribe_to_model(&windowing_state_handle, |me, _handle, evt, ctx| match evt {
             windowing::StateEvent::ValueChanged { current, previous } => {
@@ -3372,8 +3298,6 @@ impl TerminalView {
             is_slow_bootstrap_banner_open: false,
             incompatible_configuration_banner,
             is_incompatible_configuration_banner_open: false,
-            emacs_bindings_banner,
-            is_emacs_bindings_banner_open: false,
             control_master_error_banner,
             control_master_error_banner_state: Default::default(),
             pane_configuration,
@@ -4496,7 +4420,6 @@ impl TerminalView {
             | BlocklistAIHistoryEvent::UpdatedTodoList { .. }
             | BlocklistAIHistoryEvent::RemoveConversation { .. }
             | BlocklistAIHistoryEvent::RestoredConversations { .. }
-            | BlocklistAIHistoryEvent::PromotedTask { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
             | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
             | BlocklistAIHistoryEvent::DeletedConversation { .. } => {}
@@ -4554,10 +4477,6 @@ impl TerminalView {
                     }
                     CLISubagentViewEvent::CopiedEmptyText => {
                         me.copy(ctx);
-                    }
-                    #[cfg(windows)]
-                    CLISubagentViewEvent::WindowsCtrlC => {
-                        me.ctrl_c(ctx);
                     }
                 });
 
@@ -5429,17 +5348,6 @@ impl TerminalView {
         })
     }
 
-    /// Returns the active session's WSL distribution information, if it exists.
-    /// Returns None if there is no active session or if the current session is
-    /// not a WSL session.
-    pub fn active_session_wsl_distro<C: ModelAsRef>(&self, ctx: &C) -> Option<String> {
-        self.active_block_session_id().and_then(|session_id| {
-            let current_session = self.sessions.as_ref(ctx).get(session_id)?;
-            let distro_name = current_session.wsl_distro_name();
-            distro_name.map(|name| name.to_string())
-        })
-    }
-
     pub fn active_block_session_id(&self) -> Option<SessionId> {
         self.active_block_metadata
             .as_ref()
@@ -5811,36 +5719,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    /// Copy if there is a selection. Otherwise, we defer to the normal ctrl-c
-    /// behaviour.
-    #[cfg(windows)]
-    fn ctrl_c_internal(
-        &mut self,
-        has_copiable_block_selection: bool,
-        has_block_list_selection: bool,
-        has_alt_screen_selection: bool,
-        is_long_running: bool,
-        is_agent_in_control_of_command: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if has_block_list_selection {
-            self.copy(ctx);
-            self.clear_selections_when_shell_mode_without_focusing_input(ctx);
-            return;
-        } else if has_alt_screen_selection {
-            self.copy(ctx);
-            self.model.lock().alt_screen_mut().clear_selection();
-            return;
-        } else if has_copiable_block_selection {
-            // If there are blocks selected, we want to copy them but
-            // not prevent the normal ctrl-c behaviour.
-            self.copy(ctx);
-            self.clear_selections_when_shell_mode_without_focusing_input(ctx);
-        }
-
-        self.ctrl_c_to_active_block(is_long_running, is_agent_in_control_of_command, ctx);
-    }
-
     /// Focuses the provided AI block if this terminal view (or some part of it)
     /// are focused. This helps ensure AI block interactions (which are primarily async)
     /// don't steal focus from the user if they've focused another part of the app
@@ -5859,7 +5737,6 @@ impl TerminalView {
         }
     }
 
-    #[cfg(not(windows))]
     fn ctrl_c_internal(
         &mut self,
         has_copiable_block_selection: bool,
@@ -8657,9 +8534,6 @@ impl TerminalView {
                         if block_metadata_received_event.is_done_bootstrapping {
                             #[cfg(feature = "local_fs")]
                             {
-                                // Convert the shell-native CWD (e.g. "/c/Users/..." for
-                                // Git Bash/MSYS2) to a Windows-native path before passing
-                                // it to repo detection, which requires an OS-native path.
                                 let native_directory = block_metadata_received_event
                                     .block_metadata
                                     .session_id()
@@ -9682,34 +9556,6 @@ impl TerminalView {
     fn local_session_path(session: &Session) -> Option<String> {
         if matches!(session.session_type(), SessionType::Local) && session.subshell_info().is_none()
         {
-            #[cfg(all(windows, feature = "local_tty"))]
-            let path = {
-                let path_result =
-                    get_user_and_system_env_variable("PATH").map(|entry| entry.into_string());
-                let result = match path_result {
-                    Some(Ok(path_result)) => Some(path_result),
-                    None => {
-                        log::warn!("Failed to get PATH for session on Windows.");
-                        None
-                    }
-                    Some(Err(e)) => {
-                        log::warn!("Failed to convert PATH for session on Windows: `{e:?}`");
-                        None
-                    }
-                };
-                if result.is_none() {
-                    if session.shell_family() == ShellFamily::PowerShell {
-                        // This is a fallback for if the OsString cannot be converted to a String.
-                        // We cannot accept a Posix PATH on Windows.
-                        session.path().clone()
-                    } else {
-                        None
-                    }
-                } else {
-                    result
-                }
-            };
-            #[cfg(not(all(windows, feature = "local_tty")))]
             let path = session.path().clone();
 
             return path;
@@ -10841,7 +10687,7 @@ impl TerminalView {
     ///
     /// Shows a banner to the user if this is the first bootstrap failure in the session.
     fn on_bootstrap_failed_timer_complete(&mut self, _: (), ctx: &mut ViewContext<Self>) {
-        let (is_ssh, shell, _is_subshell, _was_triggered_by_rc_file, _is_wsl, _is_msys2) = {
+        let (is_ssh, shell, _is_subshell, _was_triggered_by_rc_file) = {
             let model = self.model.lock();
 
             // If we did actually bootstrap, or if the session is no longer usable
@@ -10859,17 +10705,7 @@ impl TerminalView {
             let was_triggered_by_rc_file = pending_subshell_info
                 .map(|info| info.was_triggered_by_rc_file_snippet)
                 .unwrap_or(false);
-            let is_wsl = model.is_pending_wsl();
-            let is_msys2 = model.is_pending_msys2();
-
-            (
-                is_ssh,
-                shell,
-                is_subshell,
-                was_triggered_by_rc_file,
-                is_wsl,
-                is_msys2,
-            )
+            (is_ssh, shell, is_subshell, was_triggered_by_rc_file)
         };
 
         log::warn!("Bootstrapping failed for shell {shell:?} on ssh {is_ssh}");
@@ -11165,12 +11001,7 @@ impl TerminalView {
             let clipboard_content = ctx.clipboard().read();
 
             if is_cli_agent_paste && clipboard_content.has_image_data() {
-                // Windows Claude Code paste is `Alt+V` (ESC + 'v'); macOS/Linux is `Ctrl+V` (SYN).
-                let paste_bytes: Vec<u8> = if cfg!(windows) {
-                    vec![0x1b, b'v']
-                } else {
-                    vec![0x16]
-                };
+                let paste_bytes: Vec<u8> = vec![0x16];
                 self.write_user_bytes_to_pty(paste_bytes, ctx);
                 return;
             }
@@ -14478,7 +14309,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    #[cfg_attr(not(windows), allow(dead_code))]
     fn clear_selections_when_shell_mode_without_focusing_input(
         &mut self,
         ctx: &mut ViewContext<Self>,
@@ -14557,8 +14387,6 @@ impl TerminalView {
                 if is_restored {
                     return;
                 }
-                // With MAA, it's possible for an exchange to contain many tasks.
-                // This means an AI block may "finish" before the entire AI response is complete.
                 if self.active_ai_block(ctx).is_none() {
                     self.maybe_send_agent_mode_desktop_notification(&conversation_id, ctx);
                     if self.is_todo_popup_visible {
@@ -14638,10 +14466,6 @@ impl TerminalView {
             AIBlockEvent::DismissSecretTooltip => {
                 self.open_secret_tool_tip = None;
             }
-            #[cfg(windows)]
-            AIBlockEvent::WindowsCtrlC => {
-                self.ctrl_c(ctx);
-            }
             AIBlockEvent::AIOutputUpdated => {
                 self.model
                     .lock()
@@ -14654,7 +14478,7 @@ impl TerminalView {
                     ctx.emit(Event::OpenLocalObjectInPane(uid.clone()));
                 }
                 AIAgentCitation::WarpDocumentation { path } => {
-                    ctx.open_url(&format!("https://docs.warp.dev/{path}"));
+                    ctx.open_url(&format!("https://docs.warply.local/{path}"));
                 }
                 AIAgentCitation::WebPage { url } => {
                     ctx.open_url(url);
@@ -15593,12 +15417,7 @@ impl TerminalView {
             InputEvent::CtrlC { cleared_buffer_len } => {
                 self.handle_ctrl_c_input_event(*cleared_buffer_len, ctx);
             }
-            InputEvent::EmacsBindingUsed => {
-                if OperatingSystem::get().is_linux() && self.should_show_emacs_bindings_banner(ctx)
-                {
-                    self.show_emacs_bindings_banner(ctx);
-                }
-            }
+            InputEvent::EmacsBindingUsed => {}
             InputEvent::EditorUpdated {
                 block_id,
                 operations,
@@ -16013,42 +15832,6 @@ impl TerminalView {
     /// Whether the incompatible shell configuration banner is open.
     pub fn is_incompatible_configuration_banner_open(&self) -> bool {
         self.is_incompatible_configuration_banner_open
-    }
-
-    fn handle_emacs_bindings_banner_clicked(
-        &mut self,
-        event: &BannerEvent<TerminalAction>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if matches!(event, BannerEvent::Dismiss(DismissalType::Temporary)) {
-            set_custom_keybinding(SELECT_ALL_BINDING_NAME, &CTRL_SHIFT_A_KEYSTROKE, ctx);
-            set_custom_keybinding(MOVE_LINE_START_BINDING_NAME, &CTRL_A_KEYSTROKE, ctx);
-            set_custom_keybinding(MOVE_LINE_END_BINDING_NAME, &CTRL_E_KEYSTROKE, ctx);
-        }
-        EmacsBindingsSettings::handle(ctx).update(ctx, |_settings_model, _settings_ctx| {});
-        self.is_emacs_bindings_banner_open = false;
-        ctx.notify();
-    }
-
-    fn should_show_emacs_bindings_banner(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        // Is this the active session?
-        // We should only show the banner in one place at a time.
-        if !self.is_active_session(ctx) {
-            return false;
-        }
-
-        // Was the banner already open or dismissed?
-        let emacs_bindings_banner_displayed = self.is_emacs_bindings_banner_open
-            || EmacsBindingsSettings::handle(ctx).read(ctx, |banner_settings, _| {
-                *banner_settings.emacs_bindings_banner_state.value() == BannerState::Dismissed
-            });
-
-        !emacs_bindings_banner_displayed
-    }
-
-    fn show_emacs_bindings_banner(&mut self, ctx: &mut ViewContext<Self>) {
-        self.is_emacs_bindings_banner_open = true;
-        ctx.notify();
     }
 
     /// Updates the state of the "incompatible shell configuration" banner with
@@ -16479,7 +16262,6 @@ impl TerminalView {
             referenced_attachments: Default::default(),
             user_query_mode: UserQueryMode::default(),
             running_command: None,
-            intended_agent: None,
         }];
 
         let output = AIAgentOutput {
@@ -18448,18 +18230,6 @@ impl TerminalView {
                     }
                 });
 
-                // On Linux, immediately mark the request permission status as accepted since there's no concept of
-                // requesting desktop notification permissions.
-                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-                {
-                    if let NotificationsDiscoveryBanner::Open {
-                        request_outcome, ..
-                    } = &mut self.inline_banners_state.notifications_discovery_banner
-                    {
-                        *request_outcome = Some(RequestPermissionsOutcome::Accepted);
-                    }
-                }
-
                 ctx.request_desktop_notification_permissions(move |view, outcome, ctx| {
                     if let NotificationsDiscoveryBanner::Open {
                         request_outcome, ..
@@ -18513,7 +18283,9 @@ impl TerminalView {
 
         match action {
             LearnMore => {
-                ctx.open_url("https://docs.warp.dev/terminal/warpify/ssh-legacy#implementation");
+                ctx.open_url(
+                    "https://docs.warply.local/terminal/warpify/ssh-legacy#implementation",
+                );
             }
             Settings => {
                 if FeatureFlag::SSHTmuxWrapper.is_enabled() {
@@ -18719,8 +18491,7 @@ impl TerminalView {
             // shell info here.
             let shell_starter = get_shell_starter(None, &self.local_identity, ctx)?;
             let shell_path = match &shell_starter {
-                ShellStarter::Direct(direct_shell_starter)
-                | ShellStarter::MSYS2(direct_shell_starter) => direct_shell_starter
+                ShellStarter::Direct(direct_shell_starter) => direct_shell_starter
                     .shell_path()
                     .to_string_lossy()
                     .to_string(),
@@ -18729,7 +18500,6 @@ impl TerminalView {
                     .shell_path()
                     .to_string_lossy()
                     .to_string(),
-                ShellStarter::Wsl(wsl_shell_starter) => wsl_shell_starter.shell_path(),
             };
             Some((shell_path, shell_starter.shell_type()))
         }
@@ -18959,32 +18729,11 @@ impl TerminalView {
         if sshed && !paths.is_empty() && FeatureFlag::SshDragAndDrop.is_enabled() {
             self.initiate_ssh_file_upload(paths, ctx);
         } else {
-            // For long-running commands in MSYS2/Git Bash on Windows, skip
-            // conversion and shell escaping. Executables in git bash
-            // aren't git bash _specific_, they still expect paths in
-            // the native windows format.
-            let is_msys2_long_running = cfg!(windows)
-                && !session.is_wsl()
-                && session.shell_family() == ShellFamily::Posix
-                && is_in_long_running_command;
-            if is_msys2_long_running {
+            if session.shell_family() == ShellFamily::Posix && is_in_long_running_command {
                 let input = warpui::clipboard_utils::escaped_paths_str(paths, None);
                 self.typed_characters_on_terminal(&input, ctx);
                 return;
             }
-
-            // For WSL sessions on Windows, convert paths to /mnt/<drive>/... format
-            // so the WSL session can read the file at the correct path.
-            let paths_converted;
-            let paths = if session.is_wsl() {
-                paths_converted = paths
-                    .iter()
-                    .map(|p| warp_util::path::convert_windows_path_to_wsl(p))
-                    .collect::<Vec<_>>();
-                paths_converted.as_slice()
-            } else {
-                paths
-            };
 
             let input =
                 warpui::clipboard_utils::escaped_paths_str(paths, Some(self.shell_family(ctx)));
@@ -19177,17 +18926,12 @@ impl TerminalView {
     }
 
     /// Parses the shell launch data and sets the necessary fields so a shell
-    /// indicator is rendered in the tab bar and pane header. Does nothing on
-    /// non-Windows platforms.
+    /// indicator is rendered in the tab bar and pane header.
     pub fn on_active_shell_launch_data_updated(
         &mut self,
         shell_launch_data: Option<ShellLaunchData>,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !cfg!(windows) {
-            return;
-        }
-
         let shell_indicator_type = shell_launch_data
             .as_ref()
             .and_then(|data| ShellIndicatorType::try_from(data).ok());
@@ -20571,8 +20315,6 @@ impl View for TerminalView {
                 stack.add_child(ChildView::new(&self.control_master_error_banner).finish());
             } else if self.is_incompatible_configuration_banner_open {
                 stack.add_child(ChildView::new(&self.incompatible_configuration_banner).finish());
-            } else if self.is_emacs_bindings_banner_open {
-                stack.add_child(ChildView::new(&self.emacs_bindings_banner).finish());
             }
         }
 

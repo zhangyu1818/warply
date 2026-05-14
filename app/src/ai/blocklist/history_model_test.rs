@@ -66,7 +66,6 @@ fn create_exchange_with_query(
             referenced_attachments: Default::default(),
             user_query_mode: UserQueryMode::default(),
             running_command: None,
-            intended_agent: None,
         }],
         output_status: AIAgentOutputStatus::Finished {
             finished_output: FinishedAIAgentOutput::Success {
@@ -152,7 +151,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
             history_model
                 .update_conversation_for_new_request_input(
@@ -197,7 +195,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
             history_model
                 .update_conversation_for_new_request_input(
@@ -256,7 +253,6 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
             history_model
                 .update_conversation_for_new_request_input(
@@ -308,7 +304,6 @@ fn test_transcript_viewer_terminal_view_is_not_marked_historical() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
 
             history_model
@@ -362,7 +357,6 @@ fn test_all_cleared_conversations_includes_terminal_view_id() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
 
             history_model
@@ -413,13 +407,13 @@ fn test_toggle_autoexecute_override_persists_updated_conversation_state() {
 
         let event = receiver.recv_timeout(Duration::from_secs(1)).unwrap();
 
-        let ModelEvent::UpdateMultiAgentConversation {
+        let ModelEvent::UpdateAgentConversation {
             conversation_id: persisted_conversation_id,
             conversation_data,
             ..
         } = event
         else {
-            panic!("expected UpdateMultiAgentConversation event");
+            panic!("expected UpdateAgentConversation event");
         };
 
         assert_eq!(persisted_conversation_id, conversation_id.to_string());
@@ -462,7 +456,6 @@ fn completed_acp_conversation_is_available_for_navigation() {
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
             history_model
                 .update_conversation_for_new_request_input(
@@ -559,7 +552,6 @@ fn acp_output_messages_are_available_after_conversation_persistence_roundtrip() 
                 cli_agent_model_id: exchange.cli_agent_model_id,
                 computer_use_model_id: exchange.computer_use_model_id,
                 request_start_ts: exchange.start_time,
-                supported_tools_override: None,
             };
             history_model
                 .update_conversation_for_new_request_input(
@@ -638,13 +630,12 @@ fn acp_output_messages_are_available_after_conversation_persistence_roundtrip() 
         });
 
         let event = receiver.recv_timeout(Duration::from_secs(1)).unwrap();
-        let ModelEvent::UpdateMultiAgentConversation {
+        let ModelEvent::UpdateAgentConversation {
             conversation_id: persisted_conversation_id,
-            updated_tasks,
             conversation_data,
         } = event
         else {
-            panic!("expected UpdateMultiAgentConversation event");
+            panic!("expected UpdateAgentConversation event");
         };
 
         let restored = super::convert_persisted_conversation_to_ai_conversation_with_metadata(
@@ -655,7 +646,6 @@ fn acp_output_messages_are_available_after_conversation_persistence_roundtrip() 
                     conversation_data: serde_json::to_string(&conversation_data).unwrap(),
                     last_modified_at: now.naive_utc(),
                 },
-                tasks: updated_tasks,
             },
         )
         .expect("ACP conversation should restore from persisted data");

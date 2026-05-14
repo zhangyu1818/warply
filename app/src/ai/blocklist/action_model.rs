@@ -630,9 +630,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Removes a pending `RunAgents` action and records a `Denied`
-    /// result. Used when the orchestration config is disapproved at
-    /// the time the action becomes blocked on user confirmation.
     /// Attempts to execute the next pending action for the active conversation.
     pub fn execute_next_action_for_user(
         &mut self,

@@ -17,7 +17,7 @@ use crate::{
         TerminationMode, WindowContext,
     },
     r#async::{block_on, SpawnableOutput, Timer},
-    windowing::{self, WindowCallbacks, WindowManager},
+    windowing::{WindowCallbacks, WindowManager},
     AccessibilityData, AddSingletonModel, Clipboard, Scene, ZoomFactor,
 };
 use anyhow::{anyhow, Result};
@@ -905,8 +905,6 @@ impl AppContext {
     /// this method handles dispatching the right handler for the button clicked. The response is
     /// encoded as a 0-based index into the list of buttons on the modal, and the callback will be
     /// at the same index in the Vec of callbacks.
-    /// TODO(CORE-2323): Implement native Windows OS modal
-    #[cfg_attr(target_os = "windows", allow(dead_code))]
     pub(crate) fn process_platform_modal_response(
         &mut self,
         modal_id: ModalId,
@@ -1099,9 +1097,6 @@ impl AppContext {
     }
 
     pub fn unregister_global_shortcut(&mut self, shortcut: &Keystroke) {
-        if self.is_wayland() {
-            return;
-        }
         self.global_shortcuts.remove(shortcut);
         self.platform_delegate.unregister_global_shortcut(shortcut);
     }
@@ -1112,9 +1107,6 @@ impl AppContext {
         action: &'static str,
         arg: T,
     ) {
-        if self.is_wayland() {
-            return;
-        }
         // Note that for global hotkey we don't support registering the meta key so
         // we will treat meta key as alt.
         if shortcut.meta {
@@ -2302,7 +2294,6 @@ impl AppContext {
             background_blur_texture,
             anchor_new_windows_from_closed_position,
             on_gpu_driver_selected: on_gpu_driver_reported,
-            window_instance,
         } = add_window_options;
 
         let window_id = window_id.unwrap_or_else(WindowId::new);
@@ -2331,7 +2322,6 @@ impl AppContext {
             gpu_power_preference: self.rendering_config.gpu_power_preference,
             backend_preference: self.rendering_config.backend_preference,
             on_gpu_device_info_reported: on_gpu_driver_reported.unwrap_or(Box::new(|_| {})),
-            window_instance,
         };
 
         let callbacks = WindowCallbacks {
@@ -2443,15 +2433,6 @@ impl AppContext {
                     .insert(window_id, Some(RectF::new(origin, size)));
 
                 window.request_redraw();
-
-                // On Linux and Windows, we don't have a direct way to react to
-                // window fullscreen state changes, so instead we're using a
-                // resize event as a signal that the fullscreen state _may_ have
-                // changed.
-                #[cfg(any(target_os = "linux", target_os = "freebsd", windows))]
-                crate::windowing::WindowManager::handle(ctx).update(ctx, |manager, ctx| {
-                    manager.update_is_active_window_fullscreen(ctx);
-                });
 
                 ctx.report_active_cursor_position_update();
             }),
@@ -4243,7 +4224,6 @@ impl AppContext {
             window_bounds: WindowBounds::ExactPosition(RectF::new(origin, size)),
             anchor_new_windows_from_closed_position:
                 NextNewWindowsHasThisWindowsBoundsUponClose::No,
-            window_instance: Some("dev.zhangyu1818.warplyui-debug".to_owned()),
             title: Some("View Tree Debugger".to_owned()),
             ..Default::default()
         };
@@ -4436,13 +4416,6 @@ impl AppContext {
 
     pub fn window_ids(&self) -> impl Iterator<Item = WindowId> + '_ {
         self.windows.keys().cloned()
-    }
-
-    pub fn is_wayland(&self) -> bool {
-        matches!(
-            self.windows().windowing_system(),
-            Some(windowing::System::Wayland)
-        )
     }
 
     /// Returns all view IDs registered in the given window.

@@ -78,7 +78,7 @@ pub fn open_docker_container(url: &Url, ctx: &mut AppContext) -> Result<()> {
     // Command example: docker exec -it --user 'admin' 'container_id' 'zsh'.
     // TODO(CORE-2658): This [`ShellFamily::shell_escape`] function is built with `bash` in mind but we need to
     // properly escape for all our officially supported shells.
-    // Assume MacOS/Linux and therefore POSIX shell. Running Docker on Windows requires WSL anyway.
+    // Docker exec commands are emitted for POSIX shells.
     let mut docker_exec_command = String::from("docker exec -it");
     if let Some(user) = user {
         docker_exec_command

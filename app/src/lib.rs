@@ -21,8 +21,6 @@ mod datetime_ext;
 mod debounce;
 mod default_terminal;
 mod drive;
-#[cfg(windows)]
-mod dynamic_libraries;
 mod env_vars;
 mod external_secrets;
 mod global_resource_handles;
@@ -32,7 +30,6 @@ mod identity;
 mod input_classifier;
 mod interval_timer;
 mod linear;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod login_item;
 mod menu;
 mod modal;
@@ -209,7 +206,6 @@ use rust_embed::RustEmbed;
 use settings::ExtraMetaKeys;
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::ops::Deref;
 use std::sync::Arc;
 use terminal::input;
 use terminal::session_settings::SessionSettings;
@@ -457,11 +453,6 @@ pub fn run() -> Result<()> {
     let args = warp_cli::Args::from_env();
 
     if let Some(command) = args.command() {
-        #[cfg(windows)]
-        if command.prints_to_stdout() {
-            // We attach a console to ensure that all standard output gets printed correctly.
-            warp_util::windows::attach_to_parent_console();
-        }
         match command {
             #[cfg(all(feature = "local_tty", unix))]
             warp_cli::Command::Worker(warp_cli::WorkerCommand::TerminalServer(args)) => {
@@ -590,9 +581,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // These steps run before the platform event loop is started.
     // They must not depend on AppContext.
 
-    #[cfg(windows)]
-    dynamic_libraries::configure_library_loading();
-
     if launch_mode.needs_profiling() {
         profiling::init();
     }
@@ -615,9 +603,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
 
     timer.mark_interval_end("LOG_FILE_SETUP_COMPLETE");
 
-    #[cfg(windows)]
-    platform::windows::check_redirection_guard();
-
     // Adjust resource limits early, before doing other work, to ensure that
     // any children we spawn (like the terminal server) inherit our adjusted
     // rlimits.
@@ -632,78 +617,10 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         .expect("must be able to initialize crypto provider for TLS support");
 
     // Collect errors that occur before the app is initialized.
-    #[cfg_attr(
-        not(all(
-            feature = "release_bundle",
-            any(windows, any(target_os = "linux", target_os = "freebsd"))
-        )),
-        expect(unused_mut)
-    )]
-    let mut pre_app_errors: Vec<anyhow::Error> = Vec::new();
-
-    #[cfg(all(
-        feature = "release_bundle",
-        any(target_os = "linux", target_os = "freebsd")
-    ))]
-    if let LaunchMode::App { .. } = launch_mode {
-        match app_services::linux::pass_startup_args_to_existing_instance(
-            launch_mode.args().as_ref(),
-        ) {
-            // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Warp at a time.
-            Ok(_) => std::process::exit(0),
-            // If Warp isn't already running, we're good to go.
-            Err(app_services::linux::StartupArgsForwardingError::NoExistingInstance) => {}
-            // If we were unable to perform the forwarding for an unknown reason,
-            // it's better to run a second instance than potentially end up in a
-            // state where Warp refuses to run even a first instance.
-            Err(err) => {
-                let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                log::error!("{err:#}");
-                pre_app_errors.push(err);
-            }
-        }
-    }
-
-    #[cfg(all(feature = "release_bundle", windows))]
-    if let LaunchMode::App { .. } = launch_mode {
-        match app_services::windows::pass_startup_args_to_existing_instance(
-            launch_mode.args().as_ref(),
-        ) {
-            // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Warp at a time.
-            Ok(_) => std::process::exit(0),
-            // If Warp isn't already running, we're good to go.
-            Err(app_services::windows::StartupArgsForwardingError::NoExistingInstance) => {}
-            // If we were unable to perform the forwarding for an unknown reason,
-            // it's better to run a second instance than potentially end up in a
-            // state where Warp refuses to run even a first instance.
-            Err(err) => {
-                let err = anyhow::Error::from(err).context("Failed to forward startup args");
-                log::error!("{err:#}");
-                pre_app_errors.push(err);
-            }
-        }
-    }
-
-    // Sets up a Job Object that we associate with the Warp process to handle
-    // shared fate with its child processes. This should be called before we
-    // start spawning any child processes.
-    #[cfg(windows)]
-    command::windows::init();
+    let pre_app_errors: Vec<anyhow::Error> = Vec::new();
 
     let private_preferences = settings::init_private_user_preferences();
     let (public_preferences, startup_toml_parse_error) = settings::init_public_user_preferences();
-
-    // When the SettingsFile feature flag is enabled, public settings live in
-    // the TOML-backed store. When disabled, they live in the platform-native
-    // store (same backend as private). Use the correct one for pre-app reads.
-    let _prefs_for_public_settings: &dyn warpui_extras::user_preferences::UserPreferences =
-        if FeatureFlag::SettingsFile.is_enabled() {
-            public_preferences.as_ref()
-        } else {
-            private_preferences.deref()
-        };
 
     // Set up the pty spawner before doing any meaningful work. We want to
     // ensure that the process is in the cleanest possible state (minimal opened
@@ -742,51 +659,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         app_builder.set_dock_menu_builder(|_| app_menus::dock_menu());
     }
 
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    {
-        use crate::settings::ForceX11;
-        use warpui::platform::linux::{self, AppBuilderExt};
-
-        app_builder.set_window_class(ChannelState::app_id().to_string());
-
-        let force_x11 = ForceX11::read_from_preferences(prefs_for_public_settings)
-            .unwrap_or(ForceX11::default_value());
-        // Force use of wayland if the user has passed the `WARP_ENABLE_WAYLAND` env var.
-        let allow_wayland = linux::is_wayland_env_var_set() || !force_x11;
-        app_builder.force_x11(!allow_wayland);
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use warpui::platform::windows::AppBuilderExt;
-        app_builder.set_app_user_model_id(ChannelState::app_id().to_string());
-
-        // Only use DXC for DirectX shader compilation if we're not running in a Parallels VM
-        // Parallels VMs can have issues with DXC shader compilation
-        let is_parallels_vm = crate::util::vm_detection::is_running_in_windows_parallels_vm();
-        if !is_parallels_vm {
-            log::info!("Using DXC for DirectX shader compilation");
-            use warpui::platform::windows::DXCPath;
-
-            app_builder.use_dxc_for_directx_shader_compilation(DXCPath {
-                dxc_path: "dxcompiler.dll".to_string(),
-                dxil_path: "dxil.dll".to_string(),
-            });
-        } else {
-            log::info!("Skipping DXC for DirectX shader compilation; running in a Parallels VM");
-        }
-    }
-
-    // Override any bindings that have a `Custom` trigger to a `Keystroke`-based trigger. In theory,
-    // this should be a noop on Mac (since the keystrokes registered via the  Mac menus first
-    // intercept the binding), but just to be safe we only enable this in cases where we don't
-    // include mac menus.
-    #[cfg(not(target_os = "macos"))]
-    app_builder.convert_custom_triggers_to_keystroke_triggers(
-        crate::util::bindings::custom_tag_to_keystroke,
-    );
-
-    #[cfg(target_os = "macos")]
     app_builder.register_default_keystroke_triggers_for_custom_actions(
         crate::util::bindings::custom_tag_to_keystroke,
     );
@@ -849,10 +721,6 @@ pub(crate) fn initialize_app(
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration_tests")] {
             warpui_extras::secure_storage::register_noop(&data_domain, ctx);
-        } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            warpui_extras::secure_storage::register_with_fallback(&data_domain, warp_core::paths::state_dir(), ctx)
-        } else if #[cfg(target_os = "windows")] {
-            warpui_extras::secure_storage::register_with_dir(&data_domain, warp_core::paths::state_dir(), ctx)
         } else {
             warpui_extras::secure_storage::register(&data_domain, ctx);
         }
@@ -878,7 +746,7 @@ pub(crate) fn initialize_app(
     }
 
     let local_identity = Arc::new(LocalIdentity::initialize(ctx));
-    timer.mark_interval_end("AUTH_MANAGER_SET_USER");
+    timer.mark_interval_end("LOCAL_IDENTITY_INITIALIZED");
 
     ctx.add_singleton_model(HttpApiProvider::new);
 
@@ -916,7 +784,7 @@ pub(crate) fn initialize_app(
         ai_queries,
         persisted_workspaces,
         workspace_language_servers,
-        multi_agent_conversations,
+        agent_conversations,
         persisted_projects,
         persisted_project_rules,
         persisted_ignored_suggestions,
@@ -932,7 +800,7 @@ pub(crate) fn initialize_app(
                 sqlite_data.ai_queries,
                 sqlite_data.code_workspaces,
                 sqlite_data.workspace_language_servers,
-                sqlite_data.multi_agent_conversations,
+                sqlite_data.agent_conversations,
                 sqlite_data.projects,
                 sqlite_data.project_rules,
                 sqlite_data.ignored_suggestions,
@@ -1014,14 +882,6 @@ pub(crate) fn initialize_app(
         GPUState::handle(ctx).update(ctx, |gpu_state, ctx| {
             gpu_state.set_has_lower_power_gpu(warpui::rendering::is_low_power_gpu_available(), ctx);
         });
-
-        for window_id in ctx.window_ids().collect_vec() {
-            SettingsPaneManager::handle(ctx)
-                .read(ctx, |model, _| model.settings_view(window_id))
-                .update(ctx, |settings, ctx| {
-                    settings.refresh_preferred_graphics_backend_dropdown(ctx);
-                })
-        }
     });
 
     #[cfg(not(target_family = "wasm"))]
@@ -1146,18 +1006,16 @@ pub(crate) fn initialize_app(
     #[cfg(feature = "local_fs")]
     ctx.add_singleton_model(FileModel::new);
     ctx.add_singleton_model(GlobalBufferModel::new);
-    #[cfg(windows)]
-    ctx.add_singleton_model(util::traffic_lights::windows::RendererState::new);
     #[cfg(feature = "local_fs")]
     ctx.add_singleton_model(|_| LanguageServerShutdownManager::new());
 
     ctx.add_singleton_model(|_ctx| CloudModel::new(persistence_writer.sender(), cloud_objects));
 
     {
-        let conversations = &multi_agent_conversations;
+        let conversations = &agent_conversations;
         ctx.add_singleton_model(move |_| BlocklistAIHistoryModel::new(ai_queries, conversations));
     }
-    ctx.add_singleton_model(move |_| RestoredAgentConversations::new(multi_agent_conversations));
+    ctx.add_singleton_model(move |_| RestoredAgentConversations::new(agent_conversations));
     ctx.add_singleton_model(ai::acp::model::AcpAgentModel::new);
     ctx.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
@@ -1329,9 +1187,6 @@ pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppC
                 pty_spawner.prepare_for_app_termination();
             });
 
-            #[cfg(all(feature = "local_tty", windows))]
-            terminal::local_tty::shutdown_all_pty_event_loops(ctx);
-
             // Tear down app services before spawning the new process, to
             // ensure that the new process doesn't find the old process while
             // attempting to enforce our single-instance policy on Linux.
@@ -1343,11 +1198,7 @@ pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppC
         })),
         on_should_close_window: Some(Box::new(move |window_id, ctx| {
             let general_settings = GeneralSettings::as_ref(ctx);
-            // On Linux or Windows, if we're about to close the final window, we should quit the app instead.
-            // On Mac, we do this conditionally based on a user setting.
-            let quit_on_last_window_closed =
-                cfg!(any(target_os = "linux", target_os = "freebsd", windows))
-                    || *general_settings.quit_on_last_window_closed;
+            let quit_on_last_window_closed = *general_settings.quit_on_last_window_closed;
             if ctx.window_ids().count() == 1 && quit_on_last_window_closed {
                 log::info!("No windows left, terminating app");
                 ctx.terminate_app(TerminationMode::Cancellable, None);
@@ -1600,12 +1451,9 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 timer.mark_interval_end("WINDOWS_CREATED");
             });
 
-            // TODO(ben): We should skip this for LaunchMode::Test.
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
             {
                 use crate::login_item::maybe_register_app_as_login_item;
                 use crate::terminal::general_settings::GeneralSettingsChangedEvent;
-                // Note that we put this here because it depends on settings already having been initialized.
                 ctx.subscribe_to_model(&GeneralSettings::handle(ctx), |_, event, ctx| {
                     if matches!(event, GeneralSettingsChangedEvent::LoginItem { .. }) {
                         maybe_register_app_as_login_item(ctx);
@@ -1689,8 +1537,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SequentialStorage,
         #[cfg(feature = "in_band_generators_ssh")]
         FeatureFlag::InBandGeneratorsForSSH,
-        #[cfg(feature = "run_generators_with_cmd_exe")]
-        FeatureFlag::RunGeneratorsWithCmdExe,
         #[cfg(feature = "ligatures")]
         FeatureFlag::Ligatures,
         #[cfg(feature = "selectable_prompt")]
@@ -1733,8 +1579,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::WorkflowAliases,
         #[cfg(feature = "ssh_drag_and_drop")]
         FeatureFlag::SshDragAndDrop,
-        #[cfg(feature = "drag_tabs_to_windows")]
-        FeatureFlag::DragTabsToWindows,
         #[cfg(feature = "cycle_next_command_suggestion")]
         FeatureFlag::CycleNextCommandSuggestion,
         #[cfg(feature = "multi_workspace")]
@@ -1749,7 +1593,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ValidateAutosuggestions,
         #[cfg(feature = "clear_autosuggestion_on_escape")]
         FeatureFlag::ClearAutosuggestionOnEscape,
-        #[cfg(all(not(windows), feature = "kitty_images"))]
+        #[cfg(feature = "kitty_images")]
         FeatureFlag::KittyImages,
         #[cfg(feature = "warp_packs")]
         FeatureFlag::WarpPacks,
@@ -1773,8 +1617,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EditableMarkdownMermaid,
         #[cfg(feature = "image_as_context")]
         FeatureFlag::ImageAsContext,
-        #[cfg(feature = "msys2_shells")]
-        FeatureFlag::MSYS2Shells,
         #[cfg(feature = "retry_truncated_code_responses")]
         FeatureFlag::RetryTruncatedCodeResponses,
         #[cfg(feature = "ai_context_menu")]
@@ -1947,8 +1789,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]
         FeatureFlag::TrimTrailingBlankLines,
-        #[cfg(feature = "configurable_context_window")]
-        FeatureFlag::ConfigurableContextWindow,
     ]);
 
     flags

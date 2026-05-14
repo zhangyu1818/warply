@@ -508,7 +508,7 @@ fn test_smart_select_with_drag() {
 
         app.add_window(WindowStyle::NotStealFocus, |ctx| {
             let mut editor = EditorView::new_with_base_text(
-                "word ~/.warp/themes/foo-bar.yaml andy@warp.dev",
+                "word ~/.warp/themes/foo-bar.yaml andy@warply.local",
                 Default::default(),
                 ctx,
             );
@@ -4484,20 +4484,9 @@ fn test_drag_and_drop_files_applies_path_transformer() {
 
         view.update(&mut app, |view, ctx| {
             view.clear_buffer(ctx);
-            view.set_drag_drop_path_transformer(Some(Box::new(
-                warp_util::path::convert_windows_path_to_wsl,
-            )));
+            view.set_drag_drop_path_transformer(Some(Box::new(|path| path.replace('\\', "/"))));
             view.drag_and_drop_files(&paths(), ctx);
-            assert_eq!(view.buffer_text(ctx), "/mnt/c/foo/bar /mnt/d/baz ");
-        });
-
-        view.update(&mut app, |view, ctx| {
-            view.clear_buffer(ctx);
-            view.set_drag_drop_path_transformer(Some(Box::new(
-                warp_util::path::convert_windows_path_to_msys2,
-            )));
-            view.drag_and_drop_files(&paths(), ctx);
-            assert_eq!(view.buffer_text(ctx), "/c/foo/bar /d/baz ");
+            assert_eq!(view.buffer_text(ctx), "C:/foo/bar D:/baz ");
         });
     });
 }

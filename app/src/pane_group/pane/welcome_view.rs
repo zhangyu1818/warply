@@ -49,8 +49,7 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(id!("WelcomeView"))
         .with_group(BindingGroup::Folders.as_str())
-        .with_mac_key_binding("cmd-shift-N")
-        .with_linux_or_windows_key_binding("alt-n"),
+        .with_mac_key_binding("cmd-shift-N"),
     ]);
 }
 

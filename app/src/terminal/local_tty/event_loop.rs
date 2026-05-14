@@ -413,7 +413,6 @@ where
                                 if token == self.pty.read_token()
                                     || token == self.pty.write_token() =>
                             {
-                                #[cfg(unix)]
                                 if event.is_read_closed() || event.is_write_closed() {
                                     // Don't try to do I/O on a dead PTY.
                                     continue;
@@ -439,16 +438,6 @@ where
                             match self.pty_read(&mut state, &mut buf, &mut can_read) {
                                 Ok(_) => {}
                                 Err(err) => {
-                                    // On Linux, a `read` on the master side of a PTY can fail
-                                    // with `EIO` if the client side hangs up.  In that case,
-                                    // just loop back round for the inevitable `Exited` event.
-                                    // This sucks, but checking the process is either racy or
-                                    // blocking.
-                                    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-                                    if err.kind() == ErrorKind::Other {
-                                        continue;
-                                    }
-
                                     error!("Error reading from PTY in event loop: {err}");
                                     break 'event_loop;
                                 }

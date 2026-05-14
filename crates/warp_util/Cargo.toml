@@ -1,6 +1,6 @@
 [package]
 name = "warp_util"
-authors = ["Warp Team <dev@warp.dev>"]
+authors = ["Warply Team <dev@warply.local>"]
 version = "0.1.0"
 edition = "2021"
 description = "General utilities and helpers used across warp crates"
@@ -25,9 +25,6 @@ serde.workspace = true
 serde_json.workspace = true
 pin-project.workspace = true
 futures-util.workspace = true
-
-[target.'cfg(windows)'.dependencies]
-windows.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 gloo.workspace = true

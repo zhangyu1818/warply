@@ -31,10 +31,7 @@ define_settings_group!(GeneralSettings, settings: [
     add_app_as_login_item: LoginItem {
         type: bool,
         default: true,
-        supported_platforms: SupportedPlatforms::OR(
-            Box::new(SupportedPlatforms::MAC),
-            Box::new(SupportedPlatforms::WINDOWS),
-        ),
+        supported_platforms: SupportedPlatforms::MAC,
         private: false,
         toml_path: "general.login_item",
         description: "Whether to launch Warp automatically when you log in.",
@@ -47,10 +44,7 @@ define_settings_group!(GeneralSettings, settings: [
     app_added_as_login_item: AppAddedAsLoginItem {
         type: bool,
         default: false,
-        supported_platforms: SupportedPlatforms::OR(
-            Box::new(SupportedPlatforms::MAC),
-            Box::new(SupportedPlatforms::WINDOWS),
-        ),
+        supported_platforms: SupportedPlatforms::MAC,
         private: true,
     },
     link_tooltip: LinkTooltip {

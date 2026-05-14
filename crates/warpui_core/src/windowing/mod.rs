@@ -94,20 +94,6 @@ impl<'a> WindowCallbackDispatcher<'a> {
     }
 }
 
-// Functions in WindowCallbackDispatcher that relate to application menus.
-//
-// This is marked as `allow(dead_code)` on Linux and wasm, as they do not
-// support application menus, so these never get called.
-// TODO(CORE-2691): implement native Windows OS app menus
-#[cfg_attr(
-    any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "windows",
-        target_family = "wasm"
-    ),
-    allow(dead_code)
-)]
 impl WindowCallbackDispatcher<'_> {
     pub fn dispatch_standard_action(&mut self, action: StandardAction) {
         (self.callbacks.standard_action_callback)(action, &mut self.ctx)

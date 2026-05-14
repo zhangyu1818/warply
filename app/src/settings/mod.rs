@@ -6,15 +6,12 @@ mod block_visibility;
 mod code;
 mod debug;
 mod editor;
-mod emacs_bindings;
 pub mod font;
 mod gpu;
 pub mod import;
 mod init;
 mod input;
 mod input_mode;
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-mod linux;
 pub mod macros;
 pub mod manager;
 mod pane;
@@ -35,14 +32,11 @@ pub use block_visibility::*;
 pub use code::*;
 pub use debug::*;
 pub use editor::*;
-pub use emacs_bindings::*;
 pub use font::*;
 pub use gpu::*;
 pub use init::*;
 pub use input::*;
 pub use input_mode::*;
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-pub use linux::*;
 pub use pane::*;
 pub use scroll::*;
 pub use select::*;
@@ -122,7 +116,7 @@ pub const ACTIVATION_HOTKEY_ENABLED: &str = "ActivationHotkeyEnabled";
 pub const ACTIVATION_HOTKEY_KEYBINDING: &str = "ActivationHotkeyKeybinding";
 
 pub const TIMES_TO_SHOW_AUTOSUGGESTION_HINT: i8 = 2;
-pub const QUAKE_WINDOW_AUTOHIDE_SUPPORTED: bool = cfg!(any(target_os = "macos", windows));
+pub const QUAKE_WINDOW_AUTOHIDE_SUPPORTED: bool = true;
 
 lazy_static! {
     pub static ref DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES: HashMap<QuakeModePinPosition, SizePercentages> =

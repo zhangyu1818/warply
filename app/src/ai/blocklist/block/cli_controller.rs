@@ -486,39 +486,6 @@ impl CLISubagentController {
                     initial_requested_command_action_id: action_id,
                 });
             }
-            BlocklistAIHistoryEvent::PromotedTask {
-                optimistic_id: old_id,
-                server_id: new_id,
-                ..
-            } => {
-                let block_id =
-                    self.active_subagents_by_block
-                        .iter()
-                        .find_map(|(block_id, state)| {
-                            (state.task_id.as_ref() == Some(old_id)).then_some(block_id.clone())
-                        });
-                if let Some(block_id) = block_id {
-                    let mut terminal_model = self.terminal_model.lock();
-                    if let Some(block) =
-                        terminal_model.block_list_mut().mut_block_from_id(&block_id)
-                    {
-                        match block.promote_cli_subagent_task_id(new_id.clone()) {
-                            Ok(()) => {
-                                if let Some(state) =
-                                    self.active_subagents_by_block.get_mut(&block_id)
-                                {
-                                    state.task_id = Some(new_id.clone());
-                                }
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Tried to promote CLI subagent task ID for non-existent block: {e:?}"
-                                );
-                            }
-                        }
-                    }
-                }
-            }
             _ => (),
         }
     }

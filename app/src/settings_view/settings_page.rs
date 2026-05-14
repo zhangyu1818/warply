@@ -38,7 +38,6 @@ use warpui::{
         button::{Button, ButtonVariant},
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    units::Pixels,
     Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
 };
 
@@ -1326,25 +1325,6 @@ impl<V: warpui::View> PageType<V> {
                 horizontal_scroll_state,
                 ..
             } => (Some(vertical_scroll_state), Some(horizontal_scroll_state)),
-        }
-    }
-
-    #[cfg_attr(not(any(target_os = "linux", target_os = "freebsd")), allow(dead_code))]
-    pub fn scroll_by(&self, delta: Pixels) {
-        match self {
-            PageType::Monolith {
-                vertical_scroll_state: Some(scrollable_state),
-                ..
-            }
-            | PageType::Uncategorized {
-                vertical_scroll_state: scrollable_state,
-                ..
-            }
-            | PageType::Categorized {
-                vertical_scroll_state: scrollable_state,
-                ..
-            } => scrollable_state.scroll_by(delta),
-            _ => {}
         }
     }
 

@@ -1,18 +1,14 @@
 //! Shared utilities for screenshot processing.
 
 use std::io::Cursor;
-#[cfg(target_os = "macos")]
 use std::path::Path;
 
 use image::{DynamicImage, GenericImageView};
-#[cfg(linux)]
-use pathfinder_geometry::vector::Vector2I;
 
 use crate::{Screenshot, ScreenshotParams};
 
 /// Loads an image from a file, processes it according to the given parameters, and returns a
 /// Screenshot.
-#[cfg(target_os = "macos")]
 pub fn load_and_process_screenshot(
     path: &Path,
     params: ScreenshotParams,
@@ -65,22 +61,6 @@ pub fn process_screenshot(
         data,
         mime_type: "image/png".into(),
     })
-}
-
-/// Crops a `DynamicImage` to the specified region.
-///
-/// The coordinates are in pixels, with (0, 0) at the top-left of the image.
-#[cfg(linux)]
-pub fn crop_to_region(
-    img: DynamicImage,
-    top_left: Vector2I,
-    bottom_right: Vector2I,
-) -> DynamicImage {
-    let x = top_left.x() as u32;
-    let y = top_left.y() as u32;
-    let width = (bottom_right.x() - top_left.x()) as u32;
-    let height = (bottom_right.y() - top_left.y()) as u32;
-    img.crop_imm(x, y, width, height)
 }
 
 /// Returns the scaling factor to apply to a screenshot to meet the size constraints.

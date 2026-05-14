@@ -214,7 +214,6 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::new_per_platform(
             PerPlatformKeystroke {
                 mac: "shift-alt-left",
-                linux_and_windows: "shift-ctrl-left",
             },
             EditorViewAction::SelectBackwardsByWord,
             text_entry.clone(),
@@ -227,7 +226,6 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::new_per_platform(
             PerPlatformKeystroke {
                 mac: "shift-alt-right",
-                linux_and_windows: "shift-ctrl-right",
             },
             EditorViewAction::SelectForwardsByWord,
             text_entry.clone(),
@@ -274,20 +272,6 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::standard(
             StandardAction::Paste,
             EditorViewAction::Paste,
-            id!("RichTextEditorView") & !id!("IMEOpen"),
-        ),
-        #[cfg(windows)]
-        FixedBinding::custom(
-            CustomAction::WindowsPaste,
-            EditorViewAction::Paste,
-            "Paste",
-            id!("RichTextEditorView") & !id!("IMEOpen"),
-        ),
-        #[cfg(windows)]
-        FixedBinding::custom(
-            CustomAction::WindowsCopy,
-            EditorViewAction::Copy,
-            "Copy",
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::custom(
@@ -415,16 +399,14 @@ pub fn init(app: &mut AppContext) {
             EditorViewAction::MoveBackwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
-        .with_mac_key_binding("alt-left")
-        .with_linux_or_windows_key_binding("ctrl-left"),
+        .with_mac_key_binding("alt-left"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
             "Move Forward One Word",
             EditorViewAction::MoveForwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
-        .with_mac_key_binding("alt-right")
-        .with_linux_or_windows_key_binding("ctrl-right"),
+        .with_mac_key_binding("alt-right"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
             "Move forward one word",
@@ -479,8 +461,7 @@ pub fn init(app: &mut AppContext) {
             EditorViewAction::MoveToLineStart,
         )
         .with_context_predicate(text_entry.clone())
-        .with_mac_key_binding("cmd-left")
-        .with_linux_or_windows_key_binding("home"),
+        .with_mac_key_binding("cmd-left"),
         EditableBinding::new(
             "editor_view:move_to_paragraph_end",
             "Move to end of paragraph",
@@ -490,8 +471,7 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("ctrl-e"),
         EditableBinding::new("editor_view:end", "End", EditorViewAction::MoveToLineEnd)
             .with_context_predicate(text_entry.clone())
-            .with_mac_key_binding("cmd-right")
-            .with_linux_or_windows_key_binding("end"),
+            .with_mac_key_binding("cmd-right"),
     ]);
 
     // Editable selection keybindings:
@@ -617,8 +597,7 @@ pub fn init(app: &mut AppContext) {
             EditorViewAction::DeleteWordLeft,
         )
         .with_context_predicate(text_entry.clone())
-        .with_mac_key_binding("alt-backspace")
-        .with_linux_or_windows_key_binding("ctrl-backspace"),
+        .with_mac_key_binding("alt-backspace"),
         EditableBinding::new(
             "editor_view:cut_word_right",
             "Cut word right",
@@ -632,8 +611,7 @@ pub fn init(app: &mut AppContext) {
             EditorViewAction::DeleteWordRight,
         )
         .with_context_predicate(text_entry.clone())
-        .with_mac_key_binding("alt-delete")
-        .with_linux_or_windows_key_binding("ctrl-delete"),
+        .with_mac_key_binding("alt-delete"),
         EditableBinding::new(
             "editor_view:cut_all_left",
             "Cut all left",
@@ -649,8 +627,7 @@ pub fn init(app: &mut AppContext) {
         // Intellij uses `ctrl-Y` to delete a line on Windows/Linux whereas VSCode uses
         // `ctrl-shift-k`. We use the former because `ctrl-shift-k` would interfere with the binding
         // to clear all blocks within the blocklist.
-        .with_mac_key_binding("cmd-backspace")
-        .with_linux_or_windows_key_binding("ctrl-y"),
+        .with_mac_key_binding("cmd-backspace"),
         EditableBinding::new(
             "editor_view:cut_all_right",
             "Cut all right",
@@ -2872,13 +2849,11 @@ impl TypedActionView for RichTextEditorView {
 
         if action.is_new_text_selection() {
             SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
-                let clipboard_contents_fn = |ctx: &mut AppContext| {
-                    self.model
-                        .as_ref(ctx)
-                        .read_selected_text_as_clipboard_content(ctx)
-                };
-                selection_settings
-                    .maybe_write_to_linux_selection_clipboard(clipboard_contents_fn, ctx);
+                let clipboard_content = self
+                    .model
+                    .as_ref(ctx)
+                    .read_selected_text_as_clipboard_content(ctx);
+                selection_settings.maybe_copy_on_select(clipboard_content, ctx);
             });
         }
     }

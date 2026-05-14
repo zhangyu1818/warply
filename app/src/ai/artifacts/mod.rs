@@ -1,7 +1,3 @@
-use std::path::Path;
-
-use warp_multi_agent_api as api;
-
 pub mod buttons;
 pub use buttons::{ArtifactButtonsRow, ArtifactButtonsRowEvent};
 
@@ -117,67 +113,6 @@ impl<'de> serde::Deserialize<'de> for Artifact {
     }
 }
 
-impl From<api::message::artifact_event::PullRequestArtifact> for Artifact {
-    fn from(pr: api::message::artifact_event::PullRequestArtifact) -> Self {
-        let (repo, number) = parse_github_pr_url(&pr.url).unzip();
-        Artifact::PullRequest {
-            url: pr.url,
-            branch: pr.branch,
-            repo,
-            number,
-        }
-    }
-}
-
-impl From<api::message::artifact_event::ScreenshotArtifact> for Artifact {
-    fn from(screenshot: api::message::artifact_event::ScreenshotArtifact) -> Self {
-        Artifact::Screenshot {
-            artifact_uid: screenshot.artifact_uid,
-            mime_type: screenshot.mime_type,
-            description: if screenshot.description.is_empty() {
-                None
-            } else {
-                Some(screenshot.description)
-            },
-        }
-    }
-}
-
-impl From<api::message::artifact_event::FileArtifact> for Artifact {
-    fn from(file: api::message::artifact_event::FileArtifact) -> Self {
-        Artifact::File {
-            artifact_uid: file.artifact_uid,
-            filepath: file.filepath.clone(),
-            filename: Path::new(&file.filepath)
-                .file_name()
-                .and_then(|file_name| file_name.to_str())
-                .filter(|file_name| !file_name.trim().is_empty())
-                .unwrap_or("File")
-                .to_string(),
-            mime_type: file.mime_type,
-            description: if file.description.is_empty() {
-                None
-            } else {
-                Some(file.description)
-            },
-            size_bytes: i32::try_from(file.size_bytes).ok(),
-        }
-    }
-}
-
-impl From<api::message::artifact_event::PlanArtifact> for Artifact {
-    fn from(plan: api::message::artifact_event::PlanArtifact) -> Self {
-        Artifact::Plan {
-            document_uid: plan.document_id,
-            title: if plan.title.is_empty() {
-                None
-            } else {
-                Some(plan.title)
-            },
-        }
-    }
-}
-
 /// Parse GitHub PR URL to extract repo and number.
 /// Expected format: https://github.com/{owner}/{repo}/pull/{number}
 pub fn parse_github_pr_url(url: &str) -> Option<(String, u32)> {
@@ -191,14 +126,6 @@ pub fn parse_github_pr_url(url: &str) -> Option<(String, u32)> {
         }
         Some((w[0].to_string(), w[2].parse().ok()?))
     })
-}
-
-pub(crate) fn sanitized_basename(path_or_filename: &str) -> Option<String> {
-    let file_name = Path::new(path_or_filename).file_name()?.to_str()?;
-    if file_name.is_empty() {
-        return None;
-    }
-    Some(file_name.to_string())
 }
 
 #[cfg(test)]

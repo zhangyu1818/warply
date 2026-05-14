@@ -22,10 +22,8 @@ use crate::terminal::TerminalModel;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use chrono::{DateTime, Local};
 
-use crate::ai::agent::task::helper::MessageExt;
 use crate::ai::agent::AIAgentActionResultType;
 use crate::ai::agent::CreateDocumentsRequest;
-use crate::ai::agent::MessageId;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentOutputMessage, AIAgentOutputMessageType,
     CreateDocumentsResult, EditDocumentsResult,
@@ -45,7 +43,6 @@ use crate::{
         get_relevant_files::controller::GetRelevantFilesController,
         restored_conversations::RestoredAgentConversations,
     },
-    persistence::model::AgentConversationData,
     terminal::{
         find::TerminalFindModel,
         model::{
@@ -58,7 +55,6 @@ use crate::{
         },
     },
 };
-use warp_multi_agent_api as api;
 use warpui::units::IntoPixels;
 use warpui::{ModelHandle, SingletonEntity};
 
@@ -812,39 +808,14 @@ impl TerminalView {
         }
     }
 
-    /// Helper function to find a tool call result from a conversation's tasks given a message ID.
-    /// Returns the RunShellCommandResult if found.
-    fn find_run_shell_command_result_for_message(
-        conversation: &AIConversation,
-        message_id: &MessageId,
-    ) -> Option<api::RunShellCommandResult> {
-        // Find the message in any task with the given ID.
-        let tool_call_id = conversation
-            .all_tasks()
-            .filter_map(|task| task.source())
-            .find_map(|api_task| {
-                api_task
-                    .messages
-                    .iter()
-                    .find(|msg| msg.id == **message_id)
-                    .and_then(|message| message.tool_call())
-                    .map(|tool_call| tool_call.tool_call_id.clone())
-            })?;
-
-        // Use the conversation's method to find the result
-        conversation
-            .find_run_shell_command_result(&tool_call_id)
-            .map(|(result, _)| result)
-    }
-
     /// Process code diffs from AI output messages and apply them to the AI block for rendering
     /// Also creates shell command blocks for RequestCommandOutput actions that have results
     fn process_restored_outputs(
         &mut self,
         ai_block: &mut AIBlock,
         output: &AIAgentOutput,
-        conversation_id: AIConversationId,
-        should_create_requested_command_block: bool,
+        _conversation_id: AIConversationId,
+        _should_create_requested_command_block: bool,
         ctx: &mut ViewContext<AIBlock>,
     ) {
         for message in &output.messages {
@@ -860,92 +831,7 @@ impl TerminalView {
                 } => {
                     ai_block.set_restored_file_edits(id, file_edits.clone(), ctx);
                 }
-                AIAgentOutputMessage {
-                    message:
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RequestCommandOutput { command, .. },
-                            id,
-                            ..
-                        }),
-                    id: msg_id,
-                    ..
-                } if should_create_requested_command_block => {
-                    // Get the tool call result from the conversation's tasks.
-                    let cmd_result =
-                        BlocklistAIHistoryModel::handle(ctx).read(ctx, |history_model, _| {
-                            history_model
-                                .conversation(&conversation_id)
-                                .and_then(|conversation| {
-                                    Self::find_run_shell_command_result_for_message(
-                                        conversation,
-                                        msg_id,
-                                    )
-                                })
-                        });
-                    if let Some(cmd_result) = cmd_result {
-                        // Check if the command finished successfully
-                        if let Some(api::run_shell_command_result::Result::CommandFinished(
-                            api::ShellCommandFinished {
-                                output: command_output,
-                                exit_code,
-                                ..
-                            },
-                        )) = &cmd_result.result
-                        {
-                            // Create a dummy block with the command and its output
-                            let mut model = self.model.lock();
-                            let block_list = model.block_list_mut();
-                            block_list.create_restored_command_block(
-                                command,
-                                command_output,
-                                ai_block.current_working_directory().cloned(),
-                                *exit_code,
-                                Some(id.clone()),
-                                Some(conversation_id),
-                            );
-                        }
-                    }
-                }
                 _ => {}
-            }
-        }
-    }
-
-    /// Load a conversation from AI tasks, converting them to exchanges and creating
-    /// the necessary AI blocks in the terminal view.
-    pub fn load_conversation_from_tasks(
-        &mut self,
-        task_list: api::ConversationData,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let tasks = task_list.tasks;
-        if tasks.is_empty() {
-            log::warn!("No tasks provided - conversation will be empty");
-            return;
-        }
-
-        // Create a conversation - exchanges are computed internally from tasks
-        let conversation_id = AIConversationId::new();
-
-        let conversation_data = AgentConversationData {
-            reverted_action_ids: None,
-            artifacts_json: None,
-            run_id: None,
-            autoexecute_override: None,
-            acp_transcript_json: None,
-        };
-
-        match AIConversation::new_restored(conversation_id, tasks, Some(conversation_data)) {
-            Ok(conversation) => {
-                // Use live appearance for local conversation viewer
-                self.restore_conversation_after_view_creation(
-                    RestoredAIConversation::new(conversation),
-                    true,
-                    ctx,
-                );
-            }
-            Err(e) => {
-                log::error!("Failed to load conversation from tasks: {e:?}");
             }
         }
     }

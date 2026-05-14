@@ -18,18 +18,3 @@ impl fmt::Display for SkillReference {
         }
     }
 }
-
-impl From<SkillReference> for warp_multi_agent_api::skill_descriptor::SkillReference {
-    fn from(reference: SkillReference) -> Self {
-        match reference {
-            SkillReference::Path(path) => {
-                warp_multi_agent_api::skill_descriptor::SkillReference::Path(
-                    path.to_string_lossy().to_string(),
-                )
-            }
-            SkillReference::BundledSkillId(id) => {
-                warp_multi_agent_api::skill_descriptor::SkillReference::BundledSkillId(id)
-            }
-        }
-    }
-}

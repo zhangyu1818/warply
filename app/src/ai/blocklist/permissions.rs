@@ -188,14 +188,8 @@ impl BlocklistAIPermissions {
             computer_use: self.get_computer_use_setting_for_profile(ctx, profile_id),
             ask_user_question: self.get_ask_user_question_setting_for_profile(ctx, profile_id),
 
-            // Some fields are read directly from the profile.
             name: profile_data.name.clone(),
             is_default_profile: profile_data.is_default_profile,
-            base_model: profile_data.base_model.clone(),
-            coding_model: profile_data.coding_model.clone(),
-            cli_agent_model: profile_data.cli_agent_model.clone(),
-            computer_use_model: profile_data.computer_use_model.clone(),
-            context_window_limit: profile_data.context_window_limit,
             web_search_enabled: profile_data.web_search_enabled,
         }
     }

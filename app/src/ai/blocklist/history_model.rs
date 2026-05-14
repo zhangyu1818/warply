@@ -5,8 +5,6 @@ use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use warp_multi_agent_api::client_action::{Action, StartNewConversation};
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
 #[cfg(feature = "local_fs")]
@@ -18,7 +16,6 @@ use diesel::SqliteConnection;
 use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpToolCall};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::conversation::UpdateConversationError;
-use crate::ai::agent::task::helper::{MessageExt, ToolCallExt};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::CancellationReason;
@@ -35,7 +32,7 @@ use crate::{
     ai::agent::{
         conversation::{AIConversation, AIConversationId},
         AIAgentActionId, AIAgentExchange, AIAgentInput, AIAgentOutputStatus, FinishedAIAgentOutput,
-        MessageId, RenderableAIError, Suggestions,
+        RenderableAIError, Suggestions,
     },
     persistence::model::AgentConversation,
     ui_components::icons::Icon,
@@ -167,7 +164,7 @@ pub struct BlocklistAIHistoryModel {
 impl BlocklistAIHistoryModel {
     pub(crate) fn new(
         persisted_queries: Vec<PersistedAIInput>,
-        multi_agent_conversations: &[AgentConversation],
+        agent_conversations: &[AgentConversation],
     ) -> Self {
         #[cfg(feature = "local_fs")]
         let db_connection = database_file_path().to_str().and_then(|db_url| {
@@ -184,7 +181,7 @@ impl BlocklistAIHistoryModel {
         };
 
         // Initialize historical conversations from local DB
-        model.initialize_historical_conversations(multi_agent_conversations);
+        model.initialize_historical_conversations(agent_conversations);
 
         model
     }
@@ -647,26 +644,6 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    pub fn initialize_output_for_response_stream(
-        &mut self,
-        stream_id: &ResponseStreamId,
-        conversation_id: AIConversationId,
-        terminal_view_id: EntityId,
-        init_event: warp_multi_agent_api::response_event::StreamInit,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            if let Err(e) = conversation.initialize_output_for_response_stream(
-                stream_id,
-                init_event,
-                terminal_view_id,
-                ctx,
-            ) {
-                log::warn!("Failed to update conversation with updated streamed output: {e}");
-            }
-        }
-    }
-
     pub fn initialize_local_output_for_response_stream(
         &mut self,
         stream_id: &ResponseStreamId,
@@ -889,104 +866,12 @@ impl BlocklistAIHistoryModel {
         });
     }
 
-    /// Creates a new conversation and transfers relevant exchanges from
-    /// the existing conversation to the new one. If successful, returns the new conversation id.
-    fn handle_conversation_split(
-        &mut self,
-        old_conversation_id: AIConversationId,
-        response_stream_id: &ResponseStreamId,
-        start_from_message_id: MessageId,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<AIConversationId, UpdateHistoryError> {
-        let exchange_ids_to_transfer: Vec<AIAgentExchangeId> = self
-            .conversation(&old_conversation_id)
-            .ok_or(UpdateHistoryError::ConversationNotFound(
-                old_conversation_id,
-            ))?
-            .all_exchanges()
-            .into_iter()
-            .skip_while(|e| !e.added_message_ids.contains(&start_from_message_id))
-            .map(|e| e.id)
-            .collect();
-
-        if exchange_ids_to_transfer.is_empty() {
-            log::warn!("Starting a new conversation: message id not found");
-            return Err(UpdateHistoryError::Conversation(
-                UpdateConversationError::ExchangeNotFound,
-            ));
-        }
-        log::info!(
-            "Starting a new conversation: transferring {} exchanges to new conversation",
-            exchange_ids_to_transfer.len()
-        );
-
-        let new_conversation_id = self.start_new_conversation(terminal_view_id, false, ctx);
-        for exchange_id in exchange_ids_to_transfer {
-            let old_conversation = self
-                .conversations_by_id
-                .get_mut(&old_conversation_id)
-                .ok_or(UpdateHistoryError::ConversationNotFound(
-                    old_conversation_id,
-                ))?;
-            let exchange = old_conversation.remove_exchange(exchange_id)?;
-
-            let new_conversation = self
-                .conversations_by_id
-                .get_mut(&new_conversation_id)
-                .ok_or(UpdateHistoryError::ConversationNotFound(
-                    new_conversation_id,
-                ))?;
-            new_conversation.append_reassigned_exchange(
-                response_stream_id,
-                exchange,
-                terminal_view_id,
-                ctx,
-            )?;
-        }
-
-        // Mark the old conversation as complete since we're starting a new one
-        let old_conversation = self
-            .conversations_by_id
-            .get_mut(&old_conversation_id)
-            .ok_or(UpdateHistoryError::ConversationNotFound(
-                old_conversation_id,
-            ))?;
-        old_conversation.mark_completed_after_successful_split(
-            response_stream_id,
-            terminal_view_id,
-            ctx,
-        )?;
-
-        self.set_active_conversation_id(new_conversation_id, terminal_view_id, ctx);
-
-        ctx.emit(BlocklistAIHistoryEvent::SplitConversation {
-            terminal_view_id,
-            old_conversation_id,
-            new_conversation_id,
-        });
-
-        Ok(new_conversation_id)
-    }
-
-    /// Forks an existing conversation by creating a new conversation
-    /// and copying the existing conversation's tasks into the new conversation.
-    ///
-    /// The `prefix` parameter specifies the prefix added to the root task description
-    /// (e.g., `FORK_PREFIX` for forks, `PRE_REWIND_PREFIX` for pre-rewind backups).
-    ///
     pub fn fork_conversation(
         &mut self,
         source_conversation: &AIConversation,
         prefix: &str,
         app: &AppContext,
     ) -> Result<AIConversation, anyhow::Error> {
-        let tasks: Vec<warp_multi_agent_api::Task> = source_conversation
-            .all_tasks()
-            .filter_map(|t| t.source().cloned())
-            .collect();
-
-        let updated_tasks_with_new_ids = update_forked_task_properties(tasks, prefix);
         let Some(sqlite_sender) = GlobalResourceHandlesProvider::as_ref(app)
             .get()
             .model_event_sender
@@ -1022,29 +907,30 @@ impl BlocklistAIHistoryModel {
             )
         };
 
+        let acp_transcript_json = source_conversation
+            .acp_transcript_json()
+            .ok_or_else(|| anyhow!("Conversation has no ACP transcript."))?;
+        let display_title = source_conversation
+            .title()
+            .map(|title| format!("{prefix}{title}"));
         let conversation_data = AgentConversationData {
             reverted_action_ids,
             artifacts_json: None,
             run_id: None,
             autoexecute_override: Some(source_conversation.autoexecute_override().into()),
-            acp_transcript_json: None,
+            display_title,
+            acp_transcript_json,
         };
         let forked_conversation_id = AIConversationId::new();
-        if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
+        if let Err(e) = sqlite_sender.send(ModelEvent::UpdateAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
-            updated_tasks: updated_tasks_with_new_ids.clone(),
             conversation_data: conversation_data.clone(),
         }) {
             return Err(anyhow!("Failed to persist forked conversation: {e:?}."));
         }
 
-        // Insert this conversation into the history model memory so we don't need to read from DB to restore this forked conversation
-        // (otherwise, we can run into a race condition where the conversation is not found in the DB because we haven't finished writing to the db).
-        let forked_conversation = self.insert_forked_conversation_from_tasks(
-            forked_conversation_id,
-            updated_tasks_with_new_ids.clone(),
-            conversation_data.clone(),
-        )?;
+        let forked_conversation =
+            self.insert_forked_conversation(forked_conversation_id, conversation_data.clone())?;
 
         Ok(forked_conversation)
     }
@@ -1057,65 +943,6 @@ impl BlocklistAIHistoryModel {
         prefix: &str,
         app: &AppContext,
     ) -> Result<AIConversation, anyhow::Error> {
-        let conversation = source_conversation;
-
-        let exchanges_by_task: Vec<(TaskId, Vec<&AIAgentExchange>)> =
-            conversation.all_exchanges_by_task();
-
-        let root_task_id = conversation.get_root_task_id().clone();
-
-        let mut message_ids_to_retain_by_task: HashMap<TaskId, HashSet<MessageId>> = HashMap::new();
-        let mut found_from_exchange_id = false;
-        'outer: for (task_id, task_exchanges) in exchanges_by_task.into_iter() {
-            for exchange in task_exchanges {
-                if found_from_exchange_id && task_id == root_task_id && exchange.has_user_query() {
-                    break 'outer;
-                }
-
-                let message_ids_to_retain = message_ids_to_retain_by_task
-                    .entry(task_id.clone())
-                    .or_default();
-                message_ids_to_retain.extend(exchange.added_message_ids.iter().cloned());
-                if exchange.id == from_exchange_id {
-                    found_from_exchange_id = true;
-                }
-            }
-        }
-
-        if message_ids_to_retain_by_task.is_empty() {
-            return Err(anyhow!(
-                "No messages found for block in conversation {}.",
-                conversation.id()
-            ));
-        }
-
-        // Build truncated tasks by retaining only messages whose IDs are in
-        // `allowed_message_ids`. Tasks whose message list becomes empty and
-        // which are non-root tasks are dropped.
-        let truncated_tasks: Vec<warp_multi_agent_api::Task> = conversation
-            .all_tasks()
-            .filter_map(|t| {
-                if let Some(message_ids_to_retain) = message_ids_to_retain_by_task.get(t.id()) {
-                    let mut truncated_task = t.source().cloned()?;
-                    truncated_task
-                        .messages
-                        .retain(|m| message_ids_to_retain.contains(&MessageId::new(m.id.clone())));
-                    (!truncated_task.messages.is_empty()).then_some(truncated_task)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if truncated_tasks.is_empty() {
-            return Err(anyhow!(
-                "Truncated tasks for forked conversation at block are empty for conversation {}.",
-                conversation.id()
-            ));
-        }
-
-        let updated_tasks_with_new_ids = update_forked_task_properties(truncated_tasks, prefix);
-
         let Some(sqlite_sender) = GlobalResourceHandlesProvider::as_ref(app)
             .get()
             .model_event_sender
@@ -1138,11 +965,11 @@ impl BlocklistAIHistoryModel {
         // In this example, the forked conversation will always show edit 1 as reverted and edit 2 as not reverted,
         // regardless of if the fork point is between 2 and 3 or 3 and 4. This is because we preserve all prior reverts,
         // either if they game before or after the fork point. However, once forked, we don't copy later reverts.
-        let reverted_action_ids = if conversation.reverted_action_ids().is_empty() {
+        let reverted_action_ids = if source_conversation.reverted_action_ids().is_empty() {
             None
         } else {
             Some(
-                conversation
+                source_conversation
                     .reverted_action_ids()
                     .clone()
                     .into_iter()
@@ -1151,18 +978,29 @@ impl BlocklistAIHistoryModel {
             )
         };
 
+        let acp_transcript_json = source_conversation
+            .acp_transcript_json_until_exchange(from_exchange_id)
+            .ok_or_else(|| {
+                anyhow!(
+                    "No exchanges found for block in conversation {}.",
+                    source_conversation.id()
+                )
+            })?;
+        let display_title = source_conversation
+            .title()
+            .map(|title| format!("{prefix}{title}"));
         let conversation_data = AgentConversationData {
             reverted_action_ids,
             artifacts_json: None,
             run_id: None,
-            autoexecute_override: Some(conversation.autoexecute_override().into()),
-            acp_transcript_json: None,
+            autoexecute_override: Some(source_conversation.autoexecute_override().into()),
+            display_title,
+            acp_transcript_json,
         };
 
         let forked_conversation_id = AIConversationId::new();
-        if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
+        if let Err(e) = sqlite_sender.send(ModelEvent::UpdateAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
-            updated_tasks: updated_tasks_with_new_ids.clone(),
             conversation_data: conversation_data.clone(),
         }) {
             return Err(anyhow!(
@@ -1170,58 +1008,10 @@ impl BlocklistAIHistoryModel {
             ));
         }
 
-        let forked_conversation = self.insert_forked_conversation_from_tasks(
-            forked_conversation_id,
-            updated_tasks_with_new_ids,
-            conversation_data,
-        )?;
+        let forked_conversation =
+            self.insert_forked_conversation(forked_conversation_id, conversation_data)?;
 
         Ok(forked_conversation)
-    }
-
-    pub fn apply_client_actions(
-        &mut self,
-        response_stream_id: &ResponseStreamId,
-        client_actions: Vec<warp_multi_agent_api::ClientAction>,
-        conversation_id: AIConversationId,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), UpdateHistoryError> {
-        let mut current_conversation_id = conversation_id;
-        for client_action in client_actions {
-            match client_action.action {
-                Some(Action::StartNewConversation(StartNewConversation {
-                    start_from_message_id,
-                })) => {
-                    let new_conversation_id = self.handle_conversation_split(
-                        current_conversation_id,
-                        response_stream_id,
-                        MessageId::new(start_from_message_id),
-                        terminal_view_id,
-                        ctx,
-                    )?;
-                    current_conversation_id = new_conversation_id;
-                }
-                Some(action) => {
-                    let conversation = self
-                        .conversations_by_id
-                        .get_mut(&current_conversation_id)
-                        .ok_or(UpdateHistoryError::ConversationNotFound(
-                        current_conversation_id,
-                    ))?;
-                    conversation.apply_client_action(
-                        response_stream_id,
-                        terminal_view_id,
-                        action,
-                        ctx,
-                    )?;
-                }
-                None => {
-                    log::warn!("Received empty client action");
-                }
-            }
-        }
-        Ok(())
     }
 
     pub fn mark_response_stream_completed_successfully(
@@ -1379,10 +1169,10 @@ impl BlocklistAIHistoryModel {
                     }) {
                         log::error!("Error sending DeleteAIConversation event: {e:?}");
                     }
-                    if let Err(e) = sender.send(ModelEvent::DeleteMultiAgentConversations {
+                    if let Err(e) = sender.send(ModelEvent::DeleteAgentConversations {
                         conversation_ids: vec![conversation_id_string],
                     }) {
-                        log::error!("Error sending DeleteMultiAgentConversations event: {e:?}");
+                        log::error!("Error sending DeleteAgentConversations event: {e:?}");
                     }
                 }
             },
@@ -1725,17 +1515,12 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    /// Inserts a conversation into memory by reconstructing exchanges from tasks.
-    /// We use this when forking a conversation to ensure that the forked conversation
-    /// is immediately available in memory before we try to restore it in a new tab.
-    pub fn insert_forked_conversation_from_tasks(
+    pub fn insert_forked_conversation(
         &mut self,
         conversation_id: AIConversationId,
-        tasks: Vec<warp_multi_agent_api::Task>,
         conversation_data: AgentConversationData,
     ) -> anyhow::Result<AIConversation> {
-        let mut conversation =
-            AIConversation::new_restored(conversation_id, tasks, Some(conversation_data))?;
+        let mut conversation = AIConversation::new_restored(conversation_id, conversation_data)?;
 
         // Assign fresh exchange IDs so persisted blocks do not collide.
         conversation.reassign_exchange_ids();
@@ -1773,14 +1558,6 @@ pub enum BlocklistAIHistoryEvent {
         conversation_id: AIConversationId,
         terminal_view_id: EntityId,
         task_id: TaskId,
-    },
-
-    /// Emitted when the optimistically created task is promoted to a server-backed task upon
-    /// receiving a CreateTask client action.
-    PromotedTask {
-        optimistic_id: TaskId,
-        server_id: TaskId,
-        terminal_view_id: EntityId,
     },
 
     AppendedExchange {
@@ -1852,20 +1629,12 @@ pub enum BlocklistAIHistoryEvent {
         new_conversation_id: AIConversationId,
     },
 
-    /// This is emitted when an ephemeral/abandoned conversation is cleaned up
-    /// (e.g. empty conversations the user never used, rejected passive code suggestions).
-    /// `run_id` carries the conversation's last known server run identifier
-    /// (captured before the in-memory record was dropped) so subscribers can
-    /// still act on it without a history-model lookup.
     RemoveConversation {
         terminal_view_id: EntityId,
         conversation_id: AIConversationId,
         run_id: Option<String>,
     },
 
-    /// This is emitted when a user explicitly deletes an existing conversation.
-    /// `run_id` is captured before the in-memory record was dropped — see
-    /// the note on [`Self::RemoveConversation`].
     DeletedConversation {
         terminal_view_id: EntityId,
         conversation_id: AIConversationId,
@@ -1957,9 +1726,6 @@ impl BlocklistAIHistoryEvent {
                 terminal_view_id, ..
             }
             | BlocklistAIHistoryEvent::RestoredConversations {
-                terminal_view_id, ..
-            }
-            | BlocklistAIHistoryEvent::PromotedTask {
                 terminal_view_id, ..
             }
             | BlocklistAIHistoryEvent::ConversationOwnershipTransferred {
@@ -2106,53 +1872,6 @@ impl From<&AIAgentOutputStatus> for AIQueryHistoryOutputStatus {
             },
         }
     }
-}
-
-/// Updates the given tasks, which are presumed to be clones of tasks from a source conversation to be
-/// used to back a fork or copy of the source conversation.
-///
-/// Reassigns new task IDs to each forked task so task IDs remain globally unique.
-///
-/// Always prepends the given prefix to the root task's description.
-fn update_forked_task_properties(
-    tasks: Vec<warp_multi_agent_api::Task>,
-    prefix: &str,
-) -> Vec<warp_multi_agent_api::Task> {
-    let mut old_to_new_task_ids = HashMap::new();
-    fn get_new_task_id(new_ids: &mut HashMap<String, String>, old_task_id: &str) -> String {
-        new_ids
-            .entry(old_task_id.to_owned())
-            .or_insert_with(|| Uuid::new_v4().to_string())
-            .clone()
-    }
-
-    tasks
-        .into_iter()
-        .map(|mut t| {
-            let new_id = get_new_task_id(&mut old_to_new_task_ids, &t.id);
-            // Update task id to avoid duplicate tasks across conversations and ensure
-            // all messages reference the new task id.
-            t.id = new_id.clone();
-            for message in &mut t.messages {
-                message.task_id = new_id.clone();
-                if let Some(subagent) = message.tool_call_mut().and_then(|tc| tc.subagent_mut()) {
-                    subagent.task_id =
-                        get_new_task_id(&mut old_to_new_task_ids, &subagent.task_id).clone();
-                }
-            }
-            if let Some(deps) = t
-                .dependencies
-                .as_mut()
-                .filter(|deps| !deps.parent_task_id.is_empty())
-            {
-                deps.parent_task_id =
-                    get_new_task_id(&mut old_to_new_task_ids, &deps.parent_task_id).clone();
-            } else {
-                t.description = format!("{}{}", prefix, t.description);
-            }
-            t
-        })
-        .collect()
 }
 
 /// The default prefix used when forking a conversation.

@@ -33,8 +33,6 @@ use crate::network::NetworkStatus;
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::{AliasExpansionSettings, AppEditorSettings, InputBoxType};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
-#[cfg(windows)]
-use crate::system::SystemInfo;
 use crate::system::SystemStats;
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::event::BootstrappedEvent;
@@ -147,11 +145,6 @@ pub fn initialize_app(app: &mut App) {
         })
     });
 
-    #[cfg(windows)]
-    {
-        app.add_singleton_model(SystemInfo::new);
-    }
-
     AltScreenReporting::register(app);
     app.add_singleton_model(|_| RestoredAgentConversations::new(vec![]));
     app.add_singleton_model(|_| WorkspaceRegistry::new());
@@ -231,7 +224,7 @@ pub async fn add_window_with_bootstrapped_terminal_and_window_id(
     let tips_model = app.add_model(|_| TipsCompleted::default());
 
     let shell_starter_source = ShellStarter::init(Default::default())
-        .expect("Could not create a shell starter source or wsl name")
+        .expect("Could not create a shell starter source")
         .to_shell_starter_source()
         .await
         .expect("Could not create a shell starter source");
@@ -1117,7 +1110,6 @@ fn test_history_up_multiline_vim() {
 /// complexity of setting up that test. As that module depends on a TerminalModel with a valid
 /// BlockList, it was easier to utilize the boilerplate local to this module. Long-term, some of
 /// these helpers should move into shared test utils to make setup easier.
-#[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 fn test_histignorespace_support_in_zsh() {
     let session_id: SessionId = 1.into();
@@ -1402,7 +1394,7 @@ fn test_tab_completion_with_spaces() {
 
         let history_file_commands = vec![
             "cd Documents/zed".to_string(),
-            "curl https://app.warp.dev".to_string(),
+            "curl https://example.com".to_string(),
             "cargo check\ncargo run".to_string(),
         ];
         let terminal =
@@ -1636,7 +1628,7 @@ fn test_tab_completion() {
 
         let history_file_commands = vec![
             "cd Documents/zed".to_string(),
-            "curl https://app.warp.dev".to_string(),
+            "curl https://example.com".to_string(),
             "cargo check\ncargo run".to_string(),
         ];
         let terminal =
@@ -1883,7 +1875,6 @@ fn test_tab_completion() {
     });
 }
 
-#[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 fn test_tab_completion_with_selection() {
     App::test((), |mut app| async move {
@@ -1891,7 +1882,7 @@ fn test_tab_completion_with_selection() {
 
         let history_file_commands = vec![
             "cd Documents/zed".to_string(),
-            "curl https://app.warp.dev".to_string(),
+            "curl https://example.com".to_string(),
             "cargo check\ncargo run".to_string(),
         ];
         let terminal =
@@ -3248,7 +3239,7 @@ fn test_cursor_movement() {
 
         let history_file_commands = vec![
             "cd Documents/zed".to_string(),
-            "curl https://app.warp.dev".to_string(),
+            "curl https://example.com".to_string(),
             "cargo check\ncargo run".to_string(),
         ];
         let terminal =
@@ -3339,7 +3330,6 @@ fn test_cursor_movement() {
     });
 }
 
-#[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 fn test_newline_insertion() {
     App::test((), |mut app| async move {
@@ -3403,7 +3393,6 @@ fn test_should_not_insert_newline_on_enter_in_empty_buffer() {
     })
 }
 
-#[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 fn test_should_insert_newline_on_enter() {
     App::test((), |mut app| async move {
@@ -3995,7 +3984,7 @@ fn test_last_word_insertions() {
 
         // last word insertion looks for preceding whitespace character
         let history_file_commands = vec![
-            "https://app.warp.dev".to_string(),
+            "https://example.com".to_string(),
             "cargo check\ncargo run --features".to_string(),
         ];
         let terminal =
@@ -4032,7 +4021,7 @@ fn test_last_word_insertions() {
             input.insert_last_word_previous_command(ctx);
         });
         input.read(&app, |input, ctx| {
-            assert_eq!(input.buffer_text(ctx), "git https://app.warp.dev");
+            assert_eq!(input.buffer_text(ctx), "git https://example.com");
         });
 
         // Insert is temporary, undo goes back to initial state before first insertion

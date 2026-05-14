@@ -30,7 +30,7 @@ use warpui::{
     ViewHandle,
 };
 
-const ONBOARDING_TEXT: &str = "Great - let's begin setting up this project.";
+const INTRO_TEXT: &str = "Great - let's begin setting up this project.";
 const ALREADY_SETUP_TEXT: &str = "It looks like this project has already been initialized. You can re-generate the AGENTS.md for this codebase by clicking the button below.";
 // Native Warp rules file format.
 pub const FILES_TO_CHECK: [&str; 2] = ["AGENTS.md", "WARP.md"];
@@ -423,17 +423,7 @@ impl InitStepBlock {
             )
         })?;
 
-        // Create the symlink
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(relative_path, &agents_md_path)?;
-        }
-
-        #[cfg(windows)]
-        {
-            // On Windows, use junction for directories or symlink for files
-            std::os::windows::fs::symlink_file(relative_path, &agents_md_path)?;
-        }
+        std::os::unix::fs::symlink(relative_path, &agents_md_path)?;
 
         Ok(agents_md_path)
     }
@@ -444,7 +434,7 @@ impl InitStepBlock {
         let is_already_setup = self.model.as_ref(app).is_already_setup();
 
         let display_text = if !is_already_setup {
-            ONBOARDING_TEXT
+            INTRO_TEXT
         } else {
             ALREADY_SETUP_TEXT
         };

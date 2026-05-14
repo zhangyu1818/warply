@@ -1,6 +1,4 @@
-#[cfg_attr(macos, path = "mac.rs")]
-#[cfg_attr(windows, path = "windows.rs")]
-#[cfg_attr(noop, path = "noop.rs")]
+#[path = "mac.rs"]
 mod imp;
 
 use std::{

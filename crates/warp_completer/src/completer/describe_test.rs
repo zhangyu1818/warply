@@ -19,21 +19,7 @@ use crate::signatures::{
 
 use super::{describe, Description};
 
-#[cfg(windows)]
-mod windows_constants {
-    pub(super) const TEST_WORK_DIR: &str = r"C:\";
-}
-
-#[cfg(windows)]
-use windows_constants::*;
-
-#[cfg(unix)]
-mod unix_constants {
-    pub(super) const TEST_WORK_DIR: &str = "/home/";
-}
-
-#[cfg(unix)]
-use unix_constants::*;
+const TEST_WORK_DIR: &str = "/home/";
 
 /// Given a line and position in the line, runs the completer at the position and returns
 /// a Description struct for the word at pos

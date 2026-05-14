@@ -1,17 +1,12 @@
 use std::collections::HashMap;
 
-use warp_multi_agent_api as api;
-
 use crate::ai::{
     agent::{AIAgentContext, AIAgentInput},
     skills::SkillDescriptor,
 };
 
 use super::{
-    task::{
-        helper::{MessageExt, ToolCallExt},
-        Task, TaskId,
-    },
+    task::{Task, TaskId},
     AIAgentExchange, AIAgentExchangeId, AIAgentOutputMessageType,
 };
 
@@ -42,8 +37,7 @@ impl TaskStore {
         store
     }
 
-    /// Creates a TaskStore from an existing HashMap of tasks.
-    /// Rebuilds the linearized index after construction.
+    #[cfg(test)]
     pub fn from_tasks(tasks: HashMap<TaskId, Task>, root_task_id: TaskId) -> Self {
         let mut store = Self {
             tasks,
@@ -228,35 +222,6 @@ impl TaskStore {
                 None
             }
         })
-    }
-
-    /// Returns all messages in linearized DFS order, interleaving subtask messages
-    /// immediately after their parent subagent call messages.
-    pub fn all_linearized_messages(&self) -> Vec<&api::Message> {
-        fn collect_messages_dfs<'a>(
-            me: &'a TaskStore,
-            messages: &mut Vec<&'a api::Message>,
-            task: &'a Task,
-        ) {
-            for message in task.messages() {
-                messages.push(message);
-                // If this message is a subagent call, recursively add subtask messages
-                if let Some(subagent_call) = message
-                    .tool_call()
-                    .and_then(|tc: &api::message::ToolCall| tc.subagent())
-                {
-                    if let Some(subtask) = me.get(&TaskId::new(subagent_call.task_id.clone())) {
-                        collect_messages_dfs(me, messages, subtask);
-                    }
-                }
-            }
-        }
-
-        let mut messages = Vec::new();
-        if let Some(root_task) = self.root_task() {
-            collect_messages_dfs(self, &mut messages, root_task);
-        }
-        messages
     }
 
     pub fn insert(&mut self, task: Task) {

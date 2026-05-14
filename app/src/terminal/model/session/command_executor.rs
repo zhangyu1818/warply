@@ -2,10 +2,7 @@ mod in_band_command_executor;
 #[cfg(feature = "local_tty")]
 mod local_command_executor;
 #[cfg(feature = "local_tty")]
-mod msys2_command_executor;
 mod tmux_executor;
-#[cfg(feature = "local_tty")]
-mod wsl_command_executor;
 use std::collections::HashMap;
 mod noop_command_executor;
 #[cfg(feature = "local_tty")]
@@ -147,22 +144,16 @@ fn new_command_executor_for_local_tty_session(
     parent_session_info: Option<&SessionInfo>,
     ctx: &mut ModelContext<Sessions>,
 ) -> Arc<dyn CommandExecutor> {
-    use msys2_command_executor::MSYS2CommandExecutor;
     use remote_server_executor::RemoteServerCommandExecutor;
     use settings::Setting as _;
     use tmux_executor::TmuxCommandExecutor;
     use warpui::SingletonEntity as _;
-    use wsl_command_executor::WslCommandExecutor;
 
     use crate::{
         features::FeatureFlag,
         remote_server::manager::RemoteServerManager,
         settings::DebugSettings,
-        terminal::{
-            available_shells::AvailableShells,
-            model::session::{BootstrapSessionType, ShellLaunchData},
-            shell::ShellType,
-        },
+        terminal::model::session::{BootstrapSessionType, ShellLaunchData},
     };
 
     use super::IsLegacySSHSession;
@@ -279,38 +270,7 @@ fn new_command_executor_for_local_tty_session(
                     );
                     Arc::new(NoOpCommandExecutor::new())
                 }
-                Some(ShellLaunchData::MSYS2 {
-                    executable_path, ..
-                }) => {
-                    let windows_native_shell_path =
-                        AvailableShells::handle(ctx).read(ctx, |shells, _ctx| {
-                            shells
-                                .find_known_shell_by_type(ShellType::PowerShell)
-                                .and_then(|powershell| powershell.get_valid_shell_path_and_type())
-                                .and_then(|shell_launch_data| {
-                                    if let ShellLaunchData::Executable { executable_path, .. } = shell_launch_data {
-                                        Some(executable_path)
-                                    } else {
-                                        log::warn!("Found available shell for windows-native shell but could not get executable path");
-                                        None
-                                    }
-                                })
-                        });
-                    Arc::new(MSYS2CommandExecutor::new(
-                        windows_native_shell_path,
-                        executable_path.to_owned(),
-                    ))
-                }
-                Some(ShellLaunchData::WSL { distro }) => {
-                    Arc::new(WslCommandExecutor::new(distro.to_owned(), shell_type))
-                }
-                None => {
-                    if let Some(wsl_name) = session_info.wsl_name() {
-                        Arc::new(WslCommandExecutor::new(wsl_name.to_owned(), shell_type))
-                    } else {
-                        Arc::new(LocalCommandExecutor::new(None, shell_type))
-                    }
-                }
+                None => Arc::new(LocalCommandExecutor::new(None, shell_type)),
             }
         }
         BootstrapSessionType::WarpifiedRemote
@@ -319,11 +279,8 @@ fn new_command_executor_for_local_tty_session(
                 && !force_use_in_band_generators =>
         {
             if let IsLegacySSHSession::Yes { socket_path } = &session_info.is_legacy_ssh_session {
-                let wsl_distro = parent_session_info
-                    .and_then(|session| session.wsl_name())
-                    .map(ToOwned::to_owned);
                 log::info!("creating a legacy ssh executor!");
-                Arc::new(RemoteCommandExecutor::new(socket_path.clone(), wsl_distro))
+                Arc::new(RemoteCommandExecutor::new(socket_path.clone()))
             } else {
                 unreachable!("Unreachable because of match! above. Unfortunately if let guards in rust are still experimental.")
             }

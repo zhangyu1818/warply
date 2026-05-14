@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 
-#[cfg(unix)]
 fn kill_all_processes_in_process_group(pid: u32) -> Result<(), nix::Error> {
     use nix::sys::signal::{kill, Signal};
     use nix::unistd::Pid;
@@ -21,8 +20,6 @@ fn kill_all_processes_in_process_group(pid: u32) -> Result<(), nix::Error> {
 }
 
 enum CommandBuilder<'a> {
-    #[cfg(windows)]
-    CmdExe,
     ShellType {
         shell_type: ShellType,
         local_shell_path: Option<&'a Path>,
@@ -32,14 +29,6 @@ enum CommandBuilder<'a> {
 impl CommandBuilder<'_> {
     fn build(self, command_string: &str, shell_config_flag: &str) -> Command {
         match self {
-            #[cfg(windows)]
-            CommandBuilder::CmdExe => {
-                use command::windows::CommandExt as _;
-                let mut command = Command::new_with_process_group("cmd.exe");
-                command.args(["/Q", "/C"]);
-                command.raw_arg(command_string);
-                command
-            }
             CommandBuilder::ShellType {
                 local_shell_path,
                 shell_type,
@@ -130,7 +119,6 @@ impl LocalCommandExecutor {
         .await
     }
 
-    #[cfg(unix)]
     fn command_builder(
         &self,
         _execute_command_options: ExecuteCommandOptions,
@@ -138,23 +126,6 @@ impl LocalCommandExecutor {
         CommandBuilder::ShellType {
             shell_type: self.shell_type,
             local_shell_path: self.local_shell_path.as_deref(),
-        }
-    }
-
-    #[cfg(windows)]
-    fn command_builder(
-        &self,
-        execute_command_options: ExecuteCommandOptions,
-    ) -> CommandBuilder<'_> {
-        let use_cmd_exe = !execute_command_options.run_command_in_same_shell_as_session
-            && self.shell_type == ShellType::PowerShell;
-        if use_cmd_exe {
-            CommandBuilder::CmdExe
-        } else {
-            CommandBuilder::ShellType {
-                shell_type: self.shell_type,
-                local_shell_path: self.local_shell_path.as_deref(),
-            }
         }
     }
 
@@ -249,16 +220,14 @@ impl CommandExecutor for LocalCommandExecutor {
 
     fn cancel_active_commands(&self) {
         let spawned_children_pids = std::mem::take(&mut *self.spawned_children_pids.lock());
-        for _pid in spawned_children_pids {
-            // TODO(roland): handle for windows
-            #[cfg(unix)]
-            if let Err(e) = kill_all_processes_in_process_group(_pid) {
+        for pid in spawned_children_pids {
+            if let Err(e) = kill_all_processes_in_process_group(pid) {
                 match e {
                     // Ignore errors that occur when the process is no longer running,
                     // or if we cannot kill all processes in the process group.  These
                     // are expected to happen occasionally.
                     nix::errno::Errno::ESRCH | nix::errno::Errno::EPERM => {}
-                    _ => log::warn!("Failed to kill process {_pid}: {e}"),
+                    _ => log::warn!("Failed to kill process {pid}: {e}"),
                 }
             }
         }

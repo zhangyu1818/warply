@@ -398,11 +398,6 @@ pub struct Block {
     /// If `true`, the output grid should not be rendered.
     should_hide_output_grid: bool,
 
-    /// [`Self::linefeed`] may discard some linefeeds at the beginning of the prompt. Doing so will
-    /// alter the row numbers for [`Self::goto`] and [`Self::goto_line`] when ConPTY is involved. We
-    /// track the count of discarded newlines here in order to correct the row number.
-    leading_linefeeds_ignored: usize,
-
     /// Only set on restored blocks. Indicates whether the block was local or from a remote session.
     restored_block_was_local: Option<bool>,
 
@@ -918,11 +913,7 @@ impl Block {
         should_scan_for_secrets: ObfuscateSecrets,
         conversation_id: Option<AIConversationId>,
     ) -> Self {
-        let perform_reset_grid_checks = if cfg!(windows) && bootstrap_stage.is_done() {
-            PerformResetGridChecks::Yes
-        } else {
-            PerformResetGridChecks::No
-        };
+        let perform_reset_grid_checks = PerformResetGridChecks::No;
         let header_grid = HeaderGrid::new(
             sizes.clone(),
             event_proxy.clone(),
@@ -992,7 +983,6 @@ impl Block {
             has_received_user_input: false,
             hidden: false,
             should_hide_output_grid: false,
-            leading_linefeeds_ignored: 0,
             restored_block_was_local: None,
             agent_view_visibility: match conversation_id {
                 Some(id) => AgentViewVisibility::new_from_conversation(id),
@@ -2900,15 +2890,10 @@ impl ansi::Handler for Block {
     }
 
     fn goto(&mut self, row: VisibleRow, column: usize) {
-        // Only apply this correction for ConPTY.
-        #[cfg(windows)]
-        let row = row.saturating_sub(self.leading_linefeeds_ignored);
         delegate!(self.goto(row, column));
     }
 
     fn goto_line(&mut self, row: VisibleRow) {
-        #[cfg(windows)]
-        let row = row.saturating_sub(self.leading_linefeeds_ignored);
         delegate!(self.goto_line(row));
     }
 
@@ -2976,11 +2961,9 @@ impl ansi::Handler for Block {
         // blocks.
         match self.header_grid.receiving_chars_for_prompt {
             Some(ansi::PromptKind::Initial) if !self.header_grid.prompt_has_received_content() => {
-                self.leading_linefeeds_ignored += 1;
                 return ScrollDelta::zero();
             }
             Some(ansi::PromptKind::Right) if !self.rprompt_grid.has_received_content() => {
-                self.leading_linefeeds_ignored += 1;
                 return ScrollDelta::zero();
             }
             _ => {}
@@ -3252,7 +3235,6 @@ impl ansi::Handler for Block {
                 });
         }
 
-        self.leading_linefeeds_ignored = 0;
         self.output_grid.start();
         self.state = BlockState::Executing;
         self.is_for_in_band_command = is_for_in_band_command;

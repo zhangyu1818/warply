@@ -1,8 +1,5 @@
 use super::*;
 
-/// Locks in [`Harness::config_name`] / [`Harness::from_config_name`] as a true inverse pair
-/// for every variant that maps to a real, server-recognized harness. If a new variant is
-/// added without a matching `from_config_name` arm, this round-trip test will fail.
 #[test]
 fn harness_config_name_round_trips_for_known_variants() {
     for harness in [

@@ -430,7 +430,6 @@ impl TypedActionView for NodeVersionPopupView {
     }
 }
 
-// Cross-OS detection of nvm availability
 fn detect_nvm_installed() -> bool {
     use std::env;
 
@@ -448,125 +447,78 @@ fn detect_nvm_installed() -> bool {
         false
     }
 
-    // 1) Windows nvm-windows
-    #[cfg(windows)]
-    {
-        env::var("PATH").is_ok_and(|path_var| path_var.contains("%NVM_HOME%"))
-            || env::var("NVM_HOME").is_ok()
-    }
+    use std::path::Path;
 
-    // 2) POSIX shells: nvm is typically a shell function; detect via standard install locations
-    #[cfg(not(windows))]
-    {
-        use std::path::Path;
-
-        // NVM_DIR env var with nvm.sh present
-        if let Ok(nvm_dir) = env::var("NVM_DIR") {
-            let nvm_sh = Path::new(&nvm_dir).join("nvm.sh");
-            if nvm_sh.is_file() {
-                return true;
-            }
-        }
-
-        // Default NVM_DIR ~/.nvm/nvm.sh
-        if let Some(home) = dirs::home_dir() {
-            let nvm_sh = home.join(".nvm").join("nvm.sh");
-            if nvm_sh.is_file() {
-                return true;
-            }
-        }
-
-        // Homebrew locations
-        let brew_paths: &[&str] = &["/opt/homebrew/opt/nvm", "/usr/local/opt/nvm"];
-        for base in brew_paths {
-            let nvm_sh = Path::new(base).join("nvm.sh");
-            if nvm_sh.is_file() {
-                return true;
-            }
-        }
-
-        // Fish plugin-based installs
-        if let Some(home) = dirs::home_dir() {
-            let fish_nvm = home
-                .join(".config")
-                .join("fish")
-                .join("functions")
-                .join("nvm.fish");
-            if fish_nvm.is_file() {
-                return true;
-            }
-            // macOS possible alt path for fish conf sometimes under Library
-            let fish_alt = home
-                .join("Library")
-                .join("Application Support")
-                .join("fish")
-                .join("functions")
-                .join("nvm.fish");
-            if fish_alt.is_file() {
-                return true;
-            }
-        }
-
-        // If an `nvm` shim exists on PATH (rare on unix because it's a function), still check
-        if in_path("nvm") {
+    if let Ok(nvm_dir) = env::var("NVM_DIR") {
+        let nvm_sh = Path::new(&nvm_dir).join("nvm.sh");
+        if nvm_sh.is_file() {
             return true;
         }
-
-        false
     }
+
+    if let Some(home) = dirs::home_dir() {
+        let nvm_sh = home.join(".nvm").join("nvm.sh");
+        if nvm_sh.is_file() {
+            return true;
+        }
+    }
+
+    let brew_paths: &[&str] = &["/opt/homebrew/opt/nvm", "/usr/local/opt/nvm"];
+    for base in brew_paths {
+        let nvm_sh = Path::new(base).join("nvm.sh");
+        if nvm_sh.is_file() {
+            return true;
+        }
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        let fish_nvm = home
+            .join(".config")
+            .join("fish")
+            .join("functions")
+            .join("nvm.fish");
+        if fish_nvm.is_file() {
+            return true;
+        }
+        let fish_alt = home
+            .join("Library")
+            .join("Application Support")
+            .join("fish")
+            .join("functions")
+            .join("nvm.fish");
+        if fish_alt.is_file() {
+            return true;
+        }
+    }
+
+    if in_path("nvm") {
+        return true;
+    }
+
+    false
 }
 
-// Enumerate installed Node versions managed by nvm (best-effort, cross-OS)
 fn list_nvm_versions() -> Vec<String> {
     use std::env;
     use std::path::Path;
 
     let mut out: Vec<String> = Vec::new();
 
-    #[cfg(windows)]
-    {
-        if let Ok(nvm_home) = env::var("NVM_HOME") {
-            let base = Path::new(&nvm_home);
-            if let Ok(read_dir) = std::fs::read_dir(base) {
-                for entry in read_dir.flatten() {
-                    if let Ok(ft) = entry.file_type() {
-                        if ft.is_dir() {
-                            let name = entry.file_name().to_string_lossy().to_string();
-                            // nvm-windows typically uses folder names like v18.19.1 or 18.19.1
-                            if name
-                                .chars()
-                                .next()
-                                .map(|c| c == 'v' || c.is_ascii_digit())
-                                .unwrap_or(false)
-                            {
-                                out.push(name);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(nvm_dir) = env::var("NVM_DIR") {
+        candidates.push(Path::new(&nvm_dir).join("versions").join("node"));
+    }
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".nvm").join("versions").join("node"));
     }
 
-    #[cfg(not(windows))]
-    {
-        // Prefer $NVM_DIR/versions/node
-        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-        if let Ok(nvm_dir) = env::var("NVM_DIR") {
-            candidates.push(Path::new(&nvm_dir).join("versions").join("node"));
-        }
-        if let Some(home) = dirs::home_dir() {
-            candidates.push(home.join(".nvm").join("versions").join("node"));
-        }
-
-        for base in candidates {
-            if let Ok(read_dir) = std::fs::read_dir(&base) {
-                for entry in read_dir.flatten() {
-                    if let Ok(ft) = entry.file_type() {
-                        if ft.is_dir() {
-                            let name = entry.file_name().to_string_lossy().to_string();
-                            out.push(name);
-                        }
+    for base in candidates {
+        if let Ok(read_dir) = std::fs::read_dir(&base) {
+            for entry in read_dir.flatten() {
+                if let Ok(ft) = entry.file_type() {
+                    if ft.is_dir() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        out.push(name);
                     }
                 }
             }

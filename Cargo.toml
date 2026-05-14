@@ -22,7 +22,7 @@ default-members = [
 ]
 
 [workspace.package]
-authors = ["Warp Team <dev@warp.dev>"]
+authors = ["Warply Team <dev@warply.local>"]
 license = "AGPL-3.0-only"
 publish = false
 
@@ -73,7 +73,7 @@ warp_files = { path = "crates/warp_files" }
 warp_js = { path = "crates/warp_js" }
 warp_logging = { path = "crates/warp_logging" }
 warp_ripgrep = { path = "crates/warp_ripgrep" }
-warp_server_client = { path = "crates/warp_server_client" }
+local_object_model = { path = "crates/local_object_model" }
 warp_terminal = { path = "crates/warp_terminal" }
 warp_util = { path = "crates/warp_util" }
 warp_web_event_bus = { path = "crates/warp_web_event_bus" }
@@ -279,7 +279,6 @@ version-compare = "0.1"
 vte = { git = "https://github.com/warpdotdev/vte.git", rev = "4b399c87b63ba88f45709edaa6383fc519f6c900", default-features = false }
 walkdir = "2"
 warp-workflows = { git = "https://github.com/warpdotdev/workflows", rev = "793a98ddda6ef19682aed66364faebd2829f0e01" }
-warp_multi_agent_api = { git = "https://github.com/warpdotdev/warp-proto-apis.git", rev = "02997b8fc6a468783642d93bf1bfa89fb7f42502" }
 wasm-bindgen = "0.2.89"
 wasm-bindgen-futures = "0.4.42"
 web-sys = { version = "0.3.69", features = [
@@ -300,19 +299,6 @@ web-sys = { version = "0.3.69", features = [
   "Notification",
   "NotificationPermission",
 ] }
-# Disable default features to disable support for WebGPU, which does not yet
-# have wide browser support.  We enable all other default feature of wgpu,
-# though.
-wgpu = { version = "29.0.1", default-features = false, features = [
-  "dx12",
-  "gles",
-  "metal",
-  "parking_lot",
-  "std",
-  "vulkan",
-  "wgsl",
-] }
-zbus = "5.9.0"
 memchr = "2"
 memo-map = "0.3.1"
 async-recursion = "1.0.0"
@@ -324,29 +310,11 @@ rayon = "1.10.0"
 sha2 = "0.10"
 shellexpand = "3.1.1"
 warp-command-signatures = { git = "https://github.com/warpdotdev/command-signatures.git", rev = "00a032b8ea0ee5711e2077e39a92dc9ca2051cd3", default-features = false }
-winit = { git = "https://github.com/warpdotdev/winit.git", rev = "7ef01853ae3fe952e6014080a88dc4352662dfb1" }
-x11rb = "0.13.0"
 mockito = "1.7.0"
 sysinfo = { version = "0.37.0", default-features = false, features = [
   "system",
   "multithread",
 ] }
-windows = { version = "0.62.2", features = [
-  "Win32",
-  "Win32_System",
-  "Win32_System_Kernel",
-  "Win32_System_Threading",
-  "Wdk_System",
-  "Wdk_System_SystemServices",
-  "Win32_System_Com",
-  "Win32_System_SecurityCenter",
-  "Win32_System_SystemInformation",
-  "Win32_System_Console",
-] }
-windows-core = { version = "0.62.2" }
-windows-registry = { version = "0.2.0" }
-windows-result = { version = "0.2.0" }
-winreg = "0.55.0"
 typed-path = "0.10.0"
 streaming-iterator = "0.1.0"
 derivative = "2.2.0"
@@ -482,7 +450,3 @@ yaml-rust = { git = "https://github.com/warpdotdev/yaml-rust.git", rev = "516847
 
 tikv-jemallocator = { git = "https://github.com/warpdotdev/jemallocator.git", rev = "2ee30bfdf7059223b54810e4ea6c666f0a379e0b" }
 tikv-jemalloc-sys = { git = "https://github.com/warpdotdev/jemallocator.git", rev = "2ee30bfdf7059223b54810e4ea6c666f0a379e0b" }
-
-[patch."https://github.com/warpdotdev/warp-proto-apis.git"]
-# Uncomment for local development of warp-proto-apis
-# warp_multi_agent_api = { path = "../warp-proto-apis/apis/multi_agent/v1/gen/rust" }

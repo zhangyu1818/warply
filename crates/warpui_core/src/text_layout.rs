@@ -507,7 +507,7 @@ pub struct Line {
     /// can snap to when selecting text.
     /// On MacOS, CoreText gives us one caret position per visible glyphs,
     /// meaning that ligatures will have a single caret position.
-    /// On winit platforms, cosmic-text gives us one caret position per
+    /// In fallback text layout, cosmic-text gives us one caret position per
     /// codepoint, meaning ligatures will have multiple caret positions.
     pub caret_positions: Vec<CaretPosition>,
     pub chars_with_missing_glyphs: Vec<char>,
@@ -686,7 +686,7 @@ pub struct Glyph {
 }
 
 /// On MacOS, CoreText includes line separators in the TextFrame's lines.
-/// On winit, cosmic-text strips line separators, so they do not have their
+/// In fallback text layout, cosmic-text strips line separators, so they do not have their
 /// own glyphs in the TextFrame's lines.
 #[derive(Default, Debug)]
 pub struct TextFrame {

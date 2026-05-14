@@ -8,10 +8,7 @@ use warpui::{
 };
 
 use crate::{
-    ai::{
-        active_agent_views_model::ActiveAgentViewsModel, blocklist::BlocklistAIHistoryModel,
-        llms::LLMPreferences,
-    },
+    ai::{active_agent_views_model::ActiveAgentViewsModel, blocklist::BlocklistAIHistoryModel},
     app_state::{LeafContents, TerminalPaneSnapshot},
     pane_group::{self, Direction, Event::OpenConversationHistory, PaneGroup},
     persistence::{BlockCompleted, ModelEvent},
@@ -301,15 +298,11 @@ impl PaneContent for TerminalPane {
                 is_read_only: false,
                 shell_launch_data: None,
                 input_config: None,
-                llm_model_override: None,
                 active_profile_id: None,
                 conversation_ids_to_restore: vec![],
                 active_conversation_id: None,
             })
         } else {
-            let llm_model_override =
-                LLMPreferences::as_ref(app).get_base_llm_override(self.terminal_view(app).id());
-
             let conversation_ids_to_restore = BlocklistAIHistoryModel::as_ref(app)
                 .all_live_conversations_for_terminal_view(self.terminal_view(app).id())
                 .map(|conversation| conversation.id())
@@ -335,7 +328,6 @@ impl PaneContent for TerminalPane {
                 is_read_only: view.model.lock().is_read_only(),
                 shell_launch_data: view.shell_launch_data_if_local(app),
                 input_config: Some(current_input_config),
-                llm_model_override,
                 active_profile_id: None,
                 conversation_ids_to_restore,
                 active_conversation_id,
@@ -899,13 +891,12 @@ fn handle_ai_history_event(
             conversation_id, ..
         } => {
             let conversation_id = conversation_id.to_string();
-            // On remove, delete all related AI query and multi-agent conversation data for this conversation.
             let _ = ctx.spawn(
                 async move {
                     model_event_sender.send(ModelEvent::DeleteAIConversation {
                         conversation_id: conversation_id.clone(),
                     })?;
-                    model_event_sender.send(ModelEvent::DeleteMultiAgentConversations {
+                    model_event_sender.send(ModelEvent::DeleteAgentConversations {
                         conversation_ids: vec![conversation_id],
                     })
                 },
@@ -927,7 +918,6 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::SplitConversation { .. }
         | BlocklistAIHistoryEvent::RestoredConversations { .. }
         | BlocklistAIHistoryEvent::CreatedSubtask { .. }
-        | BlocklistAIHistoryEvent::PromotedTask { .. }
         | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
         | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
         | BlocklistAIHistoryEvent::ConversationOwnershipTransferred { .. } => (),

@@ -7,8 +7,6 @@ use super::{
 
 pub struct RendererManager {
     metal_renderer_manager: metal::RendererManager,
-    #[cfg(wgpu)]
-    wgpu_renderer_manager: super::wgpu::RendererManager,
 }
 
 impl Default for RendererManager {
@@ -21,8 +19,6 @@ impl RendererManager {
     pub fn new() -> Self {
         Self {
             metal_renderer_manager: metal::RendererManager::new(),
-            #[cfg(wgpu)]
-            wgpu_renderer_manager: super::wgpu::RendererManager::new(),
         }
     }
 
@@ -35,10 +31,6 @@ impl RendererManager {
     ) -> &mut dyn Renderer {
         match device {
             Device::Metal(device) => self.metal_renderer_manager.renderer_for_device(device),
-            #[cfg(wgpu)]
-            Device::WGPU(resources) => self
-                .wgpu_renderer_manager
-                .renderer_for_resources(resources, window_size),
         }
     }
 }

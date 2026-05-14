@@ -84,7 +84,6 @@ pub struct MenuItemPropertyChanges {
 impl MenuItemPropertyChanges {
     /// Returns a struct that unconditionally sets all properties, to be used
     /// when initializing a menu item for the first time.
-    #[cfg_attr(any(target_os = "linux", target_os = "freebsd"), allow(dead_code))]
     pub fn for_new_item(props: MenuItemProperties, submenu: Submenu) -> Self {
         Self {
             name: Some(props.name),

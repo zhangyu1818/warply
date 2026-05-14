@@ -1,13 +1,11 @@
 use crate::ai::blocklist::BlocklistAIPermissions;
-use crate::ai::execution_profiles::model_menu_items::available_model_menu_items;
 use crate::ai::execution_profiles::{
     profiles::{AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId},
     AIExecutionProfile, ActionPermission, WriteToPtyPermission,
 };
-use crate::ai::llms::{LLMContextWindow, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent};
 use crate::ai::paths::host_native_absolute_path;
 use crate::editor::InteractionState;
-use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
+use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::settings::{AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate};
 use crate::ui_components::icons::Icon;
@@ -20,11 +18,7 @@ use crate::{
     pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent},
     Appearance,
 };
-use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
-use itertools::Itertools;
 use regex::Regex;
-use thousands::Separable;
-use warpui::ui_components::slider::SliderStateHandle;
 use warpui::ui_components::switch::SwitchStateHandle;
 
 use std::path::{Path, PathBuf};
@@ -36,8 +30,6 @@ use warpui::{
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
-
-const MODEL_MENU_WIDTH: f32 = 250.;
 
 #[derive(Default)]
 struct TooltipMouseStateHandles {
@@ -68,27 +60,6 @@ pub enum ExecutionProfileEditorViewEvent {
 pub enum ExecutionProfileEditorViewAction {
     Save,
     Close,
-    SetBaseModel {
-        id: LLMId,
-    },
-    /// Fired continuously while the user drags the context window slider.
-    ContextWindowSliderDragged {
-        value: u32,
-    },
-    /// Fired when the user commits a new context window value (slider drop,
-    /// track click, or input box commit).
-    SetContextWindowSize {
-        value: u32,
-    },
-    SetCodingModel {
-        id: LLMId,
-    },
-    SetFullTerminalUseModel {
-        id: LLMId,
-    },
-    SetComputerUseModel {
-        id: LLMId,
-    },
 
     SetApplyCodeDiffs {
         permission: ActionPermission,
@@ -153,14 +124,6 @@ pub struct ExecutionProfileEditorView {
     pane_configuration: ModelHandle<PaneConfiguration>,
     focus_handle: Option<PaneFocusHandle>,
     clipped_scroll_state: ClippedScrollStateHandle,
-    base_model_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
-    context_window_slider_state: SliderStateHandle,
-    context_window_editor: ViewHandle<EditorView>,
-    last_synced_context_window_editor_value: Option<u32>,
-    coding_model_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-    full_terminal_use_model_dropdown:
-        ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
-    computer_use_model_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
     apply_code_diffs_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     read_files_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     execute_commands_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
@@ -411,47 +374,6 @@ impl ExecutionProfileEditorView {
             .map(|_| Default::default())
             .collect();
 
-        let base_model_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
-            dropdown
-        });
-
-        // Initialize the context window editor buffer with the profile's
-        // persisted limit (or the active model's max as a sensible default).
-        // The slider's current position is derived from the profile on each
-        // render, so no local Cell is needed.
-        let initial_context_window_value = initial_context_window_display_value(&profile_data, ctx);
-        let context_window_slider_state = SliderStateHandle::default();
-        let context_window_editor = ctx.add_typed_action_view(|ctx| {
-            let options = SingleLineEditorOptions {
-                text: TextOptions {
-                    font_size_override: Some(Appearance::as_ref(ctx).ui_font_size()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let mut editor = EditorView::single_line(options, ctx);
-            editor.set_buffer_text(&initial_context_window_value.separate_with_commas(), ctx);
-            editor
-        });
-        let last_synced_context_window_editor_value = Some(initial_context_window_value);
-
-        let coding_model_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = Dropdown::new(ctx);
-            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
-            dropdown
-        });
-        let full_terminal_use_model_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
-            dropdown
-        });
-        let computer_use_model_dropdown = ctx.add_typed_action_view(|ctx| {
-            let mut dropdown = FilterableDropdown::new(ctx);
-            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
-            dropdown
-        });
         let command_allowlist_editor = ctx.add_typed_action_view(|ctx| {
             let mut input =
                 SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
@@ -527,13 +449,6 @@ impl ExecutionProfileEditorView {
             pane_configuration,
             focus_handle: None,
             clipped_scroll_state: Default::default(),
-            base_model_dropdown,
-            context_window_slider_state,
-            context_window_editor,
-            last_synced_context_window_editor_value,
-            coding_model_dropdown,
-            full_terminal_use_model_dropdown,
-            computer_use_model_dropdown,
             apply_code_diffs_dropdown,
             read_files_dropdown,
             execute_commands_dropdown,
@@ -561,10 +476,6 @@ impl ExecutionProfileEditorView {
             if let EditorEvent::Edited(_) = event {
                 view.save_profile_name_if_valid(ctx);
             }
-        });
-
-        ctx.subscribe_to_view(&view.context_window_editor, |view, _, event, ctx| {
-            view.handle_context_window_editor_event(event, ctx);
         });
 
         ctx.subscribe_to_view(&view.command_allowlist_editor, |view, _, event, ctx| {
@@ -617,71 +528,6 @@ impl ExecutionProfileEditorView {
             }
         });
 
-        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| {
-            let permissions = BlocklistAIPermissions::as_ref(ctx);
-            let current_permissions = permissions.permissions_profile_for_id(ctx, me.profile_id);
-
-            match event {
-                LLMPreferencesEvent::UpdatedActiveAgentModeLLM => {
-                    Self::refresh_filterable_model_dropdown(
-                        &me.base_model_dropdown,
-                        current_permissions.base_model.clone(),
-                        |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
-                        |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
-                        |prefs| prefs.get_default_base_model().id.clone(),
-                        ctx,
-                    );
-                    Self::refresh_coding_model_dropdown(
-                        &me.coding_model_dropdown,
-                        current_permissions.coding_model.clone(),
-                        ctx,
-                    );
-                    Self::refresh_filterable_model_dropdown(
-                        &me.full_terminal_use_model_dropdown,
-                        current_permissions.cli_agent_model.clone(),
-                        |prefs| prefs.get_cli_agent_llm_choices().collect_vec(),
-                        |id| ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id },
-                        |prefs| prefs.get_default_cli_agent_model().id.clone(),
-                        ctx,
-                    );
-                    Self::refresh_filterable_model_dropdown(
-                        &me.computer_use_model_dropdown,
-                        current_permissions.computer_use_model.clone(),
-                        |prefs| prefs.get_computer_use_llm_choices().collect_vec(),
-                        |id| ExecutionProfileEditorViewAction::SetComputerUseModel { id },
-                        |prefs| prefs.get_default_computer_use_model().id.clone(),
-                        ctx,
-                    );
-                    me.sync_context_window_editor(ctx, false);
-                }
-            }
-        });
-
-        // Refresh model dropdowns when BYO API keys update so key icons reflect current state.
-        ctx.subscribe_to_model(
-            &ApiKeyManager::handle(ctx),
-            |me, _model, _event: &ApiKeyManagerEvent, ctx| {
-                let permissions = BlocklistAIPermissions::as_ref(ctx);
-                let current_permissions =
-                    permissions.permissions_profile_for_id(ctx, me.profile_id);
-                Self::refresh_filterable_model_dropdown(
-                    &me.base_model_dropdown,
-                    current_permissions.base_model.clone(),
-                    |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
-                    |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
-                    |prefs| prefs.get_default_base_model().id.clone(),
-                    ctx,
-                );
-                Self::refresh_coding_model_dropdown(
-                    &me.coding_model_dropdown,
-                    current_permissions.coding_model.clone(),
-                    ctx,
-                );
-                me.sync_context_window_editor(ctx, false);
-                ctx.notify();
-            },
-        );
-
         ctx.subscribe_to_model(
             &AIExecutionProfilesModel::handle(ctx),
             |me, _, event, ctx| {
@@ -695,7 +541,6 @@ impl ExecutionProfileEditorView {
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
                 Self::update_all_editor_interaction_states(me, ctx);
-                me.sync_context_window_editor(ctx, true);
                 ctx.notify();
             }
         });
@@ -763,36 +608,6 @@ impl ExecutionProfileEditorView {
             !ai_settings.is_ask_user_question_permissions_editable(ctx);
         let mcp_disabled = !ai_settings.is_mcp_permission_editable(ctx);
 
-        Self::refresh_filterable_model_dropdown(
-            &self.base_model_dropdown,
-            current_permissions.base_model.clone(),
-            |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
-            |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
-            |prefs| prefs.get_default_base_model().id.clone(),
-            ctx,
-        );
-        Self::refresh_coding_model_dropdown(
-            &self.coding_model_dropdown,
-            current_permissions.coding_model.clone(),
-            ctx,
-        );
-        Self::refresh_filterable_model_dropdown(
-            &self.full_terminal_use_model_dropdown,
-            current_permissions.cli_agent_model.clone(),
-            |prefs| prefs.get_cli_agent_llm_choices().collect_vec(),
-            |id| ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id },
-            |prefs| prefs.get_default_cli_agent_model().id.clone(),
-            ctx,
-        );
-        Self::refresh_filterable_model_dropdown(
-            &self.computer_use_model_dropdown,
-            current_permissions.computer_use_model.clone(),
-            |prefs| prefs.get_computer_use_llm_choices().collect_vec(),
-            |id| ExecutionProfileEditorViewAction::SetComputerUseModel { id },
-            |prefs| prefs.get_default_computer_use_model().id.clone(),
-            ctx,
-        );
-
         Self::refresh_execution_profile_dropdown_menu(
             &self.apply_code_diffs_dropdown,
             current_permissions.apply_code_diffs,
@@ -851,7 +666,6 @@ impl ExecutionProfileEditorView {
         );
 
         Self::update_profile_name_editor(&self.profile_name_editor, &current_permissions, ctx);
-        self.sync_context_window_editor(ctx, false);
     }
 
     fn refresh_execution_profile_dropdown_menu(
@@ -950,99 +764,6 @@ impl ExecutionProfileEditorView {
             };
 
             menu.set_selected_by_index(active, ctx);
-            ctx.notify();
-        });
-        ctx.notify();
-    }
-
-    fn refresh_filterable_model_dropdown<G, A, D>(
-        menu: &ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
-        profile_model: Option<LLMId>,
-        get_choices: G,
-        create_action: A,
-        get_default_id: D,
-        ctx: &mut ViewContext<Self>,
-    ) where
-        G: FnOnce(&LLMPreferences) -> Vec<&LLMInfo>,
-        A: Fn(LLMId) -> ExecutionProfileEditorViewAction,
-        D: FnOnce(&LLMPreferences) -> LLMId,
-    {
-        menu.update(ctx, |dropdown, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-
-            if disabled_by_ai_toggle {
-                dropdown.set_disabled(ctx);
-            } else {
-                dropdown.set_enabled(ctx);
-            }
-
-            let llm_prefs = LLMPreferences::handle(ctx);
-            let llm_prefs = llm_prefs.as_ref(ctx);
-            let choices = get_choices(llm_prefs);
-
-            let items = available_model_menu_items(
-                choices,
-                |llm| create_action(llm.id.clone()).into(),
-                None,
-                None,
-                false,
-                false,
-                ctx,
-            );
-            dropdown.set_rich_items(items, ctx);
-
-            let llm_prefs = LLMPreferences::handle(ctx);
-            let llm_prefs = llm_prefs.as_ref(ctx);
-            let model_to_select = profile_model.unwrap_or_else(|| get_default_id(llm_prefs));
-            dropdown.set_selected_by_action(create_action(model_to_select), ctx);
-            ctx.notify();
-        });
-        ctx.notify();
-    }
-
-    fn refresh_coding_model_dropdown(
-        menu: &ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
-        profile_coding_model: Option<LLMId>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        menu.update(ctx, |dropdown, ctx| {
-            let disabled_by_ai_toggle = !AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-
-            if disabled_by_ai_toggle {
-                dropdown.set_disabled(ctx);
-            } else {
-                dropdown.set_enabled(ctx);
-            }
-
-            let choices = LLMPreferences::as_ref(ctx)
-                .get_coding_llm_choices()
-                .collect_vec();
-
-            let items = available_model_menu_items(
-                choices,
-                |llm| {
-                    ExecutionProfileEditorViewAction::SetCodingModel { id: llm.id.clone() }.into()
-                },
-                None,
-                None,
-                false,
-                false,
-                ctx,
-            );
-            dropdown.set_rich_items(items, ctx);
-
-            let model_to_select = profile_coding_model.unwrap_or_else(|| {
-                LLMPreferences::as_ref(ctx)
-                    .get_default_coding_model()
-                    .id
-                    .clone()
-            });
-            dropdown.set_selected_by_action(
-                ExecutionProfileEditorViewAction::SetCodingModel {
-                    id: model_to_select,
-                },
-                ctx,
-            );
             ctx.notify();
         });
         ctx.notify();
@@ -1169,110 +890,9 @@ impl ExecutionProfileEditorView {
             }
         });
     }
-
-    fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow> {
-        let profile =
-            BlocklistAIPermissions::as_ref(app).permissions_profile_for_id(app, self.profile_id);
-        profile.configurable_context_window(app)
-    }
-
-    fn current_context_window_display_value(&self, app: &AppContext) -> Option<u32> {
-        let profile =
-            BlocklistAIPermissions::as_ref(app).permissions_profile_for_id(app, self.profile_id);
-        profile.context_window_display_value(app)
-    }
-
-    fn handle_context_window_editor_event(
-        &mut self,
-        event: &EditorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            EditorEvent::Blurred | EditorEvent::Enter => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                    self.sync_context_window_editor(ctx, true);
-                    return;
-                }
-                let Some(cw) = self.configurable_context_window(ctx) else {
-                    return;
-                };
-                let buffer_text = self.context_window_editor.as_ref(ctx).buffer_text(ctx);
-                let cleaned: String = buffer_text
-                    .chars()
-                    .filter(|c| !c.is_whitespace() && *c != ',')
-                    .collect();
-                if let Ok(parsed) = cleaned.parse::<u32>() {
-                    let clamped = parsed.clamp(cw.min, cw.max);
-                    if Some(clamped) != self.current_context_window_display_value(ctx) {
-                        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                            profiles_model.set_context_window_limit(
-                                self.profile_id,
-                                Some(clamped),
-                                ctx,
-                            );
-                        });
-                    }
-                }
-                self.sync_context_window_editor(ctx, true);
-                ctx.notify();
-            }
-            _ => {}
-        }
-    }
-
-    fn sync_context_window_editor(&mut self, ctx: &mut ViewContext<Self>, force: bool) {
-        let Some(value) = self.current_context_window_display_value(ctx) else {
-            self.last_synced_context_window_editor_value = None;
-            self.context_window_slider_state.reset_offset();
-            ctx.notify();
-            return;
-        };
-
-        let formatted = value.separate_with_commas();
-        let should_update = if force {
-            true
-        } else {
-            match self.last_synced_context_window_editor_value {
-                Some(last_value) => {
-                    self.context_window_editor.as_ref(ctx).buffer_text(ctx)
-                        == last_value.separate_with_commas()
-                }
-                None => true,
-            }
-        };
-
-        if should_update {
-            self.context_window_editor.update(ctx, |editor, ctx| {
-                if editor.buffer_text(ctx) != formatted {
-                    editor.system_reset_buffer_text(&formatted, ctx);
-                }
-            });
-            self.last_synced_context_window_editor_value = Some(value);
-            self.context_window_slider_state.reset_offset();
-            ctx.notify();
-        }
-    }
-}
-
-fn initial_context_window_display_value(
-    profile_data: &AIExecutionProfile,
-    app: &AppContext,
-) -> u32 {
-    profile_data
-        .context_window_display_value(app)
-        .unwrap_or_else(|| {
-            LLMPreferences::as_ref(app)
-                .get_default_base_model()
-                .context_window
-                .default_max
-        })
 }
 
 mod ui_helpers;
-
-#[cfg(test)]
-#[path = "mod_test.rs"]
-mod tests;
 
 impl View for ExecutionProfileEditorView {
     fn ui_name() -> &'static str {
@@ -1292,7 +912,6 @@ impl View for ExecutionProfileEditorView {
                 &self.profile_name_editor,
                 profile_data.is_default_profile,
             ))
-            .with_child(render_models_section(appearance, self, app))
             .with_child(render_permissions_section(
                 appearance,
                 self,
@@ -1335,67 +954,6 @@ impl TypedActionView for ExecutionProfileEditorView {
             }
             ExecutionProfileEditorViewAction::Close => {
                 ctx.emit(ExecutionProfileEditorViewEvent::Pane(PaneEvent::Close));
-            }
-            ExecutionProfileEditorViewAction::SetBaseModel { id } => {
-                // Changing the base model resets any persisted context window
-                // override — the new model may have a different range (or not
-                // be configurable at all). The user can pick a new value for
-                // the new model if they want one.
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_base_model(self.profile_id, Some(id.clone()), ctx);
-                    profiles_model.set_context_window_limit(self.profile_id, None, ctx);
-                });
-                self.sync_context_window_editor(ctx, true);
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::ContextWindowSliderDragged { value } => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                    self.sync_context_window_editor(ctx, true);
-                    return;
-                }
-                // Transient drag update: reflect the current slider position
-                // in the input box without persisting to the profile yet.
-                // Persistence happens on SetContextWindowSize (drop / commit).
-                if self.configurable_context_window(ctx).is_some() {
-                    let formatted = value.separate_with_commas();
-                    self.context_window_editor.update(ctx, |editor, ctx| {
-                        editor.system_reset_buffer_text(&formatted, ctx);
-                    });
-                    ctx.notify();
-                }
-            }
-            ExecutionProfileEditorViewAction::SetContextWindowSize { value } => {
-                if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                    self.sync_context_window_editor(ctx, true);
-                    return;
-                }
-                let Some(cw) = self.configurable_context_window(ctx) else {
-                    return;
-                };
-                let clamped = (*value).clamp(cw.min, cw.max);
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_context_window_limit(self.profile_id, Some(clamped), ctx);
-                });
-                self.sync_context_window_editor(ctx, true);
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::SetCodingModel { id } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_coding_model(self.profile_id, Some(id.clone()), ctx);
-                });
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_cli_agent_model(self.profile_id, Some(id.clone()), ctx);
-                });
-                ctx.notify();
-            }
-            ExecutionProfileEditorViewAction::SetComputerUseModel { id } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_computer_use_model(self.profile_id, Some(id.clone()), ctx);
-                });
-                ctx.notify();
             }
             ExecutionProfileEditorViewAction::SetApplyCodeDiffs { permission } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {

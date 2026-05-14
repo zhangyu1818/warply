@@ -28,7 +28,7 @@ mod ffi {
         ///
         /// Some things to consider:
         /// * Using native DOM events. We can get the window's backing `<canvas>` element using
-        ///   [`winit::platform::web::WindowExtWebSys`], and dispatch events with custom data using
+        ///   a web window handle, and dispatch events with custom data using
         ///   [`web_sys::CustomEvent`].
         /// * Passing context directly into the WASM script, instead of using globals. This isn't
         ///   directly supported by wasm-bindgen (see rustwasm/wasm-bindgen#3041 and

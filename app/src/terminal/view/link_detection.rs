@@ -34,8 +34,7 @@ use super::{FindLinkArg, TerminalEditor};
 #[cfg(feature = "local_fs")]
 const PREFIXES_TO_REMOVE: [&str; 2] = ["a/", "b/"];
 
-/// "@" is a suffix that can be added to symlinks. It appears in Git Bash's default configuration
-/// for `ls`.
+/// "@" is a suffix that some ls configurations add to symlinks.
 #[cfg(feature = "local_fs")]
 const SUFFIXES_TO_REMOVE: [&str; 1] = ["@"];
 

@@ -238,8 +238,7 @@ impl GeneratorContext for SessionContext {
                 self.pwd().to_str(),
                 env_vars_option,
                 ExecuteCommandOptions {
-                    run_command_in_same_shell_as_session: !FeatureFlag::RunGeneratorsWithCmdExe
-                        .is_enabled(),
+                    run_command_in_same_shell_as_session: true,
                 },
             )
             .await

@@ -69,6 +69,7 @@ pub mod settings;
 mod shell_launch_state;
 pub mod universal_developer_input;
 
+pub mod cli_agent;
 pub mod ssh;
 pub mod terminal_manager;
 mod terminal_size_element;
@@ -76,10 +77,6 @@ pub mod view;
 pub mod warpify;
 mod waterfall_gap_element;
 mod writeable_pty;
-#[cfg(windows)]
-pub mod wsl;
-
-pub mod cli_agent;
 pub use cli_agent::CLIAgent;
 pub(crate) mod cli_agent_sessions;
 

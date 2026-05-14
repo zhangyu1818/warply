@@ -15,18 +15,13 @@ static OS_INFO: OnceLock<Result<OperatingSystemInfo, OperatingSystemInfoError>> 
 /// Information of the operating system of the client.
 #[derive(Serialize)]
 pub struct OperatingSystemInfo {
-    /// The name of the operating system. On Linux this is the name of the distribution.
+    /// The name of the operating system.
     name: String,
-    /// The version of the operating system. On Linux this is the version of the distribution, not
-    /// the Linux kernel version. `None` if the version could not be computed for any reason.
+    /// The version of the operating system. `None` if the version could not be computed.
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
-    /// The category of the operating system (e.g. "Linux", "macOS", "Windows", or "Web").
+    /// The category of the operating system.
     category: OperatingSystemCategory,
-    /// The version of the linux kernel, if running on Linux. If not on Linux, this is always
-    /// `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    linux_kernel_version: Option<String>,
     /// The name of the browser parsed from the user agent, if running on Web. If not on Web,
     /// this is always `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,24 +38,10 @@ impl OperatingSystemInfo {
         let os_category =
             OperatingSystemCategory::new().ok_or(OperatingSystemInfoError::Unknown)?;
 
-        let (os_name, version, linux_kernel_version) =
-            if os_category == OperatingSystemCategory::Linux {
-                (
-                    // If we can't compute the distro name, fallback to "Linux" as
-                    // the os release name.
-                    sysinfo::System::name().unwrap_or_else(|| "Linux".to_string()),
-                    sysinfo::System::os_version(),
-                    sysinfo::System::kernel_version(),
-                )
-            } else {
-                (os_category.to_string(), sysinfo::System::os_version(), None)
-            };
-
         Ok(Self {
-            name: os_name,
-            version,
+            name: os_category.to_string(),
+            version: sysinfo::System::os_version(),
             category: os_category,
-            linux_kernel_version,
             browser_name: None,
             browser_version: None,
         })
@@ -72,9 +53,7 @@ impl OperatingSystemInfo {
         // and web platforms, we try to use the display names encoded by the
         // `OperatingSystemCategory` enum.
         let os = match OperatingSystem::get() {
-            OperatingSystem::Linux => OperatingSystemCategory::Linux.to_string(),
             OperatingSystem::Mac => OperatingSystemCategory::Mac.to_string(),
-            OperatingSystem::Windows => OperatingSystemCategory::Windows.to_string(),
             OperatingSystem::Other(Some(os)) => os.to_string(),
             _ => "Unknown".to_string(),
         };
@@ -85,7 +64,6 @@ impl OperatingSystemInfo {
             category: OperatingSystemCategory::Web,
             browser_name: wasm::current_browser().map(str::to_string),
             browser_version: wasm::current_browser_version().map(str::to_string),
-            linux_kernel_version: None,
         })
     }
 
@@ -96,47 +74,37 @@ impl OperatingSystemInfo {
         inner.as_ref().map_err(|error| *error)
     }
 
-    /// Returns the name of the operating system. On Linux this is the name of the distribution.
-    /// On all other platforms it should be equivalent to `category`.
+    /// Returns the name of the operating system.
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Returns the version of the operating system. On Linux this is the version of the
-    /// distribution, not the Linux kernel version. Returns `None` if the version could not be
-    /// computed for any reason.
+    /// Returns the version of the operating system.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
 
-    /// Returns the category of the operating system (e.g. "Linux", "macOS", or "Windows").
+    /// Returns the category of the operating system.
     pub fn category(&self) -> &OperatingSystemCategory {
         &self.category
     }
 
     pub fn linux_kernel_version(&self) -> Option<&str> {
-        self.linux_kernel_version.as_deref()
+        None
     }
 }
 
 #[derive(SerializeDisplay, PartialEq)]
 pub enum OperatingSystemCategory {
-    Linux,
     Mac,
-    #[allow(dead_code)]
-    Windows,
     Web,
 }
 
 impl OperatingSystemCategory {
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn new() -> Option<Self> {
-        if cfg!(any(target_os = "linux", target_os = "freebsd")) {
-            Some(OperatingSystemCategory::Linux)
-        } else if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") {
             Some(OperatingSystemCategory::Mac)
-        } else if cfg!(target_os = "windows") {
-            Some(OperatingSystemCategory::Windows)
         } else if cfg!(target_family = "wasm") {
             Some(OperatingSystemCategory::Web)
         } else {
@@ -148,9 +116,7 @@ impl OperatingSystemCategory {
 impl Display for OperatingSystemCategory {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
-            OperatingSystemCategory::Linux => "Linux",
             OperatingSystemCategory::Mac => "macOS",
-            OperatingSystemCategory::Windows => "Windows",
             OperatingSystemCategory::Web => "Web",
         };
         write!(f, "{str}")

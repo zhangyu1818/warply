@@ -115,7 +115,6 @@ pub enum AgentViewEntryOrigin {
     AutoFollowUp,
     /// Entered agent view due to conversation restoration on startup or forking.
     RestoreExistingConversation,
-    /// Entered agent view due to a server-driven conversation split (StartNewConversation client action).
     AgentRequestedNewConversation,
     /// Entered agent view via accepting a prompt suggestion.
     AcceptedPromptSuggestion,
@@ -136,8 +135,6 @@ pub enum AgentViewEntryOrigin {
     Keybinding,
     /// Entered agent view by attaching context from the code review panel.
     CodeReviewContext,
-    /// Entered agent view from codex integration modal.
-    CodexModal,
     /// Entered agent view by selecting a conversation from the inline history menu.
     InlineHistoryMenu,
     InlineConversationMenu,

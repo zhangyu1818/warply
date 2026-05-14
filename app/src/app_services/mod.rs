@@ -5,29 +5,15 @@
 //! Finder such that the user can open a new Warp tab or window
 //! in a given directory.
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-pub mod linux;
 #[cfg(target_os = "macos")]
 mod mac;
-#[cfg(windows)]
-pub mod windows;
 
-use warpui::AppContext;
-
-pub fn init(_ctx: &mut AppContext) {
+pub fn init(_ctx: &mut warpui::AppContext) {
     log::info!("Initializing app services");
 
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    linux::init(_ctx);
-    #[cfg(target_os = "macos")]
     mac::init();
-    #[cfg(windows)]
-    windows::init(_ctx);
 }
 
-pub fn teardown(_ctx: &mut AppContext) {
+pub fn teardown(_ctx: &mut warpui::AppContext) {
     log::info!("Tearing down app services...");
-
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    linux::teardown(_ctx);
 }

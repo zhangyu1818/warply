@@ -10,12 +10,9 @@ use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
-use super::llms::{LLMContextWindow, LLMId, LLMPreferences};
-
 pub const PROFILE_NAME_MAX_LENGTH: usize = 50;
 
 pub mod editor;
-pub mod model_menu_items;
 pub mod profiles;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,12 +154,7 @@ impl AskUserQuestionPermission {
     }
 }
 
-/// Core data structure representing an AI execution profile, which includes model configuration,
-/// behavior settings, and permissions.
-///
-/// NOTE: `planning_model` was removed after planning via subagent was deprecated; serialized legacy
-/// profiles may include a `planning_model` field and this field name should remain reserved
-/// indefinitely.
+/// Core data structure representing an AI execution profile.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AIExecutionProfile {
@@ -190,13 +182,6 @@ pub struct AIExecutionProfile {
 
     pub computer_use: ComputerUsePermission,
 
-    pub base_model: Option<LLMId>,
-    pub coding_model: Option<LLMId>,
-    pub cli_agent_model: Option<LLMId>,
-    pub computer_use_model: Option<LLMId>,
-
-    pub context_window_limit: Option<u32>,
-
     /// Whether the agent may use web search when helpful for completing tasks
     pub web_search_enabled: bool,
 }
@@ -218,11 +203,6 @@ impl Default for AIExecutionProfile {
             mcp_allowlist: Vec::new(),
             mcp_denylist: Vec::new(),
             computer_use: ComputerUsePermission::Never,
-            base_model: None,
-            coding_model: None,
-            cli_agent_model: None,
-            computer_use_model: None,
-            context_window_limit: None,
             web_search_enabled: true,
         }
     }
@@ -291,34 +271,7 @@ impl AIExecutionProfile {
             mcp_allowlist: Vec::new(),
             mcp_denylist: Vec::new(),
             computer_use: computer_use_permission,
-            base_model: None,
-            coding_model: None,
-            cli_agent_model: None,
-            computer_use_model: None,
-            context_window_limit: None,
             web_search_enabled: true,
         }
-    }
-}
-
-impl AIExecutionProfile {
-    pub fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow> {
-        let prefs = LLMPreferences::as_ref(app);
-        let cw = self
-            .base_model
-            .as_ref()
-            .and_then(|id| prefs.get_llm_info(id))
-            .map(|info| info.context_window.clone())
-            .unwrap_or_else(|| prefs.get_default_base_model().context_window.clone());
-        if cw.is_configurable && cw.max > 0 {
-            Some(cw)
-        } else {
-            None
-        }
-    }
-
-    pub fn context_window_display_value(&self, app: &AppContext) -> Option<u32> {
-        let cw = self.configurable_context_window(app)?;
-        Some(self.context_window_limit.unwrap_or(cw.default_max))
     }
 }

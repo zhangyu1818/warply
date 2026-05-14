@@ -283,19 +283,6 @@ where
         ctx.notify();
     }
 
-    // Most dropdowns don't need to use rich menu features like separators, indents, and submenus.
-    // But some do and, for those, we expose a "rich" item API.
-    pub fn set_rich_items(
-        &mut self,
-        items: impl IntoIterator<Item = MenuItem<DropdownAction<A>>>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_items(items, ctx);
-        });
-        ctx.notify();
-    }
-
     pub fn set_disabled(&mut self, ctx: &mut ViewContext<Self>) {
         self.disabled = true;
         ctx.notify();

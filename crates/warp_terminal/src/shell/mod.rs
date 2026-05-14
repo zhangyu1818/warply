@@ -11,32 +11,16 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
-use typed_path::{TypedPath, TypedPathBuf, WindowsPath};
+use typed_path::{TypedPath, TypedPathBuf};
 use version_compare::{Cmp, Version};
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
-#[cfg(windows)]
-use warp_core::paths::base_config_dir;
 use warp_core::platform::SessionPlatform;
-use warp_util::path::{
-    convert_msys2_to_windows_native_path, convert_wsl_to_windows_host_path, msys2_exe_to_root,
-};
 
 use crate::model::escape_sequences;
 
 use self::unescape::unescape_quotes;
 
 const ZSH_META: u8 = 0x83;
-
-/// These are file extensions of executable files on Windows.
-///
-/// Commands ending with any of these extensions may be executed with the extension elided, e.g.
-/// you can type `git` in a shell instead of `git.exe`.
-/// This is the contents of `$env:PATHEXT` on a default Windows 11 installation. See docs:
-/// https://renenyffenegger.ch/notes/Windows/development/environment-variables/PATHEXT
-/// TODO(CORE-2948) Fetch this dynamically instead.
-const PATHEXT: [&str; 12] = [
-    ".COM", ".EXE", ".BAT", ".CMD", ".VBS", ".VBE", ".JS", ".JSE", ".WSF", ".WSH", ".MSC", ".CPL",
-];
 
 lazy_static! {
     static ref BASH_INPUT_REPORTING_MINIMUM_VERSION: Version<'static> =
@@ -318,16 +302,8 @@ impl ShellType {
             ShellType::Zsh => vec!["~/.zsh_history".to_string(), "~/.zhistory".to_string()],
             ShellType::Bash => vec!["~/.bash_history".to_string()],
             ShellType::Fish => vec!["~/.local/share/fish/fish_history".to_string()],
-            #[cfg(not(windows))]
             ShellType::PowerShell => {
                 vec!["~/.local/share/powershell/PSReadLine/ConsoleHost_history.txt".to_string()]
-            }
-            #[cfg(windows)]
-            ShellType::PowerShell => {
-                vec![base_config_dir()
-                    .join("Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt")
-                    .display()
-                    .to_string()]
             }
         }
     }
@@ -362,9 +338,6 @@ impl ShellType {
     }
 
     /// Returns the syntax to use to run a second command only if the first one succeeds.
-    /// NOTE: Guarded with `cfg(unix)` b/c PowerShell didn't have the `&&` operator until v7. On
-    /// Unix, we can safely assume v7, but Windows comes with PowerShell v5 out of the box.
-    #[cfg(unix)]
     pub fn and_combiner(self) -> &'static str {
         match self {
             ShellType::Bash | ShellType::Zsh | ShellType::PowerShell => " && ",
@@ -630,7 +603,6 @@ impl ShellType {
     pub fn executables_from_shell_command_output(
         &self,
         output: Result<CommandOutput>,
-        is_msys2: bool,
     ) -> Vec<SmolStr> {
         match output {
             Ok(command_output) if command_output.status == CommandExitStatus::Success => {
@@ -639,34 +611,7 @@ impl ShellType {
                 };
                 match self {
                     ShellType::Bash | ShellType::Zsh => {
-                        // For bash and zsh, we wrote the command such that the output is just
-                        // a list of executable files.
-                        if !is_msys2 {
-                            return output_string.lines().map(Into::into).collect();
-                        }
-
-                        // TODO add this to fish
-                        output_string
-                            .lines()
-                            // Remove all `.dll` files.
-                            .filter(|line| !line.to_lowercase().ends_with("dll"))
-                            .flat_map(|line| {
-                                // Those suffixes are contained in `PATHEXT`.
-                                for ext in PATHEXT {
-                                    // If the command ends with one of those suffixes, tell
-                                    // Warp about this command as-is and also sans-suffix, e.g.
-                                    // "git" and "git.exe".
-                                    if line.to_lowercase().ends_with(&ext.to_lowercase()) {
-                                        let trimmed = &line[..line.len() - ext.len()];
-                                        return Box::<[&str]>::from([trimmed, line]);
-                                    }
-                                }
-
-                                // Otherwise, pass it through unaltered.
-                                Box::<[&str]>::from([line])
-                            })
-                            .map_into()
-                            .collect()
+                        output_string.lines().map(Into::into).collect()
                     }
                     ShellType::Fish => {
                         // This is the post-processing for Fish explained above.
@@ -684,31 +629,7 @@ impl ShellType {
                             })
                             .collect()
                     }
-                    ShellType::PowerShell => {
-                        // Windows allows certain suffixes, e.g. "exe", to be elided.
-                        if cfg!(windows) {
-                            output_string
-                                .lines()
-                                .flat_map(|line| {
-                                    // Those suffixes are contained in `PATHEXT`.
-                                    for ext in PATHEXT {
-                                        // If the command ends with one of those suffixes, tell
-                                        // Warp about this command as-is and also sans-suffix, e.g.
-                                        // "git" and "git.exe".
-                                        if line.to_lowercase().ends_with(&ext.to_lowercase()) {
-                                            let trimmed = &line[..line.len() - ext.len()];
-                                            return Box::<[&str]>::from([trimmed, line]);
-                                        }
-                                    }
-                                    // Otherwise, pass it through unaltered.
-                                    Box::<[&str]>::from([line])
-                                })
-                                .map_into()
-                                .collect()
-                        } else {
-                            output_string.lines().map_into().collect()
-                        }
-                    }
+                    ShellType::PowerShell => output_string.lines().map_into().collect(),
                 }
             }
             Ok(output) => {
@@ -733,19 +654,12 @@ impl ShellType {
 }
 
 /// Provides the necessary info to be able to launch and bootstrap the selected AvailableShell. For
-/// executables, this is the path to the executable and the shell type. For WSL, this is the distro
-/// name. For Docker sandboxes, this is the `sbx` CLI path plus the base Docker
-/// image; the shell inside the container is whatever the image provides.
+/// executables, this is the path to the executable and the shell type. For Docker sandboxes, this
+/// is the `sbx` CLI path plus the base Docker image; the shell inside the container is whatever
+/// the image provides.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ShellLaunchData {
     Executable {
-        executable_path: PathBuf,
-        shell_type: ShellType,
-    },
-    /// Windows Subsystem for Linux.
-    #[cfg_attr(not(windows), allow(dead_code))]
-    WSL { distro: String },
-    MSYS2 {
         executable_path: PathBuf,
         shell_type: ShellType,
     },
@@ -767,25 +681,9 @@ impl ShellLaunchData {
     /// Converts the given path string to a OS-native PathBuf, performing any necessary shell-informed conversions.
     pub fn maybe_convert_absolute_path(&self, path_str: &str) -> Option<PathBuf> {
         match self {
-            ShellLaunchData::Executable { .. } => Some(PathBuf::from(path_str)),
-            ShellLaunchData::WSL { distro } => {
-                let unix_path = TypedPath::unix(path_str);
-                convert_wsl_to_windows_host_path(&unix_path, distro).ok()
+            ShellLaunchData::Executable { .. } | ShellLaunchData::DockerSandbox { .. } => {
+                Some(PathBuf::from(path_str))
             }
-            ShellLaunchData::MSYS2 {
-                executable_path, ..
-            } => {
-                let unix_path = TypedPath::unix(path_str);
-                convert_msys2_to_windows_native_path(
-                    &unix_path,
-                    &msys2_exe_to_root(WindowsPath::new(
-                        executable_path.as_os_str().as_encoded_bytes(),
-                    )),
-                )
-                .ok()
-            }
-            // Paths inside the sandbox container are plain Unix paths.
-            ShellLaunchData::DockerSandbox { .. } => Some(PathBuf::from(path_str)),
         }
     }
 
@@ -798,48 +696,24 @@ impl ShellLaunchData {
             ShellLaunchData::Executable { .. } | ShellLaunchData::DockerSandbox { .. } => {
                 PathBuf::try_from(shell_encoded_path).ok()
             }
-            ShellLaunchData::WSL { distro } => {
-                convert_wsl_to_windows_host_path(&shell_encoded_path.to_path(), distro).ok()
-            }
-            ShellLaunchData::MSYS2 {
-                executable_path, ..
-            } => convert_msys2_to_windows_native_path(
-                &shell_encoded_path.to_path(),
-                &msys2_exe_to_root(WindowsPath::new(
-                    executable_path.as_os_str().as_encoded_bytes(),
-                )),
-            )
-            .ok(),
         }
     }
 
     /// Naively changes the path string to an OS-native encoding, without performing shell-informed conversions.
     fn to_native_path_encoding(&self, path_str: &str) -> Option<PathBuf> {
         match self {
-            ShellLaunchData::Executable { .. } => Some(PathBuf::from(path_str)),
-            ShellLaunchData::WSL { .. } | ShellLaunchData::MSYS2 { .. } => {
-                let windows_encoding = TypedPath::unix(path_str).with_windows_encoding();
-                PathBuf::try_from(windows_encoding).ok()
+            ShellLaunchData::Executable { .. } | ShellLaunchData::DockerSandbox { .. } => {
+                Some(PathBuf::from(path_str))
             }
-            // The container is Unix; Warp runs on the host, so paths are
-            // already in the host's native encoding. Pass through unchanged.
-            ShellLaunchData::DockerSandbox { .. } => Some(PathBuf::from(path_str)),
         }
     }
 
     /// Converts a path string to a shell's encoding.
     fn to_shell_encoding<'a>(&self, path_str: &'a str) -> TypedPath<'a> {
         match self {
-            ShellLaunchData::Executable { .. } => {
-                if cfg!(unix) {
-                    TypedPath::unix(path_str)
-                } else {
-                    TypedPath::windows(path_str)
-                }
+            ShellLaunchData::Executable { .. } | ShellLaunchData::DockerSandbox { .. } => {
+                TypedPath::unix(path_str)
             }
-            ShellLaunchData::WSL { .. }
-            | ShellLaunchData::MSYS2 { .. }
-            | ShellLaunchData::DockerSandbox { .. } => TypedPath::unix(path_str),
         }
     }
 
@@ -867,11 +741,7 @@ impl ShellLaunchData {
         match self {
             Self::Executable {
                 executable_path, ..
-            }
-            | Self::MSYS2 {
-                executable_path, ..
             } => executable_path.to_string_lossy().into_owned(),
-            Self::WSL { distro } => distro.to_owned(),
             Self::DockerSandbox { base_image, .. } => match base_image {
                 Some(image) => format!("Docker sandbox ({image})"),
                 None => "Docker sandbox".to_owned(),
@@ -884,8 +754,6 @@ impl From<ShellLaunchData> for SessionPlatform {
     fn from(data: ShellLaunchData) -> Self {
         match data {
             ShellLaunchData::Executable { .. } => SessionPlatform::Native,
-            ShellLaunchData::WSL { .. } => SessionPlatform::WSL,
-            ShellLaunchData::MSYS2 { .. } => SessionPlatform::MSYS2,
             ShellLaunchData::DockerSandbox { .. } => SessionPlatform::DockerSandbox,
         }
     }

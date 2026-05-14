@@ -1,10 +1,8 @@
 #[cfg_attr(macos, path = "mac/mod.rs")]
-#[cfg_attr(linux, path = "linux/mod.rs")]
-#[cfg_attr(windows, path = "windows/mod.rs")]
 #[cfg(not(noop))]
 mod imp;
 mod noop;
-#[cfg(any(macos, linux, windows))]
+#[cfg(macos)]
 mod screenshot_utils;
 
 // Clippy doesn't like us pulling in a file as two different modules,
@@ -24,9 +22,6 @@ use serde_with::{DurationSecondsWithFrac, serde_as};
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Platform {
     Mac,
-    Windows,
-    LinuxX11,
-    LinuxWayland,
 }
 
 pub fn is_supported_on_current_platform() -> bool {
@@ -61,13 +56,8 @@ pub trait Actor: Send + Sync + 'static {
 /// A key that can be pressed or released.
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum Key {
-    /// A platform-specific keycode. On macOS and Windows, this is a virtual keycode.
-    /// On Linux, this is an X11 keysym.
+    /// A macOS virtual keycode.
     Keycode(i32),
-    /// A character key (e.g., 'a', '+'). On Windows, `Key::Char` only supports characters in
-    /// the Basic Multilingual Plane (BMP, `U+0000`–`U+FFFF`). Supplementary-plane characters
-    /// (emoji, some CJK extension blocks, etc.) will return an error; use `TypeText` instead for
-    /// those.
     Char(char),
 }
 

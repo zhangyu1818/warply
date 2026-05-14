@@ -11,7 +11,7 @@ use super::AsInnerMut;
 
 /// Platform-specific app implementation. On any given platform, there are at least two possible
 /// implementations:
-/// * The platform-native backend (e.g. Cocoa on macOS, or Winit+X11/Wayland on Linux)
+/// * The platform-native backend (Cocoa on macOS)
 /// * A headless backend
 pub enum AppBackend {
     CurrentPlatform(Box<super::current::App>),

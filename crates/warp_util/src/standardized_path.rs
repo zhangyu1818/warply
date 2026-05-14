@@ -175,10 +175,6 @@ impl StandardizedPath {
     }
 
     /// Whether the path uses Windows encoding.
-    pub fn is_windows(&self) -> bool {
-        self.0.to_path().is_windows()
-    }
-
     /// Sets the file name component of this path, analogous to
     /// [`PathBuf::set_file_name`].
     pub fn set_file_name(&mut self, name: &str) {
@@ -229,11 +225,7 @@ impl StandardizedPath {
     /// This function is generally something you shouldn't use. We are using this
     /// as a stop gap to avoid `unwrap` as we migrate from PathBuf to StandardizedPath.
     pub fn to_local_path_lossy(&self) -> PathBuf {
-        let local = if cfg!(windows) {
-            self.0.with_windows_encoding()
-        } else {
-            self.0.with_unix_encoding()
-        };
+        let local = self.0.with_unix_encoding();
         PathBuf::from(local.to_str().unwrap_or_default())
     }
 }
@@ -259,27 +251,12 @@ impl<'de> Deserialize<'de> for StandardizedPath {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/// Construct a `TypedPathBuf` using the local platform's encoding.
-///
-/// On Unix targets the path is always treated as Unix-encoded; on Windows
-/// targets it is always treated as Windows-encoded. This avoids ambiguity
-/// from the heuristic-based `TypedPathBuf::from` inference.
 fn local_typed_path_buf(path_str: &str) -> TypedPathBuf {
-    if cfg!(windows) {
-        typed_path::WindowsPathBuf::from(path_str).to_typed_path_buf()
-    } else {
-        typed_path::UnixPathBuf::from(path_str).to_typed_path_buf()
-    }
+    typed_path::UnixPathBuf::from(path_str).to_typed_path_buf()
 }
 
-/// Returns true if the `TypedPathBuf` encoding matches the compilation target.
 fn encoding_matches_local(typed: &TypedPathBuf) -> bool {
-    let path = typed.to_path();
-    if cfg!(windows) {
-        path.is_windows()
-    } else {
-        path.is_unix()
-    }
+    typed.to_path().is_unix()
 }
 
 #[cfg(test)]

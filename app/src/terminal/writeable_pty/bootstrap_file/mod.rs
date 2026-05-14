@@ -1,5 +1,4 @@
-#[cfg_attr(unix, path = "unix.rs")]
-#[cfg_attr(windows, path = "windows.rs")]
+#[path = "unix.rs"]
 mod imp;
 
 use crate::terminal::model::session::{BootstrapSessionType, SessionInfo};
@@ -10,14 +9,9 @@ pub use imp::TempBootstrapFile;
 ///
 /// Return `None` if any part of the operation fails
 #[cfg(feature = "local_fs")]
-pub fn create_bootstrap_file<C, S>(
-    contents: C,
-    shell_type: ShellType,
-    _wsl_distribution: Option<S>,
-) -> Option<TempBootstrapFile>
+pub fn create_bootstrap_file<C>(contents: C, shell_type: ShellType) -> Option<TempBootstrapFile>
 where
     C: AsRef<[u8]>,
-    S: AsRef<str>,
 {
     let mut builder = tempfile::Builder::new();
     // PowerShell will only source a file with the "ps1" extension.
@@ -25,12 +19,7 @@ where
         builder.suffix(".ps1");
     }
 
-    match TempBootstrapFile::new(
-        builder,
-        contents,
-        #[cfg(windows)]
-        _wsl_distribution,
-    ) {
+    match TempBootstrapFile::new(builder, contents) {
         Ok(bootstrap_file) => Some(bootstrap_file),
         Err(err) => {
             log::warn!("Error when creating temporary bootstrap file: {err:#}");

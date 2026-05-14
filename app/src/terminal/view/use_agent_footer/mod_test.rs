@@ -142,7 +142,6 @@ fn insert_pending_ai_block(
             referenced_attachments: Default::default(),
             user_query_mode: UserQueryMode::default(),
             running_command: None,
-            intended_agent: None,
         }],
     ));
     let ai_block = ctx.add_typed_action_view(|ctx| {

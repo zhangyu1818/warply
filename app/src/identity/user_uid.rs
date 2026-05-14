@@ -1,1 +1,1 @@
-pub use warp_server_client::identity::user_uid::*;
+pub use local_object_model::identity::user_uid::*;

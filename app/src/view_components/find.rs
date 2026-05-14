@@ -134,16 +134,14 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Find"))
         // Both Intellij and VSCode use f3/shift-f3 to navigate find occurrences on windows / linux.
         // See https://www.jetbrains.com/help/idea/reference-keymap-win-default.html#find_everything.
-        .with_mac_key_binding("cmd-g")
-        .with_linux_or_windows_key_binding("f3"),
+        .with_mac_key_binding("cmd-g"),
         EditableBinding::new(
             "find:find_prev_occurrence",
             "Find the previous occurrence of your search query",
             FindAction::CmdShiftG,
         )
         .with_context_predicate(id!("Find"))
-        .with_mac_key_binding("cmd-shift-G")
-        .with_linux_or_windows_key_binding("shift-f3"),
+        .with_mac_key_binding("cmd-shift-G"),
     ])
 }
 

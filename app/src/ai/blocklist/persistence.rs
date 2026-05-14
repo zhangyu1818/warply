@@ -96,9 +96,7 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::FetchReviewComments { .. }
             | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::MessagesReceivedFromAgents { .. }
-            | AIAgentInput::EventsFromAgents { .. } => Err(anyhow::anyhow!(
+            | AIAgentInput::InvokeSkill { .. } => Err(anyhow::anyhow!(
                 "This input type is not persisted. Only Query inputs are persisted for up-arrow history."
             )),
         }
@@ -121,7 +119,6 @@ impl TryFrom<PersistedAIInputType> for AIAgentInput {
                 static_query_type: None,
                 user_query_mode: UserQueryMode::default(),
                 running_command: None,
-                intended_agent: None,
             }),
         }
     }

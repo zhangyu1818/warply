@@ -60,7 +60,7 @@ These remain part of the fork and should receive applicable upstream fixes:
 | ACP, AgentView, `blocklist`, conversation history, AI settings | Port manually and preserve ACP-only backend behavior. |
 | Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep OpenAI-compatible provider. |
 | Persistence and migrations | Accept only if needed by retained local data. Reject account/team/billing/cloud-only migrations. |
-| `CloudObject`, `server_id`, `warp_server_client` naming | Inspect data flow before deciding. Some names remain for local schema compatibility. |
+| `CloudObject`, `server_id`, `local_object_model` naming | Inspect data flow before deciding. Some names remain for local schema compatibility. |
 | Auth, billing, Teams, Warp Drive cloud, GraphQL, managed secrets, telemetry, crash reporting, onboarding | Reject unless the change can be reduced to a retained local utility without restoring the product area. |
 | Cargo dependencies | Keep removals unless a retained local feature needs the crate. Be skeptical of reintroduced cloud/API/reporting crates. |
 

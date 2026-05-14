@@ -104,11 +104,6 @@ pub struct WindowOptions {
     pub gpu_power_preference: GPUPowerPreference,
     pub backend_preference: Option<GraphicsBackend>,
     pub on_gpu_device_info_reported: Box<OnGPUDeviceSelected>,
-    /// This is an identifier to distinguish different windows among one application. It is a no-op
-    /// on all platforms except X11 Linux.
-    /// See docs on the "WM_CLASS" property:
-    /// https://www.x.org/docs/ICCCM/icccm.pdf
-    pub window_instance: Option<String>,
 }
 
 impl std::fmt::Debug for WindowOptions {
@@ -125,7 +120,6 @@ impl std::fmt::Debug for WindowOptions {
             .field("background_blur_texture", &self.background_blur_texture)
             .field("gpu_power_preference", &self.gpu_power_preference)
             .field("backend_preference", &self.backend_preference)
-            .field("window_instance", &self.window_instance)
             .finish()
     }
 }
@@ -655,19 +649,9 @@ pub enum Cursor {
     DragCopy,
 }
 
-/// The current operating system in which this library is running. If on the web, this reads the
-/// user agent to determine the backing OS, otherwise this is determined at compile time based on
-/// the value of `target_arch` (<https://doc.rust-lang.org/reference/conditional-compilation.html#target_arch>).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OperatingSystem {
-    /// Any distribution of Linux.
-    Linux,
-    /// MacOS.
     Mac,
-    /// Windows.
-    Windows,
-    /// The operating system is unknown or not one of the ones specified.
-    /// Contains the name of the operating system if it is known.
     Other(Option<&'static str>),
 }
 
@@ -676,40 +660,20 @@ impl OperatingSystem {
         cfg_if::cfg_if! {
             if #[cfg(target_family = "wasm")] {
                 wasm::current_platform()
-            } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-                OperatingSystem::Linux
             } else if #[cfg(target_os = "macos")] {
                 OperatingSystem::Mac
-            } else if #[cfg(windows)] {
-                OperatingSystem::Windows
             } else {
                 OperatingSystem::Other(None)
             }
         }
     }
 
-    /// Returns true if the current [`OperatingSystem`] is Mac.
     pub fn is_mac(&self) -> bool {
         *self == OperatingSystem::Mac
     }
 
-    /// Returns true if the current [`OperatingSystem`] is Linux.
-    pub fn is_linux(&self) -> bool {
-        *self == OperatingSystem::Linux
-    }
-
-    /// Returns true if the current [`OperatingSystem`] is Windows.
-    pub fn is_windows(&self) -> bool {
-        *self == OperatingSystem::Windows
-    }
-
     pub fn default_shell_family(&self) -> ShellFamily {
-        match self {
-            OperatingSystem::Linux | OperatingSystem::Mac | OperatingSystem::Other(_) => {
-                ShellFamily::Posix
-            }
-            OperatingSystem::Windows => ShellFamily::PowerShell,
-        }
+        ShellFamily::Posix
     }
 }
 

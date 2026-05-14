@@ -1,4 +1,3 @@
-pub(crate) mod codex_modal;
 pub mod conversation_list;
 pub mod global_search;
 pub(crate) mod left_panel;
@@ -29,7 +28,6 @@ use crate::ai::blocklist::FORK_PREFIX;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::execution_context::AiExecutionContext;
-use crate::ai::llms::LLMPreferences;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::{
     agent::conversation::AIConversationId,
@@ -84,7 +82,6 @@ use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSession
 use crate::workspace::header_toolbar_editor::{HeaderToolbarEditorEvent, HeaderToolbarEditorModal};
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::TabCloseButtonPosition;
-use crate::workspace::view::codex_modal::{CodexModal, CodexModalEvent};
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::BlocklistAIHistoryModel;
 use serde_json;
@@ -112,11 +109,7 @@ use crate::settings::{
 };
 use crate::settings_view::pane_manager::SettingsPaneManager;
 use crate::settings_view::{SettingsSection, SettingsView, SettingsViewEvent};
-#[cfg(all(target_os = "windows", feature = "local_tty"))]
-use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::AvailableShell;
-#[cfg(target_os = "windows")]
-use crate::terminal::available_shells::AvailableShells;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::ligature_settings::should_use_ligature_rendering;
 use crate::terminal::warpify::settings::WarpifySettings;
@@ -715,7 +708,6 @@ pub struct Workspace {
     theme_deletion_modal: ViewHandle<ThemeDeletionModal>,
     suggested_agent_mode_workflow_modal: ViewHandle<SuggestedAgentModeWorkflowModal>,
     suggested_rule_modal: ViewHandle<SuggestedRuleModal>,
-    codex_modal: ViewHandle<CodexModal>,
     toast_stack: ViewHandle<DismissibleToastStack<WorkspaceAction>>,
     update_toast_stack: ViewHandle<DismissibleToastStack<WorkspaceAction>>,
     /// We need to render some dynamic keybindings for our tooltips. These cannot be looked up in the
@@ -1807,11 +1799,6 @@ impl Workspace {
 
         let resource_center_view = Self::build_resource_center_view(ctx, tips_completed.clone());
 
-        let codex_modal = ctx.add_typed_action_view(CodexModal::new);
-        ctx.subscribe_to_view(&codex_modal, |me, _, event, ctx| {
-            me.handle_codex_modal_event(event, ctx);
-        });
-
         let workflow_modal = Self::build_workflow_modal(ctx);
 
         let theme_creator_modal = Self::build_theme_creator_modal(ctx);
@@ -2062,7 +2049,6 @@ impl Workspace {
             #[cfg(target_family = "wasm")]
             transcript_details_panel,
             tab_fixed_width: None,
-            codex_modal,
             lightbox_view: None,
             pending_pane_group_transfer: false,
             suppress_detach_panes_on_window_close: false,
@@ -4067,60 +4053,17 @@ impl Workspace {
         let reopen_closed_session_shortcut_label =
             keybinding_name_to_display_string("app:reopen_closed_session", ctx);
 
-        // 2. Terminal (+ individual shells on Windows)
+        // 2. Terminal
         {
-            // On Windows, list the default terminal and each available shell as
-            // individual top-level items (no submenu) so each gets a sidecar.
-            #[cfg(target_os = "windows")]
-            {
-                let is_terminal_default = effective_default == DefaultSessionMode::Terminal;
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
-                if is_terminal_default {
-                    terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
-                }
-                menu_items.push(terminal_item.into_item());
-
-                #[cfg(feature = "local_tty")]
-                if FeatureFlag::ShellSelector.is_enabled() {
-                    AvailableShells::handle(ctx).read(ctx, |model, _| {
-                        for shell in model.get_available_shells() {
-                            let shell_name = model.display_name_for_shell(shell);
-                            let icon = shell
-                                .get_valid_shell_path_and_type()
-                                .and_then(|shell_launch_data| {
-                                    ShellIndicatorType::try_from(&shell_launch_data).ok()
-                                })
-                                .map(|shell_indicator_type| shell_indicator_type.to_icon())
-                                .unwrap_or(icons::Icon::Terminal);
-                            let item = MenuItemFields::new(shell_name)
-                                .with_on_select_action(WorkspaceAction::AddTabWithShell {
-                                    shell: shell.clone(),
-                                    source: AddTabWithShellSource::ShellSelectorMenu,
-                                })
-                                .with_icon(icon);
-                            menu_items.push(item.into_item());
-                        }
-                    });
-                }
+            let mut terminal_item = MenuItemFields::new("Terminal")
+                .with_on_select_action(WorkspaceAction::AddTerminalTab {
+                    hide_homepage: false,
+                })
+                .with_icon(icons::Icon::LayoutAlt01);
+            if effective_default == DefaultSessionMode::Terminal {
+                terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
             }
-
-            // On other platforms, Terminal is a regular item.
-            #[cfg(not(target_os = "windows"))]
-            {
-                let mut terminal_item = MenuItemFields::new("Terminal")
-                    .with_on_select_action(WorkspaceAction::AddTerminalTab {
-                        hide_homepage: false,
-                    })
-                    .with_icon(icons::Icon::LayoutAlt01);
-                if effective_default == DefaultSessionMode::Terminal {
-                    terminal_item = terminal_item.with_key_shortcut_label(shortcut_label.clone());
-                }
-                menu_items.push(terminal_item.into_item());
-            }
+            menu_items.push(terminal_item.into_item());
         }
 
         // 3b. Local Docker Sandbox
@@ -4319,7 +4262,7 @@ impl Workspace {
                 },
             ),
             NewSessionMenuItem::OpenLaunchConfigDocs => {
-                ctx.open_url("https://docs.warp.dev/terminal/sessions/launch-configurations")
+                ctx.open_url("https://docs.warply.local/terminal/sessions/launch-configurations")
             }
             #[cfg(feature = "local_fs")]
             NewSessionMenuItem::CreateNewTabConfig => {
@@ -7251,12 +7194,6 @@ impl Workspace {
                 if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
                     AppContext::show_native_platform_modal(ctx, dialog);
                     return false;
-                } else if cfg!(all(
-                    not(target_family = "wasm"),
-                    any(target_os = "linux", windows)
-                )) {
-                    self.show_native_modal(dialog, ctx);
-                    return false;
                 }
             }
         }
@@ -8430,13 +8367,8 @@ impl Workspace {
                     .as_ref(ctx)
                     .active_session_view(ctx)
                 {
-                    // Copy model selection and execution profile from source to new terminal view
                     if let Some(source_id) = source_terminal_view_id {
-                        Self::copy_model_and_profile_to_terminal_view(
-                            source_id,
-                            terminal_view.id(),
-                            ctx,
-                        );
+                        Self::copy_profile_to_terminal_view(source_id, terminal_view.id(), ctx);
                     }
 
                     Self::handle_forked_conversation_prompts(
@@ -8478,13 +8410,8 @@ impl Workspace {
             let tab_pane_group_handle = active_pane_group.clone();
             if let Some(terminal_view) = tab_pane_group_handle.as_ref(ctx).focused_session_view(ctx)
             {
-                // Copy model selection and execution profile from source to new terminal view
                 if let Some(source_id) = source_terminal_view_id {
-                    Self::copy_model_and_profile_to_terminal_view(
-                        source_id,
-                        terminal_view.id(),
-                        ctx,
-                    );
+                    Self::copy_profile_to_terminal_view(source_id, terminal_view.id(), ctx);
                 }
 
                 Self::handle_forked_conversation_prompts(
@@ -8555,22 +8482,11 @@ impl Workspace {
         });
     }
 
-    /// Copy the model selection and execution profile from the source terminal view to a new terminal view.
-    fn copy_model_and_profile_to_terminal_view(
+    fn copy_profile_to_terminal_view(
         source_terminal_view_id: EntityId,
         new_terminal_view_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Copy the LLM preference from source to new terminal view
-        let source_llm_id = LLMPreferences::as_ref(ctx)
-            .get_active_base_model(ctx, Some(source_terminal_view_id))
-            .id
-            .clone();
-        LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-            prefs.update_preferred_agent_mode_llm(&source_llm_id, new_terminal_view_id, ctx);
-        });
-
-        // Copy the execution profile from source to new terminal view
         let source_profile_id = *AIExecutionProfilesModel::as_ref(ctx)
             .active_profile(Some(source_terminal_view_id), ctx)
             .id();
@@ -10429,33 +10345,24 @@ impl Workspace {
 
         if let Some(terminal_handle) = pane_group_handle.as_ref(ctx).active_session_view(ctx) {
             #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-            let (
-                session,
-                path_if_local,
-                is_local,
-                is_wsl_session,
-                session_id,
-                pwd,
-                has_pending_ssh,
-            ) = terminal_handle.read(ctx, |terminal, ctx| {
-                let active_session_id = terminal.active_block_session_id();
-                let session =
-                    active_session_id.and_then(|id| terminal.sessions_model().as_ref(ctx).get(id));
-                let path_if_local = terminal.active_session_path_if_local(ctx);
-                let is_local = terminal.active_session_is_local(ctx);
-                let is_wsl_session = session.as_ref().map(|s| s.is_wsl()).unwrap_or(false);
-                let pwd = terminal.pwd();
-                let has_pending_ssh = terminal.has_pending_ssh_command();
-                (
-                    session,
-                    path_if_local,
-                    is_local,
-                    is_wsl_session,
-                    active_session_id,
-                    pwd,
-                    has_pending_ssh,
-                )
-            });
+            let (session, path_if_local, is_local, session_id, pwd, has_pending_ssh) =
+                terminal_handle.read(ctx, |terminal, ctx| {
+                    let active_session_id = terminal.active_block_session_id();
+                    let session = active_session_id
+                        .and_then(|id| terminal.sessions_model().as_ref(ctx).get(id));
+                    let path_if_local = terminal.active_session_path_if_local(ctx);
+                    let is_local = terminal.active_session_is_local(ctx);
+                    let pwd = terminal.pwd();
+                    let has_pending_ssh = terminal.has_pending_ssh_command();
+                    (
+                        session,
+                        path_if_local,
+                        is_local,
+                        active_session_id,
+                        pwd,
+                        has_pending_ssh,
+                    )
+                });
 
             let window_id = ctx.window_id();
             let path_if_local_clone = path_if_local.clone();
@@ -10470,7 +10377,6 @@ impl Workspace {
             });
 
             let is_remote = matches!(is_local, Some(false));
-            let is_unsupported_session = is_wsl_session;
 
             // Check whether this remote session has an active remote server
             // connection (or is in the process of connecting). This is only
@@ -10496,7 +10402,6 @@ impl Workspace {
             let enablement = CodingPanelEnablementState::from_session_env(
                 file_tree_and_global_search_are_enabled,
                 is_remote,
-                is_unsupported_session,
                 has_remote_server,
             );
 
@@ -10519,7 +10424,7 @@ impl Workspace {
             #[cfg(feature = "local_fs")]
             {
                 self.right_panel_view.update(ctx, |right_panel, ctx| {
-                    right_panel.update_session_env(is_remote, is_wsl_session, ctx);
+                    right_panel.update_session_env(is_remote, ctx);
                 });
 
                 if self.active_tab_pane_group().as_ref(ctx).right_panel_open {
@@ -10531,7 +10436,6 @@ impl Workspace {
                 file_tree_and_global_search_are_enabled,
                 false,
                 false,
-                false,
             );
 
             self.left_panel_view.update(ctx, |left_panel, ctx| {
@@ -10541,7 +10445,7 @@ impl Workspace {
             #[cfg(feature = "local_fs")]
             {
                 self.right_panel_view.update(ctx, |right_panel, ctx| {
-                    right_panel.update_session_env(false, false, ctx);
+                    right_panel.update_session_env(false, ctx);
                 });
             }
         }
@@ -11457,77 +11361,6 @@ impl Workspace {
         };
     }
 
-    fn handle_codex_modal_event(&mut self, event: &CodexModalEvent, ctx: &mut ViewContext<Self>) {
-        use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-        use crate::AIExecutionProfilesModel;
-
-        match event {
-            CodexModalEvent::Close => {
-                self.current_workspace_state.is_codex_modal_open = false;
-                self.focus_active_tab(ctx);
-                ctx.notify();
-            }
-            CodexModalEvent::UseCodex => {
-                // Add a new terminal tab
-                self.add_new_session_tab_internal_with_default_session_mode_behavior(
-                    NewSessionSource::Tab,
-                    Some(ctx.window_id()),
-                    None,
-                    None,
-                    false,
-                    DefaultSessionModeBehavior::Ignore,
-                    ctx,
-                );
-                ctx.notify();
-
-                // Get the active terminal view
-                let Some(terminal_view) = self
-                    .active_tab_pane_group()
-                    .as_ref(ctx)
-                    .active_session_view(ctx)
-                else {
-                    log::error!("No active terminal view after adding tab for Codex session");
-                    return;
-                };
-
-                let Some(codex_model_id) = LLMPreferences::as_ref(ctx)
-                    .get_preferred_codex_model()
-                    .map(|info| info.id.clone())
-                else {
-                    log::error!("No preferred codex model found");
-                    return;
-                };
-
-                // Set codex as the model for the default profile and make the default profile active.
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-                    let default_profile_id = profiles.default_profile_id();
-                    profiles.set_base_model(default_profile_id, Some(codex_model_id), ctx);
-                    profiles.set_active_profile(terminal_view.id(), default_profile_id, ctx);
-                });
-
-                // Enter agent view and submit the initial prompt
-                let initial_prompt = "Hello, Agent Mode x Codex!".to_string();
-                terminal_view.update(ctx, |terminal_view, ctx| {
-                    terminal_view.enter_agent_view_for_new_conversation(
-                        Some(initial_prompt),
-                        AgentViewEntryOrigin::CodexModal,
-                        ctx,
-                    );
-                });
-
-                self.current_workspace_state.is_codex_modal_open = false;
-                ctx.notify();
-            }
-        }
-    }
-
-    /// Opens the Codex modal.
-    pub fn open_codex_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        self.current_workspace_state.is_codex_modal_open = true;
-        ctx.focus(&self.codex_modal);
-        ctx.notify();
-    }
-
     /// Opens a new tab and enters agent view with a prompt from a Linear deeplink.
     pub fn open_linear_issue_work(
         &mut self,
@@ -12170,7 +12003,6 @@ impl Workspace {
                 .with_main_axis_size(MainAxisSize::Max);
             let bg_color = crate::ui_components::blended_colors::neutral_1(appearance.theme());
 
-            // Left: Warp logo - clickable to link to warp.dev
             let warp_logo = Hoverable::new(self.mouse_states.warp_logo.clone(), |_state| {
                 ConstrainedBox::new(
                     warp_core::ui::Icon::Warp
@@ -12181,10 +12013,6 @@ impl Workspace {
                 .with_width(24.)
                 .finish()
             })
-            .on_click(|ctx, _, _| {
-                ctx.dispatch_typed_action(WorkspaceAction::OpenLink("https://warp.dev".to_owned()));
-            })
-            .with_cursor(Cursor::PointingHand)
             .finish();
             tab_bar.add_child(warp_logo);
 
@@ -13604,10 +13432,6 @@ impl Workspace {
             context.set.insert(flags::COPY_ON_SELECT_CONTEXT_FLAG);
         }
 
-        if SelectionSettings::as_ref(app).linux_selection_clipboard_enabled() {
-            context.set.insert(flags::LINUX_SELECTION_CLIPBOARD_FLAG);
-        }
-
         if *editor_settings.autocomplete_symbols {
             context.set.insert(flags::AUTOCOMPLETE_SYMBOLS_CONTEXT_FLAG);
         }
@@ -13785,17 +13609,6 @@ impl Workspace {
             context
                 .set
                 .insert(flags::AUTOSUGGESTION_KEYBINDING_HINT_FLAG);
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            let force_x11 = *crate::settings::LinuxAppConfiguration::as_ref(app)
-                .force_x11
-                .value();
-
-            if !force_x11 {
-                context.set.insert(flags::ALLOW_NATIVE_WAYLAND);
-            }
         }
 
         let terminal_settings = TerminalSettings::as_ref(app);
@@ -15981,10 +15794,6 @@ impl View for Workspace {
             stack.add_child(ChildView::new(&self.suggested_rule_modal).finish());
         }
 
-        if self.current_workspace_state.is_codex_modal_open {
-            stack.add_child(ChildView::new(&self.codex_modal).finish());
-        }
-
         if let Some(lightbox_view) = &self.lightbox_view {
             stack.add_child(ChildView::new(lightbox_view).finish());
         }
@@ -16153,34 +15962,7 @@ impl View for Workspace {
             stack.finish()
         };
 
-        #[cfg_attr(not(any(windows, target_os = "linux")), allow(unused_mut))]
-        let mut event_handler = EventHandler::new(stack);
-
-        #[cfg(any(windows, target_os = "linux"))]
-        {
-            event_handler =
-                event_handler.on_scroll_wheel(move |ctx, _app, delta, modifiers_state| {
-                    if !modifiers_state.ctrl {
-                        return DispatchEventResult::PropagateToParent;
-                    }
-
-                    // If the control key is being held, scrolling should scale the zoom level or font size
-                    if FeatureFlag::UIZoom.is_enabled() {
-                        if delta.y() > 0.0 {
-                            ctx.dispatch_typed_action(WorkspaceAction::IncreaseZoom);
-                        } else if delta.y() < 0.0 {
-                            ctx.dispatch_typed_action(WorkspaceAction::DecreaseZoom);
-                        }
-                    } else if delta.y() > 0.0 {
-                        ctx.dispatch_typed_action(WorkspaceAction::IncreaseFontSize);
-                    } else if delta.y() < 0.0 {
-                        ctx.dispatch_typed_action(WorkspaceAction::DecreaseFontSize);
-                    }
-                    DispatchEventResult::StopPropagation
-                });
-        }
-
-        event_handler.finish()
+        EventHandler::new(stack).finish()
     }
 
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {

@@ -201,11 +201,6 @@ impl<T: Action + Clone> Banner<T> {
         ctx.notify();
     }
 
-    pub fn with_icon(mut self, icon: Icon) -> Self {
-        self.icon = Some(icon);
-        self
-    }
-
     fn render_icon(appearance: &Appearance, icon: &Icon) -> Box<dyn Element> {
         let icon_size = font_size(appearance);
         ConstrainedBox::new(icon.to_warpui_icon(appearance.theme().accent()).finish())

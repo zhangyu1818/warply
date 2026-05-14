@@ -52,7 +52,7 @@ maybe_define_setting!(EnableSshWarpification, group: WarpifySettings, {
 maybe_define_setting!(UseSshTmuxWrapper, group: WarpifySettings, {
     type: bool,
     default: false,
-    supported_platforms: SupportedPlatforms::OR(SupportedPlatforms::MAC.into(), SupportedPlatforms::LINUX.into()),
+    supported_platforms: SupportedPlatforms::MAC,
     private: false,
     toml_path: "warpify.ssh.use_ssh_tmux_wrapper",
     description: "Whether to use a tmux-based wrapper for SSH warpification.",
@@ -153,15 +153,6 @@ pub struct WarpifySettings {
     /// Controls the installation behavior for the SSH extension (remote server) when the binary
     /// is not installed on the remote host.
     pub ssh_extension_install_mode: SshExtensionInstallModeSetting,
-}
-
-#[cfg(windows)]
-lazy_static! {
-    /// Matches `wsl` commands which is for Windows Subsystem for Linux. Calling this can open
-    /// interactive shells into Linux VMs.
-    pub static ref WSL_SUBSHELL_REGEX: Regex = Regex::new(r"^wsl(\.exe)?($|\s)").expect("wsl regex must compile");
-    /// We filter out `wsl` commands that are not for opening interactive shells.
-    pub static ref WSL_IGNORE_REGEX: Regex = Regex::new(r" --(default-user|enable-wsl1|export|help|import|import-in-place|inbox|install|list|mount|no-distribution|no-launch|set-default|shutdown|status|terminate|uninstall|unmount|unregister|update|version|web-download)").expect("wsl ignore regex invalid");
 }
 
 lazy_static! {
@@ -359,12 +350,6 @@ impl WarpifySettings {
                 return true;
             }
         }
-        #[cfg(windows)]
-        {
-            if WSL_SUBSHELL_REGEX.is_match(command) && !WSL_IGNORE_REGEX.is_match(command) {
-                return true;
-            }
-        }
         false
     }
 
@@ -520,7 +505,3 @@ impl WarpifySettings {
         ctx.notify();
     }
 }
-
-#[cfg(test)]
-#[path = "settings_test.rs"]
-mod tests;

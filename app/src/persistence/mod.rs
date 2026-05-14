@@ -29,7 +29,6 @@ use chrono::{DateTime, Local};
 use lsp::supported_servers::LSPServerType;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
-use warp_multi_agent_api as api;
 use warpui::{AppContext, Entity, SingletonEntity};
 
 use crate::ai::blocklist::PersistedAIInput;
@@ -145,7 +144,7 @@ pub struct PersistedData {
     pub ai_queries: Vec<PersistedAIInput>,
     pub code_workspaces: Vec<CodeWorkspaceMetadata>,
     pub workspace_language_servers: HashMap<PathBuf, HashMap<LSPServerType, EnablementState>>,
-    pub multi_agent_conversations: Vec<AgentConversation>,
+    pub agent_conversations: Vec<AgentConversation>,
     pub projects: Vec<Project>,
     pub project_rules: Vec<ProjectRulePath>,
     pub ignored_suggestions: Vec<(String, SuggestionType)>,
@@ -235,12 +234,11 @@ pub enum ModelEvent {
     DeleteAIConversation {
         conversation_id: String,
     },
-    UpdateMultiAgentConversation {
+    UpdateAgentConversation {
         conversation_id: String,
-        updated_tasks: Vec<api::Task>,
         conversation_data: AgentConversationData,
     },
-    DeleteMultiAgentConversations {
+    DeleteAgentConversations {
         conversation_ids: Vec<String>,
     },
 

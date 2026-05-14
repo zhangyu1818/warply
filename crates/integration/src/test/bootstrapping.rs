@@ -88,13 +88,6 @@ pub fn test_paste_and_type_characters_before_bootstrap() -> Builder {
             let dir = utils.test_dir();
             write_rc_files_for_test(&dir, "echo -n 'Enter some user input: ' && read", [ShellRcType::Zsh, ShellRcType::Bash, ShellRcType::Fish]);
             write_rc_files_for_test(&dir, "Read-Host 'Enter some user input'", [ShellRcType::PowerShell]);
-            // On Ubuntu (and possibly other Linux distros), a message is
-            // printed out during shell initialization telling the user how to
-            // use `sudo`. This interferes with our expected pty contents, so suppress the message.
-            if cfg!(any(target_os = "linux", target_os = "freebsd")) {
-                std::fs::File::create(dir.join(".sudo_as_admin_successful"))
-                    .expect("should not fail to create file in home directory");
-            }
         })
         .with_step(
             TestStep::new("Wait for rc file to run")

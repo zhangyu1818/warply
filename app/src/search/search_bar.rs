@@ -485,11 +485,7 @@ impl<T: Action + Clone> SearchBar<T> {
                     return;
                 }
 
-                let modified_enter = match event {
-                    EditorEvent::CmdEnter if cfg!(target_os = "macos") => true,
-                    EditorEvent::ShiftEnter if cfg!(linux_or_windows) => true,
-                    _ => false,
-                };
+                let modified_enter = matches!(event, EditorEvent::CmdEnter);
 
                 // If the state should show zero state and we are not running
                 // filter query on buffer empty, intercept the enter event.

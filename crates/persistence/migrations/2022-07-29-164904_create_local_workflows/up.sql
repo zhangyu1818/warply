@@ -1,0 +1,4 @@
+CREATE TABLE workflows (
+    id INTEGER NOT NULL PRIMARY KEY,
+    data TEXT NOT NULL
+);

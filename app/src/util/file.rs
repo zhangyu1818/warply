@@ -3,8 +3,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-#[cfg(windows)]
-use warp_util::path::is_network_resource;
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
 
 use crate::terminal::model::grid::grid_handler::{ContainsPoint, Link};
@@ -79,15 +77,6 @@ pub fn absolute_path_if_valid(
 }
 
 fn is_path_valid(path: &Path, clean_path_result: &CleanPathResult) -> bool {
-    // Checking for the existence of a network resource takes a long time (~15s),
-    // and hangs the UI, so we skip validating it.
-    #[cfg(windows)]
-    if is_network_resource(path) {
-        return false;
-    }
-
-    // It should only be a valid path if the path links to a file or a folder without
-    // line and column number attached.
     let Ok(metadata) = fs::metadata(path) else {
         return false;
     };

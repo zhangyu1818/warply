@@ -192,7 +192,6 @@ pub mod flags {
     // The following are context flags to determine if the enable or disable binding is shown.
     pub const COPY_ON_SELECT_CONTEXT_FLAG: &str = "Copy_On_Select";
 
-    pub const LINUX_SELECTION_CLIPBOARD_FLAG: &str = "Linux_Selection_Clipboard";
     pub const RESTORE_SESSION_CONTEXT_FLAG: &str = "Restore_Sessions";
     pub const HONOR_PS1_CONTEXT_FLAG: &str = "Honor_PS1";
     pub const GIT_PROMPT_CONTEXT_FLAG: &str = "Git_Prompt";
@@ -265,7 +264,6 @@ pub mod flags {
     pub const CODE_SUGGESTIONS_FLAG: &str = "Code_Suggestions";
     pub const SHARED_BLOCK_TITLE_GENERATION_FLAG: &str = "Shared_Block_Title_Generation";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
-    pub const ALLOW_NATIVE_WAYLAND: &str = "Allow_Native_Wayland";
     pub const IS_ANY_AI_ENABLED: &str = "IsAnyAIEnabled";
     pub const IS_ACTIVE_AI_ENABLED: &str = "IsActiveAIEnabled";
     pub const IS_BLOCK_AI_SUMMARIES_ENABLED: &str = "IsBlockAISummariesEnabled";
@@ -313,7 +311,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     warpify_page::init_actions_from_parent_view(app, context, builder);
     ai_page::init_actions_from_parent_view(app, context, builder);
 
-    if ChannelState::enable_debug_features() || cfg!(windows) {
+    if ChannelState::enable_debug_features() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![
                 ToggleSettingActionPair::custom(
@@ -1240,16 +1238,6 @@ impl SettingsView {
                     None
                 }
             })
-    }
-
-    pub fn refresh_preferred_graphics_backend_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(features_page) = self.settings_page(SettingsSection::Features) {
-            if let SettingsPageViewHandle::Features(view) = &features_page.view_handle {
-                view.update(ctx, |view, ctx| {
-                    view.refresh_preferred_graphics_backend_dropdown(ctx);
-                });
-            }
-        }
     }
 
     fn key_up(&mut self, ctx: &mut ViewContext<Self>) {

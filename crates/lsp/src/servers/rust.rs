@@ -12,10 +12,7 @@ pub struct RustAnalyzerCandidate {
     client: Arc<http_client::Client>,
 }
 
-/// Returns the rust-analyzer asset name for the current platform.
-///
-/// Asset names follow the pattern: rust-analyzer-{arch}-{vendor}-{os}.{ext}
-/// e.g. rust-analyzer-aarch64-apple-darwin.gz, rust-analyzer-x86_64-unknown-linux-gnu.gz
+/// Returns the rust-analyzer asset name for the current macOS architecture.
 #[cfg(feature = "local_fs")]
 fn asset_name() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -26,32 +23,12 @@ fn asset_name() -> &'static str {
     {
         "rust-analyzer-x86_64-apple-darwin.gz"
     }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        "rust-analyzer-x86_64-unknown-linux-gnu.gz"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    {
-        "rust-analyzer-aarch64-unknown-linux-gnu.gz"
-    }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        "rust-analyzer-x86_64-pc-windows-msvc.zip"
-    }
-    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    {
-        "rust-analyzer-aarch64-pc-windows-msvc.zip"
-    }
     #[cfg(not(any(
         all(target_os = "macos", target_arch = "aarch64"),
         all(target_os = "macos", target_arch = "x86_64"),
-        all(target_os = "linux", target_arch = "x86_64"),
-        all(target_os = "linux", target_arch = "aarch64"),
-        all(target_os = "windows", target_arch = "x86_64"),
-        all(target_os = "windows", target_arch = "aarch64"),
     )))]
     {
-        todo!("Unsupported platform for rust-analyzer")
+        compile_error!("unsupported macOS architecture for rust-analyzer")
     }
 }
 
@@ -75,12 +52,7 @@ impl RustAnalyzerCandidate {
             return None;
         }
 
-        // Check if any version directory contains a working binary
-        let binary_name = if cfg!(windows) {
-            format!("{}.exe", SERVER_NAME)
-        } else {
-            SERVER_NAME.to_string()
-        };
+        let binary_name = SERVER_NAME.to_string();
 
         let Ok(entries) = std::fs::read_dir(&install_dir) else {
             return None;

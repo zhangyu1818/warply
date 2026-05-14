@@ -16,11 +16,3 @@ fn test_parse_github_pr_url() {
     );
     assert_eq!(parse_github_pr_url("not a url"), None);
 }
-
-#[test]
-fn sanitized_basename_extracts_filename() {
-    assert_eq!(
-        sanitized_basename("outputs/report.txt"),
-        Some("report.txt".to_string())
-    );
-}

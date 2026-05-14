@@ -106,11 +106,7 @@ const ENV_MENU_ICON_SIZE: f32 = 16.;
 const ENV_MENU_ICON_SLOT_SIZE: f32 = 16.;
 const ENV_MENU_ITEM_FONT_SIZE: f32 = 14.;
 const ENV_MENU_SEARCH_VERTICAL_PADDING: f32 = 4.;
-// Bottom padding under the search field. The model selector's bottom padding
-// is effectively `SEARCH_VERTICAL_PADDING (4) + MENU_CONTENT_VERTICAL_PADDING
-// (4) = 8` because its `Menu` wraps the pinned footer in another 4px of
-// content padding. We don't have that wrapper, so we bake the same 8px
-// directly into the footer container.
+// Bottom padding under the search field.
 const ENV_MENU_SEARCH_BOTTOM_PADDING: f32 = 8.;
 const ENV_MENU_SEARCH_FOOTER_TOP_MARGIN: f32 = 4.;
 
@@ -964,9 +960,6 @@ impl DisplayChipMenu {
         if self.filtered_items.is_empty() {
             // Show "No results" if search is active but no matches.
             if !self.search_query.is_empty() {
-                // Match the model selector dropdown's no-results row exactly
-                // for the environments menu (label, font size, paddings, and
-                // text color); other chip menus keep their existing styling.
                 let (label, font_size, horizontal_padding, vertical_padding, text_color) =
                     match self.chip_menu_type {
                         ChipMenuType::Environments => (

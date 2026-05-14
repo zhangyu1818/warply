@@ -107,7 +107,7 @@ diesel::define_sql_function! {
 const CHANNEL_SIZE: usize = 1024;
 const COMMANDS_COUNT_LIMIT: i64 = 10000;
 
-use warp_server_client::persistence::{upsert_cloud_object, CloudObjectId};
+use local_object_model::persistence::{upsert_cloud_object, CloudObjectId};
 
 const WARPLY_SQLITE_FILE_NAME: &str = "warply.sqlite";
 
@@ -431,21 +431,15 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             delete_ai_conversation(connection, &conversation_id)
                 .context("error deleting AI conversation")
         }
-        ModelEvent::UpdateMultiAgentConversation {
+        ModelEvent::UpdateAgentConversation {
             conversation_id,
-            updated_tasks,
             conversation_data,
-        } => upsert_agent_conversation(
-            connection,
-            &conversation_id,
-            &updated_tasks,
-            conversation_data,
-        )
-        .map_err(anyhow::Error::from),
-        ModelEvent::DeleteMultiAgentConversations { conversation_ids } => {
+        } => upsert_agent_conversation(connection, &conversation_id, conversation_data)
+            .map_err(anyhow::Error::from),
+        ModelEvent::DeleteAgentConversations { conversation_ids } => {
             delete_agent_conversations(connection, conversation_ids)
                 .map_err(anyhow::Error::from)
-                .context("error deleting multi-agent conversation")
+                .context("error deleting agent conversation")
         }
         ModelEvent::UpsertMCPServerEnvironmentVariables {
             mcp_server_uuid,
@@ -513,25 +507,12 @@ fn report_db_error(_err_kind: &str, _err: anyhow::Error, database_path: &Path) {
     fn log_access(prefix: &str, path: &Path) {
         match fs::metadata(path) {
             Ok(metadata) => {
-                cfg_if::cfg_if! {
-                    if #[cfg(windows)] {
-                        use async_fs::windows::MetadataExt;
-                        // Windows does not have the same notion of permissions as Unix-based file systems.
-                        // See more about what File Attributes contain [here](https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants).
-                        let attributes = metadata.file_attributes();
-                        safe_info!(
-                            safe: ("{prefix} attributes: {attributes}"),
-                            full: ("{prefix} {} attributes: {attributes}", path.display())
-                        );
-                    } else {
-                        use async_fs::unix::PermissionsExt;
-                        let mode = metadata.permissions().mode();
-                        safe_info!(
-                            safe: ("{prefix} permissions: {mode:o}"),
-                            full: ("{prefix} {} permissions: {mode:o}", path.display())
-                        );
-                    }
-                }
+                use async_fs::unix::PermissionsExt;
+                let mode = metadata.permissions().mode();
+                safe_info!(
+                    safe: ("{prefix} permissions: {mode:o}"),
+                    full: ("{prefix} {} permissions: {mode:o}", path.display())
+                );
             }
             Err(err) => {
                 safe_info!(
@@ -839,7 +820,6 @@ fn save_pane_state(
                     .input_config
                     .as_ref()
                     .and_then(|config| serde_json::to_string(config).ok()),
-                llm_model_override: terminal_snapshot.llm_model_override.clone(),
                 active_profile_id: terminal_snapshot
                     .active_profile_id
                     .as_ref()
@@ -1014,44 +994,21 @@ fn save_ai_document_content(
 /// Encode a path into a platform-specific byte representation for persistence.
 fn encode_path(path: PathBuf) -> Vec<u8> {
     if path == PathBuf::new() {
-        // bytemuck will throw a TargetAlignmentGreaterAndInputNotAligned error
-        // if we don't special-case the empty path.
         return Vec::new();
     }
 
-    cfg_if::cfg_if! {
-        if #[cfg(unix)] {
-            use std::os::unix::ffi::OsStringExt;
-            path.into_os_string().into_vec()
-        } else if #[cfg(windows)] {
-            use std::os::windows::ffi::OsStrExt;
-            let wide_char_sequence: Vec<u16> = path.into_os_string().encode_wide().collect();
-            // We need to deal with slices (not Vec) because otherwise we will get a PodCastError::AlignmentMismatch.
-            let slice: &[u8] = bytemuck::cast_slice(wide_char_sequence.as_slice());
-            slice.to_vec()
-        }
-    }
+    use std::os::unix::ffi::OsStringExt;
+    path.into_os_string().into_vec()
 }
 
 /// Decode a path from its platform-specific byte representation.
 fn decode_path(bytes: Vec<u8>) -> PathBuf {
     if bytes.is_empty() {
-        // bytemuck will throw a TargetAlignmentGreaterAndInputNotAligned error
-        // if we don't special-case the empty path.
         return PathBuf::new();
     }
 
-    cfg_if::cfg_if! {
-        if #[cfg(unix)] {
-            use std::os::unix::ffi::OsStringExt;
-            OsString::from_vec(bytes).into()
-        } else if #[cfg(windows)] {
-            use std::os::windows::ffi::OsStringExt;
-            // We need to deal with slices (not Vec) because otherwise we will get a PodCastError::AlignmentMismatch.
-            let wide_char_sequence: &[u16] = bytemuck::cast_slice(bytes.as_slice());
-            OsString::from_wide(wide_char_sequence).into()
-        }
-    }
+    use std::os::unix::ffi::OsStringExt;
+    OsString::from_vec(bytes).into()
 }
 
 fn save_code_workspace_metadata(
@@ -1764,7 +1721,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         is_read_only: false,
                         shell_launch_data,
                         input_config,
-                        llm_model_override: terminal_pane.llm_model_override,
                         active_profile_id,
                         conversation_ids_to_restore,
                         active_conversation_id,
@@ -2040,7 +1996,7 @@ fn read_sqlite_data(
             ) {
                 (Some(mut width), Some(mut height), Some(x), Some(y)) => {
                     // When fullscreen or maximized, the `inner_size` we snapshotted will be the
-                    // size of the full screen. This will cause problems with winit. When you set
+                    // size of the full screen. This will cause problems with the window backend. When you set
                     // maximized/fullscreen, setting the inner_size will by the size the window
                     // takes _after_ the user toggles _out_ of fullscreen/maximized. Therefore, we
                     // don't want to set the size to take the full screen because the window will
@@ -2311,7 +2267,7 @@ fn read_sqlite_data(
 
     let code_workspaces = get_all_code_workspace_metadata(conn)?;
     let workspace_language_servers = get_all_workspace_language_servers_by_workspace(conn)?;
-    let multi_agent_conversations = read_agent_conversations(conn)?;
+    let agent_conversations = read_agent_conversations(conn)?;
     let projects = get_all_projects(conn)?;
     let project_rules = get_all_project_rules(conn)?;
     let ignored_suggestions = get_all_ignored_suggestions(conn)?;
@@ -2326,7 +2282,7 @@ fn read_sqlite_data(
         ai_queries,
         code_workspaces,
         workspace_language_servers,
-        multi_agent_conversations,
+        agent_conversations,
         projects,
         project_rules,
         ignored_suggestions,

@@ -5,7 +5,7 @@ description: "Runs warp with the particular shell so devs don't need to change t
 arguments:
   - name: shell
     description: path of shell to use
-author: Warp Team
+author: Warply Team
 shells: []
 ---
 name: "Run Warp locally with shell 2: Electric Boogaloo"
@@ -14,5 +14,5 @@ description: "Runs warp with the particular shell so devs don't need to change t
 arguments:
   - name: shell
     description: path of shell to use
-author: Warp Team
+author: Warply Team
 shells: []

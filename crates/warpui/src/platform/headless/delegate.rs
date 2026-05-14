@@ -69,16 +69,7 @@ impl platform::Delegate for AppDelegate {
     }
 
     fn open_url(&self, url: &str) {
-        #[cfg(target_os = "macos")]
-        {
-            // Use macOS platform implementation
-            crate::platform::mac::Window::open_url(url);
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            // Reuse the winit implementation for non-mac platforms
-            crate::windowing::winit::delegate::open_url_in_system(url);
-        }
+        crate::platform::mac::Window::open_url(url);
     }
 
     fn open_file_path(&self, _path: &std::path::Path) {
@@ -208,7 +199,6 @@ impl platform::DispatchDelegate for DispatchDelegate {
     }
 
     fn run_on_main_thread(&self, task: async_task::Runnable) {
-        // See crate::windowing::winit::delegate::DispatchDelegate for why we use ManuallyDrop.
         if self
             .event_sender
             .send(AppEvent::RunTask(ManuallyDrop::new(task)))

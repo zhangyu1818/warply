@@ -103,10 +103,6 @@ pub enum CustomAction {
     AddWindow,
     CloseCurrentSession,
     CloseWindow,
-    #[cfg(windows)]
-    WindowsPaste,
-    #[cfg(windows)]
-    WindowsCopy,
     NewAgentModePane,
     AttachSelectionAsAgentModeContext,
     OpenAIFactCollection,
@@ -189,8 +185,6 @@ lazy_static! {
     /// Set of actions on Windows that should be considered valid bindings even though they aren't
     /// PTY compliant. Windows users expect pasting to work using both `ctrl-v` and `ctrl-shift-v`,
     /// so we allowlist the terminal paste action for the purposes of binding validation.
-    pub static ref WINDOWS_PTY_NON_COMPLIANT_KEYSTROKES: HashSet<Keystroke> = HashSet::from_iter([Keystroke::parse("ctrl-v").expect("should be able to construct ctrl-v keystroke")]);
-
     /// Set of keystrokes that should be considered valid bindings on all platforms even though
     /// they aren't PTY compliant.
     pub static ref PTY_NON_COMPLIANT_KEYSTROKES: HashSet<Keystroke> = HashSet::from_iter([
@@ -251,10 +245,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::Cut => Keystroke::parse("cmdorctrl-x").ok(),
         CustomAction::Copy => Keystroke::parse(cmd_or_ctrl_shift("c")).ok(),
         CustomAction::Paste => Keystroke::parse(cmd_or_ctrl_shift("v")).ok(),
-        #[cfg(windows)]
-        CustomAction::WindowsPaste => Keystroke::parse("ctrl-v").ok(),
-        #[cfg(windows)]
-        CustomAction::WindowsCopy => Keystroke::parse("ctrl-c").ok(),
         CustomAction::Undo => Keystroke::parse("cmdorctrl-z").ok(),
         CustomAction::Redo => Keystroke::parse("cmdorctrl-shift-Z").ok(),
         CustomAction::ClearEditor => Keystroke::parse("ctrl-c").ok(),
@@ -857,8 +847,6 @@ pub fn is_binding_pty_compliant(binding: BindingLens) -> IsBindingValid {
 
     let is_binding_in_allowlist = (OperatingSystem::get().is_mac()
         && MAC_PTY_NON_COMPLIANT_ACTIONS.contains(binding.name))
-        || (OperatingSystem::get().is_windows()
-            && WINDOWS_PTY_NON_COMPLIANT_KEYSTROKES.contains(&keystroke))
         || PTY_NON_COMPLIANT_KEYSTROKES.contains(&keystroke);
 
     if CONTROL_CHARACTER_KEY_REGEX.is_match(keystroke.normalized().as_str())

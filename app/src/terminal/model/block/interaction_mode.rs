@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use warp_terminal::model::{grid::Dimensions, Point};
 
 use crate::{
@@ -84,19 +83,6 @@ impl Block {
     pub fn cli_subagent_task_id(&self) -> Option<&TaskId> {
         self.agent_interaction_metadata()
             .and_then(|metadata| metadata.subagent_task_id())
-    }
-
-    pub fn promote_cli_subagent_task_id(&mut self, new_task_id: TaskId) -> anyhow::Result<()> {
-        if let InteractionMode::Agent(AgentInteractionMetadata {
-            subagent_task_id: Some(ref mut task_id),
-            ..
-        }) = &mut self.interaction_mode
-        {
-            *task_id = new_task_id;
-            Ok(())
-        } else {
-            Err(anyhow!("Tried to promote CLI subagent task ID for block with no prior CLI subagent task ID."))
-        }
     }
 
     /// Returns `true` if this command is active and the agent is in control.

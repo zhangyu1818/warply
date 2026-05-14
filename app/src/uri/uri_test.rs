@@ -223,7 +223,7 @@ fn test_linear_issue_work_empty_prompt() {
 #[test]
 fn safe_url_log_fields_redacts_sensitive_query_params() {
     let url = Url::parse(&format!(
-        "{}://codex/start?code=AUTH_CODE&state=xyz&access_token=AT&custom_token=CT&token=RAW",
+        "{}://linear/work?prompt=SECRET_PROMPT&secret=SECRET_VALUE&token=RAW",
         ChannelState::url_scheme()
     ))
     .unwrap();
@@ -231,22 +231,19 @@ fn safe_url_log_fields_redacts_sensitive_query_params() {
     let logged = safe_url_log_fields(&url);
 
     for forbidden in [
-        "code=",
-        "AUTH_CODE",
-        "access_token",
-        "AT",
-        "custom_token",
-        "CT",
+        "prompt=",
+        "SECRET_PROMPT",
+        "secret",
+        "SECRET_VALUE",
         "token=RAW",
-        "state=",
     ] {
         assert!(
             !logged.contains(forbidden),
             "redacted log must not contain {forbidden:?}: {logged}"
         );
     }
-    assert!(logged.contains("host=codex"), "expected host: {logged}");
-    assert!(logged.contains("path=/start"), "expected path: {logged}");
+    assert!(logged.contains("host=linear"), "expected host: {logged}");
+    assert!(logged.contains("path=/work"), "expected path: {logged}");
 }
 
 /// URL fragments are not currently used as secret carriers by Warp today, but
@@ -255,7 +252,7 @@ fn safe_url_log_fields_redacts_sensitive_query_params() {
 #[test]
 fn safe_url_log_fields_drops_fragment() {
     let url = Url::parse(&format!(
-        "{}://codex/start#sensitive_fragment",
+        "{}://linear/work#sensitive_fragment",
         ChannelState::url_scheme()
     ))
     .unwrap();
@@ -297,7 +294,7 @@ fn safe_url_log_fields_handles_file_urls_without_host() {
 #[test]
 fn validate_custom_uri_errors_do_not_leak_query_string() {
     // Unexpected scheme.
-    let url = Url::parse("https://codex/start?token=LEAKED").unwrap();
+    let url = Url::parse("https://linear/work?token=LEAKED").unwrap();
     let err = validate_custom_uri(&url).unwrap_err();
     let msg = format!("{err:?}");
     assert!(!msg.contains("token="), "{msg}");

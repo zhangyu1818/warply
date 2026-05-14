@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::future::Future;
 
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
-use crate::ai::agent::task::Task;
 use crate::persistence::model::{AgentConversation, AgentConversationData};
 use futures::FutureExt;
 use itertools::Itertools as _;
@@ -36,7 +35,6 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
     persisted_conversation: AgentConversation,
 ) -> Option<AIConversation> {
     let AgentConversation {
-        tasks,
         conversation:
             AgentConversationRecord {
                 conversation_id,
@@ -53,9 +51,16 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
         }
     };
 
-    let conversation_data = serde_json::from_str::<AgentConversationData>(&conversation_data).ok();
+    let conversation_data = match serde_json::from_str::<AgentConversationData>(&conversation_data)
+    {
+        Ok(data) => data,
+        Err(e) => {
+            log::warn!("Failed to deserialize persisted conversation data: {e:?}");
+            return None;
+        }
+    };
 
-    match AIConversation::new_restored(conversation_id, tasks, conversation_data) {
+    match AIConversation::new_restored(conversation_id, conversation_data) {
         Ok(conversation) => Some(conversation),
         Err(e) => {
             log::warn!("Failed to convert persisted conversation to AIConversation: {e:?}");
@@ -183,101 +188,32 @@ impl BlocklistAIHistoryModel {
                     }
                 };
 
-                if !agent_conv.is_restorable() {
-                    return None;
-                }
-
-                // Skip conversations that contain AutoCodeDiff system queries but do not contain any UserQuery messages.
-                // These are passive, auto-initiated diffs that were never interacted with (past accepting or rejecting the diff),
-                // so we don't want to list them as historical conversations.
-                let mut has_user_query = false;
-                let mut has_autocodediff = false;
-                for task in &agent_conv.tasks {
-                    for message in &task.messages {
-                        match &message.message {
-                            Some(warp_multi_agent_api::message::Message::UserQuery(_)) => {
-                                has_user_query = true;
-                            }
-                            Some(warp_multi_agent_api::message::Message::SystemQuery(sys)) => {
-                                if let Some(warp_multi_agent_api::message::system_query::Type::AutoCodeDiff(_)) = &sys.r#type {
-                                    has_autocodediff = true;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                if has_autocodediff && !has_user_query {
-                    return None;
-                }
-
-                let root_task = agent_conv.tasks.iter().find(|task| {
-                    task.dependencies.is_none()
-                });
-
-                let initial_query = root_task.map(|task| {
-                    // find the first task with a user query
-                    // (or in the case of a passive code diff, the summary of the diff)
-                    task.messages.iter().find_map(|msg| {
-                        match &msg.message {
-                            Some(warp_multi_agent_api::message::Message::UserQuery(user_query)) => {
-                                Some(user_query.query.clone())
-                            }
-                            Some(warp_multi_agent_api::message::Message::ToolCall(tool_call))  => {
-                                let Some(tool) = &tool_call.tool else {
-                                    return None;
-                                };
-
-                                if let warp_multi_agent_api::message::tool_call::Tool::ApplyFileDiffs(diff_suggestion) = tool {
-                                    Some(diff_suggestion.summary.clone())
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        }
-                    }).unwrap_or_default()
-                }).unwrap_or_default();
-
-                if initial_query.is_empty() {
-                    log::warn!(
-                        "Failed to record conversation with ID {conversation_id} because it was missing an initial query"
-                    );
-                    return None;
-                }
-
-                // We derive the title from the description of the root task,
-                // falling back to initial_query if the description is empty
-                let title = root_task
-                    .map(|task| task.description.clone())
-                    .filter(|desc| !desc.is_empty())
-                    .unwrap_or_else(|| initial_query.clone());
-
-                // Extract working directory from the first UserQuery message in the tasks
-                // TODO: search tasks in correct order once we've implemented task ordering.
-                let initial_working_directory = agent_conv.tasks.iter().find_map(Task::api_task_initial_working_directory);
-                let conversation_data = serde_json::from_str::<AgentConversationData>(
+                let conversation_data = match serde_json::from_str::<AgentConversationData>(
                     &agent_conv.conversation.conversation_data,
-                )
-                .ok();
-                let artifacts = conversation_data
-                    .as_ref()
-                    .and_then(|data| data.artifacts_json.as_ref())
-                    .and_then(|json| serde_json::from_str(json).ok())
-                    .unwrap_or_default();
+                ) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        log::warn!("Failed to deserialize conversation data: {e:?}");
+                        return None;
+                    }
+                };
+                let conversation =
+                    match AIConversation::new_restored(conversation_id, conversation_data) {
+                        Ok(conversation) => conversation,
+                        Err(e) => {
+                            log::warn!(
+                                "Failed to record conversation with ID {conversation_id}: {e:?}"
+                            );
+                            return None;
+                        }
+                    };
+                let mut metadata = AIConversationMetadata::from(&conversation);
+                if metadata.initial_query.is_empty() {
+                    return None;
+                }
+                metadata.last_modified_at = agent_conv.conversation.last_modified_at;
 
-                Some((
-                    conversation_id,
-                    AIConversationMetadata {
-                        id: conversation_id,
-                        title,
-                        initial_query,
-                        last_modified_at: agent_conv.conversation.last_modified_at,
-                        initial_working_directory,
-                        has_local_data: true,
-                        artifacts,
-                    },
-                ))
+                Some((conversation_id, metadata))
             })
             .collect();
 

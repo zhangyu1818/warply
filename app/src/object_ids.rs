@@ -1,5 +1,4 @@
-// Re-export types from warp_server_client.
-pub use warp_server_client::ids::{
+pub use local_object_model::ids::{
     parse_sqlite_id_to_uid, ClientId, HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId,
     ToServerId,
 };
@@ -9,7 +8,7 @@ pub use warp_server_client::ids::{
 /// Takes type and desired prefix for HashableId.
 ///
 /// Note: This macro uses `$crate::object_ids::*` paths, so it only works within the warp crate.
-/// For types defined in warp_server_client, use `warp_server_client::server_id_traits!` instead.
+/// For types defined in local_object_model, use `local_object_model::server_id_traits!` instead.
 #[macro_export]
 macro_rules! server_id_traits {
     ($t:ty, $prefix:literal) => {

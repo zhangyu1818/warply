@@ -14,7 +14,7 @@ pub mod plan_and_todo_list;
 
 const BLURRED_OPACITY: u8 = 50;
 
-/// Shared theme for icon-only prompt buttons (used by UDI and compact model selector)
+/// Shared theme for icon-only prompt buttons.
 #[derive(Clone)]
 pub struct PromptIconButtonTheme {
     is_blurred: bool,

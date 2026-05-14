@@ -682,7 +682,6 @@ fn test_custom_lines() {
 
 /// Regression test for WARP-CLIENT-DEV-NYY: panic "Invalid edit range 4042..3982".
 ///
-/// Reproduces the crash from MAA conversation d71bf84b (request b621adb3).
 /// Two V4A hunks target the same region: a large deletion whose matched range
 /// subsumes a nearby single-line edit. Without `deduplicate_overlapping_deltas`,
 /// both deltas survive and `Buffer::edit` panics on the overlapping ranges.

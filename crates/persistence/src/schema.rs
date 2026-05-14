@@ -10,16 +10,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    agent_tasks (id) {
-        id -> Integer,
-        conversation_id -> Text,
-        task_id -> Text,
-        task -> Binary,
-        last_modified_at -> Timestamp,
-    }
-}
-
-diesel::table! {
     ai_document_panes (id) {
         id -> Integer,
         kind -> Text,
@@ -314,7 +304,6 @@ diesel::table! {
         is_active -> Bool,
         shell_launch_data -> Nullable<Text>,
         input_config -> Nullable<Text>,
-        llm_model_override -> Nullable<Text>,
         active_profile_id -> Nullable<Text>,
         conversation_ids -> Nullable<Text>,
         active_conversation_id -> Nullable<Text>,

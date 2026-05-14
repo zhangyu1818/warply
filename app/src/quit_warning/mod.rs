@@ -10,7 +10,6 @@ use crate::{
     pane_group::{CodePane, PaneGroup, PaneId, TerminalPane},
     session_management::{RunningSessionSummary, SessionNavigationData},
     terminal::general_settings::GeneralSettings,
-    workspace::Workspace,
 };
 
 /// Scope of what's being quit/closed.
@@ -42,9 +41,6 @@ pub struct UnsavedStateSummary<'a> {
     windows_with_long_running_commands: usize,
     /// Number of tabs with long-running commands.
     tabs_with_long_running_commands: usize,
-
-    /// All terminal sessions in this scope.
-    terminal_sessions: Vec<SessionNavigationData>,
 
     /// Whether or not there are unsaved code changes.
     unsaved_code_changes: bool,
@@ -216,7 +212,6 @@ impl<'a> UnsavedStateSummary<'a> {
             total_long_running_commands: sessions_summary.long_running_cmds.len(),
             windows_with_long_running_commands: sessions_summary.windows_running().len(),
             tabs_with_long_running_commands: sessions_summary.tabs_running().len(),
-            terminal_sessions: sessions,
             unsaved_code_changes: !code_editor_summary.unsaved_changes.is_empty()
                 || !code_review_summary.unsaved_changes.is_empty(),
         }
@@ -225,10 +220,6 @@ impl<'a> UnsavedStateSummary<'a> {
     pub fn should_display_warning(&self, ctx: &AppContext) -> bool {
         *GeneralSettings::as_ref(ctx).show_warning_before_quitting
             && (self.total_long_running_commands > 0 || self.unsaved_code_changes)
-    }
-
-    pub fn running_sessions(&self) -> RunningSessionSummary<'_> {
-        RunningSessionSummary::new(&self.terminal_sessions)
     }
 
     /// Initializes a [`QuitWarningDialog`] with this summary of unsaved state.
@@ -387,40 +378,11 @@ impl<'a> QuitWarningDialog<'a> {
         )
     }
 
-    /// Show the quit warning dialog. This returns `true` if the dialog was shown, and `false` if
-    /// the current platform doesn't support showing a modal.
+    /// Show the quit warning dialog.
     pub fn show(self, ctx: &mut AppContext) -> bool {
-        let session_summary = self.state.running_sessions();
         let dialog = self.build();
-        // We don't support showing a modal on all platforms.
-        let mut shown = false;
-        if cfg!(all(not(target_family = "wasm"), target_os = "macos")) {
-            ctx.show_native_platform_modal(dialog);
-            shown = true;
-        } else if cfg!(all(
-            not(target_family = "wasm"),
-            any(target_os = "linux", target_os = "freebsd", windows)
-        )) {
-            // Find a window to show the Warp-native modal in. If there is no active window, use
-            // one of the windows with a running process.
-            let window_id_to_focus = ctx
-                .windows()
-                .active_window()
-                .or_else(|| session_summary.windows_running().iter().next().copied());
-            if let Some(window_id_to_focus) = window_id_to_focus {
-                ctx.windows().show_window_and_focus_app(window_id_to_focus);
-                if let Some(workspace) = ctx
-                    .views_of_type::<Workspace>(window_id_to_focus)
-                    .and_then(|workspaces| workspaces.first().cloned())
-                {
-                    workspace.update(ctx, |view, ctx| {
-                        view.show_native_modal(dialog, ctx);
-                    });
-                    shown = true;
-                }
-            }
-        }
-        shown
+        ctx.show_native_platform_modal(dialog);
+        true
     }
 }
 

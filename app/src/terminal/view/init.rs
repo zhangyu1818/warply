@@ -158,19 +158,13 @@ pub fn init(app: &mut AppContext) {
         ),
         // Resume conversation keybinding
         FixedBinding::new_per_platform(
-            PerPlatformKeystroke {
-                mac: "cmd-shift-R",
-                linux_and_windows: "ctrl-alt-r",
-            },
+            PerPlatformKeystroke { mac: "cmd-shift-R" },
             TerminalAction::ResumeConversation,
             id!("Terminal") & !id!("IMEOpen") & id!(CAN_RESUME_CONVERSATION_KEY),
         ),
         // Fork from the last known good exchange keybinding
         FixedBinding::new_per_platform(
-            PerPlatformKeystroke {
-                mac: "cmd-alt-y",
-                linux_and_windows: "ctrl-alt-y",
-            },
+            PerPlatformKeystroke { mac: "cmd-alt-y" },
             TerminalAction::ForkConversationFromLastKnownGoodState,
             id!("Terminal") & !id!("IMEOpen") & id!(CAN_FORK_FROM_LAST_KNOWN_GOOD_STATE_KEY),
         ),
@@ -245,10 +239,7 @@ pub fn init(app: &mut AppContext) {
                 id!("Terminal") & !id!("IMEOpen"),
             ),
             FixedBinding::new_per_platform(
-                PerPlatformKeystroke {
-                    mac: "cmd-shift-D",
-                    linux_and_windows: "ctrl-shift-E",
-                },
+                PerPlatformKeystroke { mac: "cmd-shift-D" },
                 TerminalAction::SplitDown(None),
                 id!("Terminal") & !id!("IMEOpen"),
             ),
@@ -273,17 +264,6 @@ pub fn init(app: &mut AppContext) {
             ),
         ]);
     }
-
-    // By default, Windows Terminal recognizes both `ctrl-v` and `ctrl-shift-v` to paste into the
-    // terminal. It also allows users to disable it, so we also make this an EditableBinding.
-    #[cfg(windows)]
-    app.register_editable_bindings([EditableBinding::new(
-        "terminal:alternate_terminal_paste",
-        "Alternate terminal paste",
-        TerminalAction::Paste,
-    )
-    .with_key_binding("ctrl-v")
-    .with_context_predicate(id!("Terminal") & !id!("IMEOpen"))]);
 
     app.register_fixed_bindings([
         FixedBinding::new(
@@ -362,21 +342,12 @@ pub fn init(app: &mut AppContext) {
         } else {
             "cmd-enter"
         })
-        .with_linux_or_windows_key_binding(if FeatureFlag::AgentView.is_enabled() {
-            "alt-shift-enter"
-        } else {
-            "ctrl-shift-enter"
-        })
         .with_context_predicate(
             id!("Terminal") & !id!("IMEOpen") & id!(flags::HAS_PENDING_PROMPT_SUGGESTION),
         ),
         EditableBinding::new(
             CANCEL_COMMAND_KEYBINDING,
-            if cfg!(windows) {
-                "Copy text or cancel active process"
-            } else {
-                "Cancel active process"
-            },
+            "Cancel active process",
             TerminalAction::CtrlC,
         )
         .with_key_binding("ctrl-c")
@@ -479,7 +450,6 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ControlSequence(Vec::from(EscCodes::WORD_LEFT)),
         )
         .with_mac_key_binding("alt-left")
-        .with_linux_or_windows_key_binding("ctrl-left")
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_word_right",
@@ -487,7 +457,6 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ControlSequence(Vec::from(EscCodes::WORD_RIGHT)),
         )
         .with_mac_key_binding("alt-right")
-        .with_linux_or_windows_key_binding("ctrl-right")
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_move_cursor_home",
@@ -511,7 +480,6 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ControlSequence(vec![escape_sequences::C0::ETB]),
         )
         .with_mac_key_binding("alt-backspace")
-        .with_linux_or_windows_key_binding("ctrl-backspace")
         .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & id!("LongRunningCommand")),
         EditableBinding::new(
             "terminal:executing_command_delete_line_start",
@@ -901,10 +869,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
             | !id!(flags::LOCKED_INPUT));
 
     app.register_fixed_bindings([FixedBinding::new_per_platform(
-        PerPlatformKeystroke {
-            mac: "cmd-enter",
-            linux_and_windows: "ctrl-shift-enter",
-        },
+        PerPlatformKeystroke { mac: "cmd-enter" },
         TerminalAction::SetInputModeAgent,
         agent_mode_predicate.clone()
             & !id!("Input")
@@ -921,8 +886,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
         )
         .with_group(bindings::BindingGroup::Ai.as_str())
         .with_context_predicate(agent_mode_predicate)
-        .with_mac_key_binding("cmd-i")
-        .with_linux_or_windows_key_binding("ctrl-i"),
+        .with_mac_key_binding("cmd-i"),
         EditableBinding::new(
             SET_INPUT_MODE_TERMINAL_ACTION_NAME,
             "Set Input Mode to Terminal Mode",
@@ -930,8 +894,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
         )
         .with_group(bindings::BindingGroup::Ai.as_str())
         .with_context_predicate(terminal_mode_predicate)
-        .with_mac_key_binding("cmd-i")
-        .with_linux_or_windows_key_binding("ctrl-i"),
+        .with_mac_key_binding("cmd-i"),
         EditableBinding::new(
             TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING,
             "Toggle Hide CLI Responses",

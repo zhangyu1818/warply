@@ -58,7 +58,7 @@ use warpui::{
 /// Footer control bar at the bottom of the agent input.
 ///
 /// Renders in two modes:
-/// - **Agent View mode** (default): model selector, NLD toggle, chips, etc.
+/// - **Agent View mode** (default): local controls and context chips.
 /// - **CLI agent mode**: agent icon, image, mic, file explorer, view changes, rich input.
 ///
 /// The mode is determined by reading `CLIAgentSessionsModel` at render time.

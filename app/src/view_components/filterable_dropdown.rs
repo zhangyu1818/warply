@@ -168,38 +168,6 @@ where
         }
     }
 
-    /// Set items from rich menu items (MenuItem). This passes the rich menu items to the
-    /// internal dropdown but also extracts searchable DropdownItem objects for filtering.
-    pub fn set_rich_items(
-        &mut self,
-        items: Vec<MenuItem<DropdownAction<A>>>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Extract simple DropdownItem objects from MenuItem for filtering
-        self.items = items
-            .iter()
-            .filter_map(|item| match item {
-                MenuItem::Item(fields) => {
-                    let label = fields.label().to_string();
-                    fields.on_select_action().and_then(|action| {
-                        if let DropdownAction::SelectActionAndClose(a) = action {
-                            Some(DropdownItem::new(label, a.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                }
-                _ => None, // Skip headers and separators
-            })
-            .collect();
-
-        // Set the full rich items on the internal dropdown
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.set_items(items, ctx);
-        });
-        ctx.notify();
-    }
-
     /// The number of items in the dropdown.
     pub fn len(&self) -> usize {
         self.items.len()

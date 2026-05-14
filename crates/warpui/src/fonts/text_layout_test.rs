@@ -13,9 +13,6 @@ use pathfinder_color::ColorU;
 #[cfg(target_os = "macos")]
 use crate::platform::mac::fonts::FontDB;
 
-#[cfg(not(target_os = "macos"))]
-use crate::windowing::winit::fonts::FontDB;
-
 const FONT_SIZE: f32 = 16.;
 const FRAME_WIDTH: f32 = 80.;
 const FRAME_HEIGHT: f32 = f32::MAX;
@@ -256,7 +253,7 @@ fn test_multiline_caret_positions() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_str_infinite_height() -> Result<()> {
@@ -327,7 +324,6 @@ fn test_layout_str() -> Result<()> {
     Ok(())
 }
 
-#[cfg_attr(windows, ignore = "TODO(CORE-3626)")]
 #[test]
 fn test_layout_str_with_style() -> Result<()> {
     let (font_db, font_family) = init_fonts();
@@ -386,7 +382,7 @@ fn test_layout_str_with_style() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_multiline_glyph_indices() -> Result<()> {
@@ -556,7 +552,7 @@ fn test_caret_positions() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text() -> Result<()> {
@@ -603,7 +599,7 @@ fn test_layout_text() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_first_line_head_indent() -> Result<()> {
@@ -648,7 +644,7 @@ fn test_layout_text_first_line_head_indent() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_large_first_line_head_indent() -> Result<()> {
@@ -707,7 +703,7 @@ fn test_layout_text_large_first_line_head_indent() -> Result<()> {
 
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_last_line_clipped() -> Result<()> {
@@ -1177,7 +1173,7 @@ fn test_layout_text_first_line_indent_large() -> Result<()> {
 // See https://github.com/pop-os/cosmic-text/issues/252.
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_first_line_indent_small_bidirectional() -> Result<()> {
@@ -1260,7 +1256,7 @@ fn test_layout_text_first_line_indent_small_bidirectional() -> Result<()> {
 // See https://github.com/pop-os/cosmic-text/issues/252.
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_first_line_indent_medium_bidirectional() -> Result<()> {
@@ -1327,7 +1323,7 @@ fn test_layout_text_first_line_indent_medium_bidirectional() -> Result<()> {
 // See https://github.com/pop-os/cosmic-text/issues/252.
 #[cfg_attr(
     not(macos),
-    ignore = "discrepancy in winit vs. MacOS text layout implementation: glyph indices do not match"
+    ignore = "glyph indices do not match the macOS text layout implementation"
 )]
 #[test]
 fn test_layout_text_first_line_indent_large_bidirectional() -> Result<()> {

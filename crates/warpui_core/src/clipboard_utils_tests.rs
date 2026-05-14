@@ -2,59 +2,6 @@ use super::*;
 use crate::clipboard::{ClipboardContent, ImageData};
 
 // ============================================================================
-// HELPER FUNCTIONS (shared across tests)
-// ============================================================================
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn create_rgba_data(w: usize, h: usize) -> Vec<u8> {
-    // Simple test pattern: red gradient
-    (0..h)
-        .flat_map(|y| {
-            (0..w).flat_map(move |x| [((x * 255) / w) as u8, ((y * 255) / h) as u8, 128, 255])
-        })
-        .collect()
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn create_simple_png() -> Vec<u8> {
-    // PNG header for 1x1 red pixel
-    vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] // PNG signature
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn create_simple_jpeg() -> Vec<u8> {
-    // JPEG header
-    vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn create_simple_gif() -> Vec<u8> {
-    // GIF header
-    let mut data = Vec::new();
-    data.extend_from_slice(b"GIF87a");
-    data.extend_from_slice(&[1, 0, 1, 0, 0, 0, 0]); // minimal 1x1 GIF
-    data
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn create_simple_webp() -> Vec<u8> {
-    // WebP header
-    let mut data = Vec::new();
-    data.extend_from_slice(b"RIFF");
-    data.extend_from_slice(&[12, 0, 0, 0]); // file size
-    data.extend_from_slice(b"WEBP");
-    data.extend_from_slice(b"VP8 ");
-    data
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-fn assert_valid_png(result: Option<ImageData>) {
-    let image_data = result.expect("Should process image successfully");
-    assert_eq!(image_data.mime_type, "image/png");
-    assert_eq!(&image_data.data[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]); // PNG header
-}
-
-// ============================================================================
 // FILENAME EXTRACTION TESTS
 // ============================================================================
 
@@ -95,20 +42,14 @@ fn test_extract_filename_from_html() {
     let filename = extract_filename_from_html(html7);
     assert_eq!(filename, None);
 
-    // Test complex path extraction with Windows-style paths
-    let html8 =
-        r##"<img src="file://C:\Users\John%20Doe\Desktop\My%20Images\vacation-photo.png">"##;
-    let filename = extract_filename_from_html(html8);
-    assert_eq!(filename, Some("vacation-photo.png".to_string()));
-
     // Test case-insensitive extension matching
-    let html9 = r##"<img src="test.PNG" alt="Test">"##;
-    let filename = extract_filename_from_html(html9);
+    let html8 = r##"<img src="test.PNG" alt="Test">"##;
+    let filename = extract_filename_from_html(html8);
     assert_eq!(filename, Some("test.PNG".to_string()));
 
     // Test extraction with various punctuation
-    let html10 = r##"<div>Look at "my-image.jpg", (another.gif), or <file.webp>!</div>"##;
-    let filename = extract_filename_from_html(html10);
+    let html9 = r##"<div>Look at "my-image.jpg", (another.gif), or <file.webp>!</div>"##;
+    let filename = extract_filename_from_html(html9);
     // Should find the first one
     assert_eq!(filename, Some("my-image.jpg".to_string()));
 }
@@ -119,11 +60,6 @@ fn test_extract_filename_from_text() {
     let file_path = "/Users/test/Documents/screenshot.png";
     let result = extract_filename_from_text(file_path);
     assert_eq!(result, Some("screenshot.png".to_string()));
-
-    // Test Windows path
-    let windows_path = "C:\\Users\\test\\Documents\\image.jpg";
-    let result = extract_filename_from_text(windows_path);
-    assert_eq!(result, Some("image.jpg".to_string()));
 
     // Test file:// URL
     let file_url = "file:///Users/test/screenshot.gif";
@@ -181,108 +117,6 @@ fn test_extract_filename_from_clipboard_content() {
     let text_content = "No images here either";
     let result = extract_filename_from_clipboard_content(&html_content, text_content);
     assert_eq!(result, None);
-}
-
-// ============================================================================
-// IMAGE PROCESSING TESTS (Linux/Windows platforms only)
-// ============================================================================
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
-mod image_processing_tests {
-    use super::*;
-
-    #[test]
-    fn test_rgba_bitmap_processing() {
-        let arboard_image = arboard::ImageData {
-            width: 8,
-            height: 6,
-            bytes: create_rgba_data(8, 6).into(),
-        };
-        assert_valid_png(process_clipboard_image(&arboard_image, None));
-    }
-
-    #[test]
-    fn test_invalid_data_rejection() {
-        let arboard_image = arboard::ImageData {
-            width: 10,
-            height: 10,
-            bytes: vec![1, 2, 3, 4, 5].into(),
-        };
-        assert!(process_clipboard_image(&arboard_image, None).is_none());
-    }
-
-    #[test]
-    fn test_various_dimensions() {
-        for (w, h) in [(100, 100), (782, 297), (1, 1)] {
-            let arboard_image = arboard::ImageData {
-                width: w,
-                height: h,
-                bytes: create_rgba_data(w, h).into(),
-            };
-            let result = process_clipboard_image(&arboard_image, None)
-                .unwrap_or_else(|| panic!("Failed to process {w}x{h} image"));
-            let loaded = image::load_from_memory(&result.data)
-                .unwrap_or_else(|e| panic!("Failed to load processed {w}x{h} image: {e}"));
-            assert_eq!((loaded.width(), loaded.height()), (w as u32, h as u32));
-        }
-    }
-
-    #[test]
-    fn test_format_preservation_and_detection() {
-        let test_cases = vec![
-            (create_simple_png(), "image/png", "test.png"),
-            (create_simple_jpeg(), "image/jpeg", "test.jpg"),
-            (create_simple_gif(), "image/gif", "test.gif"),
-            (create_simple_webp(), "image/webp", "test.webp"),
-        ];
-
-        for (data, expected_mime, filename) in test_cases {
-            let result = try_preserve_original_format(&data, Some(filename.to_string()));
-            if let Some(image_data) = result {
-                assert_eq!(image_data.mime_type, expected_mime);
-                assert_eq!(image_data.filename, Some(filename.to_string()));
-                // Format preservation should keep original data
-                assert_eq!(image_data.data, data);
-            }
-        }
-    }
-
-    #[test]
-    fn test_unsupported_format_fallback() {
-        // Create some random data that doesn't match any supported format
-        let unsupported_data = vec![0x50, 0x4B, 0x03, 0x04]; // ZIP signature
-        let arboard_image = arboard::ImageData {
-            width: 4,
-            height: 4,
-            bytes: unsupported_data.into(),
-        };
-
-        // Should return None since ZIP is not a supported image format
-        let result = process_clipboard_image(&arboard_image, None);
-        assert!(result.is_none(), "Should reject unsupported format");
-    }
-
-    #[test]
-    fn test_convert_raw_bitmap_to_png() {
-        // Test valid conversion
-        let width = 2;
-        let height = 2;
-        let rgba_data = vec![
-            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
-        ];
-
-        let result =
-            convert_raw_bitmap_to_png(width, height, rgba_data, Some("test.png".to_string()));
-        if let Some(image_data) = result {
-            assert_eq!(image_data.mime_type, "image/png");
-            assert_eq!(image_data.filename, Some("test.png".to_string()));
-            assert!(!image_data.data.is_empty());
-        }
-
-        // Test invalid dimensions
-        let result = convert_raw_bitmap_to_png(usize::MAX, 1, vec![255, 0, 0, 255], None);
-        assert!(result.is_none());
-    }
 }
 
 // ============================================================================

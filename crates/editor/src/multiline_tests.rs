@@ -3,7 +3,6 @@
 #![allow(clippy::disallowed_methods)]
 
 use super::*;
-use warp_core::platform::SessionPlatform;
 
 #[test]
 fn test_infer_line_ending_empty_file() {
@@ -22,20 +21,9 @@ fn test_infer_line_ending_single_line() {
 }
 
 #[test]
-fn test_infer_line_ending_unix_subsystem_for_windows() {
-    assert_eq!(
-        infer_line_ending("", Some(&SessionPlatform::WSL)),
-        LineEnding::LF
-    );
-
-    assert_eq!(
-        infer_line_ending("", Some(&SessionPlatform::MSYS2)),
-        LineEnding::LF
-    );
-}
-
-#[test]
 fn test_infer_line_ending_native_platform() {
+    use warp_core::platform::SessionPlatform;
+
     assert_eq!(
         infer_line_ending("", Some(&SessionPlatform::Native)),
         LineEnding::from_current_platform()

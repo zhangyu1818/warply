@@ -10,8 +10,7 @@ use std::io;
 use std::path::Path;
 use std::process::{ExitStatus, Output, Stdio};
 
-/// Wrapper around a [`async_process::Command`] that ensures any new Command is set with the windows
-/// `CREATE_NO_WINDOW` flag to avoid a console window temporarily popping up.
+/// Wrapper around a [`async_process::Command`].
 pub struct Command {
     pub(super) inner: async_process::Command,
     stdin_is_default: bool,
@@ -49,7 +48,7 @@ impl Command {
     /// This ensures the process does not inherit the controlling terminal.
     ///
     /// See [`setsid(2)`](https://man7.org/linux/man-pages/man2/setsid.2.html).
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     pub fn new_with_session<S: AsRef<OsStr>>(program: S) -> Command {
         let mut command = std::process::Command::new(program);
 
@@ -77,33 +76,15 @@ impl Command {
     /// This allows for killing any other processes spawned by this process
     /// when we kill this process.
     pub fn new_with_process_group<S: AsRef<OsStr>>(program: S) -> Command {
-        #[allow(unused_mut)]
         let mut command = std::process::Command::new(program);
 
-        // Configures the new process to be the leader of a process group with its
-        // process ID as the group ID. This allows for killing any other processes
-        // spawned by this process when we kill this process.
-        //
-        // TODO(roland): handle for windows
-        #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
 
         let inner: async_process::Command = command.into();
         Self::new_internal(inner)
     }
 
-    #[allow(unused_mut)]
-    fn new_internal(mut inner: async_process::Command) -> Command {
-        #[cfg(all(windows, not(feature = "test-util")))]
-        {
-            use async_process::windows::CommandExt;
-            // We need to set the `CREATE_BREAKAWAY_FROM_JOB` flag to avoid assigning
-            // the process to the same Job Object as the Warp process, otherwise the
-            // process will be killed when the Warp process is killed.
-            let flags = windows::Win32::System::Threading::CREATE_NO_WINDOW.0
-                | windows::Win32::System::Threading::CREATE_BREAKAWAY_FROM_JOB.0;
-            inner.creation_flags(flags);
-        }
+    fn new_internal(inner: async_process::Command) -> Command {
         Self {
             inner,
             stdin_is_default: true,

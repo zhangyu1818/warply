@@ -3,13 +3,11 @@ CREATE TABLE IF NOT EXISTS object_permissions_new (
   object_metadata_id INTEGER NOT NULL REFERENCES object_metadata(id) ON DELETE CASCADE,
   subject_type TEXT NOT NULL,
   subject_id TEXT,
-  subject_uid TEXT NOT NULL,
-  permissions_last_updated_at BIGINTEGER,
-  object_guests BLOB
+  subject_uid TEXT NOT NULL
 );
 
-INSERT INTO object_permissions_new (id, object_metadata_id, subject_type, subject_id, subject_uid, permissions_last_updated_at, object_guests)
-SELECT id, object_metadata_id, subject_type, subject_id, subject_id, permissions_last_updated_at, object_guests
+INSERT INTO object_permissions_new (id, object_metadata_id, subject_type, subject_id, subject_uid)
+SELECT id, object_metadata_id, subject_type, subject_id, subject_id
 FROM object_permissions
 WHERE subject_type = 'USER' AND subject_id IS NOT NULL;
 

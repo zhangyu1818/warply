@@ -99,7 +99,6 @@ fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapsh
                     is_active: true,
                     is_read_only: false,
                     input_config: None,
-                    llm_model_override: None,
                     active_profile_id: None,
                     conversation_ids_to_restore: vec![],
                     active_conversation_id: None,
@@ -179,7 +178,6 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
                         is_active: true,
                         is_read_only: false,
                         input_config: None,
-                        llm_model_override: None,
                         active_profile_id: None,
                         conversation_ids_to_restore: vec![],
                         active_conversation_id: None,
@@ -310,25 +308,10 @@ fn assert_encode_then_decode_preserves_original_path(original_path: PathBuf) {
     assert_eq!(original_path, decoded_path);
 }
 
-/// Test that a local path can be encoded and decoded. Windows `OsString`s are
-/// often arbitrary sequences of 16-bit values, unlike Unix which uses sequences of 8-bit
-/// values (bytes). Since `diesel::sql_types::Binary` deals with sequences of bytes (`u8`)
-/// we need to perform special casting on `OsString`s on Windows.
 #[test]
 fn test_path_encode_decode() {
-    // Empty path
     assert_encode_then_decode_preserves_original_path(PathBuf::new());
 
-    // Windows-style paths
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"C:\windows\system32.dll"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from("c:temp"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"\temp"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"\temp\emoji\🙈.txt"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"\temp\ñoñàscii\temp.txt"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"\temp\hindi\हिन्दी"));
-    assert_encode_then_decode_preserves_original_path(PathBuf::from(r"\temp\cjk\狗没有耐心"));
-
-    // Unix-style paths
     assert_encode_then_decode_preserves_original_path(PathBuf::from(
         "/home/persistence/example.sql",
     ));

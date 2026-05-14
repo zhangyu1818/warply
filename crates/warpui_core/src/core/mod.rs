@@ -175,10 +175,6 @@ pub struct AddWindowOptions {
     /// The callback to be called when the GPU driver this window will render to is selected.
     #[derivative(Debug = "ignore")]
     pub on_gpu_driver_selected: Option<Box<OnGPUDeviceSelected>>,
-    /// This is a name to distinguish different windows among one application. It is a no-op on all
-    /// platforms except X11 Linux. See docs on the "WM_CLASS" property:
-    /// https://www.x.org/docs/ICCCM/icccm.pdf
-    pub window_instance: Option<String>,
 }
 
 #[derive(Debug, Default)]

@@ -8,7 +8,6 @@ use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::execution_profiles::profiles::ClientProfileId;
-use crate::ai::llms::LLMId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
@@ -51,12 +50,10 @@ use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::{vec2f, Vector2F};
 use serde::{Deserialize, Serialize};
 use tree::DEFAULT_FLEX_VALUE;
-use typed_path::TypedPath;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_core::context_flag::ContextFlag;
 use warp_core::HostId;
-use warp_util::path::convert_wsl_to_windows_host_path;
 #[cfg(feature = "local_fs")]
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
@@ -179,8 +176,8 @@ fn get_minimum_pane_size(app: &AppContext) -> f32 {
 ///    still point at arbitrary binaries.
 /// 2. Otherwise look up by command name in the already-discovered
 ///    [`AvailableShells`]. Its shell discovery supplements the process `PATH`
-///    with well-known install locations (e.g. `/opt/homebrew/bin` on macOS,
-///    MSYS2/WSL on Windows) that a raw `PATH` lookup would miss when Warp is
+///    with well-known install locations (e.g. `/opt/homebrew/bin` on macOS)
+///    that a raw `PATH` lookup would miss when Warp is
 ///    launched outside an interactive shell.
 /// 3. As a final fallback, perform a plain `PATH` lookup via
 ///    [`AvailableShell::try_from`] in case the user put something exotic in
@@ -198,7 +195,7 @@ fn resolve_tab_config_shell(name: &str, ctx: &AppContext) -> Option<AvailableShe
     AvailableShell::try_from(name).ok()
 }
 const WARP_SHELL_COMPATIBILITY_DOCS: &str =
-    "https://docs.warp.dev/getting-started/supported-shells";
+    "https://docs.warply.local/getting-started/supported-shells";
 // Default minimum width for a newly created Agent Mode pane so that it is legible. Called "default"
 // because this value may be too large for small windows. In that case, we fall back to 50% of the
 // window width.
@@ -1444,8 +1441,6 @@ impl PaneGroup {
                     ctx,
                 );
 
-                let terminal_view_id = terminal_view.id();
-
                 let pane_data = TerminalPane::new(
                     uuid.0,
                     terminal_manager,
@@ -1457,22 +1452,6 @@ impl PaneGroup {
                 let terminal_pane_id = pane_data.terminal_pane_id();
                 let pane_id = terminal_pane_id.into();
                 pane_contents.insert(pane_id, Box::new(pane_data));
-
-                if let Some(llm_override) = &terminal_snapshot.llm_model_override {
-                    if let Ok(llm_id) = serde_json::from_str::<LLMId>(llm_override) {
-                        log::info!("Selecting base agent model {llm_id} (from terminal snapshot)");
-                        crate::ai::llms::LLMPreferences::handle(ctx).update(
-                            ctx,
-                            |llm_prefs, ctx| {
-                                llm_prefs.update_preferred_agent_mode_llm(
-                                    &llm_id,
-                                    terminal_view_id,
-                                    ctx,
-                                );
-                            },
-                        );
-                    }
-                }
 
                 let focus = InitialFocus {
                     focused_pane: leaf.is_focused.then_some(pane_id),
@@ -1741,7 +1720,6 @@ impl PaneGroup {
                             is_read_only: false,
                             shell_launch_data: None,
                             input_config: Some(InputConfig::new(app)),
-                            llm_model_override: None,
                             active_profile_id: None,
                             conversation_ids_to_restore: Vec::new(),
                             active_conversation_id: None,
@@ -4044,22 +4022,14 @@ impl PaneGroup {
     }
 
     /// Whether to use the user-specified startup directory when starting
-    /// a new session. On Windows, we ignore this custom directory setting in
-    /// WSL sessions. On all other systems, we honor the custom directory.
+    /// a new session.
     #[cfg(feature = "local_tty")]
     fn should_ignore_custom_startup_directory(
         &self,
-        chosen_shell: &Option<AvailableShell>,
-        ctx: &ViewContext<Self>,
+        _chosen_shell: &Option<AvailableShell>,
+        _ctx: &ViewContext<Self>,
     ) -> bool {
-        let wsl_distro = chosen_shell
-            .to_owned()
-            .unwrap_or_else(move || {
-                AvailableShells::handle(ctx)
-                    .read(ctx, |shells, ctx| shells.get_user_preferred_shell(ctx))
-            })
-            .wsl_distro();
-        wsl_distro.is_some()
+        false
     }
 
     #[cfg(not(feature = "local_tty"))]
@@ -4501,9 +4471,6 @@ impl PaneGroup {
     }
 
     /// Returns the path of the directory in which a newly created session should start, if any.
-    /// On Windows, this path will be in native Windows format (including the WSL prefix and
-    /// distribution, if applicable).
-    ///
     /// This returns the active (parent) session's current directory if the active session is local
     /// (not an SSH session) and if the active session is done bootstrapping. Else, it returns the
     /// the current session's startup directory.
@@ -4521,25 +4488,7 @@ impl PaneGroup {
             .and_then(|terminal_handle| {
                 terminal_handle.read(ctx, |view, _| {
                     let model = view.model.lock();
-                    let session_startup_path = model.session_startup_path();
-                    if let (Some(distribution_name), Some(path)) =
-                        (view.active_session_wsl_distro(ctx), &session_startup_path)
-                    {
-                        path.to_str().and_then(|path| {
-                            convert_wsl_to_windows_host_path(
-                                &TypedPath::unix(path),
-                                &distribution_name,
-                            )
-                            .inspect_err(|err| {
-                                log::warn!(
-                                    "unable to convert WSL path to Windows host path: {err:?}"
-                                );
-                            })
-                            .ok()
-                        })
-                    } else {
-                        session_startup_path
-                    }
+                    model.session_startup_path()
                 })
             })
     }

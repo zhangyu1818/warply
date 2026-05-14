@@ -565,10 +565,6 @@ impl RequestedCommandView {
             CodeEditorEvent::CopiedEmptyText => {
                 ctx.emit(RequestedCommandViewEvent::CopiedEmptyText);
             }
-            #[cfg(windows)]
-            CodeEditorEvent::WindowsCtrlC { copied_selection } if !copied_selection => {
-                ctx.emit(RequestedCommandViewEvent::Rejected);
-            }
             _ => {}
         }
     }

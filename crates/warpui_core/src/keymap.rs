@@ -484,27 +484,17 @@ impl Keymap {
     }
 }
 
-/// Struct that stores distinct keybindings depending on the platform the application is running on.
 pub struct PerPlatformKeystroke {
-    /// The binding that should be used on mac.
     pub mac: &'static str,
-    /// The binding that should be used on linux and windows.
-    pub linux_and_windows: &'static str,
 }
 
 impl FixedBinding {
-    /// Constructs a new [`FixedBinding`] with separate bindings for mac and non-mac platforms.
     pub fn new_per_platform(
         keystroke: PerPlatformKeystroke,
         action: impl Action,
         context_predicate: ContextPredicate,
     ) -> Self {
-        let keystroke = if OperatingSystem::get().is_mac() {
-            keystroke.mac
-        } else {
-            keystroke.linux_and_windows
-        };
-        Self::new(keystroke, action, context_predicate)
+        Self::new(keystroke.mac, action, context_predicate)
     }
 
     /// Create a Key Binding for a Typed Action with the given keystrokes
@@ -690,22 +680,6 @@ impl EditableBinding {
         K: AsRef<str>,
     {
         if OperatingSystem::get() == OperatingSystem::Mac {
-            self.with_key_binding(binding)
-        } else {
-            self
-        }
-    }
-
-    /// Sets the binding to that of `binding` if the current operating system is
-    /// [`OperatingSystem::Linux`] or [`OperatingSystem::Windows`]. Noops otherwise.
-    pub fn with_linux_or_windows_key_binding<K>(self, binding: K) -> Self
-    where
-        K: AsRef<str>,
-    {
-        if matches!(
-            OperatingSystem::get(),
-            OperatingSystem::Linux | OperatingSystem::Windows
-        ) {
             self.with_key_binding(binding)
         } else {
             self

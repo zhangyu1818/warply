@@ -97,16 +97,7 @@ pub fn test_ctrl_d_during_bootstrapping_exits_shell_upon_completion() -> Builder
         TestStep::new("ctrl-d should write EOT to PTY which should exit the shell process")
             .with_keystrokes(&["ctrl-d"]);
 
-    // On MacOS, the common behaviour for writing ctrl-d while bootstrapping
-    // is to exit upon completion.
-    // However, this differs on Linux where the common behaviour is to
-    // ignore ctrl-d (and the corresponding EOF) while bootstrapping.
-    let final_assertion = if cfg!(any(target_os = "linux", target_os = "freebsd")) {
-        assert_terminal_bootstrapped(0, 0)
-    } else {
-        // TODO: figure out what the right behaviour is on windows.
-        assert_no_views_of_type::<TerminalView>()
-    };
+    let final_assertion = assert_no_views_of_type::<TerminalView>();
 
     test.with_step(final_test_step.add_assertion(final_assertion))
 }

@@ -81,11 +81,11 @@ pub fn modifier_code(keystroke: &Keystroke) -> u16 {
     code
 }
 
-// The following types and functions are taken from winit's appkit implementation.
-// We redefine them here to avoid needing to include the entirety of winit as a dependency for MacOS.
+// The following types and functions mirror AppKit key handling without pulling in an extra
+// windowing dependency on macOS.
 // --------------------------------------------------------------------------------------------------------
 
-/// Converts a scancode to a physical key. Logic is taken from winit appkit code.
+/// Converts a scancode to a physical key.
 pub(crate) fn scancode_to_physicalkey(scancode: u32) -> PhysicalKey {
     // Follows what Chromium and Firefox do:
     // https://chromium.googlesource.com/chromium/src.git/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c/ui/events/keycodes/dom/dom_code_data.inc

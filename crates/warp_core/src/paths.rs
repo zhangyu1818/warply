@@ -16,7 +16,6 @@
 
 use std::path::{Path, PathBuf};
 
-use cfg_if::cfg_if;
 use directories::BaseDirs;
 
 use crate::{
@@ -56,9 +55,8 @@ pub fn warp_home_config_dir_name() -> String {
 
 /// Returns the home-relative Warply config directory for the current channel and data profile.
 ///
-/// Unlike [`data_dir`] and [`config_local_dir`] on non-macOS platforms, this intentionally keeps
-/// Warply-authored, user-facing config under a `.warply*` directory in the home directory instead of
-/// using the platform XDG/AppData project directories.
+/// This intentionally keeps Warply-authored, user-facing config under a `.warply*` directory in the
+/// home directory.
 pub fn warp_home_config_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|home_dir| home_dir.join(warp_home_config_dir_name()))
 }
@@ -78,7 +76,6 @@ pub fn warp_home_mcp_config_file_path() -> Option<PathBuf> {
 ///
 /// These suffixes are persisted on disk as directory names and must not be
 /// changed once established, or existing user data will be orphaned.
-#[cfg(target_os = "macos")]
 fn macos_config_dir_name() -> String {
     match ChannelState::channel() {
         Channel::Stable | Channel::Oss => WARPLY_CONFIG_DIR.to_owned(),
@@ -94,31 +91,17 @@ fn macos_config_dir_name() -> String {
 ///
 /// This is the appropriate home for things like custom themes and workflows.
 pub fn data_dir() -> PathBuf {
-    cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            // TODO(vorporeal): We should do something better than return a
-            // relative path.
-            dirs::home_dir().unwrap_or_default().join(macos_config_dir_name())
-        } else {
-            project_dirs().map(|dirs| dirs.data_dir().to_owned()).unwrap_or_default()
-        }
-    }
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(macos_config_dir_name())
 }
 
 /// Returns the path to the directory where non-portable configuration files
 /// should be stored.
 pub fn config_local_dir() -> PathBuf {
-    cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            // TODO(vorporeal): We should do something better than return a
-            // relative path.
-            dirs::home_dir().unwrap_or_default().join(macos_config_dir_name())
-        } else {
-            project_dirs()
-                .map(|dirs| dirs.config_local_dir().to_owned())
-                .unwrap_or_default()
-        }
-    }
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(macos_config_dir_name())
 }
 
 /// Returns the base directory for general config files. Useful for accessing the config files for
@@ -162,21 +145,12 @@ pub fn cache_dir() -> PathBuf {
     let Some(project_dirs) = project_dirs() else {
         return PathBuf::new();
     };
-    cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            // TODO(vorporeal): Given that this is just cache data; do we want
-            // change the path we use on macOS?
-            project_dirs.data_dir().to_owned()
-        } else {
-            project_dirs.cache_dir().to_owned()
-        }
-    }
+    project_dirs.data_dir().to_owned()
 }
 
 /// Returns a display-ready version of the path that is formatted in a
 /// home-dir-relative manner, if appropriate.
 pub fn home_relative_path(path: &Path) -> String {
-    #[cfg(unix)]
     if let Some(base_dirs) = directories::BaseDirs::new() {
         if let Ok(relative_path) = path.strip_prefix(base_dirs.home_dir()) {
             return format!("~/{}", relative_path.display());
@@ -219,39 +193,13 @@ fn project_dirs_for_app_id(
 /// Unlike [`warpui::AssetProvider`] assets, which are generally embedded in the binary, these are
 /// stored on the filesystem alongside the rest of Warply.
 ///
-/// ## macOS
 /// The resources directory is `$APP_DIR/Contents/Resources` (e.g. `/Applications/Warply.app/Contents/Resources`).
-///
-/// ## Linux
-/// The resources directory is `$INSTALL_DIR/resources`, where `$INSTALL_DIR` depends on the
-/// specific package manager. For example, on Ubuntu this might be `/opt/warply/warply/resources`.
-///
-/// ## Windows
-/// The resources directory is `$INSTALL_DIR/resources`, where `$INSTALL_DIR` is the directory
-/// containing the Warply executable.
 pub fn bundled_resources_dir() -> Option<PathBuf> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            crate::macos::get_bundle_path().ok()
-                .map(|bundle_path| {
-                    PathBuf::from(bundle_path)
-                        .join("Contents")
-                        .join("Resources")
-                })
-        } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            std::env::current_exe()
-                .ok()
-                .and_then(|executable| std::fs::canonicalize(executable).ok())
-                .and_then(|executable| executable.parent().map(|parent| parent.join("resources")))
-        } else if #[cfg(target_os = "windows")] {
-            std::env::current_exe()
-                .ok()
-                .and_then(|executable| std::fs::canonicalize(executable).ok())
-                .and_then(|executable| executable.parent().map(|parent| parent.join("resources")))
-        } else {
-            None
-        }
-    }
+    crate::macos::get_bundle_path().ok().map(|bundle_path| {
+        PathBuf::from(bundle_path)
+            .join("Contents")
+            .join("Resources")
+    })
 }
 
 #[cfg(all(test, feature = "local_fs"))]

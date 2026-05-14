@@ -11,7 +11,4 @@ CREATE TABLE object_metadata (
     retry_count INTEGER NOT NULL
 );
 
-INSERT INTO object_metadata SELECT null, is_pending, 'WORKFLOW', null, null, null, id, null, null, 0 from workflows;
-
-ALTER TABLE workflows DROP COLUMN is_pending;
-ALTER TABLE workflows DROP COLUMN server_id;
+INSERT INTO object_metadata SELECT null, false, 'WORKFLOW', null, null, null, id, null, null, 0 from workflows;

@@ -8,7 +8,6 @@ use uuid::Uuid;
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
-use crate::ai::llms::LLMId;
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::LaunchMode;
 
@@ -129,13 +128,10 @@ impl AIExecutionProfilesModel {
 
         log::info!("Initialized execution profile model with state: {default_profile_state}",);
 
-        let mut model = Self {
+        Self {
             default_profile_state,
             active_profiles_per_session,
-        };
-
-        model.maybe_inherit_from_existing_settings(ctx);
-        model
+        }
     }
 
     fn read_local_default_profile(ctx: &AppContext) -> AIExecutionProfile {
@@ -165,35 +161,6 @@ impl AIExecutionProfilesModel {
         }
     }
 
-    fn maybe_inherit_from_existing_settings(&mut self, ctx: &mut ModelContext<Self>) {
-        let DefaultProfileState::Local {
-            id: default_profile_id,
-            ..
-        } = self.default_profile_state
-        else {
-            return;
-        };
-
-        if let Some(base_llm_id) = ctx
-            .private_user_preferences()
-            .read_value("PreferredAgentModeLLMId")
-            .ok()
-            .flatten()
-            .map(|s| serde_json::from_str::<Option<LLMId>>(&s))
-            .and_then(|res| res.ok())
-            .flatten()
-        {
-            if let Err(e) = ctx
-                .private_user_preferences()
-                .remove_value("PreferredAgentModeLLMId")
-            {
-                log::error!("Failed to remove old PreferredAgentModeLLMId user pref: {e}");
-            }
-            self.set_base_model(default_profile_id, Some(base_llm_id.clone()), ctx);
-            log::info!("Overwrote default profile with stored base llm: {base_llm_id}");
-        }
-    }
-
     pub fn delete_profile(&mut self, profile_id: ClientProfileId, ctx: &mut ModelContext<Self>) {
         let id = self.default_profile_state.id();
         if id == profile_id {
@@ -218,6 +185,7 @@ impl AIExecutionProfilesModel {
             .unwrap_or_else(|| self.default_profile(ctx))
     }
 
+    #[cfg(test)]
     pub fn default_profile_id(&self) -> ClientProfileId {
         self.default_profile_state.id()
     }
@@ -270,111 +238,6 @@ impl AIExecutionProfilesModel {
 
     pub fn get_all_profile_ids(&self) -> Vec<ClientProfileId> {
         vec![self.default_profile_state.id()]
-    }
-
-    pub fn set_base_model(
-        &mut self,
-        profile_id: ClientProfileId,
-        llm_id: Option<LLMId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.base_model != llm_id {
-                    profile.base_model = llm_id.clone();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if let Some(_model_id) = &llm_id {}
-    }
-
-    pub fn set_coding_model(
-        &mut self,
-        profile_id: ClientProfileId,
-        model_id: Option<LLMId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.coding_model != model_id {
-                    profile.coding_model = model_id.clone();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if let Some(_model_id) = &model_id {}
-    }
-
-    pub fn set_cli_agent_model(
-        &mut self,
-        profile_id: ClientProfileId,
-        model_id: Option<LLMId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.cli_agent_model != model_id {
-                    profile.cli_agent_model = model_id.clone();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if let Some(_model_id) = &model_id {}
-    }
-
-    pub fn set_computer_use_model(
-        &mut self,
-        profile_id: ClientProfileId,
-        model_id: Option<LLMId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.computer_use_model != model_id {
-                    profile.computer_use_model = model_id.clone();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if let Some(_model_id) = &model_id {}
-    }
-
-    pub fn set_context_window_limit(
-        &mut self,
-        profile_id: ClientProfileId,
-        limit: Option<u32>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let changed = self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.context_window_limit != limit {
-                    profile.context_window_limit = limit;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if changed {}
     }
 
     pub fn set_apply_code_diffs(

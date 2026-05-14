@@ -158,7 +158,6 @@ pub struct TerminalPaneSnapshot {
     pub is_active: bool,
     pub is_read_only: bool,
     pub input_config: Option<InputConfig>,
-    pub llm_model_override: Option<String>,
     pub active_profile_id: Option<SyncId>,
     pub conversation_ids_to_restore: Vec<AIConversationId>,
     /// The active conversation ID if the agent view was open in fullscreen mode.

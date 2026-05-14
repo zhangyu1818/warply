@@ -1,6 +1,7 @@
 # Warp Local ACP Fork LLM Index
 
 This repository is a fork of Warp whose maintained product surface is local terminal GUI + ACP agent + OpenAI-compatible terminal suggestions.
+The maintained native host platform is macOS only. Linux/Windows host packaging and host-platform implementations are intentionally out of scope, while SSH and remote terminal behavior remain retained terminal features.
 
 ## Start Here
 
@@ -22,9 +23,9 @@ This repository is a fork of Warp whose maintained product surface is local term
 
 ## Merge Classification
 
-- Accept usually: terminal/runtime/editor/completion/platform fixes.
+- Accept usually: terminal/runtime/editor/completion fixes and macOS platform fixes.
 - Port manually: ACP, AgentView, AI settings, suggestions, persistence, local object model, remote terminal.
-- Reject usually: account auth, billing, Teams, cloud Warp Drive, old Warp Agent SDK, GraphQL, managed secrets, telemetry, crash reporting, onboarding, voice input.
+- Reject usually: account auth, billing, Teams, cloud Warp Drive, old Warp Agent SDK, GraphQL, managed secrets, telemetry, crash reporting, onboarding, voice input, Linux/Windows host platform implementations, and Linux/Windows packaging.
 
 ## Historical Implementation Plans
 

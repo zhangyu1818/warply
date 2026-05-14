@@ -9,8 +9,6 @@ use is_executable::IsExecutable as _;
 use itertools::Itertools as _;
 
 pub fn file_exists_and_is_executable(path: &Path) -> bool {
-    // We need to check that the file exists, as the `is_executable` crate doesn't validate this on
-    // Windows.
     path.is_file() && path.is_executable()
 }
 
@@ -52,30 +50,7 @@ fn resolve_executable_in_dir(path_dir: &Path, command: &str) -> Option<PathBuf> 
         return Some(resolved);
     }
 
-    #[cfg(windows)]
-    if Path::new(command).extension().is_none() {
-        for ext in windows_path_extensions() {
-            let resolved = path_dir.join(format!("{command}{ext}"));
-            if file_exists_and_is_executable(&resolved) {
-                return Some(resolved);
-            }
-        }
-    }
-
     None
-}
-
-#[cfg(windows)]
-fn windows_path_extensions() -> impl Iterator<Item = String> {
-    env::var_os("PATHEXT")
-        .unwrap_or_default()
-        .to_string_lossy()
-        .split(';')
-        .map(str::trim)
-        .filter(|ext| !ext.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>()
-        .into_iter()
 }
 
 #[cfg(test)]

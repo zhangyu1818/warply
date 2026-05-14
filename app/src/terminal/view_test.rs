@@ -2892,14 +2892,14 @@ fn test_link_at_range_trims_zero_width_spaces() {
         let terminal = add_window_with_terminal(&mut app, None);
 
         // NOTE: this has two zero-width spaces, one after the '(', and one before the ')'
-        let input_url = "(\u{200b}https://warp.dev\u{200b})";
+        let input_url = "(\u{200b}https://example.com\u{200b})";
         // NOTE: the final character in this string is a zero-width space
-        let non_escaped_url = "https://warp.dev\u{200b}";
-        let escaped_url = "https://warp.dev";
+        let non_escaped_url = "https://example.com\u{200b}";
+        let escaped_url = "https://example.com";
 
         terminal.update(&mut app, |view, _ctx| {
             view.model.lock().simulate_block(
-                r"printf '(%bhttps://warp.dev%b)\n' '\U200b' '\U200b'",
+                r"printf '(%bhttps://example.com%b)\n' '\U200b' '\U200b'",
                 input_url,
             );
         });
@@ -3717,16 +3717,7 @@ fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
             view.drag_and_drop_files(&[image_path_str], ctx);
         });
 
-        // The paste flow is async (off-thread file read, then hop back to
-        // the view to write the clipboard + paste keystroke). Wait for the
-        // single PTY write of the platform-appropriate paste byte: 0x16
-        // (Ctrl+V) on macOS/Linux, or `ESC v` on Windows. Without the fix
-        // a shell-escaped path string is written here instead.
-        let expected_paste_bytes: Vec<u8> = if cfg!(windows) {
-            vec![0x1b, b'v']
-        } else {
-            vec![0x16]
-        };
+        let expected_paste_bytes: Vec<u8> = vec![0x16];
         assert_eventually!(
             pty_writes.borrow().len() == 1 && pty_writes.borrow()[0] == expected_paste_bytes,
             "expected single paste-keystroke PTY write {:?}; got {:?}",

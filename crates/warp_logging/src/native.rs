@@ -197,15 +197,7 @@ fn init_internal(is_cli: bool, log_destination: Option<LogDestination>) -> Resul
         // Since we always pair an insertion with a deletion to avoid duplicate,
         // tantivy will log a lot of warnings for deleting a non-existing doc.
         .filter(Some("tantivy"), LevelFilter::Error)
-        .filter(
-            Some("wgpu_hal"),
-            // On Windows with the DX12 backend, wgpu_hal outputs a ton of WARN-level logs.
-            if cfg!(windows) {
-                LevelFilter::Error
-            } else {
-                LevelFilter::Warn
-            },
-        );
+        .filter(Some("wgpu_hal"), LevelFilter::Warn);
     base_logger.parse_default_env();
 
     let stdout_is_a_tty = std::io::stdout().is_terminal();
@@ -259,21 +251,11 @@ pub fn log_directory() -> Result<std::path::PathBuf> {
 }
 
 fn init_log_directory() -> Result<std::path::PathBuf> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            Ok(dirs::home_dir()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("could not locate home directory in order to create a log file")
-                })?
-                .join("Library/Logs/"))
-        } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            Ok(warp_core::paths::state_dir())
-        } else if #[cfg(windows)] {
-            Ok(warp_core::paths::state_dir().join(warp_core::paths::WARPLY_LOGS_DIR))
-        } else {
-            Err(anyhow::anyhow!("Have not configured file-based logging for the current platform!"))
-        }
-    }
+    Ok(dirs::home_dir()
+        .ok_or_else(|| {
+            anyhow::anyhow!("could not locate home directory in order to create a log file")
+        })?
+        .join("Library/Logs/"))
 }
 
 /// Initializes the logger before running tests.

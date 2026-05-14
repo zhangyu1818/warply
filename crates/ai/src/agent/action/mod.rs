@@ -1,5 +1,3 @@
-mod convert;
-
 use std::{fmt::Display, ops::Range, path::PathBuf, time::Duration};
 
 use itertools::Itertools as _;
@@ -602,15 +600,7 @@ impl AIAgentPtyWriteMode {
                 // ^A (SOH) is "beginning of line" for readline/prompt-toolkit style editors.
                 v.push(escape_sequences::C0::SOH);
                 v.extend_from_slice(&bytes);
-                cfg_if::cfg_if! {
-                    if #[cfg(target_os = "windows")] {
-                        // Use CR to submit on Windows hosts.
-                        v.push(escape_sequences::C0::CR);
-                    } else {
-                        // Use LF to submit on POSIX.
-                        v.push(escape_sequences::C0::LF);
-                    }
-                }
+                v.push(escape_sequences::C0::LF);
                 v
             }
             AIAgentPtyWriteMode::Block => {

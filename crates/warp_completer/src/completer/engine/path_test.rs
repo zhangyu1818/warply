@@ -4,21 +4,7 @@ use crate::completer::testing::MockPathCompletionContext;
 
 use super::*;
 
-#[cfg(windows)]
-mod windows_constants {
-    pub(super) const TEST_HOME_DIR: &str = r"C:\Users\test";
-}
-
-#[cfg(windows)]
-use windows_constants::*;
-
-#[cfg(unix)]
-mod unix_constants {
-    pub(super) const TEST_HOME_DIR: &str = "/users/test";
-}
-
-#[cfg(unix)]
-use unix_constants::*;
+const TEST_HOME_DIR: &str = "/users/test";
 
 #[test]
 fn test_split_path() {
