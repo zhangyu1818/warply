@@ -54,7 +54,7 @@ use crate::{
             icons::red_stop_icon, AIAgentAction, AIAgentActionType, AIAgentInput,
             AIAgentOutputMessageType, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
             AgentOutputMermaidDiagram, AgentOutputTable, ProgrammingLanguage, RenderableAIError,
-            SummarizationType, UserQueryMode, WebSearchStatus,
+            SummarizationType, UserQueryMode,
         },
         blocklist::{
             block::{
@@ -133,7 +133,6 @@ pub const LOAD_OUTPUT_MESSAGE_FOR_RUNNING_COMMAND: &str = "Executing command..."
 pub const LOAD_OUTPUT_MESSAGE_FOR_WRITING_TO_COMMAND: &str = "Writing command input...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_WAITING_FOR_COMMAND_COMPLETION: &str =
     "Waiting for command to exit...";
-pub const LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH: &str = "Searching the web...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_FETCHING_REVIEW_COMMENTS: &str = "Fetching PR comments...";
 
 #[cfg(feature = "local_fs")]
@@ -229,15 +228,6 @@ pub fn render_warping_indicator<V: View>(
             )
         })
     });
-    let is_searching_web = output_to_render.as_ref().is_some_and(|output| {
-        output.get().messages.last().is_some_and(|m| {
-            matches!(
-                m.message,
-                AIAgentOutputMessageType::WebSearch(WebSearchStatus::Searching { .. })
-            )
-        })
-    });
-
     let is_fetching_review_comments = props
         .model
         .inputs_to_render(app)
@@ -300,8 +290,6 @@ pub fn render_warping_indicator<V: View>(
         LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
     } else if is_last_message_asking_user_question {
         LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
-    } else if is_searching_web {
-        LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH.to_string()
     } else if is_fetching_review_comments {
         LOAD_OUTPUT_MESSAGE_FOR_FETCHING_REVIEW_COMMENTS.to_string()
     } else if is_interrupt_query_for_same_conversation

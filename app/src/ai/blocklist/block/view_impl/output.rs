@@ -75,8 +75,6 @@ use crate::{
                 requested_action::{render_requested_action_body_text, RenderableAction},
                 requested_command::RequestedCommand,
                 search_codebase::SearchCodebaseView,
-                web_fetch::WebFetchView,
-                web_search::WebSearchView,
             },
             BlocklistAIActionModel,
         },
@@ -146,8 +144,6 @@ pub(crate) struct Props<'a> {
     pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
-    pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
-    pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
@@ -620,30 +616,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 app,
                             ) {
                                 output_items.add_child(element);
-                            }
-                        }
-                        AIAgentOutputMessageType::WebSearch(web_search_status) => {
-                            if let Some(web_search_view) =
-                                props.web_search_views.get(&output_message.id)
-                            {
-                                output_items.add_child(ChildView::new(web_search_view).finish());
-                            } else {
-                                log::warn!(
-                                    "[WebSearch] No view found for WebSearch message id={:?}, status={web_search_status:?}",
-                                    output_message.id
-                                );
-                            }
-                        }
-                        AIAgentOutputMessageType::WebFetch(web_fetch_status) => {
-                            if let Some(web_fetch_view) =
-                                props.web_fetch_views.get(&output_message.id)
-                            {
-                                output_items.add_child(ChildView::new(web_fetch_view).finish());
-                            } else {
-                                log::warn!(
-                                    "[WebFetch] No view found for WebFetch message id={:?}, status={web_fetch_status:?}",
-                                    output_message.id
-                                );
                             }
                         }
                         AIAgentOutputMessageType::AcpToolCall(tool_call) => {

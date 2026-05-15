@@ -967,8 +967,6 @@ impl View for AIBlock {
                 is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
                 search_codebase_view: &self.search_codebase_view,
-                web_search_views: &self.web_search_views,
-                web_fetch_views: &self.web_fetch_views,
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,

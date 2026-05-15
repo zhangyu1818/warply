@@ -9,5 +9,3 @@ pub(crate) mod requested_command_attribution;
 pub(crate) mod requested_script;
 pub(super) mod search_codebase;
 pub(crate) mod search_results_common;
-pub(super) mod web_fetch;
-pub(super) mod web_search;
