@@ -3,7 +3,7 @@ CREATE TABLE object_metadata (
     is_pending BOOLEAN NOT NULL,
     object_type TEXT CHECK(object_type IN ('WORKFLOW')) NOT NULL,
     revision_ts INTEGER,
-    server_id TEXT,
+    stable_object_id TEXT,
     client_id TEXT,
     local_object_id INTEGER NOT NULL,
     last_edited_by TEXT,

@@ -36,7 +36,7 @@ pub fn upsert_cloud_object(
 ) -> Result<(), Error> {
     use schema::object_metadata::dsl::{
         client_id, current_editor, folder_id, is_pending, last_editor_uid,
-        metadata_last_updated_ts, object_metadata, revision_ts, server_id, trashed_ts,
+        metadata_last_updated_ts, object_metadata, revision_ts, stable_object_id, trashed_ts,
     };
     use schema::object_permissions::dsl::{
         object_metadata_id, object_permissions, subject_id, subject_type, subject_uid,
@@ -56,12 +56,12 @@ pub fn upsert_cloud_object(
 
     // Filter to find metadata row.
     // The diesel types for `filter`s are dependent on the columns being filtered
-    // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
+    // so while the `hashed_sync_id` will only match one of `client_id` and `stable_object_id`,
     // we filter on both here for ergonomics.
     let hashed_sync_id = sync_id.sqlite_uid_hash(cloud_object_type.into());
     let metadata_filter = object_metadata
         .filter(client_id.eq(Some(hashed_sync_id.as_str())))
-        .or_filter(server_id.eq(Some(hashed_sync_id.as_str())));
+        .or_filter(stable_object_id.eq(Some(hashed_sync_id.as_str())));
     let metadata: Option<ObjectMetadata> = metadata_filter.first(conn).ok();
 
     match metadata {
@@ -121,7 +121,7 @@ pub fn upsert_cloud_object(
 
                 // One of these is set below.
                 client_id: None,
-                server_id: None,
+                stable_object_id: None,
 
                 metadata_last_updated_ts: cloud_object_metadata
                     .metadata_last_updated_ts
@@ -145,13 +145,13 @@ pub fn upsert_cloud_object(
             };
 
             // There are two local identifier forms. New local objects use client IDs;
-            // retained server-style IDs are written to the legacy server_id column.
+            // retained server-style IDs are written to the stable_object_id column.
             match sync_id {
                 SyncId::ClientId(_) => {
                     new_object_metadata.client_id = Some(hashed_sync_id);
                 }
                 SyncId::ServerId(_) => {
-                    new_object_metadata.server_id = Some(hashed_sync_id);
+                    new_object_metadata.stable_object_id = Some(hashed_sync_id);
                 }
             }
             diesel::insert_into(schema::object_metadata::dsl::object_metadata)

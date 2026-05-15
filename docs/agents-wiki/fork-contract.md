@@ -113,7 +113,7 @@ Names alone are not merge evidence.
 - `subagent`, `handoff`, and `control transfer` may describe retained long-running command behavior if it routes through AgentView and ACP; remove only cloud handoff/orchestration/remote-control services.
 - `CloudObject` may still represent local persisted object data.
 - Saved workflows and environment-variable collections are local persisted objects. Do not restore `CloudWorkflow`, `WorkflowType::Cloud`, `WorkflowSource::PersonalCloud`, `CloudEnvVarCollection`, or command-history `cloud_workflow_id` compatibility paths.
-- `server_id` is legacy naming only if still present in retained local-object data. Do not add new compatibility fallback around it.
+- `ServerId` is legacy naming only if still present in retained local-object data. `stable_object_id` is the current SQLite column for that server-style local identifier form. Do not add new compatibility fallback around either.
 - `remote_server` is remote terminal support, not account login by itself.
 - References to Linux/Windows inside terminal protocol parsing, shell target metadata, or path conversion must be checked before removal. Preserve SSH/remote terminal behavior; remove only local host platform support unless the code is required by macOS-to-remote workflows.
 

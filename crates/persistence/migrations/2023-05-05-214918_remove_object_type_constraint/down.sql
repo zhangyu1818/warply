@@ -10,7 +10,7 @@ CREATE TABLE object_metadata_new (
     is_pending BOOLEAN NOT NULL,
     object_type TEXT CHECK(object_type IN ('NOTEBOOK','WORKFLOW')) NOT NULL,
     revision_ts INTEGER,
-    server_id TEXT,
+    stable_object_id TEXT,
     client_id TEXT,
     local_object_id INTEGER NOT NULL,
     last_edited_by TEXT,
@@ -23,7 +23,7 @@ CREATE TABLE object_metadata_new (
 
 -- migrate data from old table to new table
 INSERT INTO object_metadata_new
-SELECT id, is_pending, object_type, revision_ts, server_id, client_id, local_object_id, last_edited_by, author_id, retry_count, metadata_last_updated_ts, trashed_ts, folder_id
+SELECT id, is_pending, object_type, revision_ts, stable_object_id, client_id, local_object_id, last_edited_by, author_id, retry_count, metadata_last_updated_ts, trashed_ts, folder_id
 FROM object_metadata;
 
 -- drop old table

@@ -175,7 +175,7 @@ diesel::table! {
         is_pending -> Bool,
         object_type -> Text,
         revision_ts -> Nullable<BigInt>,
-        server_id -> Nullable<Text>,
+        stable_object_id -> Nullable<Text>,
         client_id -> Nullable<Text>,
         local_object_id -> Integer,
         retry_count -> Integer,

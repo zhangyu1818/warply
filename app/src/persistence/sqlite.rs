@@ -1234,12 +1234,12 @@ fn delete_cloud_object(
 
     // Filter to find metadata row.
     // The diesel types for `filter`s are dependent on the columns being filtered
-    // so while the `hashed_sync_id` will only match one of `client_id` and `server_id`,
+    // so while the `hashed_sync_id` will only match one of `client_id` and `stable_object_id`,
     // we filter on both here for ergonomics.
     let hashed_sync_id = sync_id.sqlite_uid_hash(object_id_type);
     let metadata_filter = object_metadata
         .filter(client_id.eq(Some(hashed_sync_id.as_str())))
-        .or_filter(server_id.eq(Some(hashed_sync_id.as_str())));
+        .or_filter(stable_object_id.eq(Some(hashed_sync_id.as_str())));
 
     let metadata: ObjectMetadata = metadata_filter.first(conn)?;
     let object_id = metadata.local_object_id;
@@ -1278,7 +1278,7 @@ fn update_object_metadata(
         diesel::update(
             object_metadata
                 .filter(client_id.eq(Some(hashed_id.as_str())))
-                .or_filter(server_id.eq(Some(hashed_id.as_str()))),
+                .or_filter(stable_object_id.eq(Some(hashed_id.as_str()))),
         )
         .set((
             metadata_last_updated_ts.eq(metadata_last_updated_at),
@@ -1870,9 +1870,9 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
                         let folder_id = id_from_metadata::<FolderId>(metadata);
                         let permissions = permissions_by_id.get(&metadata.id)?;
                         let cloud_object_permissions = to_cloud_object_permissions(permissions)?;
-                        folder_id.map(|server_id| {
+                        folder_id.map(|folder_sync_id| {
                             let boxed: Box<dyn CloudObject> = Box::new(CloudFolder::new(
-                                server_id,
+                                folder_sync_id,
                                 CloudFolderModel {
                                     name: folder.name.clone(),
                                     is_open: folder.is_open,
@@ -1905,14 +1905,14 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
                             ))?
                             .try_into()
                             .ok()?;
-                        object_id.and_then(|server_id| match json_object_type {
+                        object_id.and_then(|object_sync_id| match json_object_type {
                             JsonObjectType::EnvVarCollection => {
                                 let model =
                                     SavedEnvVarCollectionModel::deserialize_owned(&object.data);
                                 model.ok().map(|model| {
                                     let boxed: Box<dyn CloudObject> =
                                         Box::new(SavedEnvVarCollection::new(
-                                            server_id,
+                                            object_sync_id,
                                             model,
                                             to_cloud_object_metadata(metadata),
                                             cloud_object_permissions,
@@ -1925,7 +1925,7 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
                                 model.ok().map(|model| {
                                     let boxed: Box<dyn CloudObject> =
                                         Box::new(SavedWorkflowEnum::new(
-                                            server_id,
+                                            object_sync_id,
                                             model,
                                             to_cloud_object_metadata(metadata),
                                             cloud_object_permissions,
@@ -1937,7 +1937,7 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
                                 let model = CloudAIFactModel::deserialize_owned(&object.data);
                                 model.ok().map(|model| {
                                     let boxed: Box<dyn CloudObject> = Box::new(CloudAIFact::new(
-                                        server_id,
+                                        object_sync_id,
                                         model,
                                         to_cloud_object_metadata(metadata),
                                         cloud_object_permissions,
@@ -1997,9 +1997,9 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
 }
 
 fn id_from_metadata<K: HashableId + ToServerId>(metadata: &ObjectMetadata) -> Option<SyncId> {
-    match (&metadata.server_id, &metadata.client_id) {
-        (Some(server_id), _) => {
-            K::from_hash(server_id).map(|id| SyncId::ServerId(id.to_server_id()))
+    match (&metadata.stable_object_id, &metadata.client_id) {
+        (Some(stable_object_id), _) => {
+            K::from_hash(stable_object_id).map(|id| SyncId::ServerId(id.to_server_id()))
         }
         (None, Some(client_id)) => ClientId::from_hash(client_id).map(SyncId::ClientId),
         _ => None,
