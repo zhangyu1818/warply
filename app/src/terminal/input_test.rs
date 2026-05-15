@@ -5189,8 +5189,6 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
     };
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
-
         initialize_app(&mut app);
 
         AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
@@ -5645,7 +5643,6 @@ fn test_submit_ai_query_uses_acp_model() {
 #[test]
 fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetection_enabled() {
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -5676,7 +5673,6 @@ fn test_terminal_only_ai_enter_uses_acp_and_clears_buffer() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -5734,7 +5730,6 @@ fn test_terminal_only_ai_enter_uses_acp_and_clears_buffer() {
 #[test]
 fn test_terminal_only_cjk_natural_language_enter_uses_acp() {
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(false);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);
@@ -5941,7 +5936,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
         let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
 
         initialize_app(&mut app);

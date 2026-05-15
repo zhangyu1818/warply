@@ -27,9 +27,6 @@ pub enum FeatureFlag {
     /// Ligature Support in the Editor and Grid
     Ligatures,
 
-    /// Warp Agent Mode.
-    AgentMode,
-
     /// A setting to enable a traditional completions experience.
     ClassicCompletions,
 

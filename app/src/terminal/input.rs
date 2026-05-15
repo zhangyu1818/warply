@@ -347,7 +347,6 @@ pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
 pub const INPUT_A11Y_LABEL: &str = "Command Input.";
 pub const INPUT_A11Y_HELPER: &str = "Input your shell command, press enter to execute. Press cmd-up to navigate to output of previously executed commands. Press cmd-l to re-focus command input.";
-pub const AI_COMMAND_SEARCH_HINT_TEXT: &str = "Type '#' for AI command suggestions";
 
 const AGENT_MODE_AI_DISABLED_AUTODETECTION_DISABLED_HINT_TEXT: &str = "Run commands";
 
@@ -1543,7 +1542,6 @@ pub fn init(app: &mut AppContext) {
             "Trigger Auto Detection",
             InputAction::EnableAutoDetection,
         )
-        .with_enabled(|| FeatureFlag::AgentMode.is_enabled())
         .with_group(bindings::BindingGroup::Ai.as_str())
         .with_context_predicate(
             id!("Input")
@@ -4455,17 +4453,10 @@ impl Input {
 
         // Now handle the default (empty prefix) placeholder
         if toggled_on && AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            if FeatureFlag::AgentMode.is_enabled() {
-                // agent_mode_hint_text now handles caching internally
-                let hint_text = self.agent_mode_hint_text(ctx).to_string();
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(&hint_text, ctx);
-                });
-            } else {
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_placeholder_text(AI_COMMAND_SEARCH_HINT_TEXT, ctx);
-                });
-            }
+            let hint_text = self.agent_mode_hint_text(ctx).to_string();
+            self.editor.update(ctx, |editor, ctx| {
+                editor.set_placeholder_text(&hint_text, ctx);
+            });
         } else {
             self.editor.update(ctx, |editor, ctx| {
                 // Clear only the default placeholder, keep slash command placeholders
@@ -7097,8 +7088,7 @@ impl Input {
                 let buffer_text = self.buffer_text(ctx);
 
                 // If the last buffer didn't start with the AI input prefix and the current buffer does, then enable AI input.
-                if FeatureFlag::AgentMode.is_enabled()
-                    && !FeatureFlag::AgentView.is_enabled()
+                if !FeatureFlag::AgentView.is_enabled()
                     && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
                     && (!is_ai_input_enabled || !is_input_mode_locked)
                 {
@@ -7196,8 +7186,7 @@ impl Input {
                         s.agent.supports_bash_mode()
                             && matches!(s.input_state, CLIAgentInputState::Open { .. })
                     });
-                if FeatureFlag::AgentMode.is_enabled()
-                    && !is_locked_shell_mode
+                if !is_locked_shell_mode
                     && (!FeatureFlag::AgentView.is_enabled()
                         || is_agent_view_active
                         || is_cli_agent_bash_mode_input_open)
@@ -7431,8 +7420,7 @@ impl Input {
             }
             EditorEvent::BufferReplaced => {
                 let ai_input_model = self.ai_input_model.as_ref(ctx);
-                if FeatureFlag::AgentMode.is_enabled()
-                    && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
                     && !ai_input_model.is_ai_input_enabled()
                     && ai_input_model.is_input_type_locked()
                 {
@@ -9873,9 +9861,7 @@ impl Input {
                 return;
             }
 
-            if FeatureFlag::AgentMode.is_enabled()
-                && AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
-            {
+            if AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx) {
                 self.ai_input_model.update(ctx, |input, ctx| {
                     input.abort_in_progress_detection();
 

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use warp_core::{features::FeatureFlag, SessionId};
+use warp_core::SessionId;
 use warpui::{AppContext, EntityId, SingletonEntity};
 
 use super::History;
@@ -94,9 +94,8 @@ impl History {
             .filter(move |entry| include_agent_commands || !entry.is_agent_executed)
             .map(|entry| HistoryInputSuggestion::Command { entry });
 
-        let should_include_prompts = config.include_prompts
-            && FeatureFlag::AgentMode.is_enabled()
-            && AISettings::handle(app).as_ref(app).is_any_ai_enabled(app);
+        let should_include_prompts =
+            config.include_prompts && AISettings::handle(app).as_ref(app).is_any_ai_enabled(app);
         let all_live_session_ids = self.all_live_session_ids();
         if !should_include_prompts {
             if !config.include_commands {

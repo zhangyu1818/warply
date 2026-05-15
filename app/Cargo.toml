@@ -302,8 +302,6 @@ warp_util.workspace = true
 
 # Note that we support channel-specific enables for these features
 [features]
-agent_mode = []
-agent_mode_debug = []
 changelog = []
 clear_autosuggestion_on_escape = []
 context_line_review_comments = []
@@ -313,7 +311,6 @@ completions_v2 = [
     "dep:command-signatures-v2",
 ]
 default = [
-    "agent_mode",
     "render_continuous_block_selections_with_single_border",
     "shell_selector",
     "minimalist_ui",

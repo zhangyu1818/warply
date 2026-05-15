@@ -1104,10 +1104,9 @@ impl BlockListElement {
             .with_padding_left(6.)
             .with_padding_right(4.);
 
-            let (ai_button_action, ai_button_tooltip) = if FeatureFlag::AgentMode.is_enabled() {
-                let active_block = model.block_list().active_block();
-                let has_active_long_running_command = active_block.is_active_and_long_running();
-
+            let active_block = model.block_list().active_block();
+            let has_active_long_running_command = active_block.is_active_and_long_running();
+            let (ai_button_action, ai_button_tooltip) =
                 if has_active_long_running_command && active_block.index() == block_index {
                     (
                         Some(TerminalAction::SetInputModeAgent),
@@ -1118,13 +1117,7 @@ impl BlockListElement {
                         Some(TerminalAction::AttachBlockAsAgentContext { block_index }),
                         *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
                     )
-                }
-            } else {
-                (
-                    Some(TerminalAction::AttachBlockAsAgentContext { block_index }),
-                    *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
-                )
-            };
+                };
 
             let tooltip = ToolbeltButtonTooltip {
                 label: ai_button_tooltip.to_owned(),

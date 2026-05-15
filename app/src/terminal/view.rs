@@ -9723,8 +9723,7 @@ impl TerminalView {
         let is_repo = DetectedRepositories::as_ref(ctx)
             .get_root_for_path(directory)
             .is_some();
-        let is_any_ai_enabled =
-            FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+        let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
         // Check if the current session is remote - don't show setup in remote sessions.
         let is_remote_session = !self.active_session_is_local(ctx).unwrap_or(false);
 
@@ -17637,8 +17636,6 @@ impl TerminalView {
                 }
             }
             AskAI(ask_source) => {
-                FeatureFlag::AgentMode.is_enabled();
-
                 self.ask_ai(ask_source, ctx);
             }
             OpenWorkflowModal => self.open_workflow_modal(ctx),
@@ -19358,8 +19355,6 @@ impl TypedActionView for TerminalView {
             }
             OpenBlockListContextMenu => self.open_block_list_context_menu_via_keybinding(ctx),
             AttachBlockAsAgentContext { block_index } => {
-                FeatureFlag::AgentMode.is_enabled();
-
                 self.ask_ai(&AskAISource::Block(*block_index), ctx)
             }
             TriggerSubshellBootstrap => self.trigger_subshell_bootstrap(None, false, ctx),

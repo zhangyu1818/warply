@@ -7,7 +7,6 @@ use pathfinder_geometry::vector::Vector2F;
 use crate::search::mixer::AddAsyncSourceOptions;
 use lazy_static::lazy_static;
 use std::{collections::HashSet, ops::Range, time::Duration};
-use warp_core::features::FeatureFlag;
 use warpui::{
     accessibility::{AccessibilityContent, WarpA11yRole},
     elements::{
@@ -208,8 +207,7 @@ impl CommandSearchView {
         self.mixer.update(ctx, |mixer, ctx| {
             mixer.reset(ctx);
 
-            if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            {
+            if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
                 mixer.add_sync_source(
                     AIQueriesDataSource::new(),
                     HashSet::from([QueryFilter::PromptHistory]),

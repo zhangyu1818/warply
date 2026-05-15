@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
-use warp_core::{features::FeatureFlag, settings::Setting};
+use warp_core::settings::Setting;
 use warpui::{
     elements::{
         self, Align, Border, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
@@ -911,26 +911,15 @@ impl WorkflowsMoreInfoView {
                 workflow,
                 origin: source,
             } => {
-                let icon = if FeatureFlag::AgentMode.is_enabled() {
-                    match source {
-                        AIWorkflowOrigin::AgentMode => {
-                            Icon::new(icons::Icon::Prompt.into(), appearance.theme().accent())
-                                .finish()
-                        }
-                        _ => Icon::new(
-                            icons::Icon::Prompt.into(),
-                            ai_brand_color(appearance.theme()),
-                        )
-                        .finish(),
+                let icon = match source {
+                    AIWorkflowOrigin::AgentMode => {
+                        Icon::new(icons::Icon::Prompt.into(), appearance.theme().accent()).finish()
                     }
-                } else {
-                    Icon::new(
-                        icons::Icon::AiAssistant.into(),
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().background()),
+                    _ => Icon::new(
+                        icons::Icon::Prompt.into(),
+                        ai_brand_color(appearance.theme()),
                     )
-                    .finish()
+                    .finish(),
                 };
 
                 let ai_icon = Container::new(

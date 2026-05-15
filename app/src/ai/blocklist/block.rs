@@ -3980,15 +3980,6 @@ impl AIBlock {
             })
     }
 
-    #[cfg(feature = "agent_mode_debug")]
-    pub fn set_diffs(&self, diffs: Vec<FileDiff>, ctx: &mut ViewContext<Self>) {
-        if let Some(edit) = self.requested_edits.values().next() {
-            edit.view.update(ctx, |view, ctx| {
-                view.set_candidate_diffs(diffs, ctx);
-            });
-        }
-    }
-
     /// Gets the prompt text for copying
     pub fn get_prompt_text(&self, app: &AppContext) -> String {
         self.model

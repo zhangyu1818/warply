@@ -8,7 +8,6 @@ use ordered_float::OrderedFloat;
 use serde::Serialize;
 use std::any::Any;
 use std::{collections::HashSet, sync::Arc};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::Fill;
 use warpui::{Action, AppContext, Element, Entity, ModelHandle};
 
@@ -288,13 +287,7 @@ impl QueryFilter {
         match self {
             QueryFilter::History => Some("bundled/svg/history.svg"),
             QueryFilter::Workflows => Some("bundled/svg/workflow.svg"),
-            QueryFilter::NaturalLanguage => {
-                if !FeatureFlag::AgentMode.is_enabled() {
-                    Some(Icon::AiAssistant.into())
-                } else {
-                    Some(Icon::AgentMode.into())
-                }
-            }
+            QueryFilter::NaturalLanguage => Some(Icon::AgentMode.into()),
             QueryFilter::Actions => None,
             QueryFilter::Sessions => Some("bundled/svg/terminal-input.svg"),
             QueryFilter::Tabs => Some("bundled/svg/terminal-input.svg"),
