@@ -19,7 +19,7 @@ use crate::ai::acp::{acp_raw_images, model::AcpAgentModel, AcpToolCall};
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::TodoOperation;
 use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
-use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
+use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::context_model::AttachmentType;
 use crate::ai::blocklist::BlocklistAIContextEvent;
 use crate::ai::blocklist::BlocklistAIContextModel;
@@ -310,9 +310,6 @@ pub(super) struct AIBlockStateHandles {
 
     /// Mouse state handle for interacting with the attached blocks.
     attached_blocks_chip_state_handle: MouseStateHandle,
-
-    /// Mouse state handle for the continue conversation button
-    continue_conversation_handle: MouseStateHandle,
 
     /// Mouse state handle for the resume conversation button
     resume_conversation_handle: MouseStateHandle,
@@ -1068,9 +1065,7 @@ impl AIBlock {
             }
         });
 
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
-        }
+        ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
 
         ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
             if let BlocklistAIContextEvent::UpdatedPendingContext { .. } = event {
@@ -2023,10 +2018,6 @@ impl AIBlock {
         if is_for_hidden_exchange {
             return true;
         }
-        if !FeatureFlag::AgentView.is_enabled() {
-            return false;
-        }
-
         if let Some(active_conversation_id) = self
             .agent_view_controller
             .as_ref(app)
@@ -2291,19 +2282,6 @@ impl AIBlock {
                     ctx.emit(AIBlockEvent::DismissedPassiveBlock);
                 }
                 CodeDiffViewEvent::ViewDetails => {
-                    // We only need to set the selected conversation when agent view is disabled;
-                    // when agent view is enabled, you have to enter the agent view for the code diff
-                    // conversation to follow-up in the first place, and hitting 'view details'
-                    // shouldn't auto-enter the agent view.
-                    if !FeatureFlag::AgentView.is_enabled() {
-                        me.context_model.update(ctx, |context_model, ctx| {
-                            context_model.set_pending_query_state_for_existing_conversation(
-                                me.client_ids.conversation_id,
-                                AgentViewEntryOrigin::ViewPassiveCodeDiffDetails,
-                                ctx,
-                            );
-                        });
-                    }
                     ctx.emit(AIBlockEvent::FocusTerminal);
                     ctx.notify();
                 }
@@ -4415,10 +4393,6 @@ pub enum AIBlockEvent {
     ShowSecretTooltip(RichContentSecretTooltipInfo),
     DismissSecretTooltip,
     OpenCitation(AIAgentCitation),
-    /// Emitted when the continue conversation button is clicked
-    ContinueConversation {
-        conversation_id: AIConversationId,
-    },
     /// Emitted when a passive code diff should be injected into an agent context.
     ContinuePassiveCodeDiffWithAgent {
         conversation_id: AIConversationId,
@@ -4486,9 +4460,6 @@ pub enum AIBlockAction {
     SelectText,
 
     CopyAIBlockCodeSnippet(String),
-
-    /// Continue the conversation using this response
-    ContinueConversation,
 
     /// Resume the stopped conversation
     ResumeConversation,
@@ -4618,19 +4589,6 @@ impl TypedActionView for AIBlock {
                     }
                 }
             }
-            AIBlockAction::ContinueConversation => {
-                // Get the current conversation ID from this block
-                let conversation_id = self.client_ids.conversation_id;
-
-                // Emit an event for the terminal view to handle
-                // The terminal view will handle setting active conversation,
-                // updating context model, setting input mode, and focusing
-                ctx.emit(AIBlockEvent::ContinueConversation { conversation_id });
-
-                // Also emit focus terminal event to ensure input is focused
-                ctx.emit(AIBlockEvent::FocusTerminal);
-                ctx.notify();
-            }
             AIBlockAction::ResumeConversation => {
                 ctx.emit(AIBlockEvent::ResumeConversation {
                     conversation_id: self.client_ids.conversation_id,
@@ -4645,7 +4603,7 @@ impl TypedActionView for AIBlock {
                 }
 
                 let is_read_only = self.terminal_model.lock().is_read_only();
-                if FeatureFlag::AgentView.is_enabled() && !is_read_only {
+                if !is_read_only {
                     ctx.emit(AIBlockEvent::InsertForkSlashCommand);
                 } else {
                     ctx.dispatch_global_action(

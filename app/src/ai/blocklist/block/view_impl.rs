@@ -40,7 +40,7 @@ use warpui::elements::{
     SelectableArea,
 };
 use warpui::{
-    elements::{Border, Container, Flex, ParentElement},
+    elements::{Container, Flex, ParentElement},
     AppContext, Element, SingletonEntity,
 };
 use warpui::{View, ViewContext};
@@ -53,7 +53,7 @@ use crate::ai::blocklist::block::view_impl::header::{
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::ai::blocklist::model::AIBlockModelHelper;
 use crate::appearance::Appearance;
-use crate::settings::{AISettings, InputModeSettings, InputSettings};
+use crate::settings::{AISettings, InputModeSettings};
 use crate::terminal::model::blocks::{BlockHeightItem, RemovableBlocklistItem, RichContentItem};
 use crate::terminal::model::rich_content::RichContentType;
 use crate::util::truncation::truncate_from_end;
@@ -848,7 +848,11 @@ impl View for AIBlock {
                     element_below_user_query,
                 ))
             });
-        let query_and_index_is_some = query_and_index.is_some();
+        let contains_user_query_and_is_not_pin_to_top = query_and_index.is_some()
+            || InputModeSettings::as_ref(app)
+                .input_mode
+                .value()
+                .is_inverted_blocklist();
         let attachment_name_list = if FeatureFlag::ImageAsContext.is_enabled() {
             attachment_names(self.model.inputs_to_render(app))
         } else {
@@ -871,15 +875,9 @@ impl View for AIBlock {
                     rewind_button: &self.rewind_button,
                     num_attached_context_blocks: self.num_attached_context_blocks,
                     has_attached_context_selected_text: self.has_attached_context_selected_text,
-                    directory_context: &self.directory_context,
                     view_id: &self.view_id,
                     exchange_id: &self.client_ids.client_exchange_id,
                     conversation_id: &self.client_ids.conversation_id,
-                    is_selected_text_attached_as_context: self
-                        .context_model
-                        .as_ref(app)
-                        .pending_context_selected_text()
-                        .is_some(),
                     is_restored: self.is_restored(),
                 },
                 app,
@@ -995,7 +993,6 @@ impl View for AIBlock {
                 open_all_comments_button: &self.open_all_comments_button,
                 has_accepted_edits,
                 current_todo_list: self.current_todo_list(app),
-                finish_reason: self.finish_reason.as_ref(),
                 terminal_view_id: self.terminal_view_id,
                 is_conversation_transcript_viewer,
                 imported_comments: &self.imported_comments,
@@ -1013,46 +1010,9 @@ impl View for AIBlock {
             app,
         ));
 
-        let should_use_transparent_overlay = InputSettings::as_ref(app)
-            .is_universal_developer_input_enabled(app)
-            || FeatureFlag::AgentView.is_enabled();
-
-        let theme = Appearance::as_ref(app).theme();
-        // Even though forked blocks are technically "restored", this is an implementation detail
-        // and should not be exposed to the user. Only truly restored blocks (i.e. blocks from a closed pane or session)
-        // should have the restored theme applied.
-        let background_color = if self.model.is_restored()
-            && !self.model.is_forked()
-            && !FeatureFlag::AgentView.is_enabled()
-        {
-            theme.restored_ai_blocks_overlay()
-        } else if should_use_transparent_overlay {
-            // Use a fully transparent background for universal developer input
-            Fill::Solid(ColorU::transparent_black())
-        } else {
-            theme.ai_blocks_overlay()
-        };
+        let background_color = Fill::Solid(ColorU::transparent_black());
 
         let mut content = Container::new(contents.finish()).with_background(background_color);
-
-        // Only render visual separation between this block and the previous block if this block
-        // is for a user query. Otherwise, this block is for an action result, which is tied to
-        // the output of the previous block, so we omit visual separation to make this block appear
-        // as if its part of the previous block.
-        //
-        // For example, consider a query that results in a requested command. We want the second
-        // block (where requested command output is the AI input) to appear part of the original
-        // query block.
-        let contains_user_query_and_is_not_pin_to_top = query_and_index_is_some
-            || InputModeSettings::as_ref(app)
-                .input_mode
-                .value()
-                .is_inverted_blocklist();
-        let should_render_separator =
-            !FeatureFlag::AgentView.is_enabled() && contains_user_query_and_is_not_pin_to_top;
-        if should_render_separator {
-            content = content.with_border(Border::top(1.).with_border_fill(theme.outline()));
-        }
 
         // Although `inputs_to_render` returns a vector, each AIBlock should only have one input.
         // We're assuming that the first element of the vector corresponds to the correct input.

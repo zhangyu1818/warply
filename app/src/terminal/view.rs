@@ -4541,28 +4541,12 @@ impl TerminalView {
         conversation_id: &AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::AgentView.is_enabled() {
-            self.enter_agent_view_for_conversation(
-                None,
-                AgentViewEntryOrigin::ContinueConversationButton,
-                *conversation_id,
-                ctx,
-            );
-        } else {
-            // Set pending query as follow-up in context model
-            self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_query_state_for_existing_conversation(
-                    *conversation_id,
-                    AgentViewEntryOrigin::ContinueConversationButton,
-                    ctx,
-                );
-            });
-
-            // Set input config to AI mode, preserving user's autodetect preference
-            self.ai_input_model.update(ctx, |input_model, ctx| {
-                input_model.set_input_type(InputType::AI, ctx);
-            });
-        }
+        self.enter_agent_view_for_conversation(
+            None,
+            AgentViewEntryOrigin::ContinueConversationButton,
+            *conversation_id,
+            ctx,
+        );
 
         // Focus the input
         self.redetermine_global_focus(ctx);
@@ -4573,18 +4557,6 @@ impl TerminalView {
         conversation_id: &AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
-        // If `AgentView` is enabled, this button is only rendered when the agent view is already
-        // active for the selected conversation, so this call is redundant.
-        if !FeatureFlag::AgentView.is_enabled() {
-            self.ai_context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_query_state_for_existing_conversation(
-                    *conversation_id,
-                    AgentViewEntryOrigin::ResumeConversationButton,
-                    ctx,
-                )
-            });
-        }
-
         self.ai_controller.update(ctx, |controller, ctx| {
             controller.resume_conversation(*conversation_id, vec![], ctx);
         });
@@ -14258,9 +14230,6 @@ impl TerminalView {
             },
             AIBlockEvent::FocusTerminal => {
                 self.redetermine_global_focus(ctx);
-            }
-            AIBlockEvent::ContinueConversation { conversation_id } => {
-                self.handle_continue_conversation(conversation_id, ctx);
             }
             AIBlockEvent::ContinuePassiveCodeDiffWithAgent {
                 conversation_id,
