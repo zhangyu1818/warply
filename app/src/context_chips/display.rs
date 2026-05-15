@@ -4,7 +4,6 @@ use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::context_chips::display_chip::format_git_branch_command;
-use crate::settings::InputSettings;
 use crate::terminal::model_events::ModelEventDispatcher;
 use crate::{
     ai::blocklist::{BlocklistAIContextModel, BlocklistAIInputEvent, BlocklistAIInputModel},
@@ -13,10 +12,9 @@ use crate::{
     terminal::input::MenuPositioningProvider,
 };
 use std::path::PathBuf;
-use warp_core::features::FeatureFlag;
 use warpui::{
     elements::{
-        ChildView, Clipped, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment,
+        ChildView, Clipped, Container, CrossAxisAlignment, Element, MainAxisAlignment,
         MainAxisSize, ParentElement, Wrap,
     },
     AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
@@ -29,29 +27,6 @@ use super::{
     prompt_type::PromptType,
     ChipResult, ContextChipKind,
 };
-
-/// Enum introduced to abstract over the different row types we use for the prompt display,
-/// between the non-UDI and UDI cases.
-enum RowBuilder {
-    Wrap(Wrap),
-    Flex(Flex),
-}
-
-impl RowBuilder {
-    fn add_child(&mut self, child: Box<dyn Element>) {
-        match self {
-            RowBuilder::Wrap(w) => w.add_child(child),
-            RowBuilder::Flex(f) => f.add_child(child),
-        }
-    }
-
-    fn finish(self) -> Box<dyn Element> {
-        match self {
-            RowBuilder::Wrap(w) => w.finish(),
-            RowBuilder::Flex(f) => f.finish(),
-        }
-    }
-}
 
 /// A view for displaying the prompt.
 pub struct PromptDisplay {
@@ -376,25 +351,11 @@ impl View for PromptDisplay {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        let should_render_udi_chips = InputSettings::as_ref(app)
-            .is_universal_developer_input_enabled(app)
-            || FeatureFlag::AgentView.is_enabled();
-        let mut row = if should_render_udi_chips {
-            RowBuilder::Wrap(
-                Wrap::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_main_axis_alignment(MainAxisAlignment::Start)
-                    .with_main_axis_size(MainAxisSize::Min)
-                    .with_run_spacing(super::spacing::UDI_ROW_RUN_SPACING),
-            )
-        } else {
-            RowBuilder::Flex(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_constrain_horizontal_bounds_to_parent(true)
-                    .with_main_axis_size(MainAxisSize::Min),
-            )
-        };
+        let mut row = Wrap::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_main_axis_alignment(MainAxisAlignment::Start)
+            .with_main_axis_size(MainAxisSize::Min)
+            .with_run_spacing(super::spacing::UDI_ROW_RUN_SPACING);
 
         self.display_chips.iter().for_each(|display_chip| {
             let chip = display_chip.as_ref(app);

@@ -223,6 +223,9 @@ impl AgentInputFooter {
         ctx.observe(&prompt, |me, model, ctx| {
             me.update_display_chips(&model, ctx);
         });
+        prompt.update(ctx, |prompt, ctx| {
+            prompt.set_agent_footer_chip_tracking_enabled(true, ctx);
+        });
 
         let mut me = Self {
             terminal_view_id,

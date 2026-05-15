@@ -1,4 +1,3 @@
-use crate::features::FeatureFlag;
 use crate::settings::{InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionsEvent};
@@ -177,6 +176,7 @@ pub struct CurrentPrompt {
     sessions: ModelHandle<Sessions>,
     prompt_chip_logger: PromptChipLogger,
     update_tx: async_channel::Sender<()>,
+    agent_footer_chip_tracking_enabled: bool,
 
     /// When set, `ShellGitBranch` chip values are driven by filesystem events from
     /// `GitRepoStatusModel` instead of the 30s periodic timer.
@@ -249,11 +249,29 @@ impl CurrentPrompt {
             latest_context: None,
             prompt_chip_logger: PromptChipLogger::default(),
             update_tx,
+            agent_footer_chip_tracking_enabled: false,
             same_line_prompt_enabled: prompt.as_ref(ctx).same_line_prompt_enabled(),
             separator: prompt.as_ref(ctx).separator(),
             #[cfg(feature = "local_fs")]
             git_repo_status: None,
         }
+    }
+
+    pub fn set_agent_footer_chip_tracking_enabled(
+        &mut self,
+        enabled: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.agent_footer_chip_tracking_enabled == enabled {
+            return;
+        }
+        self.agent_footer_chip_tracking_enabled = enabled;
+        if self.active(ctx) {
+            self.update_states_with_new_context(ctx);
+        } else {
+            self.clear_chips_and_cache();
+        }
+        ctx.notify();
     }
 
     /// This is used to subscribe to an editor view (i.e. in the input) whose buffer
@@ -266,15 +284,6 @@ impl CurrentPrompt {
         // A WeakViewHandle is used here to avoid leaking the terminal model
         let weak_editor_handle = editor.downgrade();
         ctx.subscribe_to_view(&editor, move |me, _, ctx| {
-            // CurrentPrompt exists and this fn is called even if we're not using warp prompt.
-            // We don't need to do anything if we're honoring PS1 unless universal developer input
-            // or AgentView is enabled (agent view needs chips regardless of PS1 setting).
-            if *SessionSettings::as_ref(ctx).honor_ps1
-                && !InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx)
-                && !FeatureFlag::AgentView.is_enabled()
-            {
-                return;
-            }
             let Some(editor) = weak_editor_handle.upgrade(ctx) else {
                 return;
             };
@@ -1086,13 +1095,10 @@ impl CurrentPrompt {
 
     /// Chips whose values we should actively maintain in state.
     ///
-    /// When Agent View is enabled, the footer chips should not depend on prompt chip
-    /// customization/ordering/visibility, so we keep their backing values up to date even if they
-    /// are not present in the prompt configuration.
     fn chips_to_run(&self, ctx: &AppContext) -> Vec<ContextChipKind> {
         let mut chips = self.configured_chips(ctx);
 
-        if FeatureFlag::AgentView.is_enabled() {
+        if self.agent_footer_chip_tracking_enabled {
             let footer_chips = SessionSettings::as_ref(ctx)
                 .agent_footer_chip_selection
                 .all_chips();
@@ -1102,7 +1108,6 @@ impl CurrentPrompt {
                 }
             }
 
-            // Also include chips configured for the CLI agent footer.
             let cli_footer_chips = SessionSettings::as_ref(ctx)
                 .cli_agent_footer_chip_selection
                 .all_chips();
@@ -1598,13 +1603,9 @@ impl CurrentPrompt {
 
     /// Whether or not context chips are active. If this is false, we can skip running them.
     fn active(&self, ctx: &AppContext) -> bool {
-        // Context chips are active when:
-        // 1. PS1 is not honored (normal case), OR
-        // 2. Universal developer input is enabled (overrides PS1 behavior), OR
-        // 3. AgentView feature is enabled (agent view needs chips regardless of PS1)
         !*SessionSettings::as_ref(ctx).honor_ps1
             || InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx)
-            || FeatureFlag::AgentView.is_enabled()
+            || self.agent_footer_chip_tracking_enabled
     }
 }
 

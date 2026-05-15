@@ -53,6 +53,18 @@ impl PromptType {
         }
     }
 
+    pub fn set_agent_footer_chip_tracking_enabled(
+        &mut self,
+        enabled: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if let Self::Dynamic { prompt } = self {
+            prompt.update(ctx, |prompt, ctx| {
+                prompt.set_agent_footer_chip_tracking_enabled(enabled, ctx);
+            });
+        }
+    }
+
     /// Returns menu items for copying parts of the prompt given a prompt snapshot.
     pub fn copy_menu_items(
         &self,

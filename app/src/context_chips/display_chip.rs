@@ -26,8 +26,8 @@ use crate::view_components::action_button::{ActionButtonTheme, NakedTheme};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::{vec2f, Vector2F};
 use std::path::PathBuf;
+use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::Fill;
-use warp_core::{features::FeatureFlag, ui::theme::color::internal_colors};
 use warpui::elements::Empty;
 use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
@@ -1089,10 +1089,8 @@ impl DisplayChip {
         let font_size = udi_font_size(appearance);
         let font_family = if self.is_in_agent_view {
             appearance.ui_font_family()
-        } else if FeatureFlag::AgentView.is_enabled() {
-            appearance.monospace_font_family()
         } else {
-            appearance.ui_font_family()
+            appearance.monospace_font_family()
         };
 
         let git_diff_stats_content = render_git_diff_stats_content(
@@ -1397,7 +1395,7 @@ impl DisplayChip {
 
     fn render_chip(&self, app: &AppContext) -> Option<Box<dyn Element>> {
         let appearance = Appearance::as_ref(app);
-        let font_family = if self.is_in_agent_view || !FeatureFlag::AgentView.is_enabled() {
+        let font_family = if self.is_in_agent_view {
             appearance.ui_font_family()
         } else {
             appearance.monospace_font_family()
@@ -1764,7 +1762,7 @@ pub(crate) fn render_udi_chip(config: UdiChipConfig, appearance: &Appearance) ->
         config.text.clone()
     };
 
-    let font_family = if config.is_in_agent_view || !FeatureFlag::AgentView.is_enabled() {
+    let font_family = if config.is_in_agent_view {
         appearance.ui_font_family()
     } else {
         appearance.monospace_font_family()
