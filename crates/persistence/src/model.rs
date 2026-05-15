@@ -737,8 +737,6 @@ pub struct AgentConversationData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts_json: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub run_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub autoexecute_override: Option<PersistedAutoexecuteMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_title: Option<String>,

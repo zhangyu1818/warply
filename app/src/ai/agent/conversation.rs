@@ -390,8 +390,6 @@ pub struct AIConversation {
     /// Tracks whether the code review has been opened at least once for this conversation.
     has_opened_code_review: bool,
 
-    task_id: Option<String>,
-
     /// The active transaction for this conversation, if any.
     transaction: Option<Transaction>,
 
@@ -428,7 +426,6 @@ impl AIConversation {
             status: ConversationStatus::InProgress,
             status_error_message: None,
             has_opened_code_review: false,
-            task_id: None,
             transaction: None,
             autoexecute_override: Default::default(),
             added_exchanges_by_response: Default::default(),
@@ -462,7 +459,6 @@ impl AIConversation {
                     .ok()
             })
             .unwrap_or_default();
-        let run_id = conversation_data.run_id;
         let autoexecute_override = conversation_data
             .autoexecute_override
             .map(Into::into)
@@ -487,7 +483,6 @@ impl AIConversation {
             // TODO(alokedesai): Support session restoration for code review comments.
             code_review: None,
             has_opened_code_review: false,
-            task_id: run_id,
             transaction: None,
             autoexecute_override,
             added_exchanges_by_response: Default::default(),
@@ -664,14 +659,6 @@ impl AIConversation {
                     .iter()
                     .map(|new_exchange| new_exchange.exchange_id)
             })
-    }
-
-    pub fn run_id(&self) -> Option<String> {
-        self.task_id.clone()
-    }
-
-    pub fn set_run_id(&mut self, id: String) {
-        self.task_id = Some(id);
     }
 
     pub fn all_tasks(&self) -> impl Iterator<Item = &Task> {
@@ -2208,7 +2195,6 @@ impl AIConversation {
             conversation_data: AgentConversationData {
                 reverted_action_ids,
                 artifacts_json,
-                run_id: self.task_id.clone(),
                 autoexecute_override: Some(self.autoexecute_override.into()),
                 display_title: self.fallback_display_title.clone(),
                 acp_transcript_json,

@@ -837,26 +837,6 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    pub fn assign_run_id_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        run_id: String,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) else {
-            log::warn!(
-                "assign_run_id_for_conversation: conversation {conversation_id:?} not found"
-            );
-            return;
-        };
-        conversation.set_run_id(run_id);
-        ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationMetadata {
-            terminal_view_id: Some(terminal_view_id),
-            conversation_id,
-        });
-    }
-
     pub fn fork_conversation(
         &mut self,
         source_conversation: &AIConversation,
@@ -907,7 +887,6 @@ impl BlocklistAIHistoryModel {
         let conversation_data = AgentConversationData {
             reverted_action_ids,
             artifacts_json: None,
-            run_id: None,
             autoexecute_override: Some(source_conversation.autoexecute_override().into()),
             display_title,
             acp_transcript_json,
@@ -983,7 +962,6 @@ impl BlocklistAIHistoryModel {
         let conversation_data = AgentConversationData {
             reverted_action_ids,
             artifacts_json: None,
-            run_id: None,
             autoexecute_override: Some(source_conversation.autoexecute_override().into()),
             display_title,
             acp_transcript_json,
@@ -1137,13 +1115,6 @@ impl BlocklistAIHistoryModel {
             .conversations_by_id
             .get(&conversation_id)
             .and_then(|c| c.title().map(|t| t.to_string()));
-        // Capture the run_id BEFORE the in-memory record is dropped so it
-        // can be forwarded on the DeletedConversation event.
-        let run_id = self
-            .conversations_by_id
-            .get(&conversation_id)
-            .and_then(|c| c.run_id());
-
         self.remove_conversation_from_memory(conversation_id, terminal_view_id, ctx);
 
         // Delete persisted conversation from sqlite.
@@ -1177,7 +1148,6 @@ impl BlocklistAIHistoryModel {
                 terminal_view_id,
                 conversation_id,
                 conversation_title,
-                run_id,
             });
         }
     }
@@ -1189,14 +1159,6 @@ impl BlocklistAIHistoryModel {
         terminal_view_id: Option<EntityId>,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Capture the run_id BEFORE the in-memory record is dropped so the
-        // RemoveConversation event can carry it (event subscribers can no
-        // longer look it up via `conversation()` after this function returns).
-        let run_id = self
-            .conversations_by_id
-            .get(&conversation_id)
-            .and_then(|c| c.run_id());
-
         self.all_conversations_metadata.remove(&conversation_id);
         self.conversations_by_id.remove(&conversation_id);
 
@@ -1224,7 +1186,6 @@ impl BlocklistAIHistoryModel {
             ctx.emit(BlocklistAIHistoryEvent::RemoveConversation {
                 terminal_view_id,
                 conversation_id,
-                run_id,
             });
         }
     }
@@ -1609,14 +1570,12 @@ pub enum BlocklistAIHistoryEvent {
     RemoveConversation {
         terminal_view_id: EntityId,
         conversation_id: AIConversationId,
-        run_id: Option<String>,
     },
 
     DeletedConversation {
         terminal_view_id: EntityId,
         conversation_id: AIConversationId,
         conversation_title: Option<String>,
-        run_id: Option<String>,
     },
 
     /// Emitted when conversations are restored in a terminal view.
