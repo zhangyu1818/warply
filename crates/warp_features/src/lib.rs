@@ -33,10 +33,6 @@ pub enum FeatureFlag {
     /// Force enable classic completions.
     ForceClassicCompletions,
 
-    /// If enabled, autosuggestions are hidden when the tab completions
-    /// menu is open (except when using completions-as-you-type).
-    RemoveAutosuggestionDuringTabCompletions,
-
     /// Feature flag for cursor reflow fix (fixes part of the Alacritty resizing logic).
     ResizeFix,
 
@@ -186,7 +182,6 @@ pub const DEBUG_FLAGS: &[FeatureFlag] = &[FeatureFlag::DebugMode, FeatureFlag::R
 /// time, these will move on to PREVIEW_FLAGS before being launched.
 pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ToggleBootstrapBlock,
-    FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
     FeatureFlag::ResizeFix,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::ImeMarkedText,

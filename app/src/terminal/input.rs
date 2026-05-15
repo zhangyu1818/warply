@@ -8815,9 +8815,7 @@ impl Input {
                         // The autosuggestion will be repopulated when the menu is closed.
                         // We don't do this for completions as you type because the user would
                         // otherwise hardly see autosuggestons.
-                        if FeatureFlag::RemoveAutosuggestionDuringTabCompletions.is_enabled()
-                            && !self.is_completions_while_typing_turned_on(ctx)
-                        {
+                        if !self.is_completions_while_typing_turned_on(ctx) {
                             self.editor.update(ctx, |view, ctx| {
                                 view.clear_autosuggestion(ctx);
                             });

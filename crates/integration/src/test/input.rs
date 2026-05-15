@@ -1,23 +1,20 @@
 use std::time::Duration;
 
 use warp::integration_testing::terminal::util::current_shell_starter_and_version;
-use warp::terminal::shell::ShellType;
-use warp::{
-    features::FeatureFlag,
-    integration_testing::{
-        clipboard::write_to_clipboard,
-        input::{
-            assert_autosuggestion_state, input_contains_string, tab_completions_menu_is_open,
-            AutosuggestionState,
-        },
-        step::new_step_with_default_assertions,
-        terminal::{
-            execute_command_for_single_terminal_in_tab, util::ExpectedExitStatus,
-            wait_until_bootstrapped_single_pane_for_tab,
-        },
-        view_getters::{single_input_view_for_tab, single_terminal_view_for_tab},
+use warp::integration_testing::{
+    clipboard::write_to_clipboard,
+    input::{
+        assert_autosuggestion_state, input_contains_string, tab_completions_menu_is_open,
+        AutosuggestionState,
     },
+    step::new_step_with_default_assertions,
+    terminal::{
+        execute_command_for_single_terminal_in_tab, util::ExpectedExitStatus,
+        wait_until_bootstrapped_single_pane_for_tab,
+    },
+    view_getters::{single_input_view_for_tab, single_terminal_view_for_tab},
 };
+use warp::terminal::shell::ShellType;
 use warpui::{async_assert_eq, integration::TestStep, Event};
 
 use crate::Builder;
@@ -27,8 +24,6 @@ use super::new_builder;
 /// Ensures that tab completions are hidden when the completions menu is opened
 /// but re-appear when the menu is closed.
 pub fn test_autosuggestions_are_hidden_when_opening_tab_completions() -> Builder {
-    FeatureFlag::RemoveAutosuggestionDuringTabCompletions.set_enabled(true);
-
     new_builder()
         // Ensure that $HOME contains a directory as a tab-completion candidate.
         .with_setup(|utils| {
