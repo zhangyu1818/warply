@@ -110,9 +110,6 @@ pub enum FeatureFlag {
     /// Enables close button on left side of tabs
     TabCloseButtonOnLeft,
 
-    /// Enables return changed lines on apply diff result
-    ChangedLinesOnlyApplyDiffResult,
-
     /// Enables the tabbed file viewer
     TabbedEditorView,
 

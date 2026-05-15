@@ -328,7 +328,6 @@ default = [
     "code_find_replace",
     "tabbed_editor_view",
     "selection_as_context",
-    "changed_lines_only_apply_diff_result",
     "undo_closed_panes",
     "revert_diff_hunk",
     "code_review_save_changes",
@@ -463,7 +462,6 @@ code_find_replace = []
 command_palette_file_search = []
 preview_channel = []
 expand_edit_to_pane = []
-changed_lines_only_apply_diff_result = []
 tabbed_editor_view = []
 selection_as_context = []
 projects = []

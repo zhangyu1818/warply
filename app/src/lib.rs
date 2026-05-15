@@ -1439,8 +1439,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ExpandEditToPane,
         #[cfg(feature = "tab_close_button_on_left")]
         FeatureFlag::TabCloseButtonOnLeft,
-        #[cfg(feature = "changed_lines_only_apply_diff_result")]
-        FeatureFlag::ChangedLinesOnlyApplyDiffResult,
         #[cfg(feature = "tabbed_editor_view")]
         FeatureFlag::TabbedEditorView,
         #[cfg(feature = "undo_closed_panes")]

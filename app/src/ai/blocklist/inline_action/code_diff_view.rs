@@ -5,7 +5,6 @@ use pathfinder_geometry::vector::vec2f;
 use rand::{distributions::Alphanumeric, thread_rng, Rng as _};
 use std::{collections::HashMap, path::Path, rc::Rc, sync::Arc, time::Duration};
 use warp_core::{
-    features::FeatureFlag,
     platform::SessionPlatform,
     safe_error,
     settings::ToggleableSetting,
@@ -2119,12 +2118,7 @@ impl CodeDiffView {
                         updated_files.push((
                             FileLocations {
                                 name: file_path_str,
-                                lines: if FeatureFlag::ChangedLinesOnlyApplyDiffResult.is_enabled()
-                                {
-                                    changed_lines
-                                } else {
-                                    vec![]
-                                },
+                                lines: changed_lines,
                             },
                             was_edited,
                         ));
