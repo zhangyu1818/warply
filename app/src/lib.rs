@@ -1515,8 +1515,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PluggableNotifications,
         #[cfg(feature = "new_tab_styling")]
         FeatureFlag::NewTabStyling,
-        #[cfg(feature = "active_conversation_requires_interaction")]
-        FeatureFlag::ActiveConversationRequiresInteraction,
         #[cfg(feature = "incremental_auto_reload")]
         FeatureFlag::IncrementalAutoReload,
         #[cfg(feature = "kitty_keyboard_protocol")]

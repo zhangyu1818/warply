@@ -357,7 +357,6 @@ default = [
     "new_tab_styling",
     "richtext_multiselect",
     "incremental_auto_reload",
-    "active_conversation_requires_interaction",
     "inline_repo_menu",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
@@ -516,7 +515,6 @@ force_classic_completions = []
 inline_history_menu = []
 inline_repo_menu = []
 new_tab_styling = []
-active_conversation_requires_interaction = []
 incremental_auto_reload = []
 inline_menu_headers = []
 directory_tab_colors = []

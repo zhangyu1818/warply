@@ -231,10 +231,6 @@ pub enum FeatureFlag {
     /// Updated tab styling (background colors, border, close button positioning, margins).
     NewTabStyling,
 
-    /// When enabled, a conversation is only considered "active" once a new query has been
-    /// sent since opening (rather than the moment its agent view is expanded).
-    ActiveConversationRequiresInteraction,
-
     /// Enables incremental (diff-based) buffer updates for auto-reload instead of full replace.
     IncrementalAutoReload,
 

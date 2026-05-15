@@ -26,7 +26,6 @@ use crate::workspace::view::conversation_list::item::{
 };
 use crate::workspace::ToastStack;
 use crate::workspace::WorkspaceAction;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 
 use super::view_model::{ConversationEntry, ConversationListViewModel};
@@ -271,12 +270,8 @@ impl ConversationListView {
     /// Rebuilds the flat list of items based on sections and collapse state.
     fn rebuild_list_items(&mut self, ctx: &mut ViewContext<Self>) {
         let active_views_model = ActiveAgentViewsModel::as_ref(ctx);
-        let active_ids: HashSet<_> =
-            if FeatureFlag::ActiveConversationRequiresInteraction.is_enabled() {
-                active_views_model.get_all_active_conversation_ids(ctx)
-            } else {
-                active_views_model.get_all_open_conversation_ids(ctx)
-            }
+        let active_ids: HashSet<_> = active_views_model
+            .get_all_active_conversation_ids(ctx)
             .into_iter()
             .map(AgentConversationEntryId::Conversation)
             .collect();
