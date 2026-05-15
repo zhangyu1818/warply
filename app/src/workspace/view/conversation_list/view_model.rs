@@ -1,7 +1,7 @@
 use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationsModel,
     AgentConversationsModelEvent, ArtifactFilter, ConversationListFilters, CreatedOnFilter,
-    CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
+    SourceFilter, StatusFilter,
 };
 use fuzzy_match::match_indices_case_insensitive;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -54,11 +54,9 @@ impl ConversationListViewModel {
         self.cached_entry_ids = model
             .get_entries(
                 &ConversationListFilters {
-                    owners: OwnerFilter::PersonalOnly,
                     status: StatusFilter::All,
                     source: SourceFilter::All,
                     created_on: CreatedOnFilter::All,
-                    creator: CreatorFilter::All,
                     artifact: ArtifactFilter::All,
                 },
                 ctx,

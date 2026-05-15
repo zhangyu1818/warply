@@ -31,16 +31,6 @@ pub enum SourceFilter {
     All,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum CreatorFilter {
-    #[default]
-    All,
-    Specific {
-        name: String,
-        uid: String,
-    },
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum ArtifactFilter {
     #[default]
@@ -60,20 +50,11 @@ pub enum CreatedOnFilter {
     LastWeek,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OwnerFilter {
-    All,
-    #[default]
-    PersonalOnly,
-}
-
 #[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct ConversationListFilters {
-    pub owners: OwnerFilter,
     pub status: StatusFilter,
     pub source: SourceFilter,
     pub created_on: CreatedOnFilter,
-    pub creator: CreatorFilter,
     pub artifact: ArtifactFilter,
 }
 
@@ -259,8 +240,8 @@ impl AgentConversationsModel {
         let mut entries: Vec<_> = self
             .conversations
             .values()
-            .map(|conversation| entry::entry_for_conversation(conversation, history_model, app))
-            .filter(|entry| entry.matches_filters(filters, app))
+            .map(|conversation| entry::entry_for_conversation(conversation, history_model))
+            .filter(|entry| entry.matches_filters(filters))
             .collect();
         entries.sort_by(|a, b| b.display.last_updated.cmp(&a.display.last_updated));
         entries
@@ -273,11 +254,10 @@ impl AgentConversationsModel {
     ) -> Option<AgentConversationEntry> {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
         match id {
-            AgentConversationEntryId::Conversation(conversation_id) => {
-                self.conversations.get(conversation_id).map(|conversation| {
-                    entry::entry_for_conversation(conversation, history_model, app)
-                })
-            }
+            AgentConversationEntryId::Conversation(conversation_id) => self
+                .conversations
+                .get(conversation_id)
+                .map(|conversation| entry::entry_for_conversation(conversation, history_model)),
         }
     }
 

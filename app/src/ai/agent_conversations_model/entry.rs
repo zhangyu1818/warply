@@ -2,13 +2,11 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
-use crate::identity::LocalIdentityProvider;
 use chrono::{DateTime, Utc};
-use warpui::{AppContext, SingletonEntity};
 
 use super::{
     artifacts_match_filter, AgentRunDisplayStatus, ArtifactFilter, ConversationListFilters,
-    ConversationMetadata, CreatedOnFilter, CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
+    ConversationMetadata, CreatedOnFilter, SourceFilter, StatusFilter,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -43,16 +41,9 @@ pub struct AgentConversationDisplayData {
     pub created_at: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
-    pub creator: AgentConversationCreator,
     pub run_time: Option<String>,
     pub working_directory: Option<String>,
     pub artifacts: Vec<Artifact>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct AgentConversationCreator {
-    pub name: Option<String>,
-    pub uid: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,34 +68,11 @@ pub struct AgentConversationCapabilities {
 }
 
 impl AgentConversationEntry {
-    pub(super) fn matches_filters(
-        &self,
-        filters: &ConversationListFilters,
-        app: &AppContext,
-    ) -> bool {
-        self.matches_owner_and_creator(&filters.owners, &filters.creator, app)
-            && self.matches_status(&filters.status)
+    pub(super) fn matches_filters(&self, filters: &ConversationListFilters) -> bool {
+        self.matches_status(&filters.status)
             && self.matches_source(&filters.source)
             && self.matches_created_on(&filters.created_on)
             && self.matches_artifact(&filters.artifact)
-    }
-
-    fn matches_owner_and_creator(
-        &self,
-        owner_filter: &OwnerFilter,
-        creator_filter: &CreatorFilter,
-        _app: &AppContext,
-    ) -> bool {
-        if matches!(owner_filter, OwnerFilter::PersonalOnly) {
-            return true;
-        }
-
-        match creator_filter {
-            CreatorFilter::All => true,
-            CreatorFilter::Specific { name, .. } => {
-                self.display.creator.name.as_ref() == Some(name)
-            }
-        }
     }
 
     fn matches_status(&self, status_filter: &StatusFilter) -> bool {
@@ -142,14 +110,12 @@ impl AgentConversationEntry {
 pub(super) fn entry_for_conversation(
     metadata: &ConversationMetadata,
     history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> AgentConversationEntry {
     let conversation_metadata = history_model.get_conversation_metadata(&metadata.nav_data.id);
     entry_for_conversation_parts(
         metadata.nav_data.clone(),
         conversation_metadata,
         history_model,
-        app,
     )
 }
 
@@ -157,7 +123,6 @@ fn entry_for_conversation_parts(
     nav_data: ConversationNavigationData,
     conversation_metadata: Option<&AIConversationMetadata>,
     history_model: &BlocklistAIHistoryModel,
-    app: &AppContext,
 ) -> AgentConversationEntry {
     let conversation_id = nav_data.id;
     let conversation = history_model.conversation(&conversation_id);
@@ -185,19 +150,6 @@ fn entry_for_conversation_parts(
             created_at: nav_data.last_updated.into(),
             last_updated: nav_data.last_updated.into(),
             status: status.clone(),
-            creator: AgentConversationCreator {
-                name: Some(
-                    LocalIdentityProvider::as_ref(app)
-                        .get()
-                        .username_for_display(),
-                ),
-                uid: Some(
-                    LocalIdentityProvider::as_ref(app)
-                        .get()
-                        .user_id()
-                        .to_string(),
-                ),
-            },
             run_time: None,
             working_directory: nav_data
                 .latest_working_directory
