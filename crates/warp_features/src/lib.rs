@@ -123,9 +123,6 @@ pub enum FeatureFlag {
     /// Enables revert button for diff hunks in the gutter.
     RevertDiffHunk,
 
-    /// Enables saving code review pane changes
-    CodeReviewSaveChanges,
-
     /// Enables discarding per-file and discarding all changes
     DiscardPerFileAndAllChanges,
 

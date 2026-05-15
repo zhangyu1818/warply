@@ -115,7 +115,7 @@ When upstream changes retained local AgentView action rendering such as grep/fil
 
 Keep local Docker sandbox terminal support when upstream changes `sbx` spawning, shell bootstrap, or terminal-session UI. Do not restore rollout gates, stale-setting fallbacks, hosted sandbox/cloud isolation, or old agent sandbox routing around that local terminal mode.
 
-Port local code-review UI improvements, including find/search behavior, as direct retained functionality. Do not restore code-review rollout gates or old Agent SDK/cloud-agent routing to enable those UI paths.
+Port local code-review UI improvements, including find/search behavior, save/edit behavior, and editor state handling, as direct retained functionality. Do not restore code-review rollout gates, read-only fallback modes for old rollout states, or old Agent SDK/cloud-agent routing to enable those UI paths.
 
 Reject Drive/local-object UI changes that restore cloud sync badges, cloud save progress, or cloud save-error indicators. Keep local pending state only when it supports local persistence or quit-warning behavior.
 
