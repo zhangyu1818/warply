@@ -69,6 +69,7 @@ The fork removes:
 - `change-map.md`: Path-level map of added/replaced/removed/retained code.
 - `upstream-master-audit-2026-05-10.md`: Historical commit-by-commit audit as of May 10, 2026.
 - `upstream-master-audit-2026-05-14.md`: Current audit of `19659d12..master` under ACP-only, macOS-only, no-backward-compatibility rules.
+- `upstream-master-audit-2026-05-16.md`: Incremental in-progress audit for commits after `1ca5496d8`; use it together with the 2026-05-14 audit until the new range is fully reviewed.
 
 ## Quick Merge Principle
 

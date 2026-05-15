@@ -82,6 +82,13 @@ This map explains the large fork baseline change at a path level.
 | OS launch-at-login | Operating-system setting, not account login. | Keep unless product scope changes. |
 | macOS platform integration | Only maintained native host platform. | Accept compatible AppKit/windowing/signing/secure-storage/preferences fixes. |
 
+## 2026-05-16 Upstream Sync Batch
+
+- Ported the upstream new-session/tab-config menu clipping fix by using the current 268px menu width for all new-session menu entrypoints instead of keeping a vertical-tabs-only branch.
+- Ported the markdown link display-text escaping fix for retained notebook/plan/editor markdown behavior. Autolinks now store the unescaped URL text after parsing markdown backslash escapes, and round trips no longer accumulate extra backslashes.
+- Ported the repo metadata large-repo fallback for retained local file tree behavior. A repository that exceeds the full file limit retries as a first-level lazy tree so users can still browse folders. Upstream telemetry from that patch remains rejected.
+- Deferred upstream remote file-location and remote diff-state commits for a separate SSH remote-server/code review pass. They are relevant to retained SSH behavior, but the current fork lacks upstream's global buffer-location module layout.
+
 ## 2026-05 macOS-Only Host Cleanup
 
 - Local WSL/MSYS2 shell discovery, shell launch, startup-directory conversion, path conversion, shell indicators, and bootstrap compatibility branches were removed.
