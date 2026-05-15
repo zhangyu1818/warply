@@ -4157,8 +4157,7 @@ impl TerminalView {
                 });
 
                 // Focus the AI block so that the user can cancel,
-                // unless the terminal is not even focused which can
-                // happen during autonomous execution.
+                // unless the terminal is not currently focused.
                 self.focus_ai_block_if_self_focused(&ai_block, ctx);
 
                 ctx.subscribe_to_view(&ai_block, move |me, block, event, ctx| {

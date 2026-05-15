@@ -117,10 +117,6 @@ pub enum AIAgentActionType {
 }
 
 impl AIAgentActionType {
-    pub fn is_request_command_output(&self) -> bool {
-        matches!(self, Self::RequestCommandOutput { .. })
-    }
-
     pub fn is_read_files(&self) -> bool {
         matches!(self, Self::ReadFiles(..))
     }

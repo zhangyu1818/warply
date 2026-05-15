@@ -729,10 +729,6 @@ impl AIAgentAction {
         matches!(self.action, AIAgentActionType::RequestFileEdits { .. })
     }
 
-    pub fn is_request_command_output(&self) -> bool {
-        self.action.is_request_command_output()
-    }
-
     pub fn is_agent_monitored_request_command_output(&self) -> bool {
         matches!(
             self.action,

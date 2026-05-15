@@ -40,11 +40,6 @@ impl AppExecutionMode {
     pub fn can_save_session(&self) -> bool {
         self.is_app()
     }
-
-    /// If true, the app is running autonomously, without a user present.
-    pub fn is_autonomous(&self) -> bool {
-        matches!(self.mode, ExecutionMode::Headless)
-    }
 }
 
 impl Entity for AppExecutionMode {

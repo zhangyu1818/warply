@@ -9,7 +9,6 @@ use futures_lite::pin;
 use itertools::Itertools;
 use parking_lot::FairMutex;
 use warp_core::command::ExitCode;
-use warp_core::execution_mode::AppExecutionMode;
 use warp_util::path::ShellFamily;
 use warpui::r#async::{Spawnable, Timer};
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -19,7 +18,6 @@ use crate::ai::agent::{
     RequestCommandOutputResult, ShellCommandDelay, ShellCommandError,
     TransferShellCommandControlToUserResult, WriteToLongRunningShellCommandResult,
 };
-use crate::ai::blocklist::permissions::CommandExecutionPermission;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::WriteToPtyPermission;
 use crate::terminal::event::BlockMetadataReceivedEvent;
@@ -131,15 +129,6 @@ impl ShellCommandExecutor {
                     Some(self.terminal_view_id),
                     ctx,
                 );
-                if let CommandExecutionPermission::Allowed(_reason) = autoexecution_permission {
-                } else if let CommandExecutionPermission::Denied(reason) = autoexecution_permission
-                {
-                    if AppExecutionMode::as_ref(ctx).is_autonomous() {
-                        log::warn!(
-                            "Command denied during autonomous execution, reason: {reason:?}"
-                        );
-                    }
-                }
                 autoexecution_permission.is_allowed()
             }
             AIAgentActionType::WriteToLongRunningShellCommand { block_id, .. } => {
