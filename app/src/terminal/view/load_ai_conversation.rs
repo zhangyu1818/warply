@@ -127,10 +127,7 @@ impl ConversationRestorationInNewPaneType {
     pub fn should_use_live_appearance(&self) -> bool {
         match self {
             Self::Forked { .. } => true,
-            Self::Historical {
-                should_use_live_appearance,
-                ..
-            } => FeatureFlag::AgentView.is_enabled() || *should_use_live_appearance,
+            Self::Historical { .. } => true,
             Self::Startup { .. } => false,
         }
     }
@@ -426,11 +423,7 @@ impl TerminalView {
             }
         });
 
-        // If `AgentView` is enabled and we're restoring conversations on startup (as opposed to
-        // loading a conversation due to selection from the command palette), then we don't eagerly
-        // set the pending query state (which is equivalent to _entering_ the agent view when the
-        // FeatureFlag is enabled).
-        if !FeatureFlag::AgentView.is_enabled() || !is_restoring_on_startup {
+        if !is_restoring_on_startup {
             // Set agent pending state for follow-up if we have an active conversation
             if let Some(conversation_id) = active_conversation_id {
                 let origin = AgentViewEntryOrigin::RestoreExistingConversation;
@@ -455,8 +448,7 @@ impl TerminalView {
             let conversation_id = params.conversation_id;
             let command_block_index = params.command_block_index;
 
-            if FeatureFlag::AgentView.is_enabled()
-                && params.is_restoring_on_startup
+            if params.is_restoring_on_startup
                 && !conversations_with_agent_view_block.contains(&conversation_id)
             {
                 // Insert an agent view block before the first AI block of each conversation.
@@ -704,28 +696,22 @@ impl TerminalView {
             "Successfully restored {blocks_created} AI blocks on view creation for conversations: {conversation_ids:?}"
         );
 
-        // If agent view was open before the session was saved, restore it
-        if FeatureFlag::AgentView.is_enabled() {
-            if let Some(conversation_id) = active_conversation_id_to_restore {
-                // Check if the conversation was successfully restored
-                let conversation_exists = BlocklistAIHistoryModel::handle(ctx)
-                    .as_ref(ctx)
-                    .conversation(&conversation_id)
-                    .is_some();
+        if let Some(conversation_id) = active_conversation_id_to_restore {
+            let conversation_exists = BlocklistAIHistoryModel::handle(ctx)
+                .as_ref(ctx)
+                .conversation(&conversation_id)
+                .is_some();
 
-                if conversation_exists {
-                    log::info!("Restoring agent view for conversation: {conversation_id}");
-                    self.enter_agent_view_for_conversation(
-                        None,
-                        AgentViewEntryOrigin::RestoreExistingConversation,
-                        conversation_id,
-                        ctx,
-                    );
-                } else {
-                    log::warn!(
-                        "Cannot restore agent view: conversation {conversation_id} not found"
-                    );
-                }
+            if conversation_exists {
+                log::info!("Restoring agent view for conversation: {conversation_id}");
+                self.enter_agent_view_for_conversation(
+                    None,
+                    AgentViewEntryOrigin::RestoreExistingConversation,
+                    conversation_id,
+                    ctx,
+                );
+            } else {
+                log::warn!("Cannot restore agent view: conversation {conversation_id} not found");
             }
         }
     }
@@ -900,16 +886,12 @@ impl TerminalView {
         let item = RichContentItem::new(
             Some(RichContentType::AIBlock),
             restored_block_view_handle.id(),
-            FeatureFlag::AgentView
-                .is_enabled()
-                .then_some(conversation_id),
-            FeatureFlag::AgentView.is_enabled()
-                && self
-                    .agent_view_controller
-                    .as_ref(ctx)
-                    .agent_view_state()
-                    .active_conversation_id()
-                    .is_some_and(|id| id == conversation_id),
+            Some(conversation_id),
+            self.agent_view_controller
+                .as_ref(ctx)
+                .agent_view_state()
+                .active_conversation_id()
+                .is_some_and(|id| id == conversation_id),
         );
         if let Some(cmd_block_index) = command_block_index {
             self.model
