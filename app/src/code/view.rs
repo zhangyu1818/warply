@@ -16,8 +16,6 @@ use crate::quit_warning::UnsavedStateSummary;
 use crate::terminal::cli_agent::{
     build_selection_line_range_prompt, build_selection_substring_prompt,
 };
-use crate::terminal::view::CliAgentRouting;
-use crate::ui_events::CodeContextDestination;
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::TabBarDropTargetData;
 use crate::{code::EditorTabBarDropTargetData, pane_group::pane::ActionOrigin};
@@ -917,13 +915,12 @@ impl CodeView {
                 // Multi-line: send a line-range reference with format note.
                 build_selection_line_range_prompt(&file_path, start_line, end_line)
             };
-            if let Some(routing) = terminal_view.update(ctx, |tv, ctx| {
-                tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
-            }) {
-                let _destination = match routing {
-                    CliAgentRouting::RichInput => CodeContextDestination::RichInput,
-                    CliAgentRouting::Pty => CodeContextDestination::Pty,
-                };
+            if terminal_view
+                .update(ctx, |tv, ctx| {
+                    tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
+                })
+                .is_some()
+            {
                 return;
             }
         }
