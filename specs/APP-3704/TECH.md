@@ -24,7 +24,7 @@ There is no code path to convert a live tab's pane tree into a `TabConfig` TOML.
 
 **Snapshot infrastructure:** `PaneGroup::snapshot()` recursively walks the pane tree and produces a `PaneNodeSnapshot` with `Branch` and `Leaf` variants. Leaf snapshots carry `LeafContents` which is `Terminal(TerminalPaneSnapshot)`, `Notebook(...)`, `Code(...)`, etc. `TerminalPaneSnapshot` includes `cwd: Option<String>` and `is_active: bool`.
 
-**Tab config serialization:** `TabConfig` derives both `Serialize` and `Deserialize` (added in APP-3575). `write_tab_config` in `session_config.rs` serializes via `toml::to_string_pretty` and writes to disk.
+**Tab config serialization:** `TabConfig` derives both `Serialize` and `Deserialize`. `write_tab_config` in `session_config.rs` serializes via `toml::to_string_pretty` and writes to disk.
 
 **Tab right-click menu:** Built in `TabData::menu_items()` with four sections: session sharing, modify tab, close tab, and color. Each section is a separate method returning `Vec<MenuItem<WorkspaceAction>>`.
 

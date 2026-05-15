@@ -51,7 +51,7 @@ Note: The Figma also shows "Save and update config" and "Combine panes into sing
 
 ### TOML structure
 
-The saved config uses the flat `[[panes]]` schema from APP-3575. Example for a two-pane horizontal split:
+The saved config uses the current flat `[[panes]]` schema. Example for a two-pane horizontal split:
 
 ```toml
 name = "My Tab Config"
