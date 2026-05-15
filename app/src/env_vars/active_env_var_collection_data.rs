@@ -51,7 +51,7 @@ impl ActiveEnvVarCollectionData {
         let cloud_model = CloudModel::handle(ctx);
 
         ctx.subscribe_to_model(&cloud_model, |me, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
+            me.handle_local_object_model_event(event, ctx);
         });
 
         Self {
@@ -59,7 +59,11 @@ impl ActiveEnvVarCollectionData {
         }
     }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
+    fn handle_local_object_model_event(
+        &mut self,
+        event: &CloudModelEvent,
+        ctx: &mut ModelContext<Self>,
+    ) {
         if let CloudModelEvent::ObjectMoved { type_and_id, .. } = event {
             if let Some(env_var_collection_id) = type_and_id.as_generic_string_object_id() {
                 if self.is_active_env_var_collection(env_var_collection_id) {

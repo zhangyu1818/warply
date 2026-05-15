@@ -163,7 +163,7 @@ impl RuleView {
 
         let cloud_model = CloudModel::handle(ctx);
         ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
+            me.handle_local_object_model_event(event, ctx);
         });
 
         let owner = UserWorkspaces::as_ref(ctx).current_user_owner(ctx);
@@ -285,7 +285,11 @@ impl RuleView {
         self.fetch_ai_rules(ctx);
     }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
+    fn handle_local_object_model_event(
+        &mut self,
+        event: &CloudModelEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
         match event {
             CloudModelEvent::ObjectUpdated { .. }
             | CloudModelEvent::ObjectTrashed { .. }

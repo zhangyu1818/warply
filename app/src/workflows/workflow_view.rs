@@ -472,7 +472,7 @@ impl WorkflowView {
 
     fn subscribe_to_model_updates(&self, ctx: &mut ViewContext<Self>) {
         ctx.subscribe_to_model(&CloudModel::handle(ctx), move |workflow, _, event, ctx| {
-            workflow.handle_cloud_model_event(event, ctx)
+            workflow.handle_local_object_model_event(event, ctx)
         });
 
         let update_manager = UpdateManager::handle(ctx);
@@ -481,7 +481,11 @@ impl WorkflowView {
         });
     }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
+    fn handle_local_object_model_event(
+        &mut self,
+        event: &CloudModelEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
         match event {
             CloudModelEvent::ObjectUpdated {
                 type_and_id: CloudObjectTypeAndId::Workflow(sync_id),

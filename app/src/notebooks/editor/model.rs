@@ -217,7 +217,7 @@ impl NotebooksEditorModel {
 
         let cloud_model = CloudModel::handle(ctx);
         ctx.subscribe_to_model(&cloud_model, |me, event, ctx| {
-            me.handle_cloud_model_event(event, ctx)
+            me.handle_local_object_model_event(event, ctx)
         });
 
         let (resize_tx, resize_rx) = async_channel::unbounded();
@@ -419,7 +419,11 @@ impl NotebooksEditorModel {
         }
     }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
+    fn handle_local_object_model_event(
+        &mut self,
+        event: &CloudModelEvent,
+        ctx: &mut ModelContext<Self>,
+    ) {
         // Ignore local object events until bound to a real window, and when the window is closed.
         let Some(window_id) = self.rte_window_id else {
             return;

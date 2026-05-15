@@ -242,7 +242,7 @@ impl WorkflowModal {
 
         let cloud_model = CloudModel::handle(ctx);
         ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
+            me.handle_local_object_model_event(event, ctx);
         });
 
         let menu = ctx.add_typed_action_view(|_ctx| {
@@ -848,7 +848,11 @@ impl WorkflowModal {
         ctx.notify()
     }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
+    fn handle_local_object_model_event(
+        &mut self,
+        event: &CloudModelEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
         match event {
             CloudModelEvent::ObjectMoved { type_and_id, .. }
             | CloudModelEvent::ObjectPermissionsUpdated { type_and_id, .. } => {
