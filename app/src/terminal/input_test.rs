@@ -5404,8 +5404,6 @@ fn test_image_attachment_respects_locked_shell_and_agent_view_autodetection() {
 
 #[test]
 fn test_ai_context_menu_closes_when_space_immediately_after_at_symbol() {
-    let _ai_context_menu_enabled = FeatureFlag::AIContextMenuEnabled.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 

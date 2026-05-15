@@ -1435,8 +1435,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EditableMarkdownMermaid,
         #[cfg(feature = "image_as_context")]
         FeatureFlag::ImageAsContext,
-        #[cfg(feature = "ai_context_menu")]
-        FeatureFlag::AIContextMenuEnabled,
         #[cfg(feature = "context_line_review_comments")]
         FeatureFlag::ContextLineReviewComments,
         #[cfg(feature = "code_find_replace")]

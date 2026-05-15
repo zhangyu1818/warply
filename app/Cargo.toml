@@ -325,7 +325,6 @@ default = [
     "clear_autosuggestion_on_escape",
     "image_as_context",
     "command_palette_file_search",
-    "ai_context_menu",
     "tab_close_button_on_left",
     "code_find_replace",
     "tabbed_editor_view",
@@ -482,7 +481,6 @@ validate_autosuggestions = []
 command_correction_key = []
 use_tantivy_search = []
 nld_onnx_model = ["input_classifier/onnx_candle"]
-ai_context_menu = []
 code_find_replace = []
 command_palette_file_search = []
 preview_channel = []

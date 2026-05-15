@@ -98,9 +98,6 @@ pub enum FeatureFlag {
     /// Enables image as context for AM.
     ImageAsContext,
 
-    /// Enables the AI context menu, or at-menu.
-    AIContextMenuEnabled,
-
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
 

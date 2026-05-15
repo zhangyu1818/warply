@@ -8346,30 +8346,45 @@ impl TerminalView {
                                         ctx.emit(Event::Pane(PaneEvent::RepoChanged));
                                     }
 
-                                    let callbacks = me.block_completed_callbacks.drain(..).collect_vec();
+                                    let callbacks =
+                                        me.block_completed_callbacks.drain(..).collect_vec();
                                     for callback in callbacks {
                                         callback(me, ctx);
                                     }
 
-                                    let Some(active_directory) = me.active_session_path_if_local(ctx) else {
+                                    let Some(active_directory) =
+                                        me.active_session_path_if_local(ctx)
+                                    else {
                                         me.clear_git_repo_status(ctx);
                                         return;
                                     };
 
                                     if let Some(repo_path) = &repo_path_opt {
-                                        let Ok(active_directory) = repo_metadata::CanonicalizedPath::try_from(active_directory) else {
+                                        let Ok(active_directory) =
+                                            repo_metadata::CanonicalizedPath::try_from(
+                                                active_directory,
+                                            )
+                                        else {
                                             return;
                                         };
 
                                         // Make sure the repo path is still an ancestor of the active directory.
-                                        let is_ancestor = active_directory.as_path_buf().ancestors().any(|ancestor| ancestor == repo_path.as_path());
+                                        let is_ancestor = active_directory
+                                            .as_path_buf()
+                                            .ancestors()
+                                            .any(|ancestor| ancestor == repo_path.as_path());
                                         if !is_ancestor {
                                             return;
                                         }
 
-                                        PersistedWorkspace::handle(ctx).update(ctx, |manager, _| {
-                                            manager.navigated_to_path(active_directory.as_path_buf());
-                                        });
+                                        PersistedWorkspace::handle(ctx).update(
+                                            ctx,
+                                            |manager, _| {
+                                                manager.navigated_to_path(
+                                                    active_directory.as_path_buf(),
+                                                );
+                                            },
+                                        );
 
                                         // Subscribe to GitRepoStatusModel if the repo changed
                                         // and git status updates are needed.
@@ -8384,20 +8399,15 @@ impl TerminalView {
                                             input.update_repo_path(Some(repo_path.clone()), ctx);
                                         });
 
-                                        if FeatureFlag::AIContextMenuEnabled.is_enabled() {
-                                            me.input.update(ctx, |input, ctx| {
-                                                input.check_and_update_ai_context_menu_disabled_state(
-                                                    ctx,
-                                                );
-                                            });
-                                        }
+                                        me.input.update(ctx, |input, ctx| {
+                                            input.check_and_update_ai_context_menu_disabled_state(
+                                                ctx,
+                                            );
+                                        });
 
                                         me.start_lsp_server_in_active_pwd(ctx);
 
-                                        me.update_repo_banner_state(
-                                            repo_path.clone(),
-                                            ctx,
-                                        );
+                                        me.update_repo_banner_state(repo_path.clone(), ctx);
                                     } else {
                                         me.clear_git_repo_status(ctx);
                                         ctx.notify();
