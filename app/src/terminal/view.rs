@@ -14687,10 +14687,6 @@ impl TerminalView {
                 }
             },
             InputEvent::CreateDockerSandbox => {
-                if !FeatureFlag::LocalDockerSandbox.is_enabled() {
-                    log::warn!("Local docker sandbox feature flag is disabled");
-                    return;
-                }
                 self.create_and_push_docker_sandbox(ctx);
             }
             InputEvent::Escape => {

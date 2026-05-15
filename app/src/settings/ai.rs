@@ -15,7 +15,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use settings::{define_settings_group, Setting, SupportedPlatforms};
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 
 use serde::{de::Deserializer, Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -47,7 +46,6 @@ pub enum DefaultSessionMode {
     /// The specific config is identified by the companion `default_tab_config_path` setting.
     TabConfig,
     /// New sessions open in a local Docker sandbox.
-    /// Requires the `LocalDockerSandbox` feature flag; falls back to `Terminal` when disabled.
     DockerSandbox,
 }
 
@@ -728,19 +726,11 @@ impl AISettings {
     pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
         let mode = *self.default_session_mode_internal.value();
         match mode {
-            // Terminal and TabConfig don't require AI.
-            DefaultSessionMode::Terminal | DefaultSessionMode::TabConfig => mode,
+            DefaultSessionMode::Terminal
+            | DefaultSessionMode::TabConfig
+            | DefaultSessionMode::DockerSandbox => mode,
             DefaultSessionMode::Agent => {
                 if self.is_any_ai_enabled(app) {
-                    mode
-                } else {
-                    DefaultSessionMode::Terminal
-                }
-            }
-            // DockerSandbox is gated on its feature flag; fall back to Terminal
-            // when disabled so a stale stored value doesn't wedge the user.
-            DefaultSessionMode::DockerSandbox => {
-                if FeatureFlag::LocalDockerSandbox.is_enabled() {
                     mode
                 } else {
                     DefaultSessionMode::Terminal

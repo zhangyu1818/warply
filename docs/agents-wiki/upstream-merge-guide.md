@@ -113,6 +113,8 @@ Reject UI/action changes that make retained local objects depend on network onli
 
 When upstream changes retained local AgentView action rendering such as grep/file-glob display, port UI and local-result handling without restoring rollout gates or Warp-hosted tool execution. ACP tool calls should remain protocol-native UI events; app-managed MCP/skills and cloud agent tooling should not be reintroduced.
 
+Keep local Docker sandbox terminal support when upstream changes `sbx` spawning, shell bootstrap, or terminal-session UI. Do not restore rollout gates, stale-setting fallbacks, hosted sandbox/cloud isolation, or old agent sandbox routing around that local terminal mode.
+
 Reject Drive/local-object UI changes that restore cloud sync badges, cloud save progress, or cloud save-error indicators. Keep local pending state only when it supports local persistence or quit-warning behavior.
 
 Reject changes that restore workflow or environment-variable collection runtime names and schema fields as `CloudWorkflow`, `WorkflowType::Cloud`, `WorkflowSource::PersonalCloud`, `CloudEnvVarCollection`, or `cloud_workflow_id`. Port them as saved/local object behavior without legacy compatibility aliases.

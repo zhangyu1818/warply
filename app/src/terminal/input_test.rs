@@ -2549,7 +2549,6 @@ fn test_conversations_keybinding_opens_inline_conversation_menu() {
 #[test]
 fn test_create_docker_sandbox_slash_command_executes_and_clears_buffer() {
     App::test((), |mut app| async move {
-        let _docker_sandbox_flag = FeatureFlag::LocalDockerSandbox.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(

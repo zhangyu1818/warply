@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 
 use crate::search::slash_command_menu::{static_commands::Argument, StaticCommand};
 use crate::ui_components::color_dot;
@@ -355,9 +354,7 @@ fn all_commands() -> Vec<StaticCommand> {
         EXPORT_TO_CLIPBOARD,
     ];
 
-    if FeatureFlag::LocalDockerSandbox.is_enabled() {
-        commands.push(CREATE_DOCKER_SANDBOX);
-    }
+    commands.push(CREATE_DOCKER_SANDBOX);
 
     commands.push(PROMPTS.clone());
 

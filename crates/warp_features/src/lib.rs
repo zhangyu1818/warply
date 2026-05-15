@@ -135,9 +135,6 @@ pub enum FeatureFlag {
     /// Enables find/search in code review pane
     CodeReviewFind,
 
-    /// Enables the local docker sandbox entrypoints in the client.
-    LocalDockerSandbox,
-
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.
@@ -220,7 +217,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ContextLineReviewComments,
     FeatureFlag::Projects,
     FeatureFlag::EditableMarkdownMermaid,
-    FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,
     FeatureFlag::DragTabsToWindows,
 ];

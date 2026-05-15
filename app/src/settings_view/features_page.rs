@@ -37,6 +37,7 @@ use crate::terminal::session_settings::{
     SessionSettingsChangedEvent,
 };
 use crate::terminal::settings::TerminalSettings;
+use crate::terminal::settings::TerminalSettingsChangedEvent;
 use crate::terminal::BlockListSettings;
 use crate::undo_close::UndoCloseSettings;
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
@@ -47,7 +48,6 @@ use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
 use crate::workspace::tab_settings::{NewTabPlacement, TabSettings};
 use crate::workspace::WorkspaceAction;
 use crate::{appearance::Appearance, editor::EditorView};
-use crate::{features::FeatureFlag, terminal::settings::TerminalSettingsChangedEvent};
 use crate::{root_view::QuakeModePinPosition, workspace::tab_settings::TabSettingsChangedEvent};
 use crate::{themes, GlobalResourceHandles};
 use ::settings::{Setting, ToggleableSetting};
@@ -2364,14 +2364,9 @@ impl FeaturesPageView {
                 let current_mode = ai_settings.default_session_mode(ctx);
                 let current_tab_config_path = ai_settings.default_tab_config_path().to_string();
 
-                // Build items: built-in modes (skip TabConfig since configs are listed individually,
-                // and skip DockerSandbox when its feature flag is disabled).
-                let docker_sandbox_enabled = FeatureFlag::LocalDockerSandbox.is_enabled();
+                // Build items: built-in modes (skip TabConfig since configs are listed individually).
                 let mut items: Vec<DropdownItem<FeaturesPageAction>> = DefaultSessionMode::iter()
                     .filter(|val| *val != DefaultSessionMode::TabConfig)
-                    .filter(|val| {
-                        *val != DefaultSessionMode::DockerSandbox || docker_sandbox_enabled
-                    })
                     .map(|val| {
                         DropdownItem::new(
                             val.display_name(),

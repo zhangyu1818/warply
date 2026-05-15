@@ -3829,16 +3829,13 @@ impl Workspace {
             menu_items.push(terminal_item.into_item());
         }
 
-        // 3b. Local Docker Sandbox
-        if FeatureFlag::LocalDockerSandbox.is_enabled() {
-            let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
-                .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
-                .with_icon(icons::Icon::Docker);
-            if effective_default == DefaultSessionMode::DockerSandbox {
-                docker_item = docker_item.with_key_shortcut_label(shortcut_label.clone());
-            }
-            menu_items.push(docker_item.into_item());
+        let mut docker_item = MenuItemFields::new("Local Docker Sandbox")
+            .with_on_select_action(WorkspaceAction::AddDockerSandboxTab)
+            .with_icon(icons::Icon::Docker);
+        if effective_default == DefaultSessionMode::DockerSandbox {
+            docker_item = docker_item.with_key_shortcut_label(shortcut_label.clone());
         }
+        menu_items.push(docker_item.into_item());
 
         // 4. User tab configs
         if FeatureFlag::TabConfigs.is_enabled() {
@@ -7079,10 +7076,6 @@ impl Workspace {
     }
 
     fn add_docker_sandbox_tab(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::LocalDockerSandbox.is_enabled() {
-            log::warn!("Local docker sandbox feature flag is disabled");
-            return;
-        }
         // Docker sandboxes are inherently local — sbx resolution and the
         // `AvailableShell::new_docker_sandbox_shell` constructor both require
         // `local_tty`. Other non-local-tty builds log and bail.
