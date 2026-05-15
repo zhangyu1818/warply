@@ -189,10 +189,6 @@ pub enum FeatureFlag {
     /// Enables incremental (diff-based) buffer updates for auto-reload instead of full replace.
     IncrementalAutoReload,
 
-    /// Enables scroll position preservation in the code review pane when file
-    /// content changes via auto-reload.
-    CodeReviewScrollPreservation,
-
     /// Enables Kitty keyboard protocol support (CSI u encoding, progressive enhancement).
     KittyKeyboardProtocol,
 
@@ -263,7 +259,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::Projects,
     FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::EditableMarkdownMermaid,
-    FeatureFlag::CodeReviewScrollPreservation,
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,
     FeatureFlag::SshRemoteServer,
