@@ -1289,7 +1289,6 @@ pub enum SubagentType {
         /// current conversation.
         conversation_id: Option<String>,
     },
-    WarpDocumentationSearch,
     Unknown,
 }
 

@@ -77,7 +77,6 @@ use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
-use crate::ui_components::icons::Icon;
 use crate::util::link_detection::DetectedLinkType;
 use crate::workspace::WorkspaceAction;
 use itertools::Itertools;
@@ -659,29 +658,14 @@ pub fn render_citation(
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
 
-    let (icon, name) = match citation {
-        AIAgentCitation::LocalObject { uid } => {
-            let item = CloudModel::as_ref(app)
-                .get_by_uid(uid)?
-                .to_local_object_item(appearance)?;
-            (
-                item.icon(appearance, Some(theme.active_ui_text_color())),
-                item.display_name().unwrap_or(String::from("Untitled")),
-            )
-        }
-        AIAgentCitation::WarpDocumentation { .. } => {
-            let icon = Icon::Warp.to_warpui_icon(theme.foreground()).finish();
-            let name = String::from("Warp Docs");
-            (Some(icon), name)
-        }
-        AIAgentCitation::WebPage { url } => {
-            let icon = Icon::LinkExternal
-                .to_warpui_icon(theme.foreground())
-                .finish();
-            let name = url.clone();
-            (Some(icon), name)
-        }
-    };
+    let AIAgentCitation::LocalObject { uid } = citation;
+    let item = CloudModel::as_ref(app)
+        .get_by_uid(uid)?
+        .to_local_object_item(appearance)?;
+    let (icon, name) = (
+        item.icon(appearance, Some(theme.active_ui_text_color())),
+        item.display_name().unwrap_or(String::from("Untitled")),
+    );
 
     // Shorten the name to 30 chars.
     let shortened_name = truncate_from_end(&name, 30);

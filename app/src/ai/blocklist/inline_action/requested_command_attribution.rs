@@ -20,12 +20,8 @@ pub(crate) fn is_command_copied_from_document(
 ) -> bool {
     let command = command.trim();
 
-    match document {
-        AIAgentCitation::LocalObject { uid } => {
-            is_command_copied_from_local_object(command, uid, shell_type, ctx)
-        }
-        _ => false,
-    }
+    let AIAgentCitation::LocalObject { uid } = document;
+    is_command_copied_from_local_object(command, uid, shell_type, ctx)
 }
 
 fn is_command_copied_from_local_object(

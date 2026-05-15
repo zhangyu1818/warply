@@ -4863,11 +4863,8 @@ impl TerminalView {
                             .requested_command_copied_from_doc(action_id, ctx)
                     })
                     .and_then(|citation| {
-                        if let AIAgentCitation::LocalObject { uid } = citation {
-                            CloudModel::as_ref(ctx).get_workflow_by_uid(&uid)
-                        } else {
-                            None
-                        }
+                        let AIAgentCitation::LocalObject { uid } = citation;
+                        CloudModel::as_ref(ctx).get_workflow_by_uid(&uid)
                     });
 
                 let shell_family = self.sessions.read(ctx, |sessions, _| {
@@ -13930,17 +13927,10 @@ impl TerminalView {
                     .mark_rich_content_dirty(block.id());
                 ctx.notify();
             }
-            AIBlockEvent::OpenCitation(citation) => match citation {
-                AIAgentCitation::LocalObject { uid } => {
-                    ctx.emit(Event::OpenLocalObjectInPane(uid.clone()));
-                }
-                AIAgentCitation::WarpDocumentation { path } => {
-                    ctx.open_url(&format!("https://docs.warply.local/{path}"));
-                }
-                AIAgentCitation::WebPage { url } => {
-                    ctx.open_url(url);
-                }
-            },
+            AIBlockEvent::OpenCitation(citation) => {
+                let AIAgentCitation::LocalObject { uid } = citation;
+                ctx.emit(Event::OpenLocalObjectInPane(uid.clone()));
+            }
             AIBlockEvent::FocusTerminal => {
                 self.redetermine_global_focus(ctx);
             }
