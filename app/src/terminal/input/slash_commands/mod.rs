@@ -688,9 +688,6 @@ impl Input {
                 }
             }
             open_repo if command.name == commands::OPEN_REPO.name => {
-                if !FeatureFlag::InlineRepoMenu.is_enabled() {
-                    return false;
-                }
                 self.open_repos_menu(ctx);
             }
             command_that_just_sends_ai_request_with_prefix

@@ -1485,8 +1485,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ForceClassicCompletions,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
-        #[cfg(feature = "inline_repo_menu")]
-        FeatureFlag::InlineRepoMenu,
         #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
         #[cfg(feature = "new_tab_styling")]

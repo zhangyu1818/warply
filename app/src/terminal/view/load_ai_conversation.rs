@@ -2,7 +2,6 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use vec1::Vec1;
-use warp_core::features::FeatureFlag;
 use warpui::{EntityId, ViewContext};
 
 use super::blocklist_filter::exchanges_for_blocklist;
@@ -751,10 +750,6 @@ impl TerminalView {
         restore_context_state: RestorationDirState,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::InlineRepoMenu.is_enabled() {
-            return;
-        }
-
         let open_repo_hint: MessageItem =
             if let Some(keystroke) = keybinding_name_to_keystroke("/open-repo", ctx) {
                 MessageItem::keystroke(keystroke)

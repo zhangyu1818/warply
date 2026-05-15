@@ -349,7 +349,6 @@ default = [
     "new_tab_styling",
     "richtext_multiselect",
     "incremental_auto_reload",
-    "inline_repo_menu",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
     "markdown_tables",
@@ -488,7 +487,6 @@ file_and_diff_set_comments = []
 classic_completions = []
 force_classic_completions = []
 inline_history_menu = []
-inline_repo_menu = []
 new_tab_styling = []
 incremental_auto_reload = []
 inline_menu_headers = []

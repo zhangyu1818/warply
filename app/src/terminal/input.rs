@@ -629,7 +629,8 @@ impl InputSuggestionsMode {
                 | Self::UserQueryMenu { .. }
                 | Self::InlineHistoryMenu { .. }
                 | Self::PlanMenu { .. }
-        ) || (FeatureFlag::InlineRepoMenu.is_enabled() && matches!(self, Self::IndexedReposMenu))
+                | Self::IndexedReposMenu
+        )
     }
 
     /// Whether this mode should snapshot the input buffer on open and restore it on dismiss.

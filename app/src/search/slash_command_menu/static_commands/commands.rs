@@ -379,9 +379,7 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.push(REWIND);
 
-    if FeatureFlag::InlineRepoMenu.is_enabled() {
-        commands.push(OPEN_REPO);
-    }
+    commands.push(OPEN_REPO);
 
     if FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs") {
         commands.push(OPEN_SETTINGS_FILE);
