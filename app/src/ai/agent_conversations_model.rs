@@ -1,8 +1,6 @@
 pub mod entry;
 
-pub use entry::{
-    AgentConversationEntry, AgentConversationEntryId, AgentConversationNavigationSubject,
-};
+pub use entry::AgentConversationEntry;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
@@ -169,29 +167,24 @@ impl AgentConversationsModel {
 
     pub fn get_entry_by_id(
         &self,
-        id: &AgentConversationEntryId,
+        conversation_id: &AIConversationId,
         app: &AppContext,
     ) -> Option<AgentConversationEntry> {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
-        match id {
-            AgentConversationEntryId::Conversation(conversation_id) => self
-                .conversations
-                .get(conversation_id)
-                .map(|conversation| entry::entry_for_conversation(conversation, history_model)),
-        }
+        self.conversations
+            .get(conversation_id)
+            .map(|conversation| entry::entry_for_conversation(conversation, history_model))
     }
 
     pub fn resolve_open_action(
-        subject: AgentConversationNavigationSubject,
+        conversation_id: AIConversationId,
         restore_layout: Option<RestoreConversationLayout>,
         app: &AppContext,
     ) -> Option<WorkspaceAction> {
         let model = Self::as_ref(app);
-        match subject {
-            AgentConversationNavigationSubject::Entry(id) => model
-                .get_entry_by_id(&id, app)
-                .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app)),
-        }
+        model
+            .get_entry_by_id(&conversation_id, app)
+            .and_then(|entry| model.resolve_entry_open_action(&entry, restore_layout, app))
     }
 
     fn resolve_entry_open_action(

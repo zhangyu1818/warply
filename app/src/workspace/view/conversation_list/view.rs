@@ -5,9 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::{
-    AgentConversationEntryId, AgentConversationNavigationSubject, AgentConversationsModel,
-};
+use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::appearance::Appearance;
 use crate::editor::{
@@ -55,7 +53,7 @@ const INITIAL_MAX_PAST_ITEMS: usize = 10;
 struct StateHandles {
     list_state: UniformListState,
     scroll_state: ScrollStateHandle,
-    item_states: HashMap<AgentConversationEntryId, ItemState>,
+    item_states: HashMap<AIConversationId, ItemState>,
     start_new_conversation_item: ItemState,
     list_hover: MouseStateHandle,
     zero_state_button: MouseStateHandle,
@@ -96,7 +94,7 @@ enum ListItem {
 
 #[derive(Clone, Copy)]
 struct OverflowMenuState {
-    conversation_id: AgentConversationEntryId,
+    conversation_id: AIConversationId,
     /// When `Some`, the menu was opened via right-click and should be
     /// positioned at the cursor location rather than the kebab button.
     position: Option<Vector2F>,
@@ -109,16 +107,16 @@ pub enum ConversationListViewAction {
         terminal_view_id: Option<EntityId>,
     },
     ToggleOverflowMenu {
-        conversation_id: AgentConversationEntryId,
+        conversation_id: AIConversationId,
         /// When `Some`, the menu was opened via right-click and should be
         /// positioned where the right click took place.
         position: Option<Vector2F>,
     },
     DeleteFromOverflowMenu {
-        conversation_id: AgentConversationEntryId,
+        conversation_id: AIConversationId,
     },
     OpenItem {
-        id: AgentConversationEntryId,
+        id: AIConversationId,
     },
     ArrowUp,
     ArrowDown,
@@ -129,7 +127,7 @@ pub enum ConversationListViewAction {
     ToggleSection(ConversationSection),
     ToggleViewAll,
     ForkConversation {
-        conversation_id: AgentConversationEntryId,
+        conversation_id: AIConversationId,
         destination: ForkedConversationDestination,
     },
 }
@@ -273,7 +271,6 @@ impl ConversationListView {
         let active_ids: HashSet<_> = active_views_model
             .get_all_active_conversation_ids(ctx)
             .into_iter()
-            .map(AgentConversationEntryId::Conversation)
             .collect();
 
         let focused_new_conversation =
@@ -285,7 +282,7 @@ impl ConversationListView {
         let mut past_items = Vec::new();
         for entry in model.filtered_items() {
             let list_item = ListItem::Conversation(entry.clone());
-            let is_active = active_ids.contains(&entry.id);
+            let is_active = active_ids.contains(&entry.conversation_id);
             if is_active {
                 active_items.push(list_item);
             } else {
@@ -296,13 +293,12 @@ impl ConversationListView {
         // If the focused conversation is a new/empty conversation that's not already in the list,
         // add it as a regular conversation entry so it participates in the sort.
         if let Some(new_conv_id) = focused_new_conversation {
-            let conv_id = AgentConversationEntryId::Conversation(new_conv_id);
             let already_in_list = active_items
                 .iter()
-                .any(|item| matches!(item, ListItem::Conversation(entry) if entry.id == conv_id));
+                .any(|item| matches!(item, ListItem::Conversation(entry) if entry.conversation_id == new_conv_id));
             if !already_in_list {
                 active_items.push(ListItem::Conversation(ConversationEntry {
-                    id: conv_id,
+                    conversation_id: new_conv_id,
                     highlight_indices: vec![],
                 }));
             }
@@ -312,12 +308,7 @@ impl ConversationListView {
         active_items.sort_by(|a, b| {
             let get_time = |item: &ListItem| match item {
                 ListItem::Conversation(entry) => {
-                    let entry_time = match entry.id {
-                        AgentConversationEntryId::Conversation(id) => {
-                            active_views_model.get_last_opened_time(&id)
-                        }
-                    };
-                    entry_time
+                    active_views_model.get_last_opened_time(&entry.conversation_id)
                 }
                 _ => None,
             };
@@ -376,12 +367,9 @@ impl ConversationListView {
         self.list_items.get(index)
     }
 
-    fn get_index_of_conversation_id(
-        &self,
-        conversation_id: AgentConversationEntryId,
-    ) -> Option<usize> {
+    fn get_index_of_conversation_id(&self, conversation_id: AIConversationId) -> Option<usize> {
         self.list_items.iter().position(|item| match item {
-            ListItem::Conversation(entry) => entry.id == conversation_id,
+            ListItem::Conversation(entry) => entry.conversation_id == conversation_id,
             ListItem::SectionHeader(_)
             | ListItem::StartNewConversation
             | ListItem::ToggleViewAllButton => false,
@@ -395,9 +383,8 @@ impl ConversationListView {
         // Select the focused conversation if there is one.
         let focused_conversation =
             ActiveAgentViewsModel::as_ref(ctx).get_focused_conversation(ctx.window_id());
-        self.selected_index = focused_conversation
-            .map(AgentConversationEntryId::Conversation)
-            .and_then(|id| self.get_index_of_conversation_id(id));
+        self.selected_index =
+            focused_conversation.and_then(|id| self.get_index_of_conversation_id(id));
 
         if let Some(index) = self.selected_index {
             self.state_handles.list_state.scroll_to(index);
@@ -536,11 +523,9 @@ impl ConversationListView {
                 ctx.emit(Event::NewConversationInNewTab);
             }
             ListItem::Conversation(entry) => {
-                if let Some(action) = AgentConversationsModel::resolve_open_action(
-                    AgentConversationNavigationSubject::Entry(entry.id),
-                    None,
-                    ctx,
-                ) {
+                if let Some(action) =
+                    AgentConversationsModel::resolve_open_action(entry.conversation_id, None, ctx)
+                {
                     ctx.dispatch_typed_action(&action);
                 }
             }
@@ -829,11 +814,10 @@ impl TypedActionView for ConversationListView {
                     return;
                 }
 
-                let id = AgentConversationEntryId::Conversation(*conversation_id);
                 let conversation_title = self
                     .view_model
                     .as_ref(ctx)
-                    .get_item_by_id(&id, ctx)
+                    .get_item_by_id(conversation_id, ctx)
                     .map(|entry| entry.display.title)
                     .unwrap_or_else(|| "Conversation".to_string());
                 ctx.emit(Event::ShowDeleteConfirmationDialog {
@@ -961,11 +945,8 @@ impl TypedActionView for ConversationListView {
                 });
             }
             ConversationListViewAction::OpenItem { id } => {
-                let Some(action) = AgentConversationsModel::resolve_open_action(
-                    AgentConversationNavigationSubject::Entry(*id),
-                    None,
-                    ctx,
-                ) else {
+                let Some(action) = AgentConversationsModel::resolve_open_action(*id, None, ctx)
+                else {
                     return;
                 };
 
@@ -1095,9 +1076,8 @@ impl View for ConversationListView {
             let list_items = self.list_items.clone();
             let overflow_menu = self.item_overflow_menu.clone();
             let overflow_menu_state = self.overflow_menu_state;
-            let focused_conversation = ActiveAgentViewsModel::as_ref(app)
-                .get_focused_conversation(self.window_id)
-                .map(AgentConversationEntryId::Conversation);
+            let focused_conversation =
+                ActiveAgentViewsModel::as_ref(app).get_focused_conversation(self.window_id);
             let list_position_id = self.get_position_id();
             let tooltip_opens_right = TabSettings::as_ref(app)
                 .header_toolbar_chip_selection
@@ -1137,10 +1117,11 @@ impl View for ConversationListView {
                                     ))
                                 }
                                 ListItem::Conversation(entry) => {
-                                    let conversation = model.get_item_by_id(&entry.id, app)?;
+                                    let conversation =
+                                        model.get_item_by_id(&entry.conversation_id, app)?;
                                     let is_focused_conversation = focused_conversation
-                                        .is_some_and(|focused| entry.id == focused);
-                                    let state = item_states.get(&entry.id)?;
+                                        .is_some_and(|focused| entry.conversation_id == focused);
+                                    let state = item_states.get(&entry.conversation_id)?;
                                     let highlight_ref = if entry.highlight_indices.is_empty() {
                                         None
                                     } else {
@@ -1148,7 +1129,7 @@ impl View for ConversationListView {
                                     };
 
                                     let overflow_menu_display = match overflow_menu_state {
-                                        Some(s) if s.conversation_id == entry.id => {
+                                        Some(s) if s.conversation_id == entry.conversation_id => {
                                             if s.position.is_some() {
                                                 OverflowMenuDisplay::OpenAtRightClickPosition
                                             } else {
@@ -1167,7 +1148,7 @@ impl View for ConversationListView {
                                             state,
                                             overflow_menu: &overflow_menu,
                                             overflow_menu_display,
-                                            conversation_id: entry.id,
+                                            conversation_id: entry.conversation_id,
                                             list_position_id: &list_position_id,
                                             tooltip_opens_right,
                                         },

@@ -1,6 +1,6 @@
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{
-    AgentConversationEntry, AgentConversationEntryId, AgentConversationsModel,
-    AgentConversationsModelEvent,
+    AgentConversationEntry, AgentConversationsModel, AgentConversationsModelEvent,
 };
 use fuzzy_match::match_indices_case_insensitive;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -9,13 +9,13 @@ pub struct ConversationListViewModelEvent;
 
 #[derive(Clone, Debug)]
 pub struct ConversationEntry {
-    pub id: AgentConversationEntryId,
+    pub conversation_id: AIConversationId,
     pub highlight_indices: Vec<usize>,
 }
 
 pub struct ConversationListViewModel {
     conversations_model: ModelHandle<AgentConversationsModel>,
-    cached_entry_ids: Vec<AgentConversationEntryId>,
+    cached_conversation_ids: Vec<AIConversationId>,
     filtered_items: Vec<ConversationEntry>,
     search_query: String,
 }
@@ -40,7 +40,7 @@ impl ConversationListViewModel {
 
         let mut model = Self {
             conversations_model,
-            cached_entry_ids: Vec::new(),
+            cached_conversation_ids: Vec::new(),
             filtered_items: Vec::new(),
             search_query: String::new(),
         };
@@ -50,11 +50,11 @@ impl ConversationListViewModel {
 
     fn refresh_cached_items(&mut self, ctx: &mut ModelContext<Self>) {
         let model = self.conversations_model.as_ref(ctx);
-        self.cached_entry_ids = model
+        self.cached_conversation_ids = model
             .get_entries(ctx)
             .into_iter()
             .filter(|entry| entry.capabilities.can_open)
-            .map(|entry| entry.id)
+            .map(|entry| entry.conversation_id)
             .collect();
 
         self.apply_search_filter(ctx);
@@ -77,26 +77,26 @@ impl ConversationListViewModel {
 
         if search_query.is_empty() {
             self.filtered_items = self
-                .cached_entry_ids
+                .cached_conversation_ids
                 .iter()
-                .map(|id| ConversationEntry {
-                    id: *id,
+                .map(|conversation_id| ConversationEntry {
+                    conversation_id: *conversation_id,
                     highlight_indices: vec![],
                 })
                 .collect();
         } else {
             let mut matched_items: Vec<(i64, ConversationEntry)> = self
-                .cached_entry_ids
+                .cached_conversation_ids
                 .iter()
-                .filter_map(|id| {
-                    let item = conversations_model.get_entry_by_id(id, ctx)?;
+                .filter_map(|conversation_id| {
+                    let item = conversations_model.get_entry_by_id(conversation_id, ctx)?;
 
                     match_indices_case_insensitive(&item.display.title, &search_query).map(
                         |result| {
                             (
                                 result.score,
                                 ConversationEntry {
-                                    id: *id,
+                                    conversation_id: *conversation_id,
                                     highlight_indices: result.matched_indices,
                                 },
                             )
@@ -112,7 +112,7 @@ impl ConversationListViewModel {
 
     /// Returns the total number of conversations in the model before any filtering is applied.
     pub fn unfiltered_item_count(&self) -> usize {
-        self.cached_entry_ids.len()
+        self.cached_conversation_ids.len()
     }
 
     /// Returns the filtered items with their highlight indices.
@@ -123,14 +123,14 @@ impl ConversationListViewModel {
     /// Look up a normalized conversation entry by ID.
     pub fn get_item_by_id(
         &self,
-        id: &AgentConversationEntryId,
+        conversation_id: &AIConversationId,
         ctx: &AppContext,
     ) -> Option<AgentConversationEntry> {
         let model = self.conversations_model.as_ref(ctx);
-        model.get_entry_by_id(id, ctx)
+        model.get_entry_by_id(conversation_id, ctx)
     }
 
-    pub fn current_ids(&self) -> impl Iterator<Item = &AgentConversationEntryId> {
-        self.filtered_items.iter().map(|item| &item.id)
+    pub fn current_ids(&self) -> impl Iterator<Item = &AIConversationId> {
+        self.filtered_items.iter().map(|item| &item.conversation_id)
     }
 }

@@ -6,19 +6,8 @@ use chrono::{DateTime, Utc};
 
 use super::{AgentRunDisplayStatus, ConversationMetadata};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AgentConversationEntryId {
-    Conversation(AIConversationId),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AgentConversationNavigationSubject {
-    Entry(AgentConversationEntryId),
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentConversationEntry {
-    pub id: AgentConversationEntryId,
     pub conversation_id: AIConversationId,
     pub display: AgentConversationDisplayData,
     pub capabilities: AgentConversationCapabilities,
@@ -75,7 +64,6 @@ fn entry_for_conversation_parts(
         .unwrap_or_else(|| nav_data.title.clone());
 
     AgentConversationEntry {
-        id: AgentConversationEntryId::Conversation(conversation_id),
         conversation_id,
         display: AgentConversationDisplayData {
             title,
