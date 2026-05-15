@@ -40,7 +40,6 @@ mod persistence;
 #[cfg(feature = "plugin_host")]
 mod plugin;
 mod prefix;
-mod preview_config_migration;
 mod profiling;
 mod projects;
 mod prompt;
@@ -641,11 +640,6 @@ pub(crate) fn initialize_app(
             warpui_extras::secure_storage::register(&data_domain, ctx);
         }
     }
-
-    // One-time migration: give Preview its own config directory by
-    // symlinking contents from the shared ~/.warp location. Must run
-    // before ensure_warp_watch_roots_exist() creates the new directory.
-    preview_config_migration::migrate_preview_config_dir_if_needed();
 
     ensure_warp_watch_roots_exist();
     ctx.add_singleton_model(WarpManagedPathsWatcher::new);

@@ -20,7 +20,6 @@ pub mod launch_configs;
 pub mod navigation_palette;
 pub mod pane_group;
 pub mod persistence;
-pub mod preview_config_migration;
 pub mod rules;
 pub mod secret_redaction;
 pub mod settings;
