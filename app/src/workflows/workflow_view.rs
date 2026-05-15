@@ -1202,7 +1202,7 @@ impl WorkflowView {
     fn try_set_view_mode(&mut self, ctx: &mut ViewContext<Self>) {
         self.workflow_view_mode =
             WorkflowViewMode::supported_view_mode(Some(self.workflow_id), ctx);
-        // always reset with the cloudmodel version whether or not we successfully
+        // always reset with the local object model version whether or not we successfully
         // transition to the view mode. This reset doesn't always set the correct revision_ts
         // we rely on the load called when we handle the update_manager's change event.
         self.reset(ctx);
@@ -1603,7 +1603,7 @@ impl WorkflowView {
                 .map(BreadcrumbState::new)
                 .collect();
         } else {
-            log::warn!("Workflow not found from cloudmodel, could not update breadcrumb");
+            log::warn!("Workflow not found in local object model, could not update breadcrumb");
         }
     }
 
@@ -1788,7 +1788,7 @@ impl WorkflowView {
             return Some(workflow.clone());
         } else {
             log::warn!(
-                "Workflow for id: {} not found in cloudmodel",
+                "Workflow for id: {} not found in local object model",
                 self.workflow_id
             );
         }

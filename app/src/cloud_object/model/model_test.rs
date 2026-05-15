@@ -98,7 +98,7 @@ fn mock_trashed_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>
     folder
 }
 
-fn folder_from_cloud_model(model: &CloudModel, id: SyncId) -> &CloudFolder {
+fn folder_from_model(model: &CloudModel, id: SyncId) -> &CloudFolder {
     model.get_folder_by_uid(&id.uid()).expect("is a folder")
 }
 
@@ -151,17 +151,17 @@ fn test_collapse_all_in_location() {
             );
 
             // folders 1, 4, and 5 should be collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
+            let folder_1 = folder_from_model(model, folder_1_id);
+            let folder_4 = folder_from_model(model, folder_4_id);
+            let folder_5 = folder_from_model(model, folder_5_id);
             assert!(!folder_1.model.is_open);
             assert!(!folder_4.model.is_open);
             assert!(!folder_5.model.is_open);
             // but the others are still open
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
+            let folder_2 = folder_from_model(model, folder_2_id);
+            let folder_3 = folder_from_model(model, folder_3_id);
+            let folder_6 = folder_from_model(model, folder_6_id);
+            let folder_7 = folder_from_model(model, folder_7_id);
             assert!(folder_2.model.is_open);
             assert!(folder_3.model.is_open);
             assert!(folder_6.model.is_open);
@@ -173,13 +173,13 @@ fn test_collapse_all_in_location() {
                 ctx,
             );
             // now all folders in this space are collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
+            let folder_1 = folder_from_model(model, folder_1_id);
+            let folder_2 = folder_from_model(model, folder_2_id);
+            let folder_3 = folder_from_model(model, folder_3_id);
+            let folder_4 = folder_from_model(model, folder_4_id);
+            let folder_5 = folder_from_model(model, folder_5_id);
+            let folder_6 = folder_from_model(model, folder_6_id);
+            let folder_7 = folder_from_model(model, folder_7_id);
             assert!(!folder_1.model.is_open);
             assert!(!folder_2.model.is_open);
             assert!(!folder_3.model.is_open);
@@ -250,16 +250,16 @@ fn test_collapse_all_in_trash() {
             );
 
             // folders 1, 4 should be collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
+            let folder_1 = folder_from_model(model, folder_1_id);
+            let folder_4 = folder_from_model(model, folder_4_id);
             assert!(!folder_1.model.is_open);
             assert!(!folder_4.model.is_open);
             // but the others, including folder 5, are still open
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
+            let folder_2 = folder_from_model(model, folder_2_id);
+            let folder_3 = folder_from_model(model, folder_3_id);
+            let folder_5 = folder_from_model(model, folder_5_id);
+            let folder_6 = folder_from_model(model, folder_6_id);
+            let folder_7 = folder_from_model(model, folder_7_id);
             assert!(folder_2.model.is_open);
             assert!(folder_3.model.is_open);
             assert!(folder_5.model.is_open);
@@ -272,13 +272,13 @@ fn test_collapse_all_in_trash() {
                 ctx,
             );
             // now all folders in this space are collapsed
-            let folder_1 = folder_from_cloud_model(model, folder_1_id);
-            let folder_2 = folder_from_cloud_model(model, folder_2_id);
-            let folder_3 = folder_from_cloud_model(model, folder_3_id);
-            let folder_4 = folder_from_cloud_model(model, folder_4_id);
-            let folder_5 = folder_from_cloud_model(model, folder_5_id);
-            let folder_6 = folder_from_cloud_model(model, folder_6_id);
-            let folder_7 = folder_from_cloud_model(model, folder_7_id);
+            let folder_1 = folder_from_model(model, folder_1_id);
+            let folder_2 = folder_from_model(model, folder_2_id);
+            let folder_3 = folder_from_model(model, folder_3_id);
+            let folder_4 = folder_from_model(model, folder_4_id);
+            let folder_5 = folder_from_model(model, folder_5_id);
+            let folder_6 = folder_from_model(model, folder_6_id);
+            let folder_7 = folder_from_model(model, folder_7_id);
             assert!(!folder_1.model.is_open);
             assert!(!folder_2.model.is_open);
             assert!(!folder_3.model.is_open);

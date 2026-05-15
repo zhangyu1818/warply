@@ -77,8 +77,7 @@ impl TryFrom<PersistedObjectAction> for ObjectAction {
                 .ok_or(())?;
 
             // When the db row is a bundled action, the processed_at_timestamp field refers
-            // to the latest processed_at_timestamp in the bundle. Because bundled actions come
-            // from the server, this is a value, not an option.
+            // to the latest processed_at_timestamp in the bundle.
             let latest_processed_at_timestamp = other
                 .processed_at_timestamp
                 .as_ref()

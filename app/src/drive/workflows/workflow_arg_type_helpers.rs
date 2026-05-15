@@ -324,7 +324,7 @@ where
         // We don't have the variants for this enum
         Some(WorkflowEnumData { .. }) => {
             enum_creation_dialog.update(ctx, |dialog, ctx| {
-                dialog.load_from_cloud_model(*id, ctx);
+                dialog.load_from_local_model(*id, ctx);
             });
             true
         }

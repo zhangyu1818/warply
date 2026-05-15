@@ -62,7 +62,7 @@ pub enum InitiatedBy {
 }
 /// The UpdateManager is responsible for delegating work
 /// when there is an update to an object (e.g. via a user interaction or
-/// a message from the server). Specifically, it will
+/// a local persistence event). Specifically, it will
 /// - write to SQLite
 /// - interact with the CloudModel to update the in-memory state used by the object views
 pub struct UpdateManager {
@@ -590,8 +590,7 @@ impl UpdateManager {
         let cloud_model_handle = CloudModel::handle(ctx);
         let all_object_uids: Vec<ObjectUid> = deleted_ids.iter().map(|&id| id.uid()).collect();
 
-        // This variable counts the number of objects deleted client-side in each Empty Trash action,
-        // because the server returns everything in the db, including objects that have already been marked for deletion
+        // This counts the objects deleted from the local model in each Empty Trash action.
         let mut num_deleted_objects = 0;
         let mut sync_ids_and_types: Vec<(SyncId, ObjectIdType)> = Vec::new();
         cloud_model_handle.update(ctx, |cloud_model, ctx| {

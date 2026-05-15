@@ -116,7 +116,7 @@ pub struct EnumCreationDialog {
     /// The `sync_id` of the enum in the dialog if it already exists,
     /// `None` if this is a new enum.
     sync_id: Option<SyncId>,
-    /// The revision timestamp of the enum, if it has been loaded in from the server.
+    /// The revision timestamp of the enum, if it has been loaded from local persistence.
     revision_ts: Option<Revision>,
 
     /// Store the base state of the enum dialog, used for determining if the dialog is dirty
@@ -290,7 +290,7 @@ impl EnumCreationDialog {
     }
 
     // Load an enum from memory
-    pub fn load_from_cloud_model(&mut self, enum_id: SyncId, ctx: &mut ViewContext<Self>) {
+    pub fn load_from_local_model(&mut self, enum_id: SyncId, ctx: &mut ViewContext<Self>) {
         let cloud_model = CloudModel::as_ref(ctx);
         let workflow_enum_model = cloud_model.get_workflow_enum(&enum_id);
 

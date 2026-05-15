@@ -503,7 +503,7 @@ where
     }
 
     /// Creates a new GenericCloudObject with the given model, owner, and initial folder id.
-    /// This is for the local creation flow, as opposed to creating from a server update.
+    /// This is for the local creation flow.
     pub fn new_local(
         model: M,
         owner: Owner,
@@ -569,11 +569,10 @@ impl Clone for Box<dyn CloudObject> {
     }
 }
 
-/// Represents a unique key for a generic string object. The server enforces that
-/// no two generic string objects have the same key.
+/// Represents a unique key for a generic string object.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct GenericStringObjectUniqueKey {
-    /// The unique key.  E.g. for cloud prefs this is the storage_key of the pref
+    /// The unique key. For settings-backed objects this is the storage key.
     pub key: String,
 
     /// Whether this key is unique for all generic string objects, or unique per user.

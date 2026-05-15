@@ -82,17 +82,13 @@ impl CloudModel {
         }
     }
 
-    /// Determines whether or not the given object_id can be moved to the given location, based on
-    /// what we currently support from an API perspective.
-    ///
+    /// Determines whether the given object id can be moved to the given location.
     pub fn can_move_object_to_location(
         &self,
         hashed_id: &str,
         new_location: CloudObjectLocation,
         app: &AppContext,
     ) -> bool {
-        // TODO(ben): Update as sharing+moving is supported in more cases.
-
         if let Some(object) = self.objects_by_id.get(hashed_id) {
             if let CloudObjectLocation::Space(space) = new_location {
                 if !object.can_move_to_space(space, app) {
@@ -268,10 +264,6 @@ impl CloudModel {
                 }
             }
         }
-    }
-
-    pub fn check_if_object_is_in_cloudmodel(&mut self, uid: ObjectUid) -> bool {
-        self.objects_by_id.contains_key(&uid)
     }
 
     /// Update an object's location (folder and owner). This is an implementation detail of
@@ -607,7 +599,7 @@ impl CloudModel {
     }
 
     #[allow(unused)]
-    /// Returns only active (not trashed) folders in cloud model.
+    /// Returns only active (not trashed) folders in the local object model.
     pub fn get_all_active_folders(&self) -> impl Iterator<Item = &CloudFolder> {
         self.objects_by_id
             .values()
@@ -615,7 +607,7 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    /// Returns all folders (trashed or not) in cloud model.
+    /// Returns all folders (trashed or not) in the local object model.
     pub fn get_all_active_and_inactive_folders(&self) -> impl Iterator<Item = &CloudFolder> {
         self.objects_by_id
             .values()
@@ -650,7 +642,7 @@ impl CloudModel {
             .and_then(|object| object.into())
     }
 
-    /// Returns only active (not trashed) workflows in cloud model.
+    /// Returns only active (not trashed) workflows in the local object model.
     pub fn get_all_active_workflows(&self) -> impl Iterator<Item = &SavedWorkflow> {
         self.objects_by_id
             .values()
@@ -658,14 +650,14 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    /// Returns all workflows (trashed or not) in cloud model.
+    /// Returns all workflows (trashed or not) in the local object model.
     pub fn get_all_active_and_inactive_workflows(&self) -> impl Iterator<Item = &SavedWorkflow> {
         self.objects_by_id
             .values()
             .filter_map(|object| object.into())
     }
 
-    /// Returns all workflows (trashed or not) in cloud model.
+    /// Returns all workflows (trashed or not) in the local object model.
     pub fn get_all_active_and_inactive_workflows_mut(
         &mut self,
     ) -> impl Iterator<Item = &mut SavedWorkflow> {
@@ -762,7 +754,7 @@ impl CloudModel {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
 
-    /// Returns only active (not trashed) EVCs in cloud model.
+    /// Returns only active (not trashed) EVCs in the local object model.
     pub fn get_all_active_env_var_collections(
         &self,
     ) -> impl Iterator<Item = &SavedEnvVarCollection> {
