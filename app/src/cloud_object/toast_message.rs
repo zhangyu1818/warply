@@ -4,9 +4,9 @@ use crate::cloud_object::update_manager::{InitiatedBy, ObjectOperation};
 
 use super::CloudObject;
 
-pub struct CloudObjectToastMessage;
+pub struct LocalObjectToastMessage;
 
-impl CloudObjectToastMessage {
+impl LocalObjectToastMessage {
     pub fn toast_message(
         object: &dyn CloudObject,
         operation: &ObjectOperation,

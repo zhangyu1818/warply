@@ -91,7 +91,7 @@ pub struct MouseStateHandles {
 }
 
 #[derive(Debug, Clone)]
-struct CloudRuleRow {
+struct GlobalRuleRow {
     fact: CloudAIFact,
     mouse_states: MouseStateHandles,
 }
@@ -104,7 +104,7 @@ struct ProjectScopedRow {
 
 #[derive(Debug, Clone)]
 enum RuleRow {
-    Global(Box<CloudRuleRow>),
+    Global(Box<GlobalRuleRow>),
     ProjectScoped(ProjectScopedRow),
 }
 
@@ -142,7 +142,7 @@ impl RuleRow {
 
 pub struct RuleView {
     owner: Owner,
-    global_rules: Vec<CloudRuleRow>,
+    global_rules: Vec<GlobalRuleRow>,
     project_rules: Vec<ProjectScopedRow>,
     search_editor: ViewHandle<EditorView>,
     search_bar: ViewHandle<SearchBar>,
@@ -186,9 +186,9 @@ impl RuleView {
                 .cloned()
                 .collect()
         };
-        let ai_rules: Vec<CloudRuleRow> = ai_rules
+        let ai_rules: Vec<GlobalRuleRow> = ai_rules
             .into_iter()
-            .map(|fact| CloudRuleRow {
+            .map(|fact| GlobalRuleRow {
                 fact,
                 mouse_states: Default::default(),
             })
@@ -313,7 +313,7 @@ impl RuleView {
         };
         self.global_rules = ai_rules
             .into_iter()
-            .map(|ai_fact| CloudRuleRow {
+            .map(|ai_fact| GlobalRuleRow {
                 fact: ai_fact,
                 mouse_states: Default::default(),
             })
@@ -648,7 +648,7 @@ impl RuleView {
 
     fn render_global_rule_row(
         &self,
-        ai_row: CloudRuleRow,
+        ai_row: GlobalRuleRow,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let AIFact::Memory(AIMemory { name, content, .. }) =

@@ -596,7 +596,7 @@ impl EnvVarCollectionView {
             } else {
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                     toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
+                        ToastType::LocalObjectNotFound,
                         window_id,
                         ctx,
                     );

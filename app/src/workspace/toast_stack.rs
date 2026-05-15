@@ -14,7 +14,7 @@ pub struct ToastStack;
 impl From<ToastType> for DismissibleToast<WorkspaceAction> {
     fn from(value: ToastType) -> Self {
         match value {
-            ToastType::CloudObjectNotFound => {
+            ToastType::LocalObjectNotFound => {
                 DismissibleToast::error(String::from("Resource not found or access denied"))
             }
         }

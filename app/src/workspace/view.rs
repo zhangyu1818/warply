@@ -116,7 +116,7 @@ use crate::env_vars::{
 
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::banner::BannerState;
-use crate::cloud_object::toast_message::CloudObjectToastMessage;
+use crate::cloud_object::toast_message::LocalObjectToastMessage;
 use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType};
 use crate::context_chips::ChipRuntimeCapabilities;
 use crate::drive::workflows::modal::{WorkflowModal, WorkflowModalEvent};
@@ -4437,13 +4437,13 @@ impl Workspace {
     /// Create a pane from a retained local object. Returns `None` if the object cannot be opened in a
     /// pane. The pane will not be associated with any tab - the caller is responsible for
     /// inserting it.
-    fn create_cloud_object_pane(
+    fn create_local_object_content_pane(
         &self,
-        cloud_object: CloudObjectTypeAndId,
+        local_object: CloudObjectTypeAndId,
         ctx: &mut ViewContext<Self>,
     ) -> Option<Box<dyn AnyPaneContent>> {
         let window_id = ctx.window_id();
-        match cloud_object {
+        match local_object {
             CloudObjectTypeAndId::Workflow(sync_id) => Some(Box::new(
                 WorkflowManager::handle(ctx).update(ctx, |workflow_manager, ctx| {
                     workflow_manager.create_pane(
@@ -4468,12 +4468,12 @@ impl Workspace {
         }
     }
 
-    fn open_cloud_object_in_new_pane(
+    fn open_local_object_content_in_new_pane(
         &mut self,
         object_id: CloudObjectTypeAndId,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let Some(pane) = self.create_cloud_object_pane(object_id, ctx) {
+        if let Some(pane) = self.create_local_object_content_pane(object_id, ctx) {
             self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
                 let smart_split_direction =
                     pane_group.smart_split_direction(ctx, WORKFLOW_AND_ENV_VAR_SPLIT_RATIO);
@@ -10429,7 +10429,7 @@ impl Workspace {
                 return;
             }
             if let Some(message) =
-                CloudObjectToastMessage::toast_message(object, &result.operation, ctx)
+                LocalObjectToastMessage::toast_message(object, &result.operation, ctx)
             {
                 let workflow: Option<&SavedWorkflow> = object.into();
                 let cloned_workflow = workflow.cloned();
@@ -10460,7 +10460,7 @@ impl Workspace {
         // For confirmation toast of permadeletion
         if let Some(n) = result.num_objects {
             if let Some(message) =
-                CloudObjectToastMessage::toast_deletion_confirm_message(n, &result.operation)
+                LocalObjectToastMessage::toast_deletion_confirm_message(n, &result.operation)
             {
                 self.toast_stack.update(ctx, |view, ctx| {
                     let new_toast = DismissibleToast::success(message);
@@ -13906,7 +13906,7 @@ impl TypedActionView for Workspace {
             }
             FocusLeftPanel => self.focus_left_panel(ctx),
             FocusRightPanel => self.focus_right_panel(ctx),
-            ViewObject(object_id) => self.open_cloud_object_in_new_pane(*object_id, ctx),
+            ViewObject(object_id) => self.open_local_object_content_in_new_pane(*object_id, ctx),
             TerminateApp => {
                 ctx.terminate_app(TerminationMode::Cancellable, None);
             }
