@@ -132,9 +132,6 @@ pub enum FeatureFlag {
     /// Enables UI zoom support (scaling the entire UI by a given percentage).
     UIZoom,
 
-    /// Enables find/search in code review pane
-    CodeReviewFind,
-
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.
@@ -296,7 +293,6 @@ impl FeatureFlag {
         // very least, the feature flag should be removed from the Preview changelog by removing it from PREVIEW_FLAGS.
         // ** ONLY Preview-exclusive features should be added to this list! **
         match self {
-            CodeReviewFind => Some("Enables the find bar in the code review pane."),
             GlobalSearch => Some("Enables global search in the left panel"),
             MarkdownTables => {
                 Some("Enables rendering and interaction support for markdown tables in notebooks.")

@@ -347,6 +347,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the unused `remote_tty` Web/network-backed PTY feature, its websocket PTY client, and the dedicated `crates/websocket` wrapper. This old `ssh-proxy-server`/Warp-on-Web path is not the retained SSH remote server: keep `remote_server`, `RemoteServerManager`, SSH remote-server workers, ControlMaster fallback, and Warpify.
 - Removed the `FileGlobV2Warnings` rollout flag. File glob warning capture is now direct behavior in the retained local AgentView action renderer; ACP tool calls continue to render from protocol-native ACP events and are not routed through app-managed skills, MCP, or cloud agent tooling.
 - Removed the `LocalDockerSandbox` rollout flag and stale default-session fallback. The Docker sandbox remains a retained local terminal session mode via `sbx`; it is not Warp cloud sandboxing, hosted agent isolation, or ACP skill/MCP management.
+- Removed the `CodeReviewFind` rollout flag and Cargo feature. The code-review find bar and search refreshes are retained local AgentView/code-review UI behavior, not a cloud or legacy-agent path.
 
 ## Legacy Names Still Present
 

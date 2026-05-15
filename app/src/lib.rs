@@ -1447,8 +1447,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewSaveChanges,
         #[cfg(feature = "discard_per_file_and_all_changes")]
         FeatureFlag::DiscardPerFileAndAllChanges,
-        #[cfg(feature = "code_review_find")]
-        FeatureFlag::CodeReviewFind,
         #[cfg(feature = "ui_zoom")]
         FeatureFlag::UIZoom,
         #[cfg(feature = "global_search")]

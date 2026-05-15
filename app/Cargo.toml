@@ -333,7 +333,6 @@ default = [
     "expand_edit_to_pane",
     "ui_zoom",
     "discard_per_file_and_all_changes",
-    "code_review_find",
     "classic_completions",
     "force_classic_completions",
     "pluggable_notifications",
@@ -460,7 +459,6 @@ revert_diff_hunk = []
 code_review_save_changes = []
 discard_per_file_and_all_changes = []
 ui_zoom = []
-code_review_find = []
 global_search = []
 classic_completions = []
 force_classic_completions = []
