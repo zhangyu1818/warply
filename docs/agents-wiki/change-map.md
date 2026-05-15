@@ -325,6 +325,7 @@ This map explains the large fork baseline change at a path level.
 ## 2026-05 Agent/Service Residual Scan
 
 - Scanned source for old Agent SDK, cloud/hosted/ambient/scheduled agent, orchestration, remote-control, harness, Warp server, GraphQL, auth token, billing, telemetry, crash reporting, onboarding, marketplace, and template product surfaces.
+- Removed the empty `AIConversation::to_serialized_blocklist_items` command-block conversion shell. ACP conversation restore now restores ACP transcript exchanges into AgentView/AI blocks directly; historical and forked conversation panes pass an empty restored-command-block list only to preserve the terminal restore lifecycle and should not regain old command-block extraction shims.
 - `handoff` source hits were local cross-window tab drag transfer or AgentView long-running-command control transfer. Keep these when they remain local terminal UI or ACP-routed AgentView behavior; do not reinterpret them as old cloud handoff/orchestration.
 - `harness`, `remote control`, `GraphQL`, `billing`, `credits`, `marketplace`, and `template` hits were test harnesses, keyboard documentation, file-type fixtures, tokenizer vocabulary, retained tab/workflow templates, or docs. They are not live Warp cloud product paths.
 - Reworded the retained remote terminal daemon model away from orchestration wording. `remote_server` remains SSH/remote terminal functionality, not Warp service-client behavior.

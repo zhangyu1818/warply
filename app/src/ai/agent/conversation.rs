@@ -2,10 +2,10 @@ use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpTerminalTrace, AcpToolCal
 use crate::ai::agent::comment::CodeReview;
 use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::artifacts::Artifact;
-use crate::ai::blocklist::{RequestInput, ResponseStreamId, SerializedBlockListItem};
+use crate::ai::blocklist::{RequestInput, ResponseStreamId};
 use crate::ai::llms::LLMId;
 use crate::terminal::general_settings::GeneralSettings;
-use crate::terminal::model::block::{AgentViewVisibility, BlockId, SerializedBlock};
+use crate::terminal::model::block::BlockId;
 use chrono::{DateTime, Local};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,6 @@ use super::task_store::TaskStore;
 use agent_client_protocol::schema::ToolCallUpdate;
 use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
-use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
@@ -70,15 +69,6 @@ impl TodoStatus {
     pub fn is_cancelled(&self) -> bool {
         matches!(self, TodoStatus::Cancelled)
     }
-}
-
-// basic info for creating a dummy command block based on an exchange's inputs
-pub(crate) struct CommandBlockInfo {
-    pub(crate) command: String,
-    pub(crate) output: String,
-    pub(crate) exit_code: ExitCode,
-    pub(crate) ai_metadata: Option<String>,
-    pub(crate) message_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -2367,86 +2357,6 @@ impl AIConversation {
         self.task_store
             .all_exchanges_rev()
             .find_map(|exchange| exchange.working_directory.clone())
-    }
-
-    /// Normalize all newlines to CRLF so restored blocks render lines starting at column 0,
-    /// which is consistent with how we serialize real terminal blocks.
-    fn to_stylized_bytes(s: &str) -> Vec<u8> {
-        let s = s.replace("\r\n", "\n");
-        s.replace('\n', "\r\n").into_bytes()
-    }
-
-    fn extract_command_blocks(&self) -> Vec<CommandBlockInfo> {
-        Vec::new()
-    }
-
-    /// Converts the conversation into a vector of serialized AI and command blocks.
-    /// When we open a new tab to restore a conversation in, we need to precompute this serialized list of blocks
-    /// to pass into the TerminalModel constructor since command blocks must be created
-    /// before the warp input block to not break bootstrapping.
-    /// Only the command blocks are actually created in the terminal model, but this sequencing is used later in the TerminalView
-    /// to know where to insert AI blocks relative to the command blocks.
-    pub fn to_serialized_blocklist_items(&self) -> Vec<SerializedBlockListItem> {
-        let mut serialized_blocks = Vec::new();
-
-        // Extract all command blocks from the task messages
-        let command_blocks = self.extract_command_blocks();
-
-        // Build a map from message ID to exchange for quick lookup
-        let mut message_id_to_exchange: HashMap<&str, &AIAgentExchange> = HashMap::new();
-        for exchange in self.root_task_exchanges() {
-            for message_id in &exchange.added_message_ids {
-                // MessageId derefs to str, so use &**message_id to get &str
-                message_id_to_exchange.insert(&**message_id, exchange);
-            }
-        }
-
-        // Get a fallback exchange for working directory and timestamp (used if message ID not found)
-        let first_exchange = self.root_task_exchanges().next();
-        let fallback_pwd = first_exchange.and_then(|e| e.working_directory.clone());
-        let fallback_time = first_exchange.map(|e| e.start_time).unwrap_or_default();
-
-        // Create serialized blocks from the extracted command blocks
-        for command_block in command_blocks {
-            // Find the exchange that contains this command block's message ID
-            let (pwd, timestamp) = message_id_to_exchange
-                .get(command_block.message_id.as_str())
-                .map(|exchange| (exchange.working_directory.clone(), exchange.start_time))
-                .unwrap_or((fallback_pwd.clone(), fallback_time));
-
-            let serialized_block = SerializedBlock {
-                id: BlockId::new(),
-                stylized_command: Self::to_stylized_bytes(&command_block.command),
-                stylized_output: Self::to_stylized_bytes(&command_block.output),
-                pwd,
-                git_head: None,
-                git_branch_name: None,
-                virtual_env: None,
-                conda_env: None,
-                node_version: None,
-                exit_code: command_block.exit_code,
-                did_execute: true,
-                start_ts: Some(timestamp),
-                completed_ts: Some(timestamp),
-                ps1: None,
-                rprompt: None,
-                honor_ps1: false,
-                session_id: None,
-                shell_host: None,
-                is_background: false,
-                prompt_snapshot: None,
-                ai_metadata: command_block.ai_metadata,
-                is_local: Some(true),
-                agent_view_visibility: Some(
-                    AgentViewVisibility::new_from_conversation(self.id).into(),
-                ),
-            };
-            serialized_blocks.push(SerializedBlockListItem::Command {
-                block: Box::new(serialized_block),
-            });
-        }
-
-        serialized_blocks
     }
 
     pub fn mark_action_as_reverted(

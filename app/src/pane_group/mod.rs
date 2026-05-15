@@ -3921,7 +3921,7 @@ impl PaneGroup {
         ViewHandle<TerminalView>,
         ModelHandle<Box<dyn TerminalManager>>,
     ) {
-        let restored_blocks = conversation.to_serialized_blocklist_items();
+        let restored_blocks = Vec::new();
         let terminal_manager = MockTerminalManager::create_model(
             ShellLaunchState::ShellSpawned {
                 available_shell: None,

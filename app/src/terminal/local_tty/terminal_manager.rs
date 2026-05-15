@@ -190,17 +190,12 @@ impl TerminalManager {
         let shell_starter_source_result = ShellStarter::init(preferred_shell.clone());
 
         // If we have explicit restored_blocks, prioritize those (these come from db on startup).
-        // Otherwise if there's a conversation we're restoring, get blocks from those.
         let all_restored_blocks =
             restored_blocks
                 .cloned()
                 .or_else(|| match &conversation_restoration {
-                    Some(ConversationRestorationInNewPaneType::Historical {
-                        conversation, ..
-                    })
-                    | Some(ConversationRestorationInNewPaneType::Forked { conversation, .. }) => {
-                        Some(conversation.to_serialized_blocklist_items())
-                    }
+                    Some(ConversationRestorationInNewPaneType::Historical { .. })
+                    | Some(ConversationRestorationInNewPaneType::Forked { .. }) => Some(vec![]),
                     _ => None,
                 });
 
