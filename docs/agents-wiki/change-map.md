@@ -423,6 +423,7 @@ This map explains the large fork baseline change at a path level.
 - Reworded retained vertical-tabs pane-row and hover-sidecar specs to use current `Terminal`, `Agent`, and CLI-agent labels instead of old Oz pane naming or ambient-agent helpers. ACP AgentView and CLI-agent terminal panes remain retained UI surfaces.
 - Reworded the retained directory-theme override spec away from old Oz review naming, deleted onboarding paths, and removed cloud-sync setting fields. Directory-theme overrides remain local settings behavior with private storage and redacted local diagnostics.
 - Reworded the retained settings-file error banner spec to remove deleted reauth-banner priority, Oz auto-fix, and bundled-skill follow-up language. Future automatic settings fixes must be explicit ACP AgentView conversations, not app-bundled skills.
+- Renamed retained file-tree and vertical-tabs test fixture directories away from `warp-server` to neutral local repo names. These tests cover local UI selection and summary behavior only; they should not imply Warp service dependencies.
 
 ## Legacy Names Still Present
 

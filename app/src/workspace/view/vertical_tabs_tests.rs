@@ -842,13 +842,13 @@ fn collect_normalized_unique_summary_texts_preserves_first_seen_order() {
     assert_eq!(
         collect_normalized_unique_summary_texts([
             "~/warp-internal",
-            "~/warp-server",
+            "~/sample-repo",
             "~/warp-internal",
             "~/warp-terraform",
         ]),
         vec![
             "~/warp-internal".to_string(),
-            "~/warp-server".to_string(),
+            "~/sample-repo".to_string(),
             "~/warp-terraform".to_string(),
         ]
     );
@@ -941,7 +941,7 @@ fn summary_search_fragments_include_hidden_overflow_values() {
             "code review".to_string(),
             "hidden work".to_string(),
         ],
-        working_directories: vec!["~/warp-internal".to_string(), "~/warp-server".to_string()],
+        working_directories: vec!["~/warp-internal".to_string(), "~/sample-repo".to_string()],
         branch_entries: vec![
             VerticalTabsSummaryBranchEntry {
                 repo_path: PathBuf::from("/tmp/repo-a"),
