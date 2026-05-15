@@ -1,5 +1,7 @@
 # CLI Agent Rich Input: /skills Product Spec
 
+Fork status: this upstream `/skills` UX is rejected for the local ACP-only fork. Warp must not manage or browse app-side skills; ACP agents own skills, and OpenAI-compatible Next Command / Prompt Suggestions do not use skills.
+
 ## Summary
 Add support for `/skills` in the CLI agent rich input composer — the input that appears when composing a prompt to send to a running CLI agent (Claude Code, Codex, Gemini CLI, etc.). Only natively supported skills are shown, and the selected skill name is passed through to the CLI agent via PTY write.
 

@@ -2,6 +2,8 @@
 
 Linear: [REMOTE-1247](https://linear.app/warpdotdev/issue/REMOTE-1247)
 
+Fork status: this upstream cloud-harness/Oz skill plan is rejected in the local ACP-only fork. Warp must not restore cloud harnesses or bundled Oz skill documentation; ACP agents own external tool and MCP configuration.
+
 ## Problem
 
 When Oz runs third-party CLI agents like Claude Code or Codex in a fresh cloud environment (for example a Namespace-backed runner), the CLI may start an interactive first-run onboarding flow before executing the user's prompt. That breaks the harness contract that cloud agents should run autonomously and produce useful output without manual terminal interaction.

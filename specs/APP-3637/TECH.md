@@ -1,5 +1,7 @@
 # CLI Agent Rich Input: /skills Technical Spec
 
+Fork status: this upstream `/skills` implementation is rejected for the local ACP-only fork. Warp must not scan local skill folders, load bundled skills, or expose skill-manager slash-command plumbing; ACP agents own skills, and terminal suggestions stay on the OpenAI-compatible provider path.
+
 ## Summary
 This spec covers implementing `/skills` support in the CLI agent rich input composer. The approach filters the existing slash command menu and skill data sources to show only natively supported skills, and passes through the selected skill name to the CLI agent via PTY write.
 

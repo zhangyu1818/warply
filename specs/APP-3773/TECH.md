@@ -1,6 +1,9 @@
 # APP-3773: Image attachments in the feedback skill — technical plan
 Linear: https://linear.app/warpdotdev/issue/APP-3773/add-support-for-image-uploads-in-the-feedback-skill
 See `PRODUCT.md` for user-facing behavior.
+
+Fork status: this upstream bundled feedback-skill plan is rejected in the local ACP-only fork. User attachments may be retained as ACP prompt context, but Warp must not invoke app-bundled skills or ship channel-gated skill scripts.
+
 ## Context
 This feature touches three surfaces: the Warp client's slash-command → skill invocation pipeline, the bundled feedback skill's instructions, and the feedback skill's filing helper script.
 The skill-invocation entry point is in the slash-command controller. `app/src/ai/blocklist/controller/slash_command.rs:74` builds the context that accompanies every slash-command request:

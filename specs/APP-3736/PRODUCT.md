@@ -2,6 +2,8 @@
 
 Linear: [APP-3736](https://linear.app/warpdotdev/issue/APP-3736/allow-for-specifying-closing-of-tab-behavior)
 
+Fork status: tab-close behavior for local tab configs may be retained, but the bundled `tab-configs` skill updates in this upstream spec are rejected in the local ACP-only fork. ACP agents own skills, and Warp must not ship app-bundled skill instructions.
+
 ## Summary
 
 Add an optional top-level close hook to tab configs so a tab instance opened from a config can run best-effort cleanup behavior when the tab is explicitly closed. The primary use case is worktree cleanup: deleting the worktree directory on close, with an optional second step that also deletes the worktree branch.

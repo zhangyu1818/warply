@@ -2,6 +2,8 @@
 
 Linear: [APP-3575](https://linear.app/warpdotdev/issue/APP-3575/finalize-toml-schema-for-tab-configs)
 
+Fork status: the tab-config schema work may be retained, but the bundled Oz skill and `/skills` surfaces in this upstream spec are rejected in the local ACP-only fork. ACP agents own skills, and Warp must not ship or invoke app-bundled skills.
+
 ## Summary
 
 Replace the recursive `[layout]` / `[[layout.panes]]` TOML nesting in tab configs with a flat `[[panes]]` array where nodes reference children by string ID. This makes deeply nested split layouts readable and hand-editable, and ships a bundled Oz skill so users can generate tab configs from natural language.

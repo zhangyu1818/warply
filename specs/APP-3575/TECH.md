@@ -2,6 +2,8 @@
 
 Linear: [APP-3575](https://linear.app/warpdotdev/issue/APP-3575/finalize-toml-schema-for-tab-configs)
 
+Fork status: the tab-config schema work may be retained, but the bundled Oz skill, skill-manager loading, and bundled-skill build steps in this upstream spec are rejected in the local ACP-only fork. ACP agents own skills, and Warp must not ship, discover, or invoke app-bundled skills.
+
 ## Problem
 
 The recursive `[layout]` / `[[layout.panes]]` TOML format becomes unreadable at depth 3+. We need to replace it with a flat `[[panes]]` array where nodes reference children by string ID, add tab color support, and ship a bundled Oz skill for generating configs.
