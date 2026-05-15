@@ -20,35 +20,35 @@ integration_tests! {
     test_unescaped_prompt_bootstraps,
     test_unnecessary_resizes,
     test_removing_tabs_out_of_order,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_suggestions_menu_positioning,
     test_open_and_close_theme_creator_modal,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_click_on_prompt_to_focus_input,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_text_input_on_block_list,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_text_input_on_block_list_while_composing,
     #[ignore]
     test_open_and_close_resource_center,
     test_open_and_close_context_menu_with_keybinding,
     test_open_and_close_settings,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_scroll_to_hidden_block_and_open_context_menu_with_keybinding,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_block_navigation,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_waterfall_input,
     #[ignore]
     test_waterfall_input_text_selection,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_waterfall_input_scrolling,
     #[ignore = "Flakes in CI"]
     test_waterfall_input_after_command_execution,
     test_waterfall_input_alt_grid,
     test_undo_redo,
     test_add_windows_correct_position_and_cascade,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_find_within_block,
     test_case_sensitive_find,
     test_find_bar_autoselects_text,
@@ -64,7 +64,7 @@ integration_tests! {
     // TODO(kevin): figure out why the file name doesn't match.
     #[ignore]
     test_restore_snapshot_with_code_file,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_multi_block_selections,
     test_input_focused_after_executing_command,
     test_with_launch_config,
@@ -87,7 +87,7 @@ integration_tests! {
     test_block_based_snackbar_not_visible_for_pager_command_pinned_to_top,
     test_block_based_snackbar_appears_for_running_command_waterfall_mode,
     test_block_based_snackbar_not_visible_pager_command_waterfall_mode,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_accepting_completion_inserts_space,
     test_palette_opens_when_theme_chooser_is_open,
     test_launch_warp_with_theme_in_warp_config,
@@ -102,7 +102,7 @@ integration_tests! {
     test_completions_as_you_type,
     test_completions_as_you_type_one_matching_entry_tab,
     test_completions_as_you_type_execute_on_enter,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_cmd_enter,
     test_alias_expansion_has_limit,
     test_command_corrections,
@@ -120,11 +120,11 @@ integration_tests! {
     test_custom_open_completions_menu_binding,
     test_ssh_with_shell_override,
 
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_copy_prompt_from_block_honor_ps1_disabled,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_copy_prompt_from_input_honor_ps1_disabled,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_rprompt_doesnt_show_when_not_enough_space,
     test_block_cursor_navigation_using_escape_codes,
     test_block_bulk_deletion_using_escape_codes,
@@ -161,12 +161,12 @@ integration_tests! {
     test_synced_panes_long_running_commands,
     test_synced_inputs_terminal_mode_change_view_focus,
 
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_can_bootstrap_remote_bash_subshell,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_can_bootstrap_remote_zsh_subshell,
 
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_can_auto_bootstrap,
 
     // Disabled due to flakiness on CI.
@@ -178,7 +178,7 @@ integration_tests! {
     test_private_public_settings_routing_with_flag_enabled,
     test_private_settings_preloaded_and_not_leaked_to_toml,
     test_history_command_is_linked_to_local_workflow,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_up_arrow_history_enters_shift_tab_for_workflow,
 
     test_secret_is_obfuscated_on_copy,
@@ -235,43 +235,43 @@ integration_tests! {
     test_settings_error_banner_on_reload_with_invalid_toml,
     test_settings_error_banner_on_reload_with_invalid_value,
 
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_last_through_ai_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_copy_on_select_first_to_last_through_ai_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_last_through_ai_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_last_through_ai_lines,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_first_through_ai_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_first_through_ai_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_first_through_ai_lines,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_ai_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_ai_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_first_to_ai_lines,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_first_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_first_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_first_lines,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_last_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_last_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_ai_to_last_lines,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_ai_simple,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_ai_semantic,
-    #[ignore = "Affected by agent_view feature flag UI changes"]
+    #[ignore = "Affected by AgentView UI changes"]
     test_selection_last_to_ai_lines,
     test_restored_ai_block_renders_mermaid_and_local_images,
 

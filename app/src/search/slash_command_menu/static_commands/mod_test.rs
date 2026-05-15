@@ -56,7 +56,6 @@ fn terminal_view_requirement_only_in_terminal_view() {
 
 #[test]
 fn both_view_bits_satisfy_either_view_requirement() {
-    // When AgentView feature flag is disabled, both view bits are set.
     let session = Availability::AGENT_VIEW | Availability::TERMINAL_VIEW | Availability::LOCAL;
     assert!(session.contains(Availability::AGENT_VIEW));
     assert!(session.contains(Availability::TERMINAL_VIEW));

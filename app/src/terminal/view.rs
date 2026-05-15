@@ -19973,7 +19973,6 @@ impl View for TerminalView {
             }
         }
 
-        context.set.insert(flags::AGENT_VIEW_ENABLED);
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
         if agent_view_state.is_fullscreen() {
             context.set.insert(flags::ACTIVE_AGENT_VIEW);

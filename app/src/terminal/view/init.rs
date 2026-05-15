@@ -238,9 +238,7 @@ pub fn init(app: &mut AppContext) {
                 TerminalAction::SetInputModeAgent,
                 id!("Terminal")
                     & !id!("IMEOpen")
-                    & (!id!(flags::AGENT_VIEW_ENABLED)
-                        | id!(flags::ACTIVE_AGENT_VIEW)
-                        | id!(flags::ACTIVE_INLINE_AGENT_VIEW)),
+                    & (id!(flags::ACTIVE_AGENT_VIEW) | id!(flags::ACTIVE_INLINE_AGENT_VIEW)),
             ),
         ]);
     }

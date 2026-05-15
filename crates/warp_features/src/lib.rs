@@ -215,8 +215,6 @@ pub enum FeatureFlag {
     /// Enables embedded code review comments.
     EmbeddedCodeReviewComments,
 
-    AgentView,
-
     /// Enables the inline history menu for quickly accessing previous commands and conversations.
     InlineHistoryMenu,
 

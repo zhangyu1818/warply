@@ -2017,8 +2017,6 @@ impl Input {
                                 .insert(flags::CTRL_ENTER_ACCEPTS_PROMPT_SUGGESTION);
                         }
 
-                        context.set.insert(flags::AGENT_VIEW_ENABLED);
-
                         if CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id) {
                             context.set.insert(flags::CLI_AGENT_RICH_INPUT_OPEN);
                         }
@@ -11052,7 +11050,6 @@ impl View for Input {
             ctx.set.insert(flags::LOCKED_INPUT);
         }
 
-        ctx.set.insert(flags::AGENT_VIEW_ENABLED);
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
         if agent_view_state.is_fullscreen() {
             ctx.set.insert(flags::ACTIVE_AGENT_VIEW);

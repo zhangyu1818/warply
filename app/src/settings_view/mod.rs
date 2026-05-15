@@ -280,11 +280,6 @@ pub mod flags {
     pub const HAS_PENDING_PROMPT_SUGGESTION: &str = "HasPendingPromptSuggestion";
     pub const ACTIVE_AGENT_VIEW: &str = "ActiveAgentView";
     pub const ACTIVE_INLINE_AGENT_VIEW: &str = "ActiveInlineAgentView";
-    /// When set, ctrl-enter should be the active binding to enter agent view.
-    ///
-    /// This is true on linux and windows.
-    pub const CTRL_ENTER_ENTERS_AGENT_VIEW: &str = "CtrlEnterEntersAgentView";
-    pub const AGENT_VIEW_ENABLED: &str = "FeatureFlag.AgentView";
     pub const LOCKED_INPUT: &str = "LockedInput";
     pub const OPEN_INLINE_CONVERSATION_MENU: &str = "OpenInlineConversationMenu";
     pub const EMPTY_INPUT_BUFFER: &str = "EmptyInputBuffer";
