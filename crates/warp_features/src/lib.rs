@@ -223,9 +223,6 @@ pub enum FeatureFlag {
     /// Enables the inline repo switcher menu for switching between indexed repos.
     InlineRepoMenu,
 
-    /// Enables editing the agent input footer layout from the prompt context menu.
-    AgentToolbarEditor,
-
     /// Enables configuring header toolbar item order, side placement, and visibility.
     ConfigurableToolbar,
 
@@ -239,10 +236,6 @@ pub enum FeatureFlag {
     /// When enabled, a conversation is only considered "active" once a new query has been
     /// sent since opening (rather than the moment its agent view is expanded).
     ActiveConversationRequiresInteraction,
-
-    /// Enables the rich input editor for CLI agents (e.g., Claude Code).
-    /// Ctrl-G intercepts the keystroke and opens Warp's input editor instead of $EDITOR.
-    CLIAgentRichInput,
 
     /// Enables incremental (diff-based) buffer updates for auto-reload instead of full replace.
     IncrementalAutoReload,

@@ -368,9 +368,7 @@ default = [
     "pr_comments_slash_command",
     "pr_comments_v2",
     "hoa_code_review",
-    "agent_toolbar_editor",
     "configurable_toolbar",
-    "cli_agent_rich_input",
     "vertical_tabs",
     "tab_configs",
     "trim_trailing_blank_lines",
@@ -415,7 +413,6 @@ kitty_images = []
 kitty_keyboard_protocol = []
 ligatures = []
 trim_trailing_blank_lines = []
-cli_agent_rich_input = []
 # This feature is enabled in build.rs when compiling for platforms which
 # support having a local tty/shell session.  It can be used to conditionally
 # include dependencies that should only exist in such environments.
@@ -514,7 +511,6 @@ inline_code_review = []
 fork_from_command = []
 global_search = []
 file_and_diff_set_comments = []
-agent_toolbar_editor = []
 classic_completions = []
 force_classic_completions = []
 inline_history_menu = []

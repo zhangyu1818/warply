@@ -131,9 +131,7 @@ impl AgentToolbarItemKind {
             Self::ContextChip(ContextChipKind::GitDiffStats),
         ];
         items.push(Self::FileExplorer);
-        if FeatureFlag::CLIAgentRichInput.is_enabled() {
-            items.push(Self::RichInput);
-        }
+        items.push(Self::RichInput);
         items
     }
 

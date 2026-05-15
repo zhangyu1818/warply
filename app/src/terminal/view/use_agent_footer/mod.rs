@@ -28,7 +28,6 @@ use crate::code_review::events::CodeReviewPaneEntrypoint;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use warp_core::{
-    features::FeatureFlag,
     settings::Setting,
     ui::{
         appearance::Appearance,
@@ -821,9 +820,7 @@ impl TerminalView {
         entrypoint: CLIAgentInputEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
-        if !FeatureFlag::CLIAgentRichInput.is_enabled()
-            || self.has_active_cli_agent_input_session(ctx)
-        {
+        if self.has_active_cli_agent_input_session(ctx) {
             return;
         }
 

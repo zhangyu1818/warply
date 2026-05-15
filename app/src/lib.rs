@@ -1501,8 +1501,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EmbeddedCodeReviewComments,
         #[cfg(feature = "file_and_diff_set_comments")]
         FeatureFlag::FileAndDiffSetComments,
-        #[cfg(feature = "agent_toolbar_editor")]
-        FeatureFlag::AgentToolbarEditor,
         #[cfg(feature = "configurable_toolbar")]
         FeatureFlag::ConfigurableToolbar,
         #[cfg(feature = "classic_completions")]
@@ -1537,8 +1535,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::VerticalTabsSummaryMode,
         #[cfg(feature = "tab_configs")]
         FeatureFlag::TabConfigs,
-        #[cfg(feature = "cli_agent_rich_input")]
-        FeatureFlag::CLIAgentRichInput,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]

@@ -15,7 +15,6 @@ use crate::{
         prompt_type::PromptType,
         ContextChipKind,
     },
-    features::FeatureFlag,
     terminal::{
         cli_agent_sessions::{
             CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
@@ -348,9 +347,9 @@ impl AgentInputFooter {
             AgentToolbarItemKind::FileExplorer => {
                 Some(ChildView::new(&self.file_explorer_button).finish())
             }
-            AgentToolbarItemKind::RichInput => FeatureFlag::CLIAgentRichInput
-                .is_enabled()
-                .then(|| ChildView::new(&self.rich_input_button).finish()),
+            AgentToolbarItemKind::RichInput => {
+                Some(ChildView::new(&self.rich_input_button).finish())
+            }
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
         }
     }
