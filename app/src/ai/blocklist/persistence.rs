@@ -1,7 +1,6 @@
 //! Manages how we serialize blocklist AI data for persistence.
 #![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 
-use anyhow::anyhow;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -9,14 +8,12 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentActionType, AIAgentAttachment, AIAgentContext,
-            AIAgentExchangeId, AIAgentInput, AIAgentPtyWriteMode, AskUserQuestionItem,
-            FileLocations, ReadFilesRequest, RequestComputerUseRequest, SearchCodebaseRequest,
-            UseComputerRequest, UserQueryMode,
+            conversation::AIConversationId, AIAgentAttachment, AIAgentContext, AIAgentExchangeId,
+            AIAgentInput, UserQueryMode,
         },
         llms::LLMId,
     },
-    terminal::model::block::{BlockId, SerializedBlock},
+    terminal::model::block::SerializedBlock,
 };
 
 use super::AIQueryHistoryOutputStatus;
@@ -100,240 +97,6 @@ impl TryFrom<PersistedAIInputType> for AIAgentInput {
                 user_query_mode: UserQueryMode::default(),
                 running_command: None,
             }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) enum PersistedPtyWriteMode {
-    Raw,
-    Line,
-    Block,
-}
-
-impl From<PersistedPtyWriteMode> for AIAgentPtyWriteMode {
-    fn from(value: PersistedPtyWriteMode) -> Self {
-        match value {
-            PersistedPtyWriteMode::Raw => Self::Raw,
-            PersistedPtyWriteMode::Block => Self::Block,
-            PersistedPtyWriteMode::Line => Self::Line,
-        }
-    }
-}
-
-impl From<AIAgentPtyWriteMode> for PersistedPtyWriteMode {
-    fn from(value: AIAgentPtyWriteMode) -> Self {
-        match value {
-            AIAgentPtyWriteMode::Raw => Self::Raw,
-            AIAgentPtyWriteMode::Block => Self::Block,
-            AIAgentPtyWriteMode::Line => Self::Line,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum PersistedAIAgentActionType {
-    RequestCommandOutput {
-        command: String,
-    },
-    WriteToLongRunningShellCommand {
-        block_id: BlockId,
-        input: bytes::Bytes,
-        mode: PersistedPtyWriteMode,
-    },
-    RequestFileEdits {
-        file_names: Vec<String>,
-    },
-    GetFiles {
-        file_names: Vec<String>,
-    },
-    GetRelevantFiles {
-        query: String,
-        partial_paths: Option<Vec<String>>,
-        codebase_path: Option<String>,
-    },
-    Grep {
-        queries: Vec<String>,
-        path: String,
-    },
-    FileGlobV2 {
-        patterns: Vec<String>,
-        search_dir: Option<String>,
-    },
-    OpenCodeReview,
-    InitProject,
-    UseComputer {
-        action_summary: String,
-        actions: Vec<computer_use::Action>,
-        screenshot_params: Option<computer_use::ScreenshotParams>,
-    },
-    RequestComputerUse {
-        task_summary: String,
-        screenshot_params: Option<computer_use::ScreenshotParams>,
-    },
-    AskUserQuestion {
-        questions: Vec<AskUserQuestionItem>,
-    },
-
-    /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
-    NotPersisted,
-}
-
-impl From<&AIAgentActionType> for PersistedAIAgentActionType {
-    fn from(value: &AIAgentActionType) -> Self {
-        match value {
-            AIAgentActionType::RequestCommandOutput { command, .. } => Self::RequestCommandOutput {
-                command: command.clone(),
-            },
-            AIAgentActionType::WriteToLongRunningShellCommand {
-                block_id,
-                input,
-                mode,
-            } => Self::WriteToLongRunningShellCommand {
-                block_id: block_id.clone(),
-                input: input.clone(),
-                mode: (*mode).into(),
-            },
-            AIAgentActionType::RequestFileEdits { file_edits, .. } => Self::RequestFileEdits {
-                file_names: file_edits
-                    .iter()
-                    .filter_map(|diff| diff.file())
-                    .map(ToOwned::to_owned)
-                    .collect(),
-            },
-            AIAgentActionType::ReadFiles(ReadFilesRequest { locations: files }) => Self::GetFiles {
-                file_names: files.iter().map(|f| f.name.clone()).collect(),
-            },
-            AIAgentActionType::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            }) => Self::GetRelevantFiles {
-                query: query.clone(),
-                partial_paths: partial_paths.clone(),
-                codebase_path: codebase_path.clone(),
-            },
-            AIAgentActionType::Grep { queries, path } => Self::Grep {
-                queries: queries.clone(),
-                path: path.clone(),
-            },
-            AIAgentActionType::FileGlobV2 {
-                patterns,
-                search_dir,
-            } => Self::FileGlobV2 {
-                patterns: patterns.clone(),
-                search_dir: search_dir.clone(),
-            },
-            AIAgentActionType::OpenCodeReview => Self::OpenCodeReview,
-            AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
-            AIAgentActionType::InitProject => Self::InitProject,
-            AIAgentActionType::ReadDocuments(_)
-            | AIAgentActionType::EditDocuments(_)
-            | AIAgentActionType::CreateDocuments(_)
-            | AIAgentActionType::ReadShellCommandOutput { .. }
-            | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
-            AIAgentActionType::UseComputer(req) => Self::UseComputer {
-                action_summary: req.action_summary.clone(),
-                actions: req.actions.clone(),
-                screenshot_params: req.screenshot_params,
-            },
-            AIAgentActionType::RequestComputerUse(req) => Self::RequestComputerUse {
-                task_summary: req.task_summary.clone(),
-                screenshot_params: req.screenshot_params,
-            },
-            AIAgentActionType::AskUserQuestion { questions } => Self::AskUserQuestion {
-                questions: questions.clone(),
-            },
-        }
-    }
-}
-
-impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
-    type Error = anyhow::Error;
-
-    fn try_from(value: PersistedAIAgentActionType) -> Result<Self, Self::Error> {
-        match value {
-            PersistedAIAgentActionType::RequestCommandOutput { command, .. } => {
-                Ok(Self::RequestCommandOutput {
-                    command,
-                    rationale: None,
-                    is_read_only: None,
-                    is_risky: None,
-                    uses_pager: None,
-                    // TODO(zachbai): Support restoring this value from persisted type.
-                    wait_until_completion: false,
-                    citations: vec![],
-                })
-            }
-            PersistedAIAgentActionType::WriteToLongRunningShellCommand {
-                block_id,
-                input,
-                mode,
-            } => Ok(Self::WriteToLongRunningShellCommand {
-                block_id: block_id.clone(),
-                input: input.clone(),
-                mode: mode.into(),
-            }),
-            PersistedAIAgentActionType::GetRelevantFiles {
-                query,
-                partial_paths,
-                codebase_path,
-            } => Ok(Self::SearchCodebase(SearchCodebaseRequest {
-                query,
-                partial_paths,
-                codebase_path,
-            })),
-            PersistedAIAgentActionType::RequestFileEdits { .. } => {
-                // TODO(CODE-301): Implement proper restoration for suggested diffs.
-                //
-                // The current "implementation" is incomplete and does not actually persist any
-                // diff content. For now, we just ignore the suggested diff actions altogether,
-                // instead of restoring diffs with no content.
-                Err(anyhow!("Restoration for RequestFileEdits is unsupported. "))
-            }
-            PersistedAIAgentActionType::GetFiles { file_names } => {
-                Ok(Self::ReadFiles(ReadFilesRequest {
-                    locations: file_names
-                        .into_iter()
-                        .map(|name| FileLocations {
-                            name,
-                            lines: Vec::new(),
-                        })
-                        .collect(),
-                }))
-            }
-            PersistedAIAgentActionType::Grep { queries, path } => Ok(Self::Grep { queries, path }),
-            PersistedAIAgentActionType::FileGlobV2 {
-                patterns,
-                search_dir,
-            } => Ok(Self::FileGlobV2 {
-                patterns,
-                search_dir,
-            }),
-            PersistedAIAgentActionType::OpenCodeReview => Ok(Self::OpenCodeReview),
-            PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
-            PersistedAIAgentActionType::UseComputer {
-                action_summary,
-                actions,
-                screenshot_params,
-            } => Ok(Self::UseComputer(UseComputerRequest {
-                action_summary,
-                actions,
-                screenshot_params,
-            })),
-            PersistedAIAgentActionType::RequestComputerUse {
-                task_summary,
-                screenshot_params,
-            } => Ok(Self::RequestComputerUse(RequestComputerUseRequest {
-                task_summary,
-                screenshot_params,
-            })),
-            PersistedAIAgentActionType::AskUserQuestion { questions } => {
-                Ok(Self::AskUserQuestion { questions })
-            }
-            PersistedAIAgentActionType::NotPersisted => Err(anyhow!(
-                "Restoration is handled through conversation tasks, not persisted blocks."
-            )),
         }
     }
 }
