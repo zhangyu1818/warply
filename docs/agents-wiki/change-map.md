@@ -219,6 +219,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `SelectionAsContext` rollout flag and `selection_as_context` Cargo feature. Code editor and code review selection-to-context affordances are retained local ACP context attachment behavior and remain controlled by current AI enablement, not by an old rollout gate.
 - Removed the unused `CodeContextDestination` metadata enum and no-op destination calculation from selection-as-context routing. Selection-as-context behavior remains retained; do not restore inert destination/source enums without a local consumer.
 - Removed the unused `PtySpawnMode` metadata enum and no-op PTY spawn mode assignment. The retained terminal-server/direct PTY spawn behavior remains unchanged; do not restore inert spawn-mode analytics metadata.
+- Removed the unused `AddTabWithShellSource` metadata enum and `AddTabWithShell.source` field. Shell-specific tab creation remains retained terminal behavior; do not restore source fields that are not consumed locally.
 
 ## 2026-05 Local Object Cloud Gate Cleanup
 

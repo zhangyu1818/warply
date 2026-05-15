@@ -29,12 +29,6 @@ pub enum LaunchConfigUiLocation {
     Uri,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-pub enum AddTabWithShellSource {
-    CommandPalette,
-    ShellSelectorMenu,
-}
-
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum ImageProtocol {
     Kitty,

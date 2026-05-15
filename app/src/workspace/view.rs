@@ -181,7 +181,7 @@ use crate::terminal::shell::ShellType;
 #[cfg(feature = "local_tty")]
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
 use crate::terminal::{self, SizeInfo, TerminalView};
-use crate::ui_events::{AddTabWithShellSource, LaunchConfigUiLocation};
+use crate::ui_events::LaunchConfigUiLocation;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use ::settings::{Setting, ToggleableSetting};
 use warp_core::{features::FeatureFlag, SessionId};
@@ -7123,12 +7123,7 @@ impl Workspace {
     }
 
     // Adds a tab with a specific shell, only meant to be dispatched directly by actions.
-    fn add_tab_with_shell(
-        &mut self,
-        shell: AvailableShell,
-        _source: AddTabWithShellSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn add_tab_with_shell(&mut self, shell: AvailableShell, ctx: &mut ViewContext<Self>) {
         self.add_new_session_tab_with_default_mode(
             NewSessionSource::Tab,
             Some(ctx.window_id()),
@@ -13354,9 +13349,7 @@ impl TypedActionView for Workspace {
                 );
                 ctx.notify();
             }
-            AddTabWithShell { shell, source } => {
-                self.add_tab_with_shell(shell.clone(), *source, ctx)
-            }
+            AddTabWithShell { shell } => self.add_tab_with_shell(shell.clone(), ctx),
             AddAgentTab => self.add_terminal_tab_with_new_agent_view(
                 AgentViewEntryOrigin::Keybinding,
                 None,
