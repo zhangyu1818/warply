@@ -12,7 +12,7 @@ CREATE TABLE object_metadata_new (
     revision_ts INTEGER,
     server_id TEXT,
     client_id TEXT,
-    shareable_object_id INTEGER NOT NULL,
+    local_object_id INTEGER NOT NULL,
     last_edited_by TEXT,
     author_id INTEGER,
     retry_count INTEGER NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE object_metadata_new (
 
 -- migrate data from old table to new table
 INSERT INTO object_metadata_new
-SELECT id, is_pending, object_type, revision_ts, server_id, client_id, shareable_object_id, last_edited_by, author_id, retry_count, metadata_last_updated_ts, trashed_ts, folder_id
+SELECT id, is_pending, object_type, revision_ts, server_id, client_id, local_object_id, last_edited_by, author_id, retry_count, metadata_last_updated_ts, trashed_ts, folder_id
 FROM object_metadata;
 
 -- drop old table

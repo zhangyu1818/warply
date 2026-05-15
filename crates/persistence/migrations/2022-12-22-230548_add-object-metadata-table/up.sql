@@ -5,7 +5,7 @@ CREATE TABLE object_metadata (
     revision_ts INTEGER,
     server_id TEXT,
     client_id TEXT,
-    shareable_object_id INTEGER NOT NULL,
+    local_object_id INTEGER NOT NULL,
     last_edited_by TEXT,
     author_id INTEGER,
     retry_count INTEGER NOT NULL

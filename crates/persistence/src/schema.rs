@@ -177,7 +177,7 @@ diesel::table! {
         revision_ts -> Nullable<BigInt>,
         server_id -> Nullable<Text>,
         client_id -> Nullable<Text>,
-        shareable_object_id -> Integer,
+        local_object_id -> Integer,
         retry_count -> Integer,
         metadata_last_updated_ts -> Nullable<BigInt>,
         trashed_ts -> Nullable<BigInt>,

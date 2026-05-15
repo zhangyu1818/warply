@@ -133,7 +133,7 @@ pub struct PersistedData {
     /// Session restoration data
     pub app_state: AppState,
 
-    /// Shareable objects.
+    /// Local persisted objects.
     pub cloud_objects: Vec<Box<dyn CloudObject>>,
     pub command_history: Vec<PersistedCommand>,
     pub object_actions: Vec<ObjectAction>,

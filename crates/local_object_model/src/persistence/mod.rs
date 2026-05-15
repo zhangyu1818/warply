@@ -67,7 +67,7 @@ pub fn upsert_cloud_object(
     match metadata {
         Some(metadata) => {
             // The object already exists in sqlite so update the object.
-            update_object_fn(conn, metadata.shareable_object_id)?;
+            update_object_fn(conn, metadata.local_object_id)?;
 
             let metadata_last_updated_at = cloud_object_metadata
                 .metadata_last_updated_ts
@@ -115,7 +115,7 @@ pub fn upsert_cloud_object(
             let mut new_object_metadata = NewObjectMetadata {
                 object_type: cloud_object_type.sqlite_object_type_as_str().to_string(),
                 revision_ts: revision,
-                shareable_object_id: object_id,
+                local_object_id: object_id,
                 is_pending: has_pending_content_changes,
                 retry_count: 0,
 

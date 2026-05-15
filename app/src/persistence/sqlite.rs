@@ -1242,7 +1242,7 @@ fn delete_cloud_object(
         .or_filter(server_id.eq(Some(hashed_sync_id.as_str())));
 
     let metadata: ObjectMetadata = metadata_filter.first(conn)?;
-    let object_id = metadata.shareable_object_id;
+    let object_id = metadata.local_object_id;
     diesel::delete(object_metadata.filter(id.eq(metadata.id))).execute(conn)?;
     diesel::delete(
         schema::object_permissions::dsl::object_permissions
@@ -1813,10 +1813,10 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
             } else {
                 metadata.object_type.to_owned()
             };
-            // Shareable object ids aren't unique across object types, so the object type needs to be
-            // part of the hashmap key.  For generic objects, they are all in the same table,
-            // so it's safe to use the generic prefix as part of the key.
-            ((metadata.shareable_object_id, object_type), metadata)
+            // Local object row ids are only unique within their content table, so the object type
+            // needs to be part of the hashmap key. For generic objects, they are all in the same
+            // table, so it's safe to use the generic prefix as part of the key.
+            ((metadata.local_object_id, object_type), metadata)
         })
         .collect::<HashMap<_, _>>();
     let permissions_by_id = object_permissions
