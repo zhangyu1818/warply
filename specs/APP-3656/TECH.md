@@ -14,7 +14,7 @@ The vertical tabs panel currently renders every pane as a multi-line card (2–4
 - `warp_core/src/ui/icons.rs` — `Icon` enum and SVG path mappings
 - `app/src/ai/conversation_status_ui.rs` — `render_status_element` for agent status badges
 - `app/src/terminal/view/tab_metadata.rs` — `terminal_title_from_shell()`, `display_working_directory()`, `selected_conversation_display_title()`
-- `app/src/terminal/view/pane_impl.rs (926-973)` — `is_ambient_agent_session()`, `selected_conversation_status()`, `selected_conversation_display_title()`
+- `app/src/terminal/view/pane_impl.rs` — selected conversation status/title metadata used by vertical tabs
 
 ## Current state
 
@@ -47,7 +47,7 @@ pub enum VerticalTabsViewMode {
 }
 ```
 
-Register with `implement_setting_for_enum!` using `SyncToCloud::Globally(RespectUserSyncSetting::Yes)` and hierarchy `"appearance.tabs"`. Add `vertical_tabs_view_mode: VerticalTabsViewMode` to the `define_settings_group!` block.
+Register with `implement_setting_for_enum!` using the local settings TOML path under `appearance.vertical_tabs`. Add `vertical_tabs_view_mode: VerticalTabsViewMode` to the `define_settings_group!` block.
 
 ### 2. Add icon variants
 
@@ -195,16 +195,13 @@ let (icon, title) = if let Some(view_handle) = terminal_view_handle.as_ref() {
     let tv: &TerminalView = view_handle.as_ref(app);
     let conversation_title = tv.selected_conversation_display_title(app);
     let conversation_status = tv.selected_conversation_status(app);
-    let is_ambient = tv.is_ambient_agent_session(app);
 
     if let Some(conv_title) = conversation_title {
-        // Agent session: status icon + conversation title
+        // ACP AgentView or CLI agent session: status icon + conversation title
         let icon_element = if let Some(status) = conversation_status {
             render_status_element(&status, 12., appearance)
-        } else if is_ambient {
-            WarpIcon::OzCloud icon element
         } else {
-            WarpIcon::Oz icon element
+            WarpIcon::Terminal icon element
         };
         (icon_element, conv_title)
     } else {

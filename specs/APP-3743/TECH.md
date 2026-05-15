@@ -2,7 +2,7 @@
 
 ## Problem
 
-The horizontal tab bar's chevron menu and the vertical tab bar's `+` menu showed different items. This change unifies them into a single menu with a "Worktree in" submenu-parent item that shows a sidecar panel on hover, following the proven model picker pattern. The worktree sidecar now includes a scrollable search row at the top of its content, live repo filtering, and a pinned footer for "Add new repo". On Windows, Terminal also gets a sidecar for shell selection; on other platforms it's a regular menu item. Clicking a repo in the "Worktree in" sidecar creates a worktree immediately via a default tab config.
+The horizontal tab bar's chevron menu and the vertical tab bar's `+` menu showed different items. This change unifies them into a single menu with a "Worktree in" submenu-parent item that shows a sidecar panel on hover, following the proven model picker pattern. The worktree sidecar now includes a scrollable search row at the top of its content, live repo filtering, and a pinned footer for "Add new repo". Terminal remains a regular macOS menu item. Clicking a repo in the "Worktree in" sidecar creates a worktree immediately via a default tab config.
 
 ## Relevant Code
 
@@ -15,7 +15,7 @@ The horizontal tab bar's chevron menu and the vertical tab bar's `+` menu showed
 
 ## Current State
 
-Before this change, the horizontal tab bar chevron and vertical tab bar `+` button generated different menu items via separate functions (`new_session_menu_items()` and `vertical_tabs_new_session_menu_items()`). There was no submenu/sidecar support for grouping shells under "Terminal" or repos under "Worktree in".
+Before this change, the horizontal tab bar chevron and vertical tab bar `+` button generated different menu items via separate functions (`new_session_menu_items()` and `vertical_tabs_new_session_menu_items()`). There was no retained sidecar support for repos under "Worktree in".
 
 The `Menu` component had a `MenuItem::Submenu` variant (added in PR #13305 by Andrew Sweet, Jan 2025) marked `#[deprecated("Submenus are not ready for use yet")]`. A SafeZone attempt was made and reverted (PRs #15171 / #15422, May 2025). The safe triangle infrastructure was later added (PR #22158, Feb 2026) but only wired up for the model picker's external sidecar approach, never for built-in `MenuItem::Submenu`.
 
@@ -37,9 +37,9 @@ We initially attempted to use the built-in `MenuItem::Submenu` variant. After ex
 
 ### 1. Unified menu items (`unified_new_session_menu_items`)
 
-Replaced both `new_session_menu_items()` and `vertical_tabs_new_session_menu_items()` with a single function. Menu order: Agent → Terminal → Cloud Oz → Worktree in (submenu parent) → [user tab configs] → separator → New Tab Config.
+Replaced both `new_session_menu_items()` and `vertical_tabs_new_session_menu_items()` with a single function. Menu order: Agent → Terminal → Worktree in (submenu parent) → [user tab configs] → separator → New Tab Config.
 
-On macOS/Linux, Terminal is a regular `MenuItemFields::new("Terminal")` with `AddTerminalTab` as its action and the ⌘T shortcut. On Windows (`#[cfg(target_os = "windows")]`), Terminal itself is a submenu parent using `MenuItemFields::new_submenu()` — this shows a sidecar with a "Default Terminal" row plus available shells on hover.
+Terminal is a regular macOS `MenuItemFields::new("Terminal")` with `AddTerminalTab` as its action and the ⌘T shortcut. Do not restore the local Windows/Linux shell-selector sidecar in this fork.
 
 "Worktree in" uses `MenuItemFields::new_submenu()` which sets `has_submenu = true` → renders a chevron `>` indicator. It has no `on_select_action` since it's activated by hover, not click.
 
@@ -57,18 +57,17 @@ The main `new_session_dropdown_menu` is created with `.with_safe_triangle().with
 
 In `handle_new_session_menu_event`, on `MenuEvent::ItemHovered` or `MenuEvent::ItemSelected`:
 1. Read `menu.hovered_index()` (not `selected_index()` — see bug fix below) and the hovered item's label.
-2. If label is "Terminal" (Windows only, `#[cfg(target_os = "windows")]`): populate sidecar with available shells.
-3. If label is "Worktree in": populate sidecar with a custom search row, filtered repos from `PersistedWorkspace`, and a pinned "Add new repo" footer.
-4. If label is None (separator): hide sidecar.
-5. Otherwise: hide sidecar, clear safe zone and `submenu_being_shown_for_item_index`.
-6. If hovered is None (mouse left menu, possibly onto sidecar): keep current state.
-7. Read the sidecar panel's rect from the previous frame via `element_position_by_id_at_last_frame(window_id, "new_session_sidecar")`.
-8. Set `main_menu.set_safe_zone_target(sidecar_rect)` and `main_menu.set_submenu_being_shown_for_item_index(Some(hovered_index))`.
+2. If label is "Worktree in": populate sidecar with a custom search row, filtered repos from `PersistedWorkspace`, and a pinned "Add new repo" footer.
+3. If label is None (separator): hide sidecar.
+4. Otherwise: hide sidecar, clear safe zone and `submenu_being_shown_for_item_index`.
+5. If hovered is None (mouse left menu, possibly onto sidecar): keep current state.
+6. Read the sidecar panel's rect from the previous frame via `element_position_by_id_at_last_frame(window_id, "new_session_sidecar")`.
+7. Set `main_menu.set_safe_zone_target(sidecar_rect)` and `main_menu.set_submenu_being_shown_for_item_index(Some(hovered_index))`.
 ### 5. Worktree search row and filtering
 
 The worktree sidecar owns three new pieces of state on `Workspace`:
 
-- `new_session_sidecar_kind` — tracks whether the current sidecar is Terminal or Worktree
+- `new_session_sidecar_kind` — tracks whether the current sidecar is Worktree
 - `worktree_sidecar_search_editor` — a dedicated `EditorView`
 - `worktree_sidecar_search_query` — the current filter text
 
@@ -117,7 +116,7 @@ On `MenuEvent::Close { via_select_item: false }`: dismissed without selecting �
 
 The worktree template parameterizes the pane type via `{{pane_type}}` (instead of hardcoding `type = "terminal"`). The `open_worktree_in_repo` handler reads the user's `DefaultSessionMode` setting and sets `pane_type` to `"agent"` when AI is enabled and the default is Agent, or `"terminal"` otherwise. This means worktree sessions respect the user's preference — if they prefer Agent mode, the worktree opens in Agent mode.
 
-**Important**: Template variables (`{{repo}}`, `{{branch_name}}`, `{{pane_type}}`) are substituted in the raw TOML string BEFORE parsing into `TabConfig`, because the TOML deserializer validates enum fields like `type` against known variants (`terminal`, `agent`, `cloud`) and would reject `{{pane_type}}` as invalid.
+**Important**: Template variables (`{{repo}}`, `{{branch_name}}`, `{{pane_type}}`) are substituted in the raw TOML string BEFORE parsing into `TabConfig`, because the TOML deserializer validates enum fields like `type` against known retained variants (`terminal`, `agent`) and would reject `{{pane_type}}` as invalid.
 
 Params substituted: `repo` (selected path), `branch_name` (auto-generated via `generate_worktree_branch_name()`), `pane_type` (from default session mode). On macOS, the data directory is channel-specific (`~/.warp-local/` for Local, `~/.warp/` for Stable).
 
@@ -144,13 +143,13 @@ Params substituted: `repo` (selected path), `branch_name` (auto-generated via `g
 ## Risks and Mitigations
 
 - **Safe zone first-frame delay**: On the first hover that opens a sidecar, the sidecar rect from the previous frame is `None` (panel wasn't rendered yet). The safe zone is set to `None`, meaning the first frame has no safe triangle protection. On the next frame, the rect is available. Mitigation: the delay is one frame (~16ms), imperceptible in practice.
-- **Label-based item identification**: The hover handler identifies submenu parents by comparing the hovered item's label string ("Terminal", "Worktree in"). If labels change, the sidecar won't show. Mitigation: these are hardcoded UI strings unlikely to change without updating the handler.
+- **Label-based item identification**: The hover handler identifies submenu parents by comparing the hovered item's label string ("Worktree in"). If labels change, the sidecar won't show. Mitigation: these are hardcoded UI strings unlikely to change without updating the handler.
 - **Sidecar dismiss**: Clicking outside both menus triggers the main menu's `Dismiss` handler, which closes everything. The sidecar's own `Dismiss` is not active since it's not wrapped in one — it's a positioned overlay within the main menu's dismiss scope.
 
 ## Testing and Validation
 
 - Build check: `cargo check -p warp` passes with no errors.
-- Manual testing: Open both horizontal and vertical tab menus → verify identical items. On macOS/Linux: click Terminal → verify terminal tab opens. On Windows: hover Terminal submenu parent → verify sidecar shows the default terminal row plus shells.
+- Manual testing: Open both horizontal and vertical tab menus → verify identical items. Click Terminal → verify a macOS terminal tab opens directly with no shell-selector sidecar.
 - Hover Worktree in → verify the sidecar shows the search row, repo items, and pinned footer.
 - Type into "Search repos" → verify repo rows filter live and the footer remains pinned.
 - Move mouse diagonally to sidecar → verify safe triangle prevents premature closing.
@@ -159,7 +158,6 @@ Params substituted: `repo` (selected path), `branch_name` (auto-generated via `g
 
 ## Follow-ups
 
-- **New Tab Config skill invocation**: V0 opens the TOML template. Follow-up: auto-invoke the `tab-configs` skill via Oz agent.
+- **New Tab Config flow**: V0 opens the TOML template. Do not add app-bundled skill invocation; AI-assisted editing should go through ACP-managed flows if it is added later.
 - **`MenuItem::Submenu` cleanup**: The built-in submenu variant remains in the codebase (deprecated). Consider removing it or completing the safe-triangle wiring if a future use case requires inline submenus.
 - **Sidecar left-fade for long paths**: `ClipConfig::start()` exists in the text layout system but right-aligns the text. A proper left-aligned + left-fade clip mode would need UI framework work.
-- **macOS/Linux shell selector**: Currently only Windows shows the Terminal sidecar with shell choices. If shell selection is desired on other platforms, this can be re-enabled by removing the `#[cfg(target_os = "windows")]` gate.

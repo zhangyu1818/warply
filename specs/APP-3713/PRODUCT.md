@@ -12,7 +12,7 @@ The vertical tabs settings popup currently contains a "Group panes by" section w
 
 - Let users choose whether terminal pane rows prioritize the terminal command / agent conversation title or the working directory / git branch as the primary line.
 - Remove the non-functional "Group panes by" section from the settings popup.
-- Persist the preference across sessions as a synced cloud setting.
+- Persist the preference across sessions through local settings.
 - Apply the preference to both expanded and compact view modes.
 
 ## Non-goals
@@ -34,7 +34,7 @@ A new user setting (`VerticalTabsPrimaryInfo`) controls which content appears on
 - **`Command`** (default): Terminal command / agent conversation title is the primary line. Working directory / git branch is the secondary line. This matches the current behavior.
 - **`WorkingDirectory`**: Working directory / git branch is the primary line. Terminal command / agent conversation title is the secondary line.
 
-The setting is a synced cloud setting (same sync behavior as `VerticalTabsViewMode`).
+The setting is persisted locally through the same settings file path family as `VerticalTabsViewMode`.
 
 ### Settings popup layout
 
@@ -105,12 +105,11 @@ No change. The compact row shows the terminal icon + terminal title (or agent st
 
 The compact row shows:
 - **Non-agent terminal**: Terminal icon + working directory (instead of terminal title). The working directory clips from the start.
-- **Agent terminal (Oz or CLI agent)**: Conversation status icon + working directory (instead of conversation title). The working directory clips from the start.
-- **Ambient agent**: `OzCloud` icon + working directory.
+- **Agent terminal (ACP AgentView or CLI agent)**: Conversation status icon + working directory (instead of conversation title). The working directory clips from the start.
 
 #### Icon behavior (both modes)
 
-The kind icon at the start of the compact row is always determined by the pane type and agent state, not by the primary info setting. A non-agent terminal always shows the terminal icon; an agent terminal always shows the conversation status icon; an ambient agent always shows the `OzCloud` icon. Only the *text* portion of the row changes when the setting is toggled.
+The kind icon at the start of the compact row is always determined by the pane type and agent state, not by the primary info setting. A non-agent terminal always shows the terminal icon; an ACP AgentView or CLI agent terminal shows the conversation status icon. Only the *text* portion of the row changes when the setting is toggled.
 
 ### Non-terminal panes
 

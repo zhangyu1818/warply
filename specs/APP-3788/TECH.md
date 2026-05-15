@@ -12,7 +12,6 @@ The tech design ("Remote code model sync") proposes a generic wrapper `RepoMetad
 ### Consumers in `app/`
 * **`FileTreeView`** (`code/file_tree/view.rs`) — stores a `ModelHandle<RepositoryMetadataModel>`, subscribes to events, calls `get_repository`, `repository_state`, `is_lazy_loaded_path`, `load_directory`, `index_lazy_loaded_path`, `remove_lazy_loaded_path`.
 * **`FileSearchModel`** (`search/files/model.rs`) — subscribes to `RepositoryMetadataEvent`, calls `has_repository`, `get_repo_contents`.
-* **`SkillWatcher`** (`ai/skills/file_watchers/skill_watcher.rs`) — subscribes to `RepositoryMetadataEvent`, calls `RepositoryMetadataModel::as_ref(ctx)` for tree queries.
 ## Proposed Changes
 ### 1. New types
 #### `RepositoryIdentifier`
@@ -144,7 +143,6 @@ The migration can be done incrementally. The key invariant is that **existing lo
 Consumers construct `RepositoryIdentifier::Local(...)` for their path-based lookups and call all operations through the wrapper's public API. No sub-model handles are accessed directly.
 * **`FileTreeView`** — change `ModelHandle<RepositoryMetadataModel>` → `ModelHandle<RepoMetadataModel>`. Subscribe to `RepoMetadataEvent`. For queries, construct `RepositoryIdentifier::Local(canonicalized_path)` and call `wrapper.get_repository(id, ctx)`, `wrapper.has_repository(id, ctx)`, etc. For local-only operations, call `wrapper.index_lazy_loaded_path(path, ctx)`, `wrapper.load_directory(root, dir, ctx)`, etc. directly on the wrapper.
 * **`FileSearchModel`** — change `RepositoryMetadataModel::as_ref(app)` → `RepoMetadataModel::as_ref(app)`. Construct `RepositoryIdentifier::Local(...)` for query calls. Event subscription migrates to `RepoMetadataEvent`.
-* **`SkillWatcher`** — change `RepositoryMetadataModel::as_ref(ctx)` → `RepoMetadataModel::as_ref(ctx)`. Construct `RepositoryIdentifier::Local(...)` for tree queries. Event subscription migrates.
 This phase is purely mechanical and doesn't change behavior — all identifiers are `RepositoryIdentifier::Local(...)` during this phase. A convenience constructor like `RepositoryIdentifier::local(path: impl TryInto<CanonicalizedPath>)` reduces boilerplate at call sites.
 #### Phase 3: Wire remote file tree (future, out of scope)
 Connect the remote sync layer to `RemoteRepoMetadataModel::insert_repository`. Update `FileTreeView` to display remote repositories using `RepositoryIdentifier::Remote(...)`. This phase requires the remote client model and protobuf sync layer described in the parent tech design.

@@ -4,17 +4,17 @@ Linear: [APP-3743](https://linear.app/warpdotdev/issue/APP-3743/new-worktree-ui)
 
 ## Summary
 
-Unify the horizontal tab bar's chevron menu and the vertical tab bar's `+` icon menu into a single menu structure. Add a "Worktree in" item with a repo sidecar for one-click worktree creation, including a scrollable search row at the top of the sidecar content and a pinned "Add new repo" footer. On Windows, Terminal gets a sidecar for shell selection; on other platforms Terminal is a simple menu item. The "New Tab Config" item opens the starter TOML template directly as the V0 experience.
+Unify the horizontal tab bar's chevron menu and the vertical tab bar's `+` icon menu into a single menu structure. Add a "Worktree in" item with a repo sidecar for one-click worktree creation, including a scrollable search row at the top of the sidecar content and a pinned "Add new repo" footer. Terminal is a simple macOS menu item. The "New Tab Config" item opens the starter TOML template directly as the V0 experience.
 
 ## Problem
 
-The horizontal and vertical tab menus are diverging — they show different items, in different orders, with different labels. This is confusing for users who switch between layouts. Additionally, creating a worktree requires opening a modal and filling in multiple fields (repo, branch, checkbox). Power users want a faster flow: pick a repo, get a worktree immediately. Finally, creating a new tab config requires hand-editing TOML — we can instead invoke the `tab-configs` skill to guide the user interactively.
+The horizontal and vertical tab menus are diverging — they show different items, in different orders, with different labels. This is confusing for users who switch between layouts. Additionally, creating a worktree requires opening a modal and filling in multiple fields (repo, branch, checkbox). Power users want a faster flow: pick a repo, get a worktree immediately. Finally, creating a new tab config requires hand-editing TOML, so the menu should create and open a starter template directly.
 
 ## Goals
 
 - Unify the horizontal chevron and vertical `+` menus into a single item list.
 - Add a "Worktree in" item with a searchable repo sidecar for instant worktree creation.
-- On Windows, add a Terminal sidecar for shell selection. On macOS/Linux, Terminal is a regular item with the ⌘T shortcut.
+- Keep Terminal as a regular macOS item with the ⌘T shortcut.
 - Introduce a default worktree tab config at `~/.warp/default-tab-configs/` that is parameterized by repo and auto-generates the branch name.
 - Add a "New Tab Config" menu item that opens the starter TOML template as the V0 experience.
 
@@ -23,12 +23,11 @@ The horizontal and vertical tab menus are diverging — they show different item
 - Removing the existing New Worktree modal entirely (it may remain accessible via other paths).
 - Changing the right-click tab context menu.
 - Pixel-perfect submenu styling (the `Menu` component has hardcoded constants; see Known Limitations from APP-3578).
-- Implementing nested submenus beyond one level (Terminal submenu and Worktree in submenu are both one level deep from the top menu).
+- Implementing nested submenus beyond one level (Worktree in is the only retained submenu-style sidecar in this fork).
 
 ## Figma
 
 - Main menu item (Agent): https://www.figma.com/design/CsBdBW4YoLgSAbr5eSkwV6/House-of-Agents?node-id=7447-81155&m=dev
-- Terminal submenu item (Default): https://www.figma.com/design/CsBdBW4YoLgSAbr5eSkwV6/House-of-Agents?node-id=7447-82318&m=dev
 - Worktree in repo submenu (Search repos): https://www.figma.com/design/CsBdBW4YoLgSAbr5eSkwV6/House-of-Agents?node-id=7447-83458&m=dev
 
 ## User Experience
@@ -40,26 +39,23 @@ The horizontal tab bar's chevron dropdown and the vertical tab bar's `+` button 
 ### Top-level menu items (in order)
 
 1. **Agent** — Opens an agent tab. Shows ⌘T keybinding when default session mode is Agent. Icon: `LayoutAlt01`. Hidden if AI is disabled.
-3. **Terminal** — On macOS/Linux, opens a terminal tab directly and shows ⌘T when the default session mode is Terminal. Icon: `LayoutAlt01`. On Windows, this is a submenu parent that shows a sidecar with available shells on hover.
-3. **Cloud Oz** — Opens a cloud agent tab. Icon: `LayoutAlt01`. Hidden unless `AgentView` + `CloudMode` flags are enabled.
-4. **Worktree in** → opens a repo sidecar on hover (see below). Icon: `Dataflow02`.
-5. **[User tab configs]** — One item per loaded tab config from `~/.warp/tab_configs/`. Icon: `LayoutAlt01` for non-worktree configs, `Dataflow02` for worktree configs. (Same detection logic as APP-3578.)
-6. **Separator**.
-7. **New Tab Config** — Auto-runs the `tab-configs` skill. Icon: `Plus`.
+2. **Terminal** — Opens a terminal tab directly and shows ⌘T when the default session mode is Terminal. Icon: `LayoutAlt01`.
+3. **Worktree in** → opens a repo sidecar on hover (see below). Icon: `Dataflow02`.
+4. **[User tab configs]** — One item per loaded tab config from `~/.warp/tab_configs/`. Icon: `LayoutAlt01` for non-worktree configs, `Dataflow02` for worktree configs. (Same detection logic as APP-3578.)
+5. **Separator**.
+6. **New Tab Config** — Creates and opens the starter tab-config TOML template. Icon: `Plus`.
 
 ### Items removed from both menus
 
 - "Restore Closed Tab" (moved to right-click context menu / keybinding only).
 - "Learn about Launch Configs..." link.
-- "New Terminal Tab" as a standalone top-level item (replaced by Terminal submenu → Default).
+- "New Terminal Tab" as a standalone top-level item (replaced by the unified Terminal item).
 - Launch config items ("Launch {name}") — removed from this menu entirely.
 - The split `[+][v]` button in horizontal tabs — replaced by a single button that opens the unified menu.
 
-### Terminal (platform behavior)
+### Terminal
 
-On **macOS and Linux**, Terminal is a regular menu item that opens a terminal tab directly. The ⌘T keyboard shortcut is displayed on the item (when the default session mode is Terminal). No submenu or sidecar is shown.
-
-On **Windows**, Terminal is a submenu parent. Hovering it opens a sidecar with a "Default Terminal" row plus available shells (Cmd, PowerShell, WSL, etc.) from `AvailableShells`. The default entry carries the keyboard shortcut and opens the default shell.
+Terminal is a regular macOS menu item that opens a terminal tab directly. The ⌘T keyboard shortcut is displayed on the item when the default session mode is Terminal. No submenu or shell-selection sidecar is shown in this fork.
 
 ### Worktree in sidecar
 
@@ -116,15 +112,15 @@ Clicking "New Tab Config" in the menu writes the starter tab-config template to 
 1. **No repos in PersistedWorkspace**: The "Worktree in" sidecar still shows the search row and the pinned "Add new repo" footer, with no repo rows in between.
 2. **Default worktree config missing**: If `~/.warp/default-tab-configs/worktree.toml` doesn't exist, it is created from an embedded template on first invocation.
 3. **AI disabled**: The "Agent" item is hidden. "New Tab Config" still appears and opens the TOML template file directly.
-4. **No shells detected (Windows)**: The Terminal sidecar shows a single "Terminal" fallback item.
+4. **Shell selection**: No local Windows/Linux shell selector is exposed in this fork. Terminal opens the default macOS terminal session.
 5. **Worktree creation fails**: If `git worktree add` fails (e.g., branch already exists, not a git repo), the error is shown in the terminal output — same behavior as today when a tab config command fails.
 6. **Sidecar positioning**: Sidecars open to the right of the parent item, anchored to the hovered item's position.
-7. **Feature flags**: Terminal sidecar shells are gated behind `ShellSelector` (Windows only). Cloud Oz is gated behind `AgentView` + `CloudMode`. Tab configs section and Worktree in are gated behind `TabConfigs`.
+7. **Feature flags**: Tab configs section and Worktree in are gated behind `TabConfigs`. Do not restore removed cloud-agent or local Windows/Linux shell-selector branches.
 
 ## Success Criteria
 
 1. The horizontal chevron menu and vertical `+` menu show identical items.
-2. On macOS/Linux, Terminal is a regular item with ⌘T. On Windows, Terminal has a sidecar with a default terminal row plus available shells.
+2. Terminal is a regular macOS item with ⌘T and no local Windows/Linux shell-selector sidecar.
 3. "Worktree in" shows a sidecar with a scrollable "Search repos" row, filtered known repos from `PersistedWorkspace`, and a pinned "Add new repo" footer.
 4. Typing in the sidecar search field filters repo items live.
 5. Clicking a repo in the "Worktree in" sidecar immediately opens a new tab with a worktree, using an auto-generated branch name — no modal.
@@ -135,7 +131,7 @@ Clicking "New Tab Config" in the menu writes the starter tab-config template to 
 ## Validation
 
 - Open both horizontal and vertical tab menus — verify they show the same items.
-- Click "Terminal" — verify a terminal tab opens (macOS/Linux). On Windows, verify sidecar shows the default terminal row plus shells.
+- Click "Terminal" — verify a macOS terminal tab opens directly.
 - Hover "Worktree in" — verify sidecar shows the search row, known repos, and the pinned footer.
 - Type in "Search repos" — verify repo rows filter live and the footer stays pinned.
 - Move mouse diagonally toward sidecar — verify safe triangle prevents premature closing.

@@ -39,7 +39,7 @@ The vertical tabs panel supports two view modes:
 
 ### Setting
 
-A new user setting (`VerticalTabsViewMode`) controls which mode is active. It is a synced setting (cloud-persisted) with two variants: `Compact` and `Expanded`. Default is `Expanded`.
+A new local user setting (`VerticalTabsViewMode`) controls which mode is active. It has two variants: `Compact` and `Expanded`, and persists through the local settings file.
 
 ### Settings icon button
 
@@ -80,19 +80,15 @@ With horizontal padding (12px left and right) and vertical padding (8px top and 
 - Icon: Terminal icon (same as expanded tertiary line).
 - Title: The terminal title from the shell (e.g. the running process name or user-set title). This intentionally differs from the mock, which shows the working directory.
 
-**Terminal pane (agent session)**:
+**Terminal pane (ACP AgentView or CLI agent session)**:
 - Icon: Conversation status icon (the colored status badge — running, stopped, completed, etc.) at 16×16.
 - Title: The conversation display title (e.g. "Refactor the button component to use..."). Truncated with ellipsis if it overflows.
-
-**Terminal pane (ambient agent)**:
-- Icon: `OzCloud` icon.
-- Title: The conversation display title if available, otherwise the terminal title.
 
 **Code pane**:
 - Icon: Code file icon (language-specific if available, falling back to generic code icon).
 - Title: The file name/path as shown in the pane title.
 
-**Other panes** (Notebook, Workflow, Settings, Rules, Plan, MCP Server, etc.):
+**Other panes** (Notebook, Workflow, Settings, Rules, Plan, etc.):
 - Icon: The type-specific icon (same icon used in the expanded view's kind badge).
 - Title: The pane configuration title.
 
@@ -131,7 +127,7 @@ Switching between compact and expanded mode re-renders all pane rows immediately
 
 ## Success criteria
 
-1. A `VerticalTabsViewMode` setting with `Compact` and `Expanded` variants is persisted as a synced cloud setting.
+1. A `VerticalTabsViewMode` setting with `Compact` and `Expanded` variants is persisted locally.
 2. The settings icon button appears in the control bar between the search input and the Configs button.
 3. Clicking the settings icon button opens a popup with a two-segment control (compact/expanded). Clicking a segment switches the mode immediately.
 4. The popup closes on outside click, Escape, or re-clicking the settings button.
@@ -148,7 +144,7 @@ Switching between compact and expanded mode re-renders all pane rows immediately
 
 - **Visual inspection**: Toggle between compact and expanded modes. Verify that compact rows are single-line, icons are correct per pane type, and text truncates with ellipsis.
 - **Terminal title vs pwd**: Open a non-agent terminal, set a custom title or run a process, switch to compact mode, and verify the terminal title (not the pwd) is shown.
-- **Agent panes**: Start an agent conversation, switch to compact mode, verify the status icon and conversation title are shown.
+- **Agent panes**: Start an ACP AgentView or CLI agent conversation, switch to compact mode, verify the status icon and conversation title are shown.
 - **Unsaved code indicator**: Open a code file, make an unsaved edit, switch to compact mode, and verify the filled circle indicator appears.
 - **Tab colors**: Assign a tab color, switch to compact mode, verify the color tint is visible on the compact row.
 - **Settings popup**: Click the settings icon, verify the popup appears anchored below it with the correct segment selected. Click the other segment, verify the mode switches. Click outside, verify the popup closes.

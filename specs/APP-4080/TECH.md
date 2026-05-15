@@ -1,22 +1,18 @@
 # APP-4080: Use Latest User Prompt as Conversation Title in Tab Names
 
 ## Problem
-Vertical tabs currently resolve agent terminal row text in several places, and the Oz and plugin-backed CLI agent paths use different semantics.
-Oz rows call through `TerminalView::selected_conversation_display_title`, which ultimately uses `AIConversation::title()`: generated task description, then an initial prompt-style fallback, then explicit fallback title. Plugin-backed CLI agent rows call `CLIAgentSessionContext::display_title()`, which currently prefers the latest plugin `query` over `summary`. The new setting needs to make this choice consistent:
+Vertical tabs currently resolve agent terminal row text in several places, and the ACP AgentView and plugin-backed CLI agent paths use different semantics.
+ACP AgentView rows call through `TerminalView::selected_conversation_display_title`, which ultimately uses `AIConversation::title()`: generated task description, then an initial prompt-style fallback, then explicit fallback title. Plugin-backed CLI agent rows call `CLIAgentSessionContext::display_title()`, which can prefer the latest plugin `query` over `summary`. The setting keeps this choice consistent:
 - setting off/default: prefer conversation title/title-like metadata
 - setting on: prefer latest user prompt
 
-The technical work is to add the setting, expose it in AI settings, and route all vertical-tabs conversation-text call sites through shared resolution logic so row rendering, compact subtitles, detail sidecar, and search stay in sync.
+The technical work is to keep the setting in local tab settings, expose it in Appearance / vertical tabs settings, and route all vertical-tabs conversation-text call sites through shared resolution logic so row rendering, compact subtitles, detail sidecar, and search stay in sync.
 
 ## Relevant code
 - `specs/APP-4080/PRODUCT.md` — source of truth for desired behavior.
-- `app/src/settings/ai.rs:551` — `AISettings` group where persisted AI settings are declared.
-- `app/src/settings/ai.rs:1246` — existing user-visible AI setting with global sync policy, useful as the sync/default pattern.
-- `app/src/settings_view/ai_page.rs:1368` — AI settings page widget registration order.
-- `app/src/settings_view/ai_page.rs:1870` — `AISettingsPageAction`, where the toggle action should be added.
-- `app/src/settings_view/ai_page.rs:2461` — settings action handling for persisted toggle settings.
-- `app/src/settings_view/ai_page.rs:4910` — `OtherAIWidget`, currently home for conversation/display-adjacent AI settings such as conversation history and thinking display.
-- `app/src/terminal/view/pane_impl.rs:945` — Oz conversation selection/title helpers for user-facing chrome.
+- `app/src/workspace/tab_settings.rs` — local tab settings group where the setting is declared.
+- `app/src/settings_view/appearance_page.rs` — Appearance settings widgets and action handling for vertical tabs settings.
+- `app/src/terminal/view/pane_impl.rs` — ACP AgentView conversation selection/title helpers for user-facing chrome.
 - `app/src/ai/agent/conversation.rs:1053` — `AIConversation::title()`, the generated-title-first path.
 - `app/src/ai/agent/conversation.rs:1121` — `AIConversation::initial_query()` and `initial_user_query()` helpers.
 - `app/src/ai/agent/mod.rs:2478` — `AIAgentInput::user_query()`, the canonical display text for user prompt-like inputs.
@@ -41,45 +37,45 @@ The technical work is to add the setting, expose it in AI settings, and route al
 Each call site:
 1. reads `CLIAgentSessionsModel::session(terminal_view.id())`
 2. suppresses agent metadata for non-plugin-backed CLI sessions
-3. calls `terminal_view.selected_conversation_display_title(app)` for Oz
+3. calls `terminal_view.selected_conversation_display_title(app)` for ACP AgentView
 4. calls `session.session_context.display_title()` for plugin-backed CLI agents
 5. passes both values into `terminal_primary_line_data()`
 
-`terminal_primary_line_data()` then prefers CLI agent text over Oz conversation text, and only falls through to terminal title, last completed command, and `New session` when no agent text is available.
+`terminal_primary_line_data()` then prefers CLI agent text over AgentView conversation text, and only falls through to terminal title, last completed command, and `New session` when no agent text is available.
 
 This works for the current UI but makes APP-4080 easy to implement inconsistently because the new setting would otherwise need to be read at every duplicated extraction site.
 
 ## Proposed changes
 ### Add the setting
-Add a new boolean setting to `AISettings` in `app/src/settings/ai.rs`.
+Add a boolean setting to `TabSettings` in `app/src/workspace/tab_settings.rs`.
 
 Suggested setting:
 - field: `use_latest_user_prompt_as_conversation_title_in_tab_names`
 - generated setting type: `UseLatestUserPromptAsConversationTitleInTabNames`
 - default: `false`
-- supported platforms: `SupportedPlatforms::ALL`
-- sync: `SyncToCloud::Globally(RespectUserSyncSetting::Yes)`
+- supported platforms: current macOS host
+- sync: local settings only
 - private: `false`
-- TOML path: `agents.display.use_latest_user_prompt_as_conversation_title_in_tab_names`
+- TOML path: `appearance.vertical_tabs.use_latest_user_prompt_as_conversation_title_in_tab_names`
 - description: `Whether agent tab names use the latest user prompt instead of the generated conversation title.`
 
-The sync policy should match similar user-visible display/AI behavior preferences. The setting affects the user's preferred navigation chrome rather than machine-local state, so global sync is preferable.
+The setting affects local navigation chrome and should not reintroduce Warp cloud settings sync.
 
 ### Add the settings UI
-Add `UseLatestUserPromptAsConversationTitleInTabNames` to the imports in `app/src/settings_view/ai_page.rs`.
+Add `UseLatestUserPromptAsConversationTitleInTabNames` to the imports in `app/src/settings_view/appearance_page.rs`.
 
 Add an action:
-- `AISettingsPageAction::ToggleUseLatestUserPromptAsConversationTitleInTabNames`
+- `AppearancePageAction::ToggleUseLatestUserPromptAsConversationTitleInTabNames`
 
-Handle the action by toggling `AISettings::use_latest_user_prompt_as_conversation_title_in_tab_names` with `toggle_and_save_value(ctx)` and notifying the view.
+Handle the action by toggling `TabSettings::use_latest_user_prompt_as_conversation_title_in_tab_names` with `toggle_and_save_value(ctx)` and notifying the view.
 
-Render the toggle in `OtherAIWidget`, near `Show conversation history in tools panel` and `Agent thinking display`, because it is a conversation display/navigation preference rather than an input-routing behavior. Suggested label:
+Render the toggle in the Appearance page's vertical tabs settings area because it is a navigation preference rather than an input-routing behavior. Suggested label:
 - `Use latest user prompt as conversation title in tab names`
 
 Suggested description:
-- `Show the latest user prompt instead of the generated conversation title for Oz and third-party agent sessions in vertical tabs.`
+- `Show the latest user prompt instead of the generated conversation title for agent sessions in vertical tabs.`
 
-Because the setting also affects plugin-backed third-party CLI agent sessions, do not make editability depend exclusively on `AISettings::is_any_ai_enabled(app)`. The row can still use standard AI settings styling, but the toggle should remain usable for users who keep Warp AI disabled while using third-party coding agents.
+Because the setting also affects plugin-backed third-party CLI agent sessions, do not make editability depend on Warp-hosted AI settings.
 
 ### Centralize agent tab text resolution
 Introduce a small private resolver in `app/src/workspace/view/vertical_tabs.rs` so every vertical-tabs call site uses the same setting semantics.
@@ -89,7 +85,7 @@ Suggested private types in `vertical_tabs.rs`:
 - `TerminalAgentText` containing:
   - `conversation_display_title: Option<String>`
   - `cli_agent_title: Option<String>`
-  - `is_oz_agent: bool`
+  - `is_agent: bool`
   - `cli_agent: Option<CLIAgent>`
 
 Suggested helpers:
@@ -97,12 +93,12 @@ Suggested helpers:
 - `terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> TerminalAgentText`
 
 `terminal_agent_text()` should own the plugin-backed suppression rule:
-- if a CLI agent session exists and `listener.is_none()`, do not use CLI or Oz conversation metadata for the row; preserve current terminal fallback behavior
-- otherwise resolve Oz and CLI text according to the setting
+- if a CLI agent session exists and `listener.is_none()`, do not use CLI or AgentView conversation metadata for the row; preserve current terminal fallback behavior
+- otherwise resolve AgentView and CLI text according to the setting
 
 `terminal_primary_line_data()` can remain as the pure fallback combiner once the agent text has been chosen. This avoids coupling it directly to settings or `AppContext`, and keeps existing unit tests easy to extend.
 
-### Oz conversation prompt support
+### AgentView conversation prompt support
 Add a helper on `AIConversation`:
 - `latest_user_prompt_for_tab_name(&self) -> Option<String>`
 
@@ -136,15 +132,15 @@ Replace duplicated local extraction with `terminal_agent_text()` in:
 
 Search should include the visibly rendered setting-driven text. If adding the non-rendered counterpart is cheap after centralization, include both title-like text and latest prompt in `terminal_search_text_fragments()` for eligible agent rows, while keeping `primary_text` as the visible setting-driven text.
 
-### Keep generated schemas/settings in sync
-Adding an `AISettings` field may require updating generated or checked-in settings schema artifacts if this repository expects those to change. Follow the existing settings workflow in the repo after implementation; do not hand-edit generated schema files unless that is the established pattern for this codebase.
+### Keep settings coverage in sync
+Adding the `TabSettings` field should keep the existing tab settings tests and generated settings artifacts in sync if this repository expects those to change.
 
 ## End-to-end flow
-1. User opens Settings > AI and sees `Use latest user prompt as conversation title in tab names` disabled by default.
+1. User opens Settings > Appearance and sees `Use latest user prompt as conversation title in tab names` disabled by default in the vertical tabs area.
 2. Vertical tabs render a terminal row.
-3. The row asks `terminal_agent_text()` for Oz/CLI conversation text.
-4. `terminal_agent_text()` reads `AISettings::use_latest_user_prompt_as_conversation_title_in_tab_names`.
-5. For Oz:
+3. The row asks `terminal_agent_text()` for AgentView/CLI conversation text.
+4. `terminal_agent_text()` reads `TabSettings::use_latest_user_prompt_as_conversation_title_in_tab_names`.
+5. For ACP AgentView:
    - disabled: use `AIConversation::title()`, with existing empty-conversation default title handling
    - enabled: use `AIConversation::latest_user_prompt_for_tab_name()`, falling back to title/default text
 6. For plugin-backed CLI agents:
@@ -156,15 +152,15 @@ Adding an `AISettings` field may require updating generated or checked-in settin
 ## Diagram
 ```mermaid
 flowchart TD
-    Settings[AISettings: use_latest_user_prompt_as_conversation_title_in_tab_names]
+    Settings[TabSettings: use_latest_user_prompt_as_conversation_title_in_tab_names]
     VTabs[vertical_tabs.rs terminal_agent_text]
-    Oz[TerminalView selected AIConversation]
+    AgentView[TerminalView selected AIConversation]
     CLI[CLIAgentSessionsModel session]
     Primary[terminal_primary_line_data]
     Surfaces[Row text / Compact subtitle / Detail sidecar / Search]
 
     Settings --> VTabs
-    Oz --> VTabs
+    AgentView --> VTabs
     CLI --> VTabs
     VTabs --> Primary
     Primary --> Surfaces
@@ -174,7 +170,7 @@ flowchart TD
 - **Duplicated resolution stays inconsistent**: centralize the setting read in one helper and make all four vertical-tabs call sites use it.
 - **Pane headers accidentally change**: keep `TerminalView::selected_conversation_display_title()` title-first for existing chrome; add a new tab-specific helper rather than changing the existing method globally.
 - **Third-party `summary` may not be a durable title**: hide this behind `CLIAgentSessionContext::title_like_text()` and treat a dedicated plugin `title` payload field as a follow-up if needed.
-- **Global AI disabled blocks a third-party setting**: make the UI toggle usable even when Warp AI is disabled, since the setting also affects plugin-backed third-party CLI sessions.
+- **Warp AI settings should not gate a third-party setting**: make the UI toggle usable from Appearance / vertical tabs settings.
 - **Blank or whitespace text**: trim and filter every title/prompt candidate before choosing it.
 - **Search mismatch**: test that search includes the visible text after toggling. If both title and prompt are indexed, make sure rendered text still follows the setting.
 
@@ -193,24 +189,24 @@ Add or update unit tests:
   - setting on: latest prompt wins over title-like text
   - missing preferred text falls back to the other agent text
   - no plugin-backed metadata preserves terminal title/last-command fallback
-- `app/src/settings/ai_tests.rs` or an adjacent settings test:
+- `app/src/workspace/tab_settings_tests.rs` or an adjacent settings test:
   - new setting defaults to `false`
   - setting persists through the normal settings machinery
 
 Manual validation:
-- Default-off Oz conversation shows generated title in vertical tabs.
-- Toggle on and send an Oz follow-up prompt; row, compact command subtitle, detail sidecar, and search reflect the latest prompt.
+- Default-off ACP AgentView conversation shows generated title in vertical tabs.
+- Toggle on and send an ACP AgentView follow-up prompt; row, compact command subtitle, detail sidecar, and search reflect the latest prompt.
 - Plugin-backed CLI agent with both summary and query shows summary/title-like text by default and query when toggled on.
 - Non-plugin CLI detection and plain terminal rows keep existing fallback behavior.
 
 Suggested targeted commands after implementation:
 - `cargo test -p warp workspace::view::vertical_tabs_tests`
 - `cargo test -p warp terminal::cli_agent_sessions::mod_tests`
-- `cargo test -p warp settings::ai_tests`
+- `cargo test -p warp workspace::tab_settings_tests`
 
 Do not run `cargo fmt --all` or file-specific `cargo fmt`; follow the repository formatting guidance when implementation changes are made.
 
 ## Follow-ups
 - Add an explicit `title` field to the CLI agent plugin protocol if `summary` is not sufficiently stable for tab names.
-- Consider telemetry for the setting toggle only if product wants adoption data; the implementation does not need telemetry to satisfy APP-4080.
+- Do not add telemetry for the setting in this fork.
 - If vertical-tabs search indexes both rendered and non-rendered counterpart text, document that behavior in a small helper test so future changes do not accidentally regress discoverability.

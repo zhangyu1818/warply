@@ -22,7 +22,7 @@ The vertical tabs settings popup contains a hardcoded "Group panes by" section w
 
 ### Setting and persistence
 
-`VerticalTabsViewMode` is a two-variant enum (`Compact`, `Expanded`) registered as a synced cloud setting in `TabSettings`. It uses the `implement_setting_for_enum!` macro with `SyncToCloud::Globally(RespectUserSyncSetting::Yes)` and hierarchy `"appearance.tabs"`. The new primary info setting will follow this exact pattern.
+`VerticalTabsViewMode` is a two-variant enum (`Compact`, `Expanded`) registered in `TabSettings` with a local TOML path under `appearance.vertical_tabs`. The new primary info setting follows that same local settings pattern.
 
 ### Settings popup
 
@@ -67,10 +67,9 @@ pub enum VerticalTabsPrimaryInfo {
 }
 ```
 
-Register with `implement_setting_for_enum!` using the same sync/hierarchy as `VerticalTabsViewMode`:
+Register with `implement_setting_for_enum!` using the same local path family as `VerticalTabsViewMode`:
 - `SupportedPlatforms::ALL`
-- `SyncToCloud::Globally(RespectUserSyncSetting::Yes)`
-- `hierarchy: "appearance.tabs"`
+- `toml_path: "appearance.vertical_tabs.primary_info"`
 
 Add `vertical_tabs_primary_info: VerticalTabsPrimaryInfo` to the `TabSettings` group.
 
@@ -153,7 +152,7 @@ Read the primary info setting. For terminal panes:
 
 - **`Command`**: Current behavior — call `render_terminal_primary_line_for_view` with `Some(WarpIcon::Terminal)` prefix icon.
 - **`WorkingDirectory`**: Render a single-line row with the terminal icon (or agent status icon) + working directory text (start-clipped). This can be done by building a `Flex::row` directly:
-  - Add the kind icon (terminal icon for non-agent, status element for agent, `OzCloud` for ambient agent) — same icon logic as the current compact rendering.
+  - Add the kind icon (terminal icon for non-agent, status element for ACP AgentView or CLI agent) — same icon logic as the current compact rendering.
   - Add the working directory text with `ClipConfig::start()`.
 
 The icon is always determined by pane type / agent state, not by the primary info setting.
@@ -171,7 +170,7 @@ All existing call sites pass `theme.main_text_color(theme.background())` to pres
 3. User clicks "Directory / Branch" → `SetVerticalTabsPrimaryInfo(WorkingDirectory)` is dispatched → `TabSettings.vertical_tabs_primary_info` is updated → `ctx.notify()` triggers re-render.
 4. Popup stays open; checkmark moves to "Directory / Branch".
 5. All terminal pane rows in the panel re-render: expanded rows swap primary/secondary lines; compact rows show working directory text.
-6. Setting is persisted to cloud via the settings sync framework.
+6. Setting is persisted through the local settings framework.
 7. On next launch, `TabSettings::as_ref(app).vertical_tabs_primary_info.value()` returns `WorkingDirectory`, so rows render in the swapped order immediately.
 
 ## Risks and mitigations
