@@ -120,7 +120,7 @@ impl TryFrom<KittyMessage> for KittyImage {
             }
             KittyTransmissionMedium::SharedMemoryObject => {
                 cfg_if::cfg_if! {
-                    if #[cfg(all(feature = "local_fs", unix))] {
+                    if #[cfg(feature = "local_fs")] {
                         read_shared_memory(message.control_data.clone(), decoded_data)?
                     } else {
                         return Err(InvalidKittyPayload::ShmError(ShmError::UnsupportedPlatform));
@@ -785,7 +785,7 @@ fn is_path_in_temp_dir(path: &str) -> bool {
     false
 }
 
-#[cfg(all(feature = "local_fs", unix))]
+#[cfg(feature = "local_fs")]
 fn read_shared_memory(
     control_data: KittyControlData,
     decoded_payload: Vec<u8>,
@@ -829,7 +829,7 @@ fn read_shared_memory(
     data
 }
 
-#[cfg(all(feature = "local_fs", unix))]
+#[cfg(feature = "local_fs")]
 fn read_from_shared_memory_fd(
     fd: i32,
     size: Option<usize>,

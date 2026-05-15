@@ -399,7 +399,6 @@ pub fn run() -> Result<()> {
 
     if let Some(command) = args.command() {
         match command {
-            #[cfg(all(feature = "local_tty", unix))]
             warp_cli::Command::Worker(warp_cli::WorkerCommand::TerminalServer(args)) => {
                 // If we were asked to run as a terminal server (as opposed to the main
                 // GUI application), do so immediately.  Ideally, the terminal server would
