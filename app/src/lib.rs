@@ -307,10 +307,8 @@ impl LaunchMode {
         match self {
             LaunchMode::App { .. } => ExecutionMode::App,
             LaunchMode::Test { .. } => ExecutionMode::App,
-            // RemoteServerProxy and RemoteServerDaemon don't use execution
-            // mode, but CommandLine is the closest match (headless, no GUI).
             LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => {
-                ExecutionMode::CommandLine
+                ExecutionMode::Headless
             }
         }
     }

@@ -5,8 +5,8 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 pub enum ExecutionMode {
     /// Warp is running as a normal desktop app.
     App,
-    /// Warp is running as a CLI.
-    CommandLine,
+    /// Warp is running without the desktop app UI.
+    Headless,
 }
 
 /// Model tracking the mode that Warp is running in.
@@ -44,7 +44,7 @@ impl AppExecutionMode {
 
     /// If true, the app is running autonomously, without a user present.
     pub fn is_autonomous(&self) -> bool {
-        matches!(self.mode, ExecutionMode::CommandLine)
+        matches!(self.mode, ExecutionMode::Headless)
     }
 
     /// If true, Warp is running in a sandbox like a Docker container or VM, rather than directly
