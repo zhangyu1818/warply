@@ -5172,12 +5172,7 @@ fn test_input_mode_setting_methods() {
     });
 }
 
-fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
-    let input_prefix = match input_type {
-        InputType::Shell => super::TERMINAL_INPUT_PREFIX,
-        InputType::AI => super::AI_INPUT_PREFIX,
-    };
-
+fn run_terminal_input_prefix_test(udi_enabled: bool) {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -5200,8 +5195,21 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
         )
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
-        for c in format!("{input_prefix}some text").chars() {
+        for c in format!("{}some text", super::TERMINAL_INPUT_PREFIX).chars() {
             input.update(&mut app, |input, ctx| {
                 input.user_insert(&c.to_string(), ctx);
             });
@@ -5212,35 +5220,30 @@ fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
             assert_eq!(input.buffer_text(ctx), "some text");
 
             app.read_model(input.ai_input_model(), |input_model, _| {
-                assert_eq!(input_model.input_type(), input_type);
+                assert_eq!(input_model.input_type(), InputType::Shell);
 
-                // Prefixes represent an explicit mode selection, so they lock the input type in
-                // both classic input and UDI.
                 assert!(input_model.is_input_type_locked());
 
-                // We should treat this as the mode having been set while the buffer was empty.
                 assert!(input_model.was_lock_set_with_empty_buffer());
             })
         });
     });
 }
 
-macro_rules! input_mode_prefix_tests {
-    ($($name:ident: ($udi_enabled:literal, $input_mode:expr),)*) => {
+macro_rules! terminal_input_prefix_tests {
+    ($($name:ident: $udi_enabled:literal,)*) => {
         $(
             #[test]
             fn $name() {
-                run_input_mode_prefix_test($udi_enabled, $input_mode);
+                run_terminal_input_prefix_test($udi_enabled);
             }
         )*
     };
 }
 
-input_mode_prefix_tests! {
-    test_ai_input_prefix_with_udi: (true, InputType::AI),
-    test_ai_input_prefix_without_udi: (false, InputType::AI),
-    test_shell_input_prefix_with_udi: (true, InputType::Shell),
-    test_shell_input_prefix_without_udi: (false, InputType::Shell),
+terminal_input_prefix_tests! {
+    test_shell_input_prefix_with_udi: true,
+    test_shell_input_prefix_without_udi: false,
 }
 
 #[test]
