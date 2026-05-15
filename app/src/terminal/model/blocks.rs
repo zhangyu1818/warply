@@ -672,7 +672,7 @@ impl BlockList {
         self.create_warp_input_block();
         // Note: We no longer call start() here.
         // When shell input arrives, the block will be started (see the `input` handler).
-        // This ensures sessions without a shell (like cloude mode) don't permanently trigger is_active_and_long_running()
+        // This ensures sessions without shell output don't permanently trigger is_active_and_long_running()
         // since the block will never be finished.
     }
 

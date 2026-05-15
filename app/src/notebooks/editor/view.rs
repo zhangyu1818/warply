@@ -1162,7 +1162,7 @@ impl RichTextEditorView {
             RichTextEditorModelEvent::ContentChanged(origin) => {
                 // Do not emit `Edited` events for system edits. System edits are either:
                 // - Transient state that should not be persisted (autosuggestions, syntax highlighting, etc.)
-                // - Cloud updates, which must not be echoed back
+                // - Model-originated updates, which must not be echoed back
                 if origin.from_user() {
                     // Similar to link editor, if the edit just triggered the slash menu
                     // to open, don't close the block insertion menu.

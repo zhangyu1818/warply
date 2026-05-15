@@ -69,8 +69,6 @@ pub fn process_screenshot(
 /// 1. The longer edge is at most `max_long_edge_px` pixels (if specified)
 /// 2. The total number of pixels is at most `max_total_px` (if specified)
 /// 3. The scale factor is at most 1.0 (no upscaling)
-///
-/// This must stay in sync with the server-side logic in logic/ai/computer_use/utils.go.
 pub fn get_scale_factor(width: u32, height: u32, params: ScreenshotParams) -> f64 {
     let long_edge = width.max(height);
     let total_pixels = width * height;

@@ -420,7 +420,7 @@ impl NotebooksEditorModel {
     }
 
     fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        // Ignore cloud events until bound to a real window, and when the window is closed.
+        // Ignore local object events until bound to a real window, and when the window is closed.
         let Some(window_id) = self.rte_window_id else {
             return;
         };
