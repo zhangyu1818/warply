@@ -172,12 +172,6 @@ pub struct BlocklistAIController {
     /// The ID of the terminal view this controller is associated with.
     terminal_view_id: EntityId,
 
-    #[allow(dead_code)]
-
-    /// Per-session directory for downloading file attachments.
-    /// Set by the agent driver based on the workspace directory (e.g. `{working_dir}/.warp/attachments`).
-    attachments_download_dir: Option<std::path::PathBuf>,
-
     /// Pending auto-resume tasks that are waiting for network connectivity.
     /// These should be cancelled when a new request is sent for the same conversation.
     pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
@@ -363,7 +357,6 @@ impl BlocklistAIController {
             active_session,
             terminal_model,
             terminal_view_id,
-            attachments_download_dir: None,
             pending_auto_resume_handles: HashMap::new(),
             pending_passive_follow_ups: HashSet::new(),
         }
@@ -1051,11 +1044,6 @@ impl BlocklistAIController {
             /*is_queued_prompt*/ false,
             ctx,
         );
-    }
-
-    /// Set the per-session directory for downloading file attachments.
-    pub fn set_attachments_download_dir(&mut self, dir: std::path::PathBuf) {
-        self.attachments_download_dir = Some(dir);
     }
 
     fn start_new_conversation_for_request<'a>(
