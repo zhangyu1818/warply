@@ -2,7 +2,7 @@
 
 ## Problem
 
-`settings.toml` errors are invisible to the user. When the file has a TOML syntax error, the app silently falls back to defaults. When individual values are the wrong type, they silently revert to defaults. There is no mechanism to surface these errors to the user or to recover gracefully.
+`settings.toml` errors are invisible to the user. When the file has a TOML syntax error, the app silently uses defaults. When individual values are the wrong type, they silently revert to defaults. There is no mechanism to surface these errors to the user or to recover once the file is fixed.
 
 This required two coordinated changes:
 1. **Startup recovery** (prerequisite PR) — Always create `TomlBackedUserPreferences` even on parse failure, so the hot-reload watcher is wired up and can recover when the file is fixed.
@@ -24,7 +24,7 @@ This required two coordinated changes:
 
 ### Before these changes
 
-- `TomlBackedUserPreferences::new()` returned `Result<Self, Error>`. On parse failure, `init_public_user_preferences()` fell back to `InMemoryPreferences`.
+- `TomlBackedUserPreferences::new()` returned `Result<Self, Error>`. On parse failure, `init_public_user_preferences()` used `InMemoryPreferences`.
 - `InMemoryPreferences::is_settings_file()` returned `false`, so the hot-reload watcher subscription in `init()` was never set up. The user was stuck on defaults permanently.
 - `reload_all_public_settings()` returned `()`, logging per-setting failures but not collecting them.
 - No mechanism existed to surface settings errors to the user.
@@ -38,7 +38,7 @@ This required two coordinated changes:
 
 ## Proposed changes (as implemented)
 
-### Prerequisite: Startup fallback (`TomlBackedUserPreferences::new()`)
+### Prerequisite: Startup recovery (`TomlBackedUserPreferences::new()`)
 
 Changed `new()` to `(Self, Option<Error>)`. On parse failure, starts with `DocumentMut::new()` and returns the error separately. The caller always gets a working `TomlBackedUserPreferences` that can recover via `reload_from_disk()`. (Separate PR.)
 
@@ -127,7 +127,7 @@ sequenceDiagram
 
 ## Risks and mitigations
 
-- **Watcher reliability**: The filesystem watcher (notify) may not reliably detect file creation on all platforms. Mitigation: for file *modification* (the common case when the user edits their file), detection is reliable. The startup path catches errors independently of the watcher.
+- **Watcher reliability**: The filesystem watcher may not reliably detect file creation in every macOS filesystem configuration. Mitigation: for file *modification* (the common case when the user edits their file), detection is reliable. The startup path catches errors independently of the watcher.
 - **Validate via equals_fn**: `validate_all_public_settings` uses the `equals_fn` closure (which round-trips through `serde_json::from_str`) rather than the `load_fn`. This is intentional — it's a read-only check that doesn't modify in-memory state. Risk: if a setting has a custom `file_deserialize` that accepts values the `equals_fn` rejects, or vice versa, there could be false positives/negatives. Mitigation: the `equals_fn` path matches the `load_fn` path for standard serde-based settings.
 
 ## Testing and validation

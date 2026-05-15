@@ -31,11 +31,11 @@ Figma: none provided. The banner follows the existing `WorkspaceBanner` visual p
 
 ### Banner appearance
 
-The banner appears at the top of the workspace, below the tab bar, using the existing workspace banner system. It uses the warning color scheme (amber/orange background, white text) — the same style as the reauth banner.
+The banner appears at the top of the workspace, below the tab bar, using the existing workspace banner system. It uses the warning color scheme (amber/orange background, white text).
 
 ### Banner priority
 
-The settings error banner sits just below the reauth banner in priority. If the reauth banner is active, it takes precedence and the settings error banner is hidden until reauth is resolved. The settings error banner takes precedence over all other workspace banners (version deprecated, unable to update, crash recovery) because it's more important that the user is notified their settings file is broken than that they continue to see those other banners.
+The settings error banner takes precedence over other retained workspace banners because it is more important that the user is notified their settings file is broken than that they continue to see lower-priority local status banners.
 
 ### Error messages
 
@@ -85,4 +85,4 @@ The banner includes an "Open settings file" button styled consistently with othe
 
 ## Follow-ups
 
-- Not included in this PR, but once we have the skill for an agent to edit the settings file, we should have some kind of "Oz auto-fix" button.
+- Automatic fixes are out of scope. If added later, they must route through an explicit ACP AgentView conversation and must not depend on app-bundled skills.

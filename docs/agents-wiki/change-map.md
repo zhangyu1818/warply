@@ -422,6 +422,7 @@ This map explains the large fork baseline change at a path level.
 - Rewrote the retained unsupported-glibc remote-server spec to describe the current preinstall check as SSH terminal capability-gate logic rather than Oz/prebuilt CLI/cloud install behavior. Unsupported Linux remote hosts should continue through retained ControlMaster-backed SSH without hosted downloads, telemetry, or local Linux app implications.
 - Reworded retained vertical-tabs pane-row and hover-sidecar specs to use current `Terminal`, `Agent`, and CLI-agent labels instead of old Oz pane naming or ambient-agent helpers. ACP AgentView and CLI-agent terminal panes remain retained UI surfaces.
 - Reworded the retained directory-theme override spec away from old Oz review naming, deleted onboarding paths, and removed cloud-sync setting fields. Directory-theme overrides remain local settings behavior with private storage and redacted local diagnostics.
+- Reworded the retained settings-file error banner spec to remove deleted reauth-banner priority, Oz auto-fix, and bundled-skill follow-up language. Future automatic settings fixes must be explicit ACP AgentView conversations, not app-bundled skills.
 
 ## Legacy Names Still Present
 
