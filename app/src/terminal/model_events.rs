@@ -30,7 +30,6 @@ use super::{
         terminal_model::{CommandType, HandlerEvent},
     },
 };
-use crate::features::FeatureFlag;
 use crate::terminal::shell::ShellType;
 use warp_core::SessionId;
 
@@ -89,7 +88,7 @@ impl ModelEventDispatcher {
                     pending_session_info.is_legacy_ssh_session,
                     IsLegacySSHSession::Yes { .. }
                 );
-                if FeatureFlag::SshRemoteServer.is_enabled() && is_legacy_ssh {
+                if is_legacy_ssh {
                     ModelEvent::SshInitShell {
                         pending_session_info,
                     }
@@ -103,9 +102,8 @@ impl ModelEventDispatcher {
                 let session_id = bootstrapped_event.session_info.session_id;
                 let is_subshell = bootstrapped_event.session_info.subshell_info.is_some();
 
-                // Always initialize the session synchronously. When the
-                // `SshRemoteServer` flag is enabled, the remote-server client
-                // is wired up independently: `Sessions::new` subscribes to
+                // Always initialize the session synchronously. The remote-server
+                // client is wired up independently: `Sessions::new` subscribes to
                 // `RemoteServerManagerEvent::SessionConnected` and attaches the
                 // client to the session's `RemoteServerCommandExecutor` when
                 // the connection lands, so it's safe to initialize the session
@@ -301,7 +299,7 @@ impl ModelEventDispatcher {
 
     /// Finalizes session initialization by calling `Sessions::initialize_bootstrapped_session`.
     ///
-    /// For ControlMaster-backed SSH sessions with the `SshRemoteServer` flag, this also
+    /// For ControlMaster-backed SSH sessions, this also
     /// sends the `SessionBootstrapped` notification to the remote server via
     /// the manager.
     fn complete_bootstrapped_session(
@@ -326,7 +324,7 @@ impl ModelEventDispatcher {
             session_info.shell.shell_path().clone(),
         );
 
-        if FeatureFlag::SshRemoteServer.is_enabled() && is_legacy_ssh {
+        if is_legacy_ssh {
             RemoteServerManager::handle(ctx).update(ctx, |mgr, _ctx| {
                 mgr.notify_session_bootstrapped(
                     session_id,
@@ -463,8 +461,8 @@ pub enum ModelEvent {
         body: String,
     },
     /// Emitted when an SSH session's `InitShell` is intercepted by the
-    /// `SshRemoteServer` feature flag. `RemoteServerController` subscribes to
-    /// this instead of `Handler(InitShell)` so `PtyController` never sees it.
+    /// `RemoteServerController` subscribes to this instead of `Handler(InitShell)`
+    /// so `PtyController` never sees it.
     SshInitShell {
         pending_session_info: Box<SessionInfo>,
     },

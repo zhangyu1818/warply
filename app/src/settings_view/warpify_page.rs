@@ -4,7 +4,6 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use regex::Regex;
 use settings::Setting;
 use strum::IntoEnumIterator;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{FormattedTextElement, HighlightedHyperlink};
 use warpui::keymap::ContextPredicate;
 use warpui::{
@@ -650,29 +649,27 @@ impl SettingsWidget for SSHWidget {
             },
         );
 
-        if FeatureFlag::SshRemoteServer.is_enabled() {
-            let label_color_override = if !enable_ssh_warpification {
-                Some(appearance.theme().disabled_ui_text_color())
-            } else {
-                None
-            };
-            add_setting(
-                &mut column,
-                &WarpifySettings::as_ref(app).ssh_extension_install_mode,
-                move || {
-                    Container::new(render_dropdown_item(
-                        appearance,
-                        "Install SSH extension",
-                        Some(SSH_EXTENSION_INSTALL_MODE_DESCRIPTION),
-                        None,
-                        label_color_override,
-                        &view.ssh_extension_install_mode_dropdown,
-                    ))
-                    .with_padding_bottom(HEADER_PADDING)
-                    .finish()
-                },
-            );
-        }
+        let label_color_override = if !enable_ssh_warpification {
+            Some(appearance.theme().disabled_ui_text_color())
+        } else {
+            None
+        };
+        add_setting(
+            &mut column,
+            &WarpifySettings::as_ref(app).ssh_extension_install_mode,
+            move || {
+                Container::new(render_dropdown_item(
+                    appearance,
+                    "Install SSH extension",
+                    Some(SSH_EXTENSION_INSTALL_MODE_DESCRIPTION),
+                    None,
+                    label_color_override,
+                    &view.ssh_extension_install_mode_dropdown,
+                ))
+                .with_padding_bottom(HEADER_PADDING)
+                .finish()
+            },
+        );
 
         add_setting(
             &mut column,

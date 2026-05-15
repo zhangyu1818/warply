@@ -116,6 +116,7 @@ This map explains the large fork baseline change at a path level.
 - Removed `warp_completer` wasm target dependency sections, source cfgs, and stale wasm signature-loading TODOs. Command signatures now use the retained native embedded-signatures path directly for local terminal completions.
 - Remote-server still parses remote host OS/architecture for SSH extension setup and fallback decisions. That is retained SSH behavior, not local Linux/Windows host support.
 - Removed the `SSHTmuxWrapper` rollout flag, `ssh_tmux_wrapper` Cargo feature, private override, Features-page SSH wrapper switch, `SshSettings`, and legacy SSH wrapper integration tests. SSH Warpify is retained under `WarpifySettings`, and tmux-backed Warpification is the current default path.
+- Removed the `SshRemoteServer` rollout flag. SSH remote-server setup, repo metadata, file-tree loading, command execution, failed/setup banners, and Warpify SSH extension settings are retained terminal functionality and now run directly without an old feature-gated branch.
 - The shell-level ControlMaster SSH wrapper remains as a Warpify setting-controlled fallback only when tmux Warpification is disabled. It is retained terminal functionality, not an old AI/backend compatibility path.
 - No backward-compatibility shims should be added for deleted host platforms or removed Warp cloud/account/agent data.
 

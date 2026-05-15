@@ -60,7 +60,6 @@ use crate::{
     view_components::DismissibleToast,
     workspace::ToastStack,
 };
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::{color::internal_colors, Fill};
 use warp_core::HostId;
 use warpui::ui_components::components::UiComponent;
@@ -1438,10 +1437,6 @@ impl FileTreeView {
         ctx: &mut ViewContext<Self>,
     ) {
         use crate::remote_server::manager::RemoteServerManager;
-
-        if !FeatureFlag::SshRemoteServer.is_enabled() {
-            return;
-        }
 
         let Some(root_dir) = self.root_directories.get(root_path) else {
             return;

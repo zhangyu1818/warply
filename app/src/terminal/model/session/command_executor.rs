@@ -158,9 +158,8 @@ fn new_command_executor_for_local_tty_session(
 
     use super::IsLegacySSHSession;
 
-    // When the remote server feature flag is enabled and the session is a
-    // ControlMaster-backed SSH session, use the remote server executor *if* the manager
-    // already has a live `Connected` client for this session.
+    // For ControlMaster-backed SSH sessions, use the remote server executor
+    // if the manager already has a live `Connected` client for this session.
     //
     // By construction this branch is only reached after
     // `ModelEventDispatcher::complete_bootstrapped_session` has gated on
@@ -171,20 +170,18 @@ fn new_command_executor_for_local_tty_session(
     // fall through to the existing ControlMaster-based
     // `RemoteCommandExecutor` below. This preserves the fallback behavior
     // described in specs/APP-3797.
-    if FeatureFlag::SshRemoteServer.is_enabled() {
-        if let IsLegacySSHSession::Yes { .. } = &session_info.is_legacy_ssh_session {
-            let session_id = session_info.session_id;
-            let maybe_client = RemoteServerManager::handle(ctx)
-                .read(ctx, |mgr, _| mgr.client_for_session(session_id).cloned());
-            if let Some(client) = maybe_client {
-                log::info!("creating a remote server executor for session {session_id:?}");
-                return Arc::new(RemoteServerCommandExecutor::new(session_id, client));
-            }
-            log::info!(
-                "SshRemoteServer flag on but no connected client for session {session_id:?}; \
-                 falling back to ControlMaster executor"
-            );
+    if let IsLegacySSHSession::Yes { .. } = &session_info.is_legacy_ssh_session {
+        let session_id = session_info.session_id;
+        let maybe_client = RemoteServerManager::handle(ctx)
+            .read(ctx, |mgr, _| mgr.client_for_session(session_id).cloned());
+        if let Some(client) = maybe_client {
+            log::info!("creating a remote server executor for session {session_id:?}");
+            return Arc::new(RemoteServerCommandExecutor::new(session_id, client));
         }
+        log::info!(
+            "no connected remote server client for session {session_id:?}; \
+             falling back to ControlMaster executor"
+        );
     }
 
     if session_info.tmux_control_mode

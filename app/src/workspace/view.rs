@@ -1777,22 +1777,18 @@ impl Workspace {
         // client is connected (it may have been skipped on the initial pwd change
         // because the handshake was still in progress).
         #[cfg(feature = "local_fs")]
-        if FeatureFlag::SshRemoteServer.is_enabled() {
-            ctx.subscribe_to_model(
-                &RemoteServerManager::handle(ctx),
-                |me, _handle, event, ctx| match event {
-                    RemoteServerManagerEvent::SessionConnected { .. } => {
-                        me.update_active_session(ctx);
-                    }
-                    RemoteServerManagerEvent::SetupStateChanged { state, .. }
-                        if state.is_failed() =>
-                    {
-                        me.update_active_session(ctx);
-                    }
-                    _ => {}
-                },
-            );
-        }
+        ctx.subscribe_to_model(
+            &RemoteServerManager::handle(ctx),
+            |me, _handle, event, ctx| match event {
+                RemoteServerManagerEvent::SessionConnected { .. } => {
+                    me.update_active_session(ctx);
+                }
+                RemoteServerManagerEvent::SetupStateChanged { state, .. } if state.is_failed() => {
+                    me.update_active_session(ctx);
+                }
+                _ => {}
+            },
+        );
 
         ctx.subscribe_to_model(&WindowSettings::handle(ctx), |me, _handle, event, ctx| {
             me.handle_window_settings_changed_event(event, ctx);
@@ -9971,7 +9967,6 @@ impl Workspace {
             // true for Auto SSH Warpification (mode 1) sessions where
             // `connect_session` was called at `InitShell` time.
             let has_remote_server = is_remote
-                && FeatureFlag::SshRemoteServer.is_enabled()
                 && session_id.is_some_and(|sid| {
                     RemoteServerManager::as_ref(ctx).is_session_potentially_active(sid)
                 });
