@@ -383,6 +383,7 @@ This map explains the large fork baseline change at a path level.
 - Collapsed conversation-list entry identity/provenance to the local ACP conversation ID. Do not restore cloud-vs-local dual identity or provenance wrappers for conversation entries.
 - Removed conversation-list entry backing-source metadata. Local ACP conversation entries are resolved directly from the retained navigation map and current local capabilities, not from cloud/local backing-source fallbacks.
 - Removed unused conversation-list status/source/date/artifact filter model. The retained local conversation list uses search text and local openability only; do not restore old cloud conversation filtering shells without a current local UI.
+- Removed the `ValidateAutosuggestions` rollout flag and Cargo feature. OpenAI-compatible Next Command/autosuggestions now run retained local command validation directly; do not restore an old disabled-validation branch around terminal suggestions.
 
 ## Legacy Names Still Present
 
