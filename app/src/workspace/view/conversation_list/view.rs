@@ -285,12 +285,7 @@ impl ConversationListView {
         let mut past_items = Vec::new();
         for entry in model.filtered_items() {
             let list_item = ListItem::Conversation(entry.clone());
-            let local_conversation_entry_id = model
-                .get_item_by_id(&entry.id, ctx)
-                .and_then(|entry| entry.identity.local_conversation_id)
-                .map(AgentConversationEntryId::Conversation);
-            let is_active = active_ids.contains(&entry.id)
-                || local_conversation_entry_id.is_some_and(|id| active_ids.contains(&id));
+            let is_active = active_ids.contains(&entry.id);
             if is_active {
                 active_items.push(list_item);
             } else {
@@ -322,11 +317,7 @@ impl ConversationListView {
                             active_views_model.get_last_opened_time(&id)
                         }
                     };
-                    let local_time = model
-                        .get_item_by_id(&entry.id, ctx)
-                        .and_then(|item| item.identity.local_conversation_id)
-                        .and_then(|id| active_views_model.get_last_opened_time(&id));
-                    entry_time.max(local_time)
+                    entry_time
                 }
                 _ => None,
             };
@@ -933,9 +924,7 @@ impl TypedActionView for ConversationListView {
                 else {
                     return;
                 };
-                let Some(ai_conversation_id) = entry.identity.local_conversation_id else {
-                    return;
-                };
+                let ai_conversation_id = entry.conversation_id;
                 if !entry.capabilities.can_delete {
                     return;
                 };
@@ -1044,7 +1033,7 @@ impl TypedActionView for ConversationListView {
                     .as_ref(ctx)
                     .get_item_by_id(conversation_id, ctx)
                     .filter(|entry| entry.capabilities.can_fork_locally)
-                    .and_then(|entry| entry.identity.local_conversation_id)
+                    .map(|entry| entry.conversation_id)
                 else {
                     return;
                 };
@@ -1149,15 +1138,8 @@ impl View for ConversationListView {
                                 }
                                 ListItem::Conversation(entry) => {
                                     let conversation = model.get_item_by_id(&entry.id, app)?;
-                                    let local_conversation_entry_id = conversation
-                                        .identity
-                                        .local_conversation_id
-                                        .map(AgentConversationEntryId::Conversation);
-                                    let is_focused_conversation =
-                                        focused_conversation.is_some_and(|focused| {
-                                            entry.id == focused
-                                                || local_conversation_entry_id == Some(focused)
-                                        });
+                                    let is_focused_conversation = focused_conversation
+                                        .is_some_and(|focused| entry.id == focused);
                                     let state = item_states.get(&entry.id)?;
                                     let highlight_ref = if entry.highlight_indices.is_empty() {
                                         None

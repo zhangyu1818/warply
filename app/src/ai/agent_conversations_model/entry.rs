@@ -22,16 +22,10 @@ pub enum AgentConversationNavigationSubject {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentConversationEntry {
     pub id: AgentConversationEntryId,
-    pub identity: AgentConversationIdentity,
-    pub provenance: AgentConversationProvenance,
+    pub conversation_id: AIConversationId,
     pub display: AgentConversationDisplayData,
     pub backing: AgentConversationBackingData,
     pub capabilities: AgentConversationCapabilities,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AgentConversationIdentity {
-    pub local_conversation_id: Option<AIConversationId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,11 +38,6 @@ pub struct AgentConversationDisplayData {
     pub run_time: Option<String>,
     pub working_directory: Option<String>,
     pub artifacts: Vec<Artifact>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AgentConversationProvenance {
-    LocalInteractive,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,17 +120,13 @@ fn entry_for_conversation_parts(
     let has_local_persisted_data = conversation_metadata
         .is_some_and(|metadata| metadata.has_local_data)
         || has_loaded_conversation;
-    let provenance = AgentConversationProvenance::LocalInteractive;
     let title = conversation
         .and_then(|conversation| conversation.title().clone())
         .unwrap_or_else(|| nav_data.title.clone());
 
     AgentConversationEntry {
         id: AgentConversationEntryId::Conversation(conversation_id),
-        identity: AgentConversationIdentity {
-            local_conversation_id: Some(conversation_id),
-        },
-        provenance,
+        conversation_id,
         display: AgentConversationDisplayData {
             title,
             initial_query: nav_data.initial_query.clone(),

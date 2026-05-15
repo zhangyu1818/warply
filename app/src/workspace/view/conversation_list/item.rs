@@ -379,14 +379,9 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
 }
 
 fn format_item_subtext(conversation: &AgentConversationEntry, app: &AppContext) -> Option<String> {
-    let live_pwd = conversation
-        .identity
-        .local_conversation_id
-        .and_then(|conversation_id| {
-            ActiveAgentViewsModel::as_ref(app)
-                .get_active_session_for_conversation(conversation_id, app)
-                .and_then(|session| session.as_ref(app).current_working_directory().cloned())
-        });
+    let live_pwd = ActiveAgentViewsModel::as_ref(app)
+        .get_active_session_for_conversation(conversation.conversation_id, app)
+        .and_then(|session| session.as_ref(app).current_working_directory().cloned());
 
     let pwd = live_pwd.or_else(|| conversation.display.working_directory.clone());
     pwd.map(|pwd| {

@@ -281,7 +281,7 @@ impl AgentConversationsModel {
         app: &AppContext,
     ) -> Option<WorkspaceAction> {
         let active_views_model = ActiveAgentViewsModel::as_ref(app);
-        let conversation_id = entry.identity.local_conversation_id?;
+        let conversation_id = entry.conversation_id;
 
         if active_views_model.is_conversation_open(conversation_id, app) {
             if let Some(nav_data) = self
