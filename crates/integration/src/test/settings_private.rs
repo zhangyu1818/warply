@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use settings::Setting as _;
 use warp::{
-    features::FeatureFlag,
     integration_testing::{
         step::new_step_with_default_assertions,
         terminal::wait_until_bootstrapped_single_pane_for_tab,
@@ -33,11 +32,10 @@ fn read_json_prefs_file() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// test_private_public_settings_routing_with_flag_enabled
+// test_private_public_settings_routing
 // ---------------------------------------------------------------------------
 
-pub fn test_private_public_settings_routing_with_flag_enabled() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
+pub fn test_private_public_settings_routing() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
         // Step 1: Set a public setting (FontSize) and a private setting
@@ -96,8 +94,6 @@ pub fn test_private_public_settings_routing_with_flag_enabled() -> Builder {
 // ---------------------------------------------------------------------------
 
 pub fn test_private_settings_preloaded_and_not_leaked_to_toml() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     // Pre-populate private settings in the JSON prefs file (the private
     // backend for integration tests).
     let user_defaults = HashMap::from([("IsShellDebugModeEnabled".to_owned(), "true".to_owned())]);

@@ -128,9 +128,7 @@ impl super::WarpConfig {
             );
         }
 
-        if FeatureFlag::SettingsFile.is_enabled()
-            && update_touches_path(update, &crate::settings::user_preferences_toml_file_path())
-        {
+        if update_touches_path(update, &crate::settings::user_preferences_toml_file_path()) {
             ctx.emit(WarpConfigUpdateEvent::Settings);
         }
     }

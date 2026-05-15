@@ -7,7 +7,6 @@
 use settings::Setting as _;
 use std::time::Duration;
 use warp::{
-    features::FeatureFlag,
     integration_testing::{
         step::new_step_with_default_assertions,
         terminal::wait_until_bootstrapped_single_pane_for_tab,
@@ -28,8 +27,6 @@ fn toml_file_path() -> std::path::PathBuf {
 /// `reload_all_public_settings` pushes the new value into the in-memory
 /// setting model.
 pub fn test_settings_file_hot_reload_applies_new_values() -> Builder {
-    FeatureFlag::SettingsFile.set_enabled(true);
-
     new_builder()
         .with_setup(move |utils| {
             // Use a short watcher delay so each reload fires quickly.

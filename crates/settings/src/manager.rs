@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use anyhow::{Result, anyhow};
-use warp_features::FeatureFlag;
 use warpui::{AppContext, Entity, SingletonEntity};
 use warpui_extras::user_preferences::UserPreferences;
 
@@ -138,7 +137,7 @@ impl SettingsManager {
 
     /// Reads a setting's current local value from the correct preferences
     /// backend, routing private settings to the private store and public
-    /// settings to the main (potentially TOML-backed) store.
+    /// settings to the public store.
     pub fn read_local_setting_value(
         &self,
         storage_key: &str,
@@ -148,12 +147,8 @@ impl SettingsManager {
             <PrivatePreferences as SingletonEntity>::as_ref(ctx).deref();
         let prefs: &dyn UserPreferences = if self.is_private_for_storage_key(storage_key) {
             private
-        } else if FeatureFlag::SettingsFile.is_enabled() {
-            <super::PublicPreferences as SingletonEntity>::as_ref(ctx).as_preferences()
         } else {
-            // When the settings file is disabled, fall back to the private
-            // backend so both paths share a single instance.
-            private
+            <super::PublicPreferences as SingletonEntity>::as_ref(ctx).as_preferences()
         };
         let info = self.settings.get(storage_key);
         let key = if prefs.is_settings_file() {

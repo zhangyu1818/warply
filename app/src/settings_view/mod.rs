@@ -74,28 +74,7 @@ pub use settings_page::{
     InputListItem, ToggleState,
 };
 
-/// Original sidebar width used when the settings-file footer is not
-/// enabled. Preserved for Preview/Stable until `FeatureFlag::SettingsFile`
-/// is promoted.
-const SIDEBAR_WIDTH_DEFAULT: f32 = 200.;
-
-/// Wider sidebar used when the settings-file footer is enabled. Sized to
-/// match Figma's settings nav rail (223px alert + 12px horizontal padding
-/// on each side + 1px right border), giving the error-alert footer enough
-/// room to render its "Open file" button.
-const SIDEBAR_WIDTH_WITH_FOOTER: f32 = 248.;
-
-/// Returns the sidebar width, widened only when the settings-file footer
-/// is enabled. This keeps the wider layout gated with the footer itself so
-/// Preview/Stable users don't see an unexplained 48px width bump before
-/// the feature ships.
-fn sidebar_width() -> f32 {
-    if FeatureFlag::SettingsFile.is_enabled() {
-        SIDEBAR_WIDTH_WITH_FOOTER
-    } else {
-        SIDEBAR_WIDTH_DEFAULT
-    }
-}
+const SIDEBAR_WIDTH: f32 = 248.;
 
 /// Width of the borders for the header and the sidebar.
 const SECTION_BORDER_WIDTH: f32 = 1.;
@@ -1548,7 +1527,6 @@ impl View for SettingsView {
         // scrollable nav list but inside the same sidebar column so it
         // shares the right-border and SIDEBAR_WIDTH constraint.
         let footer_kind = SettingsFooterKind::choose(
-            FeatureFlag::SettingsFile.is_enabled(),
             self.settings_file_error.is_some(),
             self.settings_error_banner_dismissed,
         );
@@ -1583,7 +1561,7 @@ impl View for SettingsView {
             .with_border(Border::right(SECTION_BORDER_WIDTH).with_border_fill(theme.outline()))
             .finish(),
         )
-        .with_width(sidebar_width())
+        .with_width(SIDEBAR_WIDTH)
         .finish();
 
         let row = Flex::row()

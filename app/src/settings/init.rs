@@ -216,8 +216,7 @@ fn handle_warp_config_change(
 }
 /// Returns the platform-native preferences backend.
 ///
-/// Used directly for private settings, and also as the fallback for public
-/// settings when the settings file feature flag is disabled.
+/// Used directly for private settings.
 fn init_platform_native_preferences() -> user_preferences::Model {
     cfg_if::cfg_if! {
         if #[cfg(test)] {
@@ -247,10 +246,8 @@ pub fn init_private_user_preferences() -> settings::PrivatePreferences {
 
 /// Initializes the public UserPreferences provider.
 ///
-/// When the `SettingsFile` feature flag is enabled, public settings are stored
-/// in `settings.toml` so they are user-visible and editable. When the flag is
-/// disabled, this falls back to the platform-native store (same as private
-/// settings), so all settings live in the same place.
+/// Public settings are stored in `settings.toml` so they are user-visible and
+/// editable.
 /// Returns `(preferences_backend, optional_parse_error)`. The parse error
 /// is `Some` only when the TOML settings file existed but could not be
 /// parsed; it should be propagated to the UI so the user sees a banner.
@@ -260,18 +257,14 @@ pub fn init_public_user_preferences() -> (user_preferences::Model, Option<user_p
         if #[cfg(test)] {
             (Box::<user_preferences::in_memory::InMemoryPreferences>::default(), None)
         } else {
-            if warp_core::features::FeatureFlag::SettingsFile.is_enabled() {
-                let (prefs, parse_error) =
-                    user_preferences::toml_backed::TomlBackedUserPreferences::new(
-                        super::user_preferences_toml_file_path(),
-                    );
-                if let Some(err) = &parse_error {
-                    log::warn!("Settings file has syntax errors and could not be parsed: {err}");
-                }
-                (Box::new(prefs) as user_preferences::Model, parse_error)
-            } else {
-                (init_platform_native_preferences(), None)
+            let (prefs, parse_error) =
+                user_preferences::toml_backed::TomlBackedUserPreferences::new(
+                    super::user_preferences_toml_file_path(),
+                );
+            if let Some(err) = &parse_error {
+                log::warn!("Settings file has syntax errors and could not be parsed: {err}");
             }
+            (Box::new(prefs) as user_preferences::Model, parse_error)
         }
     }
 }

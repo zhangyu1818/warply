@@ -59,15 +59,13 @@ pub const fn toml_path_hierarchy(path: &str) -> Option<&str> {
 
 use anyhow::{Context, Result};
 use serde::{Serialize, de::DeserializeOwned};
-use warp_features::FeatureFlag;
 use warpui::{AppContext, Entity, ModelContext};
 use warpui_extras::user_preferences::UserPreferences;
 
 /// A newtype wrapper for the public preferences backend.
 ///
 /// Public settings (those marked `private: false` in `define_settings_group!`)
-/// are stored in the user-visible settings file (TOML) when the `SettingsFile`
-/// feature flag is enabled, otherwise in the platform-native store.
+/// are stored in the user-visible settings file (TOML).
 ///
 /// The inner field is private and only accessible within the settings crate via
 /// [`as_preferences`](Self::as_preferences). This prevents external code from
@@ -285,18 +283,14 @@ pub trait Setting {
     /// Returns the appropriate preferences backend for this setting.
     ///
     /// Private settings use the platform-native store; public settings use
-    /// the main preferences backend (which may be the TOML settings file).
+    /// the public preferences backend.
     fn preferences_for_setting(ctx: &AppContext) -> &dyn UserPreferences {
         use warpui::SingletonEntity;
 
         if Self::is_private() {
             <PrivatePreferences as SingletonEntity>::as_ref(ctx).deref()
-        } else if FeatureFlag::SettingsFile.is_enabled() {
-            <PublicPreferences as SingletonEntity>::as_ref(ctx).as_preferences()
         } else {
-            // When the settings file is disabled, fall back to the private
-            // backend so both paths share a single instance.
-            <PrivatePreferences as SingletonEntity>::as_ref(ctx).deref()
+            <PublicPreferences as SingletonEntity>::as_ref(ctx).as_preferences()
         }
     }
 

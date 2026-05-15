@@ -46,9 +46,6 @@ pub enum FeatureFlag {
     /// Makes the input editor's prompt selectable.
     SelectablePrompt,
 
-    /// Enables the settings file feature.
-    SettingsFile,
-
     /// Enables rect selection.
     RectSelection,
 
@@ -330,9 +327,6 @@ impl FeatureFlag {
             MarkdownTables => {
                 Some("Enables rendering and interaction support for markdown tables in notebooks.")
             }
-            SettingsFile => Some(
-                "Enables configuring Warp via a user-editable `settings.toml` file, with hot reload and invalid-value diagnostics.",
-            ),
             GitOperationsInCodeReview => Some(
                 "Enables commit, push, and create-PR actions directly from the code review panel.",
             ),

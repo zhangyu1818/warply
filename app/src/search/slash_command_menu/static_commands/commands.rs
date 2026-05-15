@@ -379,7 +379,7 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.push(OPEN_REPO);
 
-    if FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs") {
+    if cfg!(feature = "local_fs") {
         commands.push(OPEN_SETTINGS_FILE);
     }
 

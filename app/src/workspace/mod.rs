@@ -881,7 +881,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
             "Open settings file",
             WorkspaceAction::OpenSettingsFile,
         )
-        .with_enabled(|| FeatureFlag::SettingsFile.is_enabled() && cfg!(feature = "local_fs"))
+        .with_enabled(|| cfg!(feature = "local_fs"))
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
     ]);

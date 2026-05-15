@@ -354,7 +354,6 @@ default = [
     "vertical_tabs",
     "tab_configs",
     "trim_trailing_blank_lines",
-    "settings_file",
     "directory_tab_colors",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
@@ -431,7 +430,6 @@ rich_history = []
 richtext_multiselect = []
 runtime_feature_flags = []
 selectable_prompt = []
-settings_file = []
 sequential_storage = []
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = []

@@ -8,7 +8,6 @@ pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
 #[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
 #[cfg(feature = "local_fs")]
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
@@ -595,7 +594,7 @@ impl Input {
                 });
             }
             open_settings_file if command.name == commands::OPEN_SETTINGS_FILE.name => {
-                if !FeatureFlag::SettingsFile.is_enabled() || !cfg!(feature = "local_fs") {
+                if !cfg!(feature = "local_fs") {
                     return false;
                 }
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenSettingsFile);

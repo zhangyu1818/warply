@@ -174,7 +174,7 @@ integration_tests! {
 
     test_tab_behavior_setting,
 
-    test_private_public_settings_routing_with_flag_enabled,
+    test_private_public_settings_routing,
     test_private_settings_preloaded_and_not_leaked_to_toml,
     test_history_command_is_linked_to_local_workflow,
     #[ignore = "Affected by AgentView UI changes"]
