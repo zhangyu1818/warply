@@ -362,6 +362,45 @@ fn test_table_markdown_export_escapes_pipe_characters() {
 }
 
 #[test]
+fn test_url_link_display_text_round_trip_is_stable() {
+    App::test((), |mut app| async move {
+        let original =
+            "[https://example.com/index.html#section](https://example.com/index.html#section)";
+        let expected_escaped = "[https://example\\.com/index\\.html\\#section](https://example.com/index.html#section)";
+
+        let (buffer, _) = Buffer::mock_from_markdown(
+            original,
+            None,
+            Box::new(|_, _| IndentBehavior::Ignore),
+            &mut app,
+        );
+        let after_first = app.read_model(&buffer, |buffer, _| buffer.markdown());
+        assert_eq!(after_first, expected_escaped);
+
+        let (buffer, _) = Buffer::mock_from_markdown(
+            &after_first,
+            None,
+            Box::new(|_, _| IndentBehavior::Ignore),
+            &mut app,
+        );
+        let after_second = app.read_model(&buffer, |buffer, _| buffer.markdown());
+        assert_eq!(after_second, expected_escaped);
+
+        let (buffer, _) = Buffer::mock_from_markdown(
+            &after_second,
+            None,
+            Box::new(|_, _| IndentBehavior::Ignore),
+            &mut app,
+        );
+        let after_third = app.read_model(&buffer, |buffer, _| buffer.markdown());
+        assert_eq!(after_third, expected_escaped);
+
+        let plain_text = app.read_model(&buffer, |buffer, _| buffer.text().as_str().to_string());
+        assert_eq!(plain_text, "https://example.com/index.html#section");
+    });
+}
+
+#[test]
 fn test_image_with_content_html_serialization() {
     App::test((), |mut app| async move {
         let markdown = "# Header\n\n![Image](test.png)\n\nSome text\n";
