@@ -308,7 +308,7 @@ impl BlocklistAIActionExecutor {
             {
                 RunningActionPhase::Parallel(ParallelExecutionPolicy::ReadOnlyLocalContext)
             }
-            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. }
+            AIAgentActionType::FileGlobV2 { .. }
                 if self
                     .file_glob_executor
                     .as_ref(ctx)
@@ -393,7 +393,7 @@ impl BlocklistAIActionExecutor {
                 .grep_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => self
+            AIAgentActionType::FileGlobV2 { .. } => self
                 .file_glob_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
@@ -572,7 +572,7 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => self
+            AIAgentActionType::FileGlobV2 { .. } => self
                 .file_glob_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::InitProject => true,

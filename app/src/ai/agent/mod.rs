@@ -1001,7 +1001,7 @@ impl AIAgentActionResult {
                 | AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled)
                 | AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
                 | AIAgentActionResultType::Grep(GrepResult::Cancelled)
-                | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled),
+                | AIAgentActionResultType::FileGlobV2(FileGlobV2Result::Cancelled),
         )
     }
 }

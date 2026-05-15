@@ -309,8 +309,7 @@ pub fn render_warping_indicator<V: View>(
                 LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_owned()
             }
             Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
-            Some(AIAgentActionType::FileGlob { .. })
-            | Some(AIAgentActionType::FileGlobV2 { .. }) => {
+            Some(AIAgentActionType::FileGlobV2 { .. }) => {
                 LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_owned()
             }
             Some(AIAgentActionType::WriteToLongRunningShellCommand { .. }) => {

@@ -6,9 +6,7 @@ use itertools::Itertools;
 use warpui::r#async::FutureExt as AsyncFutureExt;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::agent::{
-    AIAgentAction, AIAgentActionType, FileGlobResult, FileGlobV2Match, FileGlobV2Result,
-};
+use crate::ai::agent::{AIAgentAction, AIAgentActionType, FileGlobV2Match, FileGlobV2Result};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::paths::{host_native_absolute_path, join_paths, shell_native_absolute_path};
 use crate::terminal::model::session::ExecuteCommandOptions;
@@ -46,8 +44,7 @@ impl FileGlobExecutor {
             action:
                 AIAgentAction {
                     action:
-                        AIAgentActionType::FileGlob { path, .. }
-                        | AIAgentActionType::FileGlobV2 {
+                        AIAgentActionType::FileGlobV2 {
                             search_dir: path, ..
                         },
                     ..
@@ -87,8 +84,7 @@ impl FileGlobExecutor {
     ) -> impl Into<AnyActionExecution> {
         let AIAgentAction {
             action:
-                AIAgentActionType::FileGlob { patterns, path }
-                | AIAgentActionType::FileGlobV2 {
+                AIAgentActionType::FileGlobV2 {
                     patterns,
                     search_dir: path,
                 },
@@ -116,7 +112,6 @@ impl FileGlobExecutor {
         let session = self.active_session.as_ref(ctx).session(ctx);
 
         let patterns_clone = patterns.clone();
-        let is_file_glob_v2 = is_file_glob_v2(&input);
         ActionExecution::new_async(
             async move {
                 match run_file_glob(patterns_clone, absolute_path, session, shell_launch_data)
@@ -136,20 +131,11 @@ impl FileGlobExecutor {
                         FileGlobV2Result::Success { .. } => {}
                         _ => {}
                     }
-                    // Convert FileGlobV2Result to FileGlobResult if the request was not V2.
-                    if is_file_glob_v2 {
-                        AIAgentActionResultType::FileGlobV2(file_glob_result)
-                    } else {
-                        AIAgentActionResultType::FileGlob(file_glob_result.into())
-                    }
+                    AIAgentActionResultType::FileGlobV2(file_glob_result)
                 }
                 Err(e) => {
                     log::warn!("Failed to execute file_glob: {e:?}");
-                    if is_file_glob_v2 {
-                        AIAgentActionResultType::FileGlobV2(FileGlobV2Result::Error(e.to_string()))
-                    } else {
-                        AIAgentActionResultType::FileGlob(FileGlobResult::Error(e.to_string()))
-                    }
+                    AIAgentActionResultType::FileGlobV2(FileGlobV2Result::Error(e.to_string()))
                 }
             },
         )
@@ -161,10 +147,6 @@ impl FileGlobExecutor {
             .session(ctx)
             .is_some_and(|session| session.supports_parallel_command_execution())
     }
-}
-
-fn is_file_glob_v2(input: &ExecuteActionInput) -> bool {
-    matches!(input.action.action, AIAgentActionType::FileGlobV2 { .. })
 }
 
 async fn run_file_glob(

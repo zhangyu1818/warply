@@ -9,11 +9,11 @@ use crate::{
     agent::{
         action_result::{
             AIAgentActionResultType, AskUserQuestionResult, CreateDocumentsResult,
-            EditDocumentsResult, FileGlobResult, FileGlobV2Result, GrepResult,
-            InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult,
-            ReadShellCommandOutputResult, RequestCommandOutputResult, RequestComputerUseResult,
-            RequestFileEditsResult, SearchCodebaseResult, TransferShellCommandControlToUserResult,
-            UseComputerResult, WriteToLongRunningShellCommandResult,
+            EditDocumentsResult, FileGlobV2Result, GrepResult, InsertReviewCommentsResult,
+            ReadDocumentsResult, ReadFilesResult, ReadShellCommandOutputResult,
+            RequestCommandOutputResult, RequestComputerUseResult, RequestFileEditsResult,
+            SearchCodebaseResult, TransferShellCommandControlToUserResult, UseComputerResult,
+            WriteToLongRunningShellCommandResult,
         },
         AIAgentCitation, FileLocations,
     },
@@ -72,11 +72,6 @@ pub enum AIAgentActionType {
         path: String,
     },
 
-    FileGlob {
-        patterns: Vec<String>,
-        path: Option<String>,
-    },
-
     FileGlobV2 {
         patterns: Vec<String>,
         search_dir: Option<String>,
@@ -130,7 +125,7 @@ impl AIAgentActionType {
     }
 
     pub fn is_file_glob(&self) -> bool {
-        matches!(self, Self::FileGlob { .. } | Self::FileGlobV2 { .. })
+        matches!(self, Self::FileGlobV2 { .. })
     }
 
     pub fn is_write_to_shell_command(&self) -> bool {
@@ -150,7 +145,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
             }
             Self::Grep { .. } => AIAgentActionResultType::Grep(GrepResult::Cancelled),
-            Self::FileGlob { .. } => AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled),
             Self::FileGlobV2 { .. } => {
                 AIAgentActionResultType::FileGlobV2(FileGlobV2Result::Cancelled)
             }
@@ -208,7 +202,7 @@ impl AIAgentActionType {
                 format!("Edit {file_names}")
             }
             Self::Grep { .. } => "Grep".to_string(),
-            Self::FileGlob { .. } | Self::FileGlobV2 { .. } => "File glob".to_string(),
+            Self::FileGlobV2 { .. } => "File glob".to_string(),
             Self::InitProject => "Init project".to_string(),
             Self::OpenCodeReview => "Open code review".to_string(),
             Self::ReadDocuments(_) => "Read documents".to_string(),
@@ -274,10 +268,6 @@ impl Display for AIAgentActionType {
             }
             AIAgentActionType::Grep { queries, path } => {
                 write!(f, "Grep: [{}] in {}", queries.join(", "), path)
-            }
-            AIAgentActionType::FileGlob { patterns, path } => {
-                let path_str = path.as_deref().unwrap_or(".");
-                write!(f, "FileGlob: [{}] in {}", patterns.join(", "), path_str)
             }
             AIAgentActionType::FileGlobV2 {
                 patterns,

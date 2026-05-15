@@ -468,11 +468,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::FileGlob { patterns, path },
-                            id,
-                            ..
-                        })
-                        | AIAgentOutputMessageType::Action(AIAgentAction {
                             action:
                                 AIAgentActionType::FileGlobV2 {
                                     patterns,
@@ -3322,7 +3317,7 @@ fn conversation_search_phase(task: &crate::ai::agent::task::Task) -> Conversatio
                             count: request.locations.len(),
                         })
                     }
-                    AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => {
+                    AIAgentActionType::FileGlobV2 { .. } => {
                         Some(ConversationSearchPhase::ListingMessages)
                     }
                     _ => None,

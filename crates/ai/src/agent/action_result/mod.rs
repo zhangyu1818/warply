@@ -30,9 +30,6 @@ pub enum AIAgentActionResultType {
     /// The output of a grep action.
     Grep(GrepResult),
 
-    /// The output of a file glob action.
-    FileGlob(FileGlobResult),
-
     /// The output of a file glob V2 action.
     FileGlobV2(FileGlobV2Result),
 
@@ -100,7 +97,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::ReadFiles(result) => result.fmt(f),
             AIAgentActionResultType::SearchCodebase(result) => result.fmt(f),
             AIAgentActionResultType::Grep(result) => result.fmt(f),
-            AIAgentActionResultType::FileGlob(result) => result.fmt(f),
             AIAgentActionResultType::FileGlobV2(result) => result.fmt(f),
             AIAgentActionResultType::ReadDocuments(result) => result.fmt(f),
             AIAgentActionResultType::EditDocuments(result) => result.fmt(f),
@@ -588,7 +584,6 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::ReadFiles(_) => "The requested file content",
             AIAgentActionResultType::SearchCodebase(_) => "The codebase search results",
             AIAgentActionResultType::Grep(_) => "The results of the grep operation",
-            AIAgentActionResultType::FileGlob(_) => "The results of the file glob operation",
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
             AIAgentActionResultType::OpenCodeReview => "Open code review",
             AIAgentActionResultType::InsertReviewComments(_) => "Insert code review comments",
@@ -615,7 +610,6 @@ impl AIAgentActionResultType {
             | Self::ReadFiles(ReadFilesResult::Success { .. })
             | Self::SearchCodebase(SearchCodebaseResult::Success { .. })
             | Self::Grep(GrepResult::Success { .. })
-            | Self::FileGlob(FileGlobResult::Success { .. })
             | Self::FileGlobV2(FileGlobV2Result::Success { .. })
             | Self::ReadDocuments(ReadDocumentsResult::Success { .. })
             | Self::EditDocuments(EditDocumentsResult::Success { .. })
@@ -644,7 +638,6 @@ impl AIAgentActionResultType {
             | Self::ReadFiles(ReadFilesResult::Error(_))
             | Self::SearchCodebase(SearchCodebaseResult::Failed { .. })
             | Self::Grep(GrepResult::Error(_))
-            | Self::FileGlob(FileGlobResult::Error(_))
             | Self::FileGlobV2(FileGlobV2Result::Error(_))
             | Self::ReadDocuments(ReadDocumentsResult::Error(_))
             | Self::EditDocuments(EditDocumentsResult::Error(_))
@@ -672,7 +665,6 @@ impl AIAgentActionResultType {
             | Self::ReadFiles(ReadFilesResult::Cancelled)
             | Self::SearchCodebase(SearchCodebaseResult::Cancelled)
             | Self::Grep(GrepResult::Cancelled)
-            | Self::FileGlob(FileGlobResult::Cancelled)
             | Self::FileGlobV2(FileGlobV2Result::Cancelled)
             | Self::ReadDocuments(ReadDocumentsResult::Cancelled)
             | Self::EditDocuments(EditDocumentsResult::Cancelled)
@@ -762,26 +754,6 @@ pub struct GrepLineMatch {
 impl Display for GrepLineMatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.line_number)
-    }
-}
-
-/// The result of a file globbing operation
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FileGlobResult {
-    Success { matched_files: String },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for FileGlobResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FileGlobResult::Success { matched_files } => {
-                write!(f, "File glob completed: {matched_files}")
-            }
-            FileGlobResult::Error(error) => write!(f, "File glob error: {error}"),
-            FileGlobResult::Cancelled => write!(f, "File glob cancelled"),
-        }
     }
 }
 
@@ -993,24 +965,6 @@ pub enum AskUserQuestionResult {
     SkippedByAutoApprove {
         question_ids: Vec<String>,
     },
-}
-
-impl From<FileGlobV2Result> for FileGlobResult {
-    fn from(value: FileGlobV2Result) -> Self {
-        match value {
-            FileGlobV2Result::Success {
-                matched_files,
-                warnings: _,
-            } => FileGlobResult::Success {
-                matched_files: matched_files
-                    .into_iter()
-                    .map(|matched_file| matched_file.file_path)
-                    .join("\n"),
-            },
-            FileGlobV2Result::Error(error) => FileGlobResult::Error(error),
-            FileGlobV2Result::Cancelled => FileGlobResult::Cancelled,
-        }
-    }
 }
 
 impl From<CreateDocumentsResult> for AIAgentActionResultType {

@@ -156,10 +156,6 @@ pub(crate) enum PersistedAIAgentActionType {
         queries: Vec<String>,
         path: String,
     },
-    FileGlob {
-        patterns: Vec<String>,
-        path: Option<String>,
-    },
     FileGlobV2 {
         patterns: Vec<String>,
         search_dir: Option<String>,
@@ -219,10 +215,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             },
             AIAgentActionType::Grep { queries, path } => Self::Grep {
                 queries: queries.clone(),
-                path: path.clone(),
-            },
-            AIAgentActionType::FileGlob { patterns, path } => Self::FileGlob {
-                patterns: patterns.clone(),
                 path: path.clone(),
             },
             AIAgentActionType::FileGlobV2 {
@@ -311,9 +303,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 }))
             }
             PersistedAIAgentActionType::Grep { queries, path } => Ok(Self::Grep { queries, path }),
-            PersistedAIAgentActionType::FileGlob { patterns, path } => {
-                Ok(Self::FileGlob { patterns, path })
-            }
             PersistedAIAgentActionType::FileGlobV2 {
                 patterns,
                 search_dir,
