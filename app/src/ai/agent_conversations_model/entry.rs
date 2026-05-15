@@ -24,7 +24,6 @@ pub struct AgentConversationEntry {
     pub id: AgentConversationEntryId,
     pub conversation_id: AIConversationId,
     pub display: AgentConversationDisplayData,
-    pub backing: AgentConversationBackingData,
     pub capabilities: AgentConversationCapabilities,
 }
 
@@ -38,12 +37,6 @@ pub struct AgentConversationDisplayData {
     pub run_time: Option<String>,
     pub working_directory: Option<String>,
     pub artifacts: Vec<Artifact>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AgentConversationBackingData {
-    pub has_loaded_conversation: bool,
-    pub has_local_persisted_data: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,10 +134,6 @@ fn entry_for_conversation_parts(
             artifacts: conversation
                 .map(|conversation| conversation.artifacts().to_vec())
                 .unwrap_or_default(),
-        },
-        backing: AgentConversationBackingData {
-            has_loaded_conversation,
-            has_local_persisted_data,
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data,

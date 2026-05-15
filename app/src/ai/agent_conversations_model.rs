@@ -308,21 +308,15 @@ impl AgentConversationsModel {
         let nav_data = self
             .conversations
             .get(&conversation_id)
-            .map(|metadata| &metadata.nav_data);
-        if entry.backing.has_loaded_conversation
-            || entry.backing.has_local_persisted_data
-            || nav_data.is_some()
-        {
-            return Some(WorkspaceAction::RestoreOrNavigateToConversation {
-                conversation_id,
-                window_id: nav_data.and_then(|nav_data| nav_data.window_id),
-                pane_view_locator: None,
-                terminal_view_id: nav_data.and_then(|nav_data| nav_data.terminal_view_id),
-                restore_layout,
-            });
-        }
+            .map(|metadata| &metadata.nav_data)?;
 
-        None
+        Some(WorkspaceAction::RestoreOrNavigateToConversation {
+            conversation_id,
+            window_id: nav_data.window_id,
+            pane_view_locator: None,
+            terminal_view_id: nav_data.terminal_view_id,
+            restore_layout,
+        })
     }
 
     fn handle_history_event(
