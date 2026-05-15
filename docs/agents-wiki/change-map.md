@@ -424,6 +424,7 @@ This map explains the large fork baseline change at a path level.
 - Reworded the retained directory-theme override spec away from old Oz review naming, deleted onboarding paths, and removed cloud-sync setting fields. Directory-theme overrides remain local settings behavior with private storage and redacted local diagnostics.
 - Reworded the retained settings-file error banner spec to remove deleted reauth-banner priority, Oz auto-fix, and bundled-skill follow-up language. Future automatic settings fixes must be explicit ACP AgentView conversations, not app-bundled skills.
 - Renamed retained file-tree and vertical-tabs test fixture directories away from `warp-server` to neutral local repo names. These tests cover local UI selection and summary behavior only; they should not imply Warp service dependencies.
+- Rewrote the retained SSH initialization UX spec around current remote-server controller, ControlMaster, and Warpify behavior. The spec no longer describes rollout flags, hosted downloads, old Oz/Agent SDK paths, or legacy fallback branches.
 
 ## Legacy Names Still Present
 
