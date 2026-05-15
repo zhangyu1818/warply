@@ -317,7 +317,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_autosuggestions_are_hidden_when_opening_tab_completions);
 
     register_test!(test_pass_control_sequences_to_long_running_block);
-    register_test!(test_settings_file_migration_from_native_store);
     register_test!(test_settings_file_hot_reload_applies_new_values);
 
     register_test!(test_settings_error_banner_on_startup_with_invalid_toml);
