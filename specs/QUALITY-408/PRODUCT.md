@@ -23,7 +23,7 @@ Other channels (Dev, Integration, Local) already use separate directories (`.war
 
 ## Non-goals
 
-- Changing behavior on Linux or Windows (these platforms already use separate directories via `ProjectDirs`).
+- Changing non-macOS app directory behavior.
 - Migrating the SQLite database (already stored separately in `~/Library/Application Support/` or the App Group container).
 - Changing Dev, Integration, or Local channel directories.
 - Achieving full bidirectional sync between Stable and Preview configs going forward.

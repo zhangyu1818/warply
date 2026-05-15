@@ -23,7 +23,7 @@ The codebase currently uses `CanonicalizedPath` (a wrapper around `PathBuf` that
 - Pairs with `SessionId` for disambiguation.
 
 ### `typed-path` crate (v0.10.0, already a workspace dependency)
-- Already used in `warp_util::path` for MSYS2/WSL path conversion and in `ai::paths` for cross-platform path joining and normalization.
+- Already used in `ai::paths` for path joining and normalization.
 - Provides `TypedPathBuf` (enum over Unix/Windows path buffers), `TypedPath`, `.normalize()` (removes `.` and `..` without I/O), and platform-aware path operations.
 
 ### Path usage in coding features
@@ -125,14 +125,14 @@ impl Display for StandardizedPath {
 impl From<CanonicalizedPath> for StandardizedPath { ... }
 ```
 
-#### Display safety — UNC prefix handling
+#### Display safety
 `Display` delegates to `TypedPathBuf::to_string_lossy()`. UNC prefixes (`\\?\`) are handled as follows:
 
 - Non-canonicalizing constructors (`try_new`, `try_with_encoding`, `try_from_local`) use `TypedPathBuf::normalize()` — pure string manipulation that never introduces UNC prefixes.
-- `from_local_canonicalized` uses `dunce::canonicalize`, which strips UNC prefixes on Windows *when safe*. However, `dunce` intentionally **preserves** the UNC prefix for paths that exceed 260 characters, contain reserved DOS filenames (`CON`, `NUL`, `COM1`–`COM9`, etc.), or have components with trailing spaces/dots. In these edge cases, the UNC prefix will survive into the `TypedPathBuf`.
+- `from_local_canonicalized` uses `dunce::canonicalize`, then `dunce::simplified` before feeding the result into `TypedPathBuf`.
 - `TypedPathBuf` itself stores the literal string representation and never calls Windows APIs.
 
-To ensure `Display` never emits UNC prefixes, `from_local_canonicalized` will call `dunce::simplified` on the canonicalized path before feeding it into `TypedPathBuf`. This strips the UNC prefix whenever safe. For the rare cases where `dunce::simplified` cannot strip it (path >260 chars, reserved names), the UNC prefix will remain — this is correct behavior, as such paths require the extended-length prefix to be valid on Windows.
+This keeps display strings normalized without adding local Windows platform behavior.
 
 #### Serde support
 Serialize as the string representation; deserialize by normalizing.
@@ -192,7 +192,7 @@ A newtype wrapper provides:
 - Clearer API boundaries — callers can't accidentally construct un-normalized paths.
 
 **Why keep `to_local_path() -> Option<PathBuf>`?**
-Filesystem operations (`std::fs::read`, `std::fs::write`, `notify` watchers) require `std::path::Path`. `to_local_path()` is the controlled exit point. Returning `Option` makes encoding mismatches explicit (e.g. trying to open a Unix path on Windows).
+Filesystem operations (`std::fs::read`, `std::fs::write`, `notify` watchers) require `std::path::Path`. `to_local_path()` is the controlled exit point. Returning `Option` makes encoding mismatches explicit.
 
 **Case sensitivity**
 `StandardizedPath` does not perform case-folding. On macOS (case-insensitive HFS+/APFS), two paths differing only in case will not be equal under `StandardizedPath`. This matches the behavior of `TypedPathBuf` and avoids platform-specific equality semantics leaking into the type. If case-insensitive deduplication is needed (e.g. for file tree keys on macOS), it should be handled at the call site or via a separate wrapper/comparator.

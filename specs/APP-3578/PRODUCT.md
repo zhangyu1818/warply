@@ -34,14 +34,13 @@ The vertical tabs panel currently uses the same new-session dropdown as the hori
 
 ### Dropdown menu items (in order)
 1. "Default" — creates a new tab (same as current `AddTab` / welcome tab behavior). Shows ⌘T keybinding. Icon: `LayoutAlt01`.
-2. "Agent" — creates an agent tab (behind AI feature flag). Icon: `LayoutAlt01`.
+2. "Agent" — creates an ACP AgentView tab (behind AI feature flag). Icon: `LayoutAlt01`.
 3. "Terminal" — creates a terminal tab. Icon: `LayoutAlt01`.
-4. "Cloud agent tab" — creates a cloud agent tab (behind `AgentView` + `CloudMode` flags). Icon: `LayoutAlt01`.
-5. Available shells (behind `ShellSelector` flag) — one item per shell, no separator above. Icon: `LayoutAlt01`.
-6. Launch configs — rendered as "Launch {name}" items. Icon: `LayoutAlt01`.
-7. Tab configs — one item per loaded tab config, no separator above. Icon: `LayoutAlt01` for non-worktree configs, `Dataflow02` for worktree configs.
-8. Separator line.
-9. "New worktree" — opens the tab config template file (same as current "Create new tab config..."). Icon: `Plus`.
+4. Available shells (behind `ShellSelector` flag) — one item per shell, no separator above. Icon: `LayoutAlt01`.
+5. Launch configs — rendered as "Launch {name}" items. Icon: `LayoutAlt01`.
+6. Tab configs — one item per loaded tab config, no separator above. Icon: `LayoutAlt01` for non-worktree configs, `Dataflow02` for worktree configs.
+7. Separator line.
+8. "New worktree" — opens the tab config template file (same as current "Create new tab config..."). Icon: `Plus`.
 
 ### Icons
 - All non-worktree items use the `LayoutAlt01` icon (sidebar-left layout shape).
@@ -58,7 +57,7 @@ The vertical tabs panel currently uses the same new-session dropdown as the hori
 
 ## Edge Cases
 
-1. **No AI enabled**: Agent and Cloud agent tab items are hidden (same gating as today).
+1. **No AI enabled**: Agent tab items are hidden (same gating as today).
 2. **No tab configs**: Only the built-in items + shells + "New worktree" appear.
 3. **Menu lifecycle**: Same as existing — closes on item selection, click outside, or Escape.
 4. **Menu width**: Set to 268px for the vertical tabs dropdown (matching the Figma `OptionMenuItem` width). Resets to default 186px for horizontal tabs.

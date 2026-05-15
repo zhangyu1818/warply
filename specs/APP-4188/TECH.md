@@ -18,10 +18,9 @@ On Finder/Dock launches, Warp inherits launchd's minimal `PATH`. `git` itself st
    Commit's `start_confirm` forwards through the commit → push → `create_pr_with_ai_content` chain; PR's `start_confirm` forwards into `create_pr_with_ai_content`, which forwards `path_env` into `create_pr` only. Pattern matches `persisted_workspace.rs::execute_lsp_task`.
 5. **`diff_state.rs::refresh_pr_info`** captures PATH via a local `interactive_path_future` helper (same shape, `ModelContext<DiffStateModel>`-flavored) and forwards into `get_pr_for_branch` so the `PR #N` header badge works from Finder launches.
 ## Fallbacks
-- Capture returns `None` (wasm / `LocalShellState` not loaded / shell errored) → callers forward `None` → subprocess uses inherited `PATH`. Behavior no worse than today.
-- On Linux/Windows the same code path runs; no special-casing.
+- Capture returns `None` (`LocalShellState` not loaded / shell errored) → callers forward `None` → subprocess uses inherited `PATH`. Behavior no worse than today.
 ## Testing and validation
-No unit tests — the plumbing is a thin `Option<&str>` forward and the real-world condition (launchd minimal `PATH`) isn't reproducible in a test harness. Manual validation per `PRODUCT.md` "Validation". UI regression coverage via `verify-ui-change-in-cloud`.
+No unit tests — the plumbing is a thin `Option<&str>` forward and the real-world condition (launchd minimal `PATH`) isn't reproducible in a test harness. Manual validation per `PRODUCT.md` "Validation".
 ## Risks
 - **First-click latency:** first git-op in a session awaits the shell capture (<1s typical). Absorbed by existing loading state. Prewarming on panel mount is an easy follow-up if it's ever user-visible.
 - **Hook behavior change:** LFS hooks that silently no-op today (because `git-lfs` is missing) will actually run for Finder-launched Warp. Intended per PRODUCT.md.

@@ -88,7 +88,7 @@ That makes `focused_pane_id()` the right backing state for “Focused session”
 
 ## Proposed changes
 
-### 1. Add a new synced setting for row granularity
+### 1. Add a new local setting for row granularity
 
 Add a new enum in `app/src/workspace/tab_settings.rs`:
 
@@ -101,10 +101,9 @@ pub enum VerticalTabsDisplayGranularity {
 }
 ```
 
-Register it in `TabSettings` with the same sync / hierarchy behavior as the existing vertical-tabs settings:
+Register it in `TabSettings` with the same local persistence / hierarchy behavior as the existing vertical-tabs settings:
 
 - `SupportedPlatforms::ALL`
-- `SyncToCloud::Globally(RespectUserSyncSetting::Yes)`
 - `hierarchy: "appearance.tabs"`
 
 Deliberately do not rename the existing `VerticalTabsViewMode` enum in this ticket. It already means compact vs expanded density in code, and renaming it would create avoidable churn across unrelated logic. The popup can relabel that control to `Density` without touching the backing enum name yet.

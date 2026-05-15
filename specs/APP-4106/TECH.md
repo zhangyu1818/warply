@@ -608,9 +608,8 @@ path-shape behavior for both consumers.
 
 ### Manual validation
 
-`verify-ui-change-in-cloud` runs per the PRODUCT.md validation section,
-which includes the new scroll-preservation and click-preservation
-checks.
+Run the PRODUCT.md manual validation section, which includes the new
+scroll-preservation and click-preservation checks.
 
 ## Follow-ups
 

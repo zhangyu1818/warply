@@ -109,25 +109,13 @@ bit-for-bit identical to today.
 
 2. Keys are tilde-expanded to absolute paths at match time. Trailing
    slashes are normalized away. Symlinks are not resolved — the cwd as
-   the shell reports it is what's matched. Path normalization rules,
-   per platform:
-
-    - **Linux:** matching is case-sensitive (matches the filesystem
-      semantics on standard ext4/xfs). Path separators are `/`.
-    - **macOS:** matching is case-insensitive (matches the default
-      HFS+/APFS case-insensitive setting). Path separators are `/`.
-    - **Windows:** matching is case-insensitive. Both `/` and `\` are
-      accepted as separators in `directory_overrides` keys and are
-      normalized internally to a single canonical form before
-      comparison. Drive letters are normalized to uppercase (`c:\Work`
-      and `C:\Work` are equivalent keys; the second-written one wins
-      per TOML duplicate-key semantics). Tilde expands to
-      `%USERPROFILE%`.
+   the shell reports it is what's matched. On macOS, matching is
+   case-insensitive (matching the default HFS+/APFS setting) and path
+   separators are `/`.
 
    Component-boundary matching (the rule in the previous paragraph
    that prevents `~/Work/medone` from matching `~/Work/medone-archive`)
-   uses the platform's path-component definition — on Windows that
-   means the boundary follows either `\` or `/` after normalization.
+   uses macOS path components.
 
 3. Match resolution: a key matches if it is a prefix of the active pane's
    cwd at a path-component boundary. `~/Work/medone` matches both
@@ -155,12 +143,10 @@ bit-for-bit identical to today.
    skipped for matching purposes, and the rest of the map continues to
    work.
 
-7a. **`directory_overrides` is stored locally and never synced to Warp's
-    cloud.** Directory paths can encode employer, customer, and project
-    names (`~/Work/<client>/<engagement>/...`); cloud-syncing the keys
-    would push that organizational context off-machine. Users on
-    multiple machines who want shared themes today set them per-machine.
-    An opt-in cloud-sync mode is a candidate follow-up. The global
+7a. **`directory_overrides` is stored locally only.** Directory paths can encode employer, customer, and project
+    names (`~/Work/<client>/<engagement>/...`); sharing the keys would
+    push that organizational context off-machine. Users on multiple
+    machines who want shared themes set them per-machine. The global
     theme setting (`appearance.themes.theme`) and per-tab pins set via
     the right-click menu remain user-controllable surfaces; only this
     map is local-only.
@@ -168,8 +154,8 @@ bit-for-bit identical to today.
 7b. **Diagnostic output never contains raw `directory_overrides` keys.**
     Local logs are routinely shared with Warp support and copied into
     bug reports, so even local diagnostics can leak path keys. The
-    invariant is: any warning or telemetry emitted by the
-    `directory_overrides` machinery refers to an offending entry by a
+    invariant is: any warning emitted by the `directory_overrides`
+    machinery refers to an offending entry by a
     short non-cryptographic hash of its key plus the offending value
     (the theme name, which is non-sensitive). For example, a warning
     that today might say `directory_overrides: "~/Work/AcmeCorp/2026":
@@ -297,8 +283,7 @@ bit-for-bit identical to today.
     colored indicator next to the tab title) is independent of the new
     theme override. Both can be set; both are honored.
 
-20. The feature applies on every supported platform (macOS, Linux,
-    Windows). It is **gated behind a feature flag** named
+20. The feature applies to this fork's macOS app and is **gated behind a feature flag** named
     `appearance.themes.per_tab_overrides` (per Zach's v4 review):
     - Initial release ships with the flag **off** in stable and **on**
       in dev/preview, so the rollout can soak with internal users
@@ -309,9 +294,9 @@ bit-for-bit identical to today.
       the map under preview do not lose data), and launch-configuration
       `theme:` fields are deserialized but ignored. The user-visible
       behavior is bit-for-bit identical to today.
-    - The default flips to on in stable in a follow-up release, after
-      telemetry on the preview/dev cohort confirms no regressions in
-      render performance, settings parsing, or session restore.
+    - The default flips to on in stable in a follow-up release after
+      local preview/dev validation confirms no regressions in render
+      performance, settings parsing, or session restore.
     - An empty `directory_overrides` map (the default) plus no
       launch-config theme fields plus no pinned themes — even with the
       flag on — is bit-for-bit identical to current behavior.

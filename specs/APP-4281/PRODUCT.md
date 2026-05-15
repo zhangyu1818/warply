@@ -4,7 +4,7 @@ Linear: APP-4281
 
 ## Summary
 
-When a user SSHes into a Linux host whose glibc (or libc family) is too old to run Warp's prebuilt remote-server binary, Warp must avoid offering or attempting an install that would never succeed. The user lands in the legacy SSH experience without seeing any error banner, modal, or install prompt — the SSH session feels indistinguishable from a normal SSH into a host where remote-server features simply aren't enabled.
+When a user SSHes into a Linux host whose glibc (or libc family) is too old to run Warp's prebuilt remote-server binary, Warp must avoid offering or attempting an install that would never succeed. The user lands in the ControlMaster-backed SSH experience without seeing any error banner, modal, or install prompt — the SSH session feels indistinguishable from a normal SSH into a host where remote-server features simply aren't enabled.
 
 ## Figma
 
@@ -28,9 +28,9 @@ Today, the user sees the install prompt, the install "succeeds," and the failure
 
 2. On an unsupported-libc host, Warp does **not** invoke the install script, does **not** download the binary, and does **not** attempt to launch the remote-server proxy.
 
-3. On an unsupported-libc host, the SSH session falls back to the legacy SSH flow (the same flow used today when the user has chosen `NeverInstall`, or when the install is skipped). The user gets a working shell with normal command execution; remote-server-specific features (e.g. richer completions, repo metadata) are simply absent for that session.
+3. On an unsupported-libc host, the SSH session falls back to the ControlMaster-backed SSH flow (the same flow used when the user has chosen `NeverInstall`, or when the install is skipped). The user gets a working shell with normal command execution; remote-server-specific features (e.g. richer completions, repo metadata) are simply absent for that session.
 
-4. While Warp is determining whether the host is supported, the prompt area shows the same loading state it shows today during the binary-check phase ("Starting shell..." / "Checking..."). When the determination completes and the host is unsupported, the loading state ends and the legacy SSH prompt appears with no error banner, no failure block, and no modal.
+4. While Warp is determining whether the host is supported, the prompt area shows the same loading state it shows today during the binary-check phase ("Starting shell..." / "Checking..."). When the determination completes and the host is unsupported, the loading state ends and the ControlMaster-backed SSH prompt appears with no error banner, no failure block, and no modal.
 
 5. If the host has an existing remote-server binary on disk from a previous (now-incompatible) install, Warp removes that stale binary as part of the fall-back so the host does not accumulate unusable files. The cleanup is silent — the user is not asked to confirm and is not informed if it fails.
 
@@ -42,7 +42,7 @@ Today, the user sees the install prompt, the install "succeeds," and the failure
 
 8. If pre-detection cannot positively classify the host (the libc probe didn't run, returned unparseable output, or otherwise failed), Warp proceeds with today's behavior: it offers or runs the install according to the user's `SshExtensionInstallMode` setting.
 
-9. If the install itself fails, or the install succeeds but the remote-server proxy fails to launch (for example, because the binary's loader rejects the host's glibc), Warp must not leave the user stranded. The SSH session falls back to the legacy SSH flow and the user gets a working shell.
+9. If the install itself fails, or the install succeeds but the remote-server proxy fails to launch (for example, because the binary's loader rejects the host's glibc), Warp must not leave the user stranded. The SSH session falls back to the ControlMaster-backed SSH flow and the user gets a working shell.
 
 10. In the fallback-after-failure path, Warp may surface a single, dismissible failure banner explaining that the SSH extension could not be installed/launched on this host (consistent with today's `SshRemoteServerFailedBanner`). It must **not** loop on the failure: the user does not see a new banner, modal, or install prompt for the same host on subsequent SSH sessions in the same Warp run.
 
@@ -56,14 +56,14 @@ Today, the user sees the install prompt, the install "succeeds," and the failure
 
 14. The user's `SshExtensionInstallMode` setting is honored:
     - `AlwaysAsk`: the choice block is shown only when the host is supported (or when pre-detection was inconclusive). It is never shown on a host known to be unsupported.
-    - `AlwaysInstall`: install runs only when the host is supported (or pre-detection was inconclusive). On a known-unsupported host, install is silently skipped and the session falls back to legacy SSH.
-    - `NeverInstall`: behavior is unchanged — Warp falls back to legacy SSH regardless of host support.
+    - `AlwaysInstall`: install runs only when the host is supported (or pre-detection was inconclusive). On a known-unsupported host, install is silently skipped and the session falls back to ControlMaster-backed SSH.
+    - `NeverInstall`: behavior is unchanged — Warp falls back to ControlMaster-backed SSH regardless of host support.
 
-15. Detection latency must be small enough that the user does not perceive an additional delay before the legacy SSH prompt appears on an unsupported host. The probe runs over the existing SSH connection and adds at most a single round-trip on Linux hosts.
+15. Detection latency must be small enough that the user does not perceive an additional delay before the ControlMaster-backed SSH prompt appears on an unsupported host. The probe runs over the existing SSH connection and adds at most a single round-trip on Linux hosts.
 
 16. SSH-level failures during detection (timeout, broken pipe, permission denied) do not block the SSH session. If detection cannot run, Warp treats the result as inconclusive and follows invariant 8.
 
-17. Nothing about an unsupported-libc fall-back is presented as an error to the user. The legacy SSH session that results is a normal, working shell; the absence of remote-server features is the only observable difference, and it matches the experience the user already has today on hosts where they chose not to install the extension.
+17. Nothing about an unsupported-libc fall-back is presented as an error to the user. The ControlMaster-backed SSH session that results is a normal, working shell; the absence of remote-server features is the only observable difference, and it matches the experience the user already has on hosts where they chose not to install the extension.
 
 18. Detection and fall-back state is per-host, not global. Encountering one unsupported host does not change behavior for any other host the user SSHes into in the same Warp session.
 

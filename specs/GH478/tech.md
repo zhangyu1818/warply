@@ -311,11 +311,11 @@ define_settings_group!(DirectoryThemeOverrides, settings: [
         supported_platforms: SupportedPlatforms::ALL,
         // **Local-only.** Directory paths can encode employer, customer,
         // and project names (e.g. `~/Work/<client>/<engagement>/...`).
-        // Cloud-syncing the keys would leak that organizational context
-        // off-machine; cloud-syncing the values without the keys is
-        // useless. The setting is therefore not synced. Per-tab themes
+        // Sharing the keys would leak that organizational context
+        // off-machine; sharing the values without the keys is useless.
+        // The setting is therefore local-only. Per-tab themes
         // remain user-controllable through the right-click "Pin theme"
-        // menu, which writes to the (non-synced) tab snapshot, not to
+        // menu, which writes to the local tab snapshot, not to
         // this map. See *Privacy model* below.
         // (Per Zach's v4 review: `Never` is the correct variant here.
         // The settings system uses `Globally`, `Never`, `PerPlatform`;
@@ -327,9 +327,8 @@ define_settings_group!(DirectoryThemeOverrides, settings: [
         description: "Local map of directory paths to theme names. The \
                       active pane's cwd is matched against keys (longest \
                       prefix wins); the matched theme overrides the global \
-                      theme for that tab. Stored locally; never synced to \
-                      Warp's cloud because path keys can leak employer or \
-                      project names.",
+                      theme for that tab. Stored locally only because path \
+                      keys can leak employer or project names.",
     },
 ]);
 ```
@@ -339,16 +338,14 @@ define_settings_group!(DirectoryThemeOverrides, settings: [
 Directory paths are not just configuration — they encode information
 about the user's employer, clients, and projects. A key like
 `~/Work/AcmeCorp/redesign-2026` reveals all three. The settings system
-already distinguishes synced from local settings via `sync_to_cloud`
-and `private`; the design rule applied here is:
+must keep this map local and private; the design rule applied here is:
 
-- **Keys are locally-stored, never synced.** `sync_to_cloud: Never`
+- **Keys are locally stored.** `sync_to_cloud: Never`
   and `private: true`. The map is written only to the user's local
-  `settings.toml` and is not transmitted off-machine by the settings
-  sync path.
-- **No telemetry on the contents.** The match function emits at most a
-  count metric ("a directory match applied to N tabs this minute"); it
-  never logs path keys or theme names to remote telemetry pipelines.
+  `settings.toml` and is not transmitted off-machine by export or
+  share paths.
+- **No off-machine reporting.** The match function never reports path
+  keys, theme names, or match counts to remote analytics pipelines.
 - **Local logs are also redacted.** Diagnostic output is routinely
   shared in bug reports and support sessions, so even the local
   Warp log must not contain raw `directory_overrides` keys. The
@@ -357,11 +354,6 @@ and `private`; the design rule applied here is:
   configuration does not emit `directory_overrides` entries (product
   spec #10). Launch configurations are explicitly designed to be
   shared between machines and users; the directory map is not.
-- **Opt-in cloud sync is a follow-up.** A future `cloud_sync_directory_overrides`
-  setting could let users with enterprise sync needs share the map
-  *to themselves* across machines. That requires a separate spec
-  covering opt-in UI, encryption-at-rest of keys, and admin-policy
-  controls; it is deliberately not pre-paid for here.
 
 #### Diagnostic redaction
 
@@ -459,23 +451,16 @@ pub fn directory_theme_for(
 
 Match semantics (per product spec #2, #3):
 
-- Keys are tilde-expanded once at evaluation time. On Linux/macOS tilde
-  expands to `$HOME`; on Windows to `%USERPROFILE%`.
-- Both `/` and `\` are accepted as separators in keys; normalization
-  rewrites them to the platform's canonical form via
+- Keys are tilde-expanded once at evaluation time using `$HOME`.
+- `/` is the path separator in keys; normalization uses
   `Path::components()` before comparison.
-- On Windows, drive-letter prefixes are normalized to uppercase
-  (`c:\…` → `C:\…`).
 - A key matches a cwd if it is a prefix at a path-component boundary.
   Implementation: walk both paths' `Path::components()` after
   normalization and require the key's components to be an exact prefix
   of the cwd's. Using `str::starts_with` would let `~/Work/medone`
   spuriously match `~/Work/medone-archive` and is forbidden.
-- Case sensitivity follows the platform's filesystem default:
-  case-sensitive on Linux, case-insensitive on macOS, case-insensitive
-  on Windows. Implementation uses
-  `unicase::eq(key_component, cwd_component)` on Windows and macOS,
-  `key_component == cwd_component` on Linux. Tests cover each platform.
+- Case sensitivity follows the macOS filesystem default. Implementation
+  uses `unicase::eq(key_component, cwd_component)`. Tests cover macOS path behavior.
 - The longest matching key wins (most components after normalization,
   not most bytes — `~/Work` is shorter than `~/Work/medone` regardless
   of how the user typed them).
@@ -687,9 +672,6 @@ The existing tab context menu gains three entries:
 All three entries trigger the existing theme-changed redraw path used
 today when the global theme changes (no new render-invalidation work).
 
-Telemetry: one counter per click for each of the three entries (using
-existing tab-menu telemetry conventions). No new event schema.
-
 ### 7. Feature flag wiring
 
 Per Zach's v4 review, the entire feature ships behind a feature flag
@@ -701,7 +683,7 @@ in-development features like `OpenWarpNewSettingsModes`).
 
 - `dev` and `preview` channels: flag defaults to **on**.
 - `stable` channel: flag defaults to **off** in the initial release.
-  A follow-up changelog entry flips it on once preview telemetry
+  A follow-up changelog entry flips it on once local preview validation
   confirms no regressions.
 
 **Surfaces gated by the flag (when off):**
@@ -900,16 +882,10 @@ name to avoid typos.
   `theme:`; tabs with only `window_default` emit their default; tabs
   themed only by cwd emit no `theme:`. Reopen and assert the
   effective theme of every tab matches what it was pre-save.
-- **Windows path normalization.** Cross-platform integration test
-  matrix:
-  - Linux: keys `~/Work/medone` (case-sensitive) — assert
-    `~/Work/MEDONE` does **not** match.
-  - macOS: same key — assert `~/Work/MEDONE` **does** match
-    (case-insensitive default).
-  - Windows: keys `C:\Work\medone` and `c:\Work\medone` collapse to
-    one entry (drive-letter normalization). Cwd `C:/Work/medone/app`
-    matches (separator normalization). Cwd
-    `C:\Work\medone-archive` does not match (component boundary).
+- **macOS path normalization.** Integration test: key
+  `~/Work/medone` matches `~/Work/MEDONE` under case-insensitive
+  matching and does not match `~/Work/medone-archive` because of the
+  component boundary rule.
 - **Diagnostic redaction.** Configure `directory_overrides` with a
   key `~/Work/AcmeCorp/2026` mapped to a bad theme name `"Drakula"`.
   Trigger validation. Capture the warning string. Assert it contains
@@ -967,32 +943,28 @@ name to avoid typos.
 
 - `DirectoryThemeOverrides` settings group has `private == true` and
   `sync_to_cloud == SyncToCloud::Never`. Pinned by a settings-system
-  test analogous to the existing tests that gate which settings sync.
+  test for local-only persistence.
 - The redaction-salt file (`~/.warp/redaction_salt`) is created with
-  mode `0600` on first launch and is **not** included in any
-  cloud-synced settings payload (verified by the same serializer test
-  that asserts no path keys leak).
-- The settings sync serializer, when run over a populated
-  `DirectoryThemeOverrides`, emits no entry containing a path key in
-  the cloud-sync payload. Test by populating the map, running the
-  serializer, and asserting the resulting payload does not contain
-  the literal key string.
+  mode `0600` on first launch and is never included in exported or
+  shareable settings data.
+- Settings export helpers, when run over a populated
+  `DirectoryThemeOverrides`, emit no entry containing a path key. Test
+  by populating the map, running the export path, and asserting the
+  resulting payload does not contain the literal key string.
 - Saving a window's state as a launch configuration with a populated
   `directory_overrides` map produces YAML with no
   `directory_overrides` field.
 
 ### Manual verification
 
-- macOS, Linux, Windows: visually confirm terminal background and ANSI
-  palette match the expected theme for each tab in the test scenarios.
+- macOS: visually confirm terminal background and ANSI palette match
+  the expected theme for each tab in the test scenarios.
 - Confirm window chrome (title bar, sidebar, tab strip) follows the
   global theme in all scenarios.
 - Toggle system light/dark while a mix of themed/unthemed tabs is open;
   confirm only unthemed tabs follow the system.
 - Save layout as launch configuration; confirm tabs with manual pins
   emit `theme:`, tabs themed only by directory matching do not.
-- After implementation, invoke the `verify-ui-change-in-cloud` skill
-  per the repository rule for user-facing client changes.
 
 ### Tooling
 
@@ -1030,7 +1002,7 @@ name to avoid typos.
   deserialization; the integration test for restart behavior pins this.
 
 - **Path keys leaking off-machine.** Addressed in *Privacy model* (§4):
-  `private: true`, `sync_to_cloud: Locally`, no telemetry on contents,
+  `private: true`, local-only persistence, no off-machine reporting,
   no roundtrip into shareable launch-config YAML. Privacy invariant
   tests pin each rule.
 
@@ -1044,12 +1016,11 @@ name to avoid typos.
   `preserved_override` helper in §1. Both save tests above pin the
   round-trip.
 
-- **Windows path matching ambiguity.** Component-boundary matching
-  uses `Path::components()` rather than string operations, separator
-  and drive-letter normalization happens before comparison, and case
-  semantics are platform-conditional. Pinned by the cross-platform
-  test matrix above. The lint `appearance_theme_in_tab_path` does not
-  cover this — these are runtime correctness tests.
+- **Path matching ambiguity.** Component-boundary matching uses
+  `Path::components()` rather than string operations. Pinned by the
+  macOS path normalization test above. The lint
+  `appearance_theme_in_tab_path` does not cover this — these are
+  runtime correctness tests.
 
 - **Path keys leaking through diagnostics.** Addressed by
   `redacted_key_id` and the *Diagnostic redaction* contract in §4.

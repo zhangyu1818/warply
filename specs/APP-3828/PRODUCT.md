@@ -22,7 +22,7 @@ Users need a higher-level overview mode that reduces each tab to a single repres
 - Introduce `View as = Tabs`, where each tab renders one representative row derived from that tab’s active pane.
 - Reuse the existing compact and expanded pane row UI for the representative row rather than inventing a new tab row design.
 - Keep the existing tab group/header structure and interactions intact in Tabs mode.
-- Persist the `View as` preference across sessions as a synced setting.
+- Persist the `View as` preference across sessions as a local setting.
 
 ## Non-goals
 

@@ -96,6 +96,6 @@ No special-case behavior is needed beyond the existing helper and appearance-pag
   4. Dropdown footer opens the folder picker.
   5. Fallback button opens the folder picker.
 - `cargo check` and `cargo fmt --check`.
-- `verify-ui-change-in-cloud` for the final UI check.
+- Final local UI check.
 ## Follow-ups
 None.

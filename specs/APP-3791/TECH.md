@@ -174,7 +174,7 @@ The `SshRemoteServer` branch is added as the **first** check in `new_command_exe
 ```text path=null start=null
 1. SshRemoteServer + IsLegacySSHSession::Yes     → RemoteServerCommandExecutor  [NEW]
 2. SSHTmuxWrapper + tmux_control_mode             → TmuxCommandExecutor
-3. SessionType::Local (various)                   → LocalCommandExecutor / MSYS2 / WSL
+3. SessionType::Local (various)                   → LocalCommandExecutor
 4. WarpifiedRemote + legacy SSH + !InBandForSSH   → RemoteCommandExecutor
 5. default                                        → InBandCommandExecutor / NoOp
 ```

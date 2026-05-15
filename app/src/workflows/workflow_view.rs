@@ -698,7 +698,6 @@ impl WorkflowView {
 
     pub fn refresh_pane_overflow_menu(&self, ctx: &mut ViewContext<Self>) {
         if let ContainerConfiguration::Pane(pane_config) = &self.container_configuration {
-            // Refresh the overflow menu to show actions that only apply to synced notebooks.
             pane_config.update(ctx, |pane_config, ctx| {
                 pane_config.refresh_pane_header_overflow_menu_items(ctx)
             });

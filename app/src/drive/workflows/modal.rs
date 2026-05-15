@@ -587,7 +587,6 @@ impl WorkflowModal {
         ctx.notify();
     }
 
-    // Identical to logic in DriveIndexAction::CopyObjectToClipboard
     fn copy_object_to_clipboard(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(workflow_id) = self.workflow_id {
             let local_object_model = CloudModel::as_ref(ctx);

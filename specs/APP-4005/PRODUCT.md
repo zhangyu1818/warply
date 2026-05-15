@@ -12,8 +12,8 @@ An argumentless `/rename-tab` flow that opens the tab rename editor is too subtl
 - Require a tab name argument.
 - Set the active tab's custom name directly by running `/rename-tab <name>`.
 - Keep behavior consistent between horizontal tabs and vertical tabs.
-- Make the command available in Warp-owned slash-command inputs where renaming the active tab is meaningful, including standard terminal input and Warp Agent / Cloud Agent input surfaces backed by a tab.
-- Preserve existing rename-tab semantics for persistence, display, telemetry, and reset behavior.
+- Make the command available in Warp-owned slash-command inputs where renaming the active tab is meaningful, including standard terminal input and ACP AgentView input surfaces backed by a tab.
+- Preserve existing rename-tab semantics for persistence, display, and reset behavior.
 ## Non-goals
 - Opening the existing inline rename editor from `/rename-tab` with no argument.
 - Renaming an arbitrary non-active tab by index, title, pane id, or selector.
@@ -41,8 +41,7 @@ The command is available when all of the following are true:
 - There is an active tab in the current workspace window.
 Expected available contexts:
 - Standard terminal panes when slash commands in terminal input are enabled.
-- Warp Agent input associated with a terminal-backed tab.
-- Cloud Agent input associated with a terminal-backed tab.
+- ACP AgentView input associated with a terminal-backed tab.
 Expected unavailable contexts:
 - Inputs that do not expose Warp static slash commands.
 - CLI-agent rich input if that surface is currently restricted to native CLI-agent passthrough commands and the explicit existing allowlist.
@@ -85,14 +84,12 @@ The command should not require the vertical tabs panel to already be focused.
 ### Split panes
 If the active tab contains split panes, `/rename-tab <name>` renames the tab that contains the focused pane. It does not rename the focused pane.
 Changing focus between split panes may change the tab's automatic title, but once `/rename-tab <name>` sets a custom tab name, pane focus changes should not replace that custom name.
-### Agent and cloud-agent tabs
-For Warp Agent and Cloud Agent conversations that live inside a tab with a Warp input, `/rename-tab <name>` should rename that tab, not the conversation itself.
+### ACP AgentView tabs
+For ACP AgentView conversations that live inside a tab with a Warp input, `/rename-tab <name>` should rename that tab, not the conversation itself.
 The command should not change:
 - AI conversation title.
-- Cloud agent run title.
 - Prompt text.
 - Conversation history.
-- Agent management records.
 If the current tab's visible label is derived from an agent conversation title, running `/rename-tab <name>` should set a custom tab name that takes precedence in tab UI according to the existing custom-title rules.
 ### Errors and unavailable states
 If the command is somehow executed when no active tab exists, the active tab cannot be renamed, or the provided name is empty after trimming, Warp should fail gracefully:
@@ -100,12 +97,9 @@ If the command is somehow executed when no active tab exists, the active tab can
 - Do not mutate any tab state.
 - Show a concise error toast such as `Please provide a tab name after /rename-tab` or `Cannot rename the current tab`.
 This should be rare because normal command availability and required-argument behavior should prevent most invalid execution paths.
-### Telemetry
-Executing `/rename-tab <name>` should emit the same slash-command acceptance telemetry as other handled static slash commands.
-The existing tab rename telemetry should remain meaningful: direct-set execution should count as setting a custom tab name when the resulting name differs from the current display/custom title.
 ## Success criteria
 1. `/rename-tab` appears in the slash-command menu in standard terminal input when static slash commands are available.
-2. `/rename-tab` appears in Warp Agent and Cloud Agent input surfaces where static slash commands can rename the enclosing active tab.
+2. `/rename-tab` appears in ACP AgentView input surfaces where static slash commands can rename the enclosing active tab.
 3. `/rename-tab` does not appear in inputs that cannot execute Warp static slash commands.
 4. Selecting `/rename-tab` from the slash-command menu inserts `/rename-tab ` instead of executing immediately.
 5. Executing `/rename-tab` with no argument does not open the inline rename editor.
@@ -115,12 +109,11 @@ The existing tab rename telemetry should remain meaningful: direct-set execution
 9. Direct-set execution updates the visible tab label immediately in horizontal tabs.
 10. Direct-set execution updates the visible tab label immediately in vertical tabs.
 11. In a split-pane tab, the command renames the containing tab, not an individual pane.
-12. In an agent or cloud-agent tab, the command renames the tab, not the underlying conversation or run.
+12. In an ACP AgentView tab, the command renames the tab, not the underlying conversation.
 13. Names set through `/rename-tab` can be reset through the existing reset-tab-name UI.
 14. Custom names set through `/rename-tab` persist anywhere existing custom tab names persist.
 15. The invoking input is not sent to the shell, terminal PTY, or agent as literal `/rename-tab` text when handled as a slash command.
-16. Slash-command acceptance telemetry is emitted for successful command execution.
-17. Existing double-click and context-menu rename flows continue to work unchanged.
+16. Existing double-click and context-menu rename flows continue to work unchanged.
 ## Validation
 - Unit test slash-command registration to ensure `/rename-tab` is unique, has a required argument, and does not execute on selection.
 - Unit test slash-command parsing for `/rename-tab`, `/rename-tab name`, `/rename-tab multi word name`, and empty argument input.
@@ -129,9 +122,7 @@ The existing tab rename telemetry should remain meaningful: direct-set execution
 - Manual validation with horizontal tabs: execute `/rename-tab My Tab` and confirm the active tab label updates without opening the editor.
 - Manual validation with vertical tabs: repeat the direct-set flow and confirm the visible vertical-tabs label updates in the active vertical-tabs mode.
 - Manual validation with split panes: focus different panes in the same tab and confirm `/rename-tab <name>` renames the tab only.
-- Manual validation with a Warp Agent tab: execute `/rename-tab Agent Work` and confirm the tab label changes while the conversation title/history does not.
-- Manual validation with a Cloud Agent tab if available: execute `/rename-tab Cloud Work` and confirm the tab label changes while cloud-agent metadata does not.
+- Manual validation with an ACP AgentView tab: execute `/rename-tab Agent Work` and confirm the tab label changes while the conversation title/history does not.
 - Regression validation: double-click rename, context-menu rename, and reset tab name still work after using the slash command.
 ## Open questions
 - Should `/rename-tab` be added to CLI-agent rich input even while that input is otherwise restricted to CLI-native passthrough commands plus a small explicit allowlist? This spec assumes no for the first implementation unless the broader CLI-agent input model changes.
-- Should direct-set telemetry distinguish slash-command-driven renames from editor-driven renames, or is existing slash-command acceptance telemetry plus existing tab-rename telemetry sufficient?

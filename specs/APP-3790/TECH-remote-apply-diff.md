@@ -85,7 +85,7 @@ pub(crate) enum FileReadResult {
 impl From<std::io::Result<String>> for FileReadResult { ... }
 ```
 
-`apply_edits` (the public entry point with telemetry) and `apply_edits_internal` (the core logic) become async and generic over the reader:
+`apply_edits` (the public entry point) and `apply_edits_internal` (the core logic) become async and generic over the reader:
 
 ```rust
 pub(crate) async fn apply_edits<F, Fut>(

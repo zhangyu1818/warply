@@ -41,8 +41,8 @@ When the agent is mid-response the user often already knows what they want to as
 
 6. A toggle button appears in the warping indicator (status bar) when the agent is responding, gated behind `QueueSlashCommand`.
 7. The button uses a `ClockPlus` icon; when active the icon is accent-colored, otherwise disabled-colored.
-8. Keyboard shortcut: `Cmd+Shift+J` (Mac) / `Ctrl+Shift+J` (Linux/Windows).
-9. When the toggle is on and the user submits any input (regular prompt, slash command, or skill command) while the conversation is in progress, the input is queued instead of sent immediately.
+8. Keyboard shortcut: `Cmd+Shift+J`.
+9. When the toggle is on and the user submits any input (regular prompt or slash command) while the conversation is in progress, the input is queued instead of sent immediately.
 10. The toggle persists across exchanges in the same conversation (same semantics as fast-forward / auto-approve).
 
 ### Pending query indicator
@@ -63,7 +63,7 @@ When the agent is mid-response the user often already knows what they want to as
 
 ### Auto-send behavior
 
-16. When the agent finishes successfully (`FinishReason::Complete`), the queued prompt is re-submitted through the normal input flow (so slash commands, skill commands, and session sharing are all handled correctly).
+16. When the agent finishes successfully (`FinishReason::Complete`), the queued prompt is re-submitted through the normal input flow, so slash commands are handled correctly.
 17. When the agent finishes with an error, cancellation, or cancelled-during-command-execution, the queued prompt is placed back into the input buffer (so the user doesn't lose it) instead of being sent.
 
 ### Interaction with other commands

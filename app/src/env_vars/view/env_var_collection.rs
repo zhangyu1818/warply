@@ -888,7 +888,6 @@ impl EnvVarCollectionView {
         _handle: ModelHandle<ActiveEnvVarCollectionData>,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Refresh the overflow menu to show actions that only apply to synced EVCs.
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx)
         });

@@ -7,7 +7,7 @@ Users can rename tabs today through tab UI interactions, but there is no keyboar
 - Workspace-level tab custom-title state.
 The command should require the new tab name inline. An argumentless flow that opens the existing rename editor is intentionally excluded because the focused editor in the tab strip is too subtle relative to the user's attention in terminal input.
 ## Relevant code
-- `app/src/search/slash_command_menu/static_commands/commands.rs:10` — static command declarations such as `/agent`, `/cloud-agent`, and `/open-file`.
+- `app/src/search/slash_command_menu/static_commands/commands.rs:10` — static command declarations such as `/agent`, `/prompts`, and `/open-file`.
 - `app/src/search/slash_command_menu/static_commands/commands.rs:445` — `Registry` and `all_commands()` registration path for static slash commands.
 - `app/src/search/slash_command_menu/static_commands/mod.rs:9` — `Availability`, `Argument`, and `StaticCommand` definitions.
 - `app/src/terminal/input/slash_commands/data_source/mod.rs:139` — active slash-command recomputation from session context, agent view state, local/repository state, and CLI-agent input state.
@@ -16,8 +16,8 @@ The command should require the new tab name inline. An argumentless flow that op
 - `app/src/terminal/input/slash_commands/mod.rs:280` — `Input::execute_slash_command`, the handler for static command execution.
 - `app/src/workspace/action.rs:82` — existing tab-related `WorkspaceAction` variants including `RenameTab`, `ResetTabName`, and `RenameActiveTab`.
 - `app/src/workspace/action.rs:615` — `WorkspaceAction::should_save_app_state_on_action`, where tab name mutations are marked as requiring app-state save.
-- `app/src/workspace/view.rs:4590` — `rename_tab`, which opens the editor and emits `TabRenameEvent::OpenedEditor` for existing UI flows.
-- `app/src/workspace/view.rs:4664` — `clear_tab_name`, which clears a custom title and emits `TabRenameEvent::CustomNameCleared` for existing UI flows.
+- `app/src/workspace/view.rs:4590` — `rename_tab`, which opens the editor for existing UI flows.
+- `app/src/workspace/view.rs:4664` — `clear_tab_name`, which clears a custom title for existing UI flows.
 - `app/src/workspace/view.rs:18264` — `Workspace::handle_action`, which maps workspace actions to rename handlers.
 - `app/src/pane_group/mod.rs:4636` — `PaneGroup::display_title`, which resolves custom title before focused-pane title.
 - `app/src/pane_group/mod.rs:4656` — `PaneGroup::set_title`, which stores tab-level custom title and treats empty strings as clearing the custom title.
@@ -25,15 +25,14 @@ The command should require the new tab name inline. An argumentless flow that op
 - `app/src/workspace/view/vertical_tabs.rs:1410` — vertical-tabs rows receive the shared rename editor and tab rename state.
 - `app/src/terminal/input/slash_command_model_tests.rs:7` — slash-command argument parsing test pattern.
 - `app/src/workspace/view_test.rs:642` — existing tab rename editor selection/reset tests.
-- `app/src/server/telemetry/events.rs:414` — existing `TabRenameEvent` values.
 ## Current state
 Static slash commands are represented as `StaticCommand` values in `commands.rs`. Each command declares a name, description, icon, availability flags, AI-mode behavior, and optional/required argument metadata. The registry is rebuilt at startup from `all_commands()`.
-Each terminal input owns a `SlashCommandDataSource` that filters registered commands against the current session context. `Availability::ALWAYS` makes a command available in both terminal view and agent view, subject to global AI enablement and terminal slash-command settings. CLI-agent rich input is a special case: when it is open, the data source filters static commands to `CLI_AGENT_INPUT_ALLOWED_COMMANDS` only, currently `"/prompts"` and `"/skills"`.
+Each terminal input owns a `SlashCommandDataSource` that filters registered commands against the current session context. `Availability::ALWAYS` makes a command available in both terminal view and agent view, subject to global AI enablement and terminal slash-command settings. CLI-agent rich input is a special case: when it is open, the data source filters static commands to `CLI_AGENT_INPUT_ALLOWED_COMMANDS` only, currently `"/prompts"`.
 `SlashCommandModel::parse_slash_command` splits the input at the first space. For a command with a required argument:
 - `/command` does not parse as a completed slash command.
 - `/command value` parses with `argument = Some("value")`.
 - `/command ` parses with `argument = Some("")`, so execution handlers should still reject empty required arguments when needed.
-`Input::execute_slash_command` matches on command name and performs side effects. After a handled command, it clears the input editor and emits slash-command accepted telemetry.
+`Input::execute_slash_command` matches on command name and performs side effects. After a handled command, it clears the input editor.
 Tab rename state is owned by `Workspace` and each tab's `PaneGroup`. Custom tab names are stored on `PaneGroup::custom_title`; `PaneGroup::display_title` resolves custom title first and falls back to the focused pane's automatic title. The slash command should set that same custom-title state directly.
 ## Proposed changes
 ### Add the static command
@@ -63,7 +62,6 @@ Behavior:
 4. If the trimmed title is non-empty:
    - Compare it with the active pane group's current `display_title`.
    - If different, set it through `PaneGroup::set_title`.
-   - Emit `TabRenameEvent::CustomNameSet` only when state changes.
 5. Notify the UI.
 The slash-command execution handler should reject empty or whitespace-only names before dispatching this action.
 ### Handle command execution
@@ -71,10 +69,10 @@ Add a branch to `Input::execute_slash_command` in `app/src/terminal/input/slash_
 - If `command.name == commands::RENAME_TAB.name`:
   - If `argument` is `None` or trims to an empty string, show a concise error toast such as `Please provide a tab name after /rename-tab` and return `true`.
   - Otherwise, dispatch `WorkspaceAction::SetActiveTabName(trimmed_name.to_owned())`.
-The existing post-match code should then clear the invoking input and emit static slash-command accepted telemetry for successful execution.
+The existing post-match code should then clear the invoking input for successful execution.
 This should not fall through to the shell or agent as literal `/rename-tab` text when handled as a slash command.
 ### Preserve CLI-agent rich input restrictions
-Do not add `/rename-tab` to `CLI_AGENT_INPUT_ALLOWED_COMMANDS` in the initial implementation. That input currently intentionally exposes only passthrough-compatible commands (`/prompts`, `/skills`) while composing text for a running CLI agent.
+Do not add `/rename-tab` to `CLI_AGENT_INPUT_ALLOWED_COMMANDS` in the initial implementation. That input currently intentionally exposes only the passthrough-compatible `/prompts` command while composing text for a running CLI agent.
 If the CLI-agent input model later supports Warp-handled workspace commands, this command can be added there as a follow-up by widening the allowlist and ensuring execution is intercepted by Warp rather than written to the PTY.
 ### Tests
 Use existing unit-test patterns rather than adding integration infrastructure.
@@ -100,7 +98,7 @@ Because this change affects visible UI, perform manual validation in both horizo
 6. `Input::execute_slash_command` dispatches `WorkspaceAction::SetActiveTabName`.
 7. `Workspace` mutates the active tab's `PaneGroup` custom title.
 8. Horizontal and vertical tabs re-render from `display_title`.
-9. Input clears the slash command buffer and emits slash-command telemetry.
+9. Input clears the slash command buffer.
 No code path should dispatch `WorkspaceAction::RenameActiveTab` for `/rename-tab`.
 ## Risks and mitigations
 - **Accidentally sending `/rename-tab` to the shell or agent**: Make the command a handled branch in `execute_slash_command` and return `true` for detected invalid empty-argument execution. Cover parsing and execution-adjacent behavior in tests.
@@ -123,10 +121,8 @@ Manual validation:
 3. Type `/rename-tab    ` and verify no tab name is cleared.
 4. Enable vertical tabs and repeat the direct-set flow.
 5. In a split-pane tab, focus a non-primary pane and verify direct-set renames the containing tab only.
-6. In a Warp Agent tab, run `/rename-tab Agent Work` and verify only the tab label changes.
+6. In an ACP AgentView tab, run `/rename-tab Agent Work` and verify only the tab label changes.
 7. Verify tab context-menu **Reset tab name** still clears names set by the slash command.
-Because this changes UI behavior, after implementation invoke the `verify-ui-change-in-cloud` skill in an eligible local non-sandboxed environment.
 ## Follow-ups
 - Decide whether CLI-agent rich input should support Warp-handled workspace commands like `/rename-tab`.
 - Consider adding a command-palette entry or keybinding for direct active-tab rename if users want a non-slash-command keyboard path.
-- Consider adding a dedicated slash-command telemetry source to `TabRenameEvent` only if product analytics need to distinguish slash-command-driven tab renames beyond existing slash-command accepted telemetry.

@@ -84,7 +84,6 @@ Change the sidecar from `Menu<WorkspaceAction>` to `Menu<NewSessionSidecarSelect
 `NewSessionSidecarSelection` carries only local sidecar intent:
 
 - `OpenWorktreeRepo { repo_path }`
-- Windows-only terminal variants for the Terminal sidecar path
 
 This removes the repo-row dependency on responder-chain dispatch and makes `Workspace` the sole owner of repo execution.
 

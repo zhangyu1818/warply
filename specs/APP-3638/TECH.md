@@ -16,7 +16,7 @@ The CLI agent rich input reuses the same `Input` view and editor. On submit, `in
 
 ### 1. Allowlist the `/prompts` static command in CLI agent input
 
-The `/prompts` static command is currently filtered out when CLI agent rich input is active (along with all other static slash commands). It needs to be **allowlisted** in `SlashCommandDataSource::recompute_active_commands()` so users can open the prompts browser from the slash menu. This is the same allowlisting mechanism used for `/skills` in the skills spec.
+The `/prompts` static command is currently filtered out when CLI agent rich input is active (along with all other static slash commands). It needs to be **allowlisted** in `SlashCommandDataSource::recompute_active_commands()` so users can open the prompts browser from the slash menu. This fork keeps `/prompts` as the only passthrough-compatible static command in CLI agent rich input.
 
 ### 2. Prompt insertion: no changes needed
 

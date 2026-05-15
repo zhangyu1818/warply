@@ -12,13 +12,13 @@ The prebuilt Linux `oz` CLI is built on the `namespace-profile-ubuntu-20-04` run
 
 This affects long-lived enterprise distros — RHEL/CentOS 7 (glibc 2.17), RHEL/CentOS 8 (glibc 2.28), Amazon Linux 2 (glibc 2.26), Ubuntu 18.04 (glibc 2.27), Debian 10 (glibc 2.28) — as well as non-glibc systems like Alpine (musl) and Termux (bionic).
 
-Today the setup pipeline does not consult the remote host's capabilities. `RemoteServerController::on_binary_check_complete` (`app/src/terminal/writeable_pty/remote_server_controller.rs:202`) decides between install, auto-update, prompt, and fall-back purely from `Result<bool, String>` (binary present?) and `has_old_binary`. Once `install_binary` succeeds the controller advances to `connect_session`, the SSH proxy spawns `oz remote-server-proxy`, and the loader's `GLIBC_…` error surfaces only at connect time as an opaque `SetupFailed`. The product spec (`specs/APP-4281/PRODUCT.md`) calls for surfacing **no** install UI in that case — the user should land directly in the legacy SSH flow.
+Today the setup pipeline does not consult the remote host's capabilities. `RemoteServerController::on_binary_check_complete` (`app/src/terminal/writeable_pty/remote_server_controller.rs:202`) decides between install, auto-update, prompt, and fall-back purely from `Result<bool, String>` (binary present?) and `has_old_binary`. Once `install_binary` succeeds the controller advances to `connect_session`, the SSH proxy spawns `oz remote-server-proxy`, and the loader's `GLIBC_…` error surfaces only at connect time as an opaque `SetupFailed`. The product spec (`specs/APP-4281/PRODUCT.md`) calls for surfacing **no** install UI in that case — the user should land directly in the ControlMaster-backed SSH flow.
 
-The legacy SSH/`RemoteCommandExecutor` flow is already a first-class outcome of the controller's state machine: it is reached today via `SshExtensionInstallMode::NeverInstall` and via the `Err(_)` arm of `on_binary_check_complete` (`remote_server_controller.rs:281`, `:286`), both of which call `flush_stashed_bootstrap` to release the stashed bootstrap so `Sessions::initialize_bootstrapped_session` wires up the ControlMaster-backed `RemoteCommandExecutor`. We reuse that path for unsupported hosts.
+The ControlMaster-backed SSH/`RemoteCommandExecutor` flow is already a first-class outcome of the controller's state machine: it is reached via `SshExtensionInstallMode::NeverInstall` and via the `Err(_)` arm of `on_binary_check_complete` (`remote_server_controller.rs:281`, `:286`), both of which call `flush_stashed_bootstrap` to release the stashed bootstrap so `Sessions::initialize_bootstrapped_session` wires up the ControlMaster-backed `RemoteCommandExecutor`. We reuse that path for unsupported hosts.
 
 ## Goals
 
-Run a single **preinstall check script** over the existing SSH connection — before any install UI surfaces — that decides whether the host can run the prebuilt remote-server binary, and gate every user-visible install affordance (choice block, `AlwaysInstall` auto-install, `has_old_binary` auto-update) on its result. When the host is positively unsupported, fall back silently to the legacy SSH flow. When the check is inconclusive, fail open and proceed as today.
+Run a single **preinstall check script** over the existing SSH connection — before any install UI surfaces — that decides whether the host can run the prebuilt remote-server binary, and gate every user-visible install affordance (choice block, `AlwaysInstall` auto-install, `has_old_binary` auto-update) on its result. When the host is positively unsupported, fall back silently to the ControlMaster-backed SSH flow. When the check is inconclusive, fail open and proceed as today.
 
 Make the script the single source of truth for "can this host run the binary?" so future capability checks (additional shared libs, kernel version, free disk, presence of `curl`/`tar`) are an additive, script-only change.
 
@@ -139,8 +139,8 @@ Add to `setup.rs`:
 pub struct PreinstallCheckResult {
     pub status: PreinstallStatus,
     pub libc: RemoteLibc,
-    /// Verbatim script stdout (trimmed). Forwarded to telemetry for
-    /// diagnostics on hosts that report `Unknown`.
+    /// Verbatim script stdout (trimmed). Kept for local diagnostics on
+    /// hosts that report `Unknown`.
     pub raw: String,
 }
 
@@ -184,13 +184,13 @@ Parser rules:
 - `status=unsupported` + `reason=glibc_too_old` → `Unsupported { GlibcTooOld { detected, required } }` populated from `libc_version` and `required_glibc`. Missing/malformed numbers → `PreinstallStatus::Unknown`.
 - `status=unsupported` + `reason=non_glibc` → `Unsupported { NonGlibc { name: libc_family } }`.
 - Any other / missing `status` → `PreinstallStatus::Unknown`.
-- `libc_family` + `libc_version` populate the `libc` field independently of `status`, so telemetry has the underlying signal even on `Unknown`.
+- `libc_family` + `libc_version` populate the `libc` field independently of `status`, so local diagnostics have the underlying signal even on `Unknown`.
 
 ### 3. Fail-open semantics
 
 `is_supported()` returns true for both `Supported` and `Unknown`. Hosts where the script could not classify the libc (no `getconf`, weird `ldd` output, exotic distro, busybox-only environments) keep today's install-and-try behavior. Only positive detection of an incompatible libc — a glibc version below the script's hardcoded floor, or any non-glibc libc — triggers the silent fall-back.
 
-The supported-glibc floor lives in `preinstall_check.sh` itself (currently `required_glibc="2.31"`, matching the Ubuntu 20.04 build runner). Bumping the build image is a script-only change. The Rust side does not duplicate the value; it reads `required_glibc` back out of the script's stdout when constructing telemetry and `UnsupportedReason::GlibcTooOld { required }`.
+The supported-glibc floor lives in `preinstall_check.sh` itself (currently `required_glibc="2.31"`, matching the Ubuntu 20.04 build runner). Bumping the build image is a script-only change. The Rust side does not duplicate the value; it reads `required_glibc` back out of the script's stdout when constructing `UnsupportedReason::GlibcTooOld { required }`.
 
 ### 4. `RemoteTransport::run_preinstall_check`
 
@@ -238,7 +238,7 @@ BinaryCheckComplete {
 }
 ```
 
-`RemoteServerManager` also caches the preinstall result per-session (mirroring `session_platforms` at `manager.rs:414`) so it is available on later events for telemetry.
+`RemoteServerManager` also caches the preinstall result per-session (mirroring `session_platforms` at `manager.rs:414`) so later local diagnostics and state transitions can inspect the same result.
 
 Sequencing the preinstall check after `detect_platform` (instead of folding it into the `join!`) keeps macOS hosts at zero extra round-trips. Linux hosts pay one additional ControlMaster channel — same cost class as `check_has_old_binary`, multiplexed through the existing socket.
 
@@ -251,12 +251,8 @@ if let Some(check) = preinstall_check.as_ref() {
     if !check.is_supported() {
         log::info!(
             "Preinstall check returned {:?} for {session_id:?}; \
-             falling back to legacy SSH",
+             falling back to ControlMaster-backed SSH",
             check.status,
-        );
-        send_telemetry_from_ctx!(
-            TelemetryEvent::RemoteServerHostUnsupported { /* … */ },
-            ctx,
         );
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
             mgr.mark_setup_unsupported(session_id, check.clone(), ctx);
@@ -280,7 +276,7 @@ if let Some(check) = preinstall_check.as_ref() {
 //   Err(_)                     -> flush_stashed_bootstrap
 ```
 
-Because this branch runs **before** `request_remote_server_block`, an unsupported host never sees the choice block — exactly what the product spec requires for the "ideal path." The legacy SSH flow is reached via the existing `flush_stashed_bootstrap` exit, so no new fall-back code path is added — only a new entry point into the existing one.
+Because this branch runs **before** `request_remote_server_block`, an unsupported host never sees the choice block — exactly what the product spec requires for the "ideal path." The ControlMaster-backed SSH flow is reached via the existing `flush_stashed_bootstrap` exit, so no new fall-back code path is added — only a new entry point into the existing one.
 
 ### 7. New `Unsupported` setup state
 
@@ -295,37 +291,20 @@ pub enum RemoteServerSetupState {
     Ready,
     Failed { error: String },
     /// Preinstall check classified the host as incompatible. Treated
-    /// as a clean fall-back to the legacy ControlMaster-backed SSH flow.
+    /// as a clean fall-back to the ControlMaster-backed SSH flow.
     Unsupported { reason: UnsupportedReason },
 }
 ```
 
-`is_terminal()` and `is_in_progress()` are extended so `Unsupported` behaves like `Failed` for downstream code that asks "is this still in flight?" The two existing UI sites (`prompt_render_helper.rs:255` and `view.rs:11492`) already fall through to a `_ =>` arm and need no changes; the user sees the same prompt they see on a `NeverInstall` legacy SSH session today.
+`is_terminal()` and `is_in_progress()` are extended so `Unsupported` behaves like `Failed` for downstream code that asks "is this still in flight?" The two existing UI sites (`prompt_render_helper.rs:255` and `view.rs:11492`) already fall through to a `_ =>` arm and need no changes; the user sees the same prompt they see on a `NeverInstall` ControlMaster-backed SSH session today.
 
 ### 8. Stale-install cleanup
 
-Hosts that connected before this change may have an `oz` binary on disk that can no longer launch. When the controller takes the unsupported branch with `result == Ok(true)`, it asks the manager to schedule a best-effort `transport.remove_remote_server_binary()` (already implemented at `ssh_transport.rs:235`). The call is fire-and-forget: failure is logged and does not block the legacy fall-back. Without this, `check_has_old_binary` would return `true` on every reconnect and the controller would silently re-enter the auto-update path against a host that now reports `Unsupported`.
+Hosts that connected before this change may have an `oz` binary on disk that can no longer launch. When the controller takes the unsupported branch with `result == Ok(true)`, it asks the manager to schedule a best-effort `transport.remove_remote_server_binary()` (already implemented at `ssh_transport.rs:235`). The call is fire-and-forget: failure is logged and does not block the ControlMaster-backed fall-back. Without this, `check_has_old_binary` would return `true` on every reconnect and the controller would silently re-enter the auto-update path against a host that now reports `Unsupported`.
 
-### 9. Telemetry
+### 9. Local diagnostics
 
-Replace the previously-proposed `RemoteServerLibcUnsupported` with a script-shaped event:
-
-```rust
-TelemetryEvent::RemoteServerHostUnsupported {
-    remote_os: Option<String>,
-    remote_arch: Option<String>,
-    status: String,                 // "unsupported" | "unknown"
-    reason: Option<String>,         // "glibc_too_old" | "non_glibc"
-    detected_libc: String,          // "glibc 2.28", "musl", "unknown"
-    required_glibc: String,         // "2.31"
-    had_old_binary: bool,
-    /// First 256 bytes of the script's stdout, for diagnosing
-    /// `Unknown` outcomes on exotic distros.
-    script_stdout_preview: String,
-}
-```
-
-Also extend the existing `RemoteServerSetupDuration` (sent from `on_session_connected` at `remote_server_controller.rs:372`) with `remote_libc: Option<String>` so we can correlate setup latency with libc distribution on supported hosts and watch for regressions after future `required_glibc` bumps in the script.
+Unsupported-host details stay in local setup state and logs. Do not add external reporting for this path.
 
 ## End-to-end flow
 
@@ -342,8 +321,8 @@ Also extend the existing `RemoteServerSetupDuration` (sent from `on_session_conn
 1. SSH session opens; `check_binary` runs as above.
 2. Script emits `status=unsupported`, `reason=glibc_too_old`, `libc_version=2.17`.
 3. `BinaryCheckComplete { preinstall_check: Some(Unsupported { GlibcTooOld { … } }), … }` arrives.
-4. Controller logs, emits `RemoteServerHostUnsupported`, asks the manager to mark the session `Unsupported`, optionally schedules `remove_remote_server_binary`, and calls `flush_stashed_bootstrap`.
-5. `Sessions::initialize_bootstrapped_session` wires up `RemoteCommandExecutor` against the existing ControlMaster socket. The user sees the legacy SSH prompt with no modal, no banner, no error.
+4. Controller logs locally, asks the manager to mark the session `Unsupported`, optionally schedules `remove_remote_server_binary`, and calls `flush_stashed_bootstrap`.
+5. `Sessions::initialize_bootstrapped_session` wires up `RemoteCommandExecutor` against the existing ControlMaster socket. The user sees the ControlMaster-backed SSH prompt with no modal, no banner, no error.
 
 ### Inconclusive Linux host (e.g. minimal busybox container)
 
@@ -368,7 +347,7 @@ stateDiagram-v2
     Installing --> Connecting: install ok
     Updating --> Connecting: update ok
     Connecting --> Ready: initialize ok
-    Unsupported --> [*]: flush_stashed_bootstrap → legacy SSH executor
+    Unsupported --> [*]: flush_stashed_bootstrap → ControlMaster-backed SSH executor
     Installing --> Failed: install error
     Connecting --> Failed: connect/initialize error
 ```
@@ -381,15 +360,15 @@ stateDiagram-v2
 - `setup_tests.rs`: table-driven tests for `parse_preinstall_output` covering each of the script's golden outputs, plus malformed/partial inputs (missing `status`, unknown reason, garbled `libc_version`).
 - `setup_tests.rs`: truth table for `PreinstallCheckResult::is_supported` against `Supported`, `Unsupported { GlibcTooOld { … } }`, `Unsupported { NonGlibc { "musl" } }`, and `Unknown` — the last must be reported as supported per the fail-open rule.
 - Manager tests: a mock `RemoteTransport::run_preinstall_check` that returns each variant; assert `BinaryCheckComplete.preinstall_check` carries the value, the per-session cache is populated, and the corresponding setup state is reached.
-- Controller tests: drive `on_binary_check_complete` with `Some(Unsupported { … })` and assert `flush_stashed_bootstrap` was called, no `request_remote_server_block`/`install_binary`/`connect_session` was issued, and `RemoteServerHostUnsupported` was emitted. Repeat with `result = Ok(true)` to assert `remove_remote_server_binary` is scheduled.
+- Controller tests: drive `on_binary_check_complete` with `Some(Unsupported { … })` and assert `flush_stashed_bootstrap` was called, no `request_remote_server_block`/`install_binary`/`connect_session` was issued, and the unsupported setup state was recorded. Repeat with `result = Ok(true)` to assert `remove_remote_server_binary` is scheduled.
 
 ### Manual
 
 - Ubuntu 22.04 / Debian 12 (glibc 2.35+): unchanged install / auto-update / connect path. Choice block still appears under `AlwaysAsk` for first-time hosts.
-- RHEL 7 (glibc 2.17), RHEL 8 (glibc 2.28), Amazon Linux 2 (glibc 2.26), Ubuntu 18.04 (glibc 2.27): SSH lands in the legacy flow with no choice block, modal, or error block; `Warp.log` shows the unsupported-host telemetry line.
-- Alpine 3.x (musl): legacy fall-back, telemetry tagged `reason=non_glibc`.
+- RHEL 7 (glibc 2.17), RHEL 8 (glibc 2.28), Amazon Linux 2 (glibc 2.26), Ubuntu 18.04 (glibc 2.27): SSH lands in the ControlMaster-backed flow with no choice block, modal, or error block; `Warp.log` shows the unsupported-host diagnostic line.
+- Alpine 3.x (musl): ControlMaster-backed fall-back, local diagnostics include `reason=non_glibc`.
 - Busybox-only minimal container: `status=unknown`, choice block still appears under `AlwaysAsk`. Confirm that today's install-then-fail behavior is preserved (regression check for fail-open).
-- Host with a pre-existing incompatible binary (simulate by `scp`-ing a Linux binary onto an Alpine VM): legacy fall-back; `ssh <host> 'ls ~/.warp-*/remote-server'` afterwards shows the binary was removed.
+- Host with a pre-existing incompatible binary (simulate by `scp`-ing a Linux binary onto an Alpine VM): ControlMaster-backed fall-back; `ssh <host> 'ls ~/.warp-*/remote-server'` afterwards shows the binary was removed.
 - macOS remote: unchanged.
 
 ### Presubmit
@@ -420,11 +399,11 @@ Intentional for the prebuilt artifact: installing a binary that crashes on launc
 
 ### Removing a stale binary fails
 
-Best-effort and logged. The session still falls back to legacy SSH; the worst case is a leftover binary on disk that subsequent runs detect again and skip again.
+Best-effort and logged. The session still falls back to ControlMaster-backed SSH; the worst case is a leftover binary on disk that subsequent runs detect again and skip again.
 
 ## Follow-ups
 
 - The preinstall script is now the natural place to add additional host capability checks: CPU instruction set requirements, free disk space in `~/.warp-XXXX/remote-server`, presence of `curl`/`tar`. Each new check is an additive script-only change plus a parser key.
 - Derive the script's `required_glibc` from the released binary at bundle time instead of a hardcoded value.
 - Ship a second prebuilt Linux CLI built against an older glibc (Ubuntu 18.04 / glibc 2.27) and pick the right artifact based on the script's reported libc version; this is what closes APP-4281's stated goal of "support glibc 2.28."
-- Once telemetry sizes the affected population, surface a one-time, dismissible explanation in the SSH choice area on unsupported hosts so users understand they are on the legacy SSH path by design.
+- If local support feedback shows confusion, surface a one-time, dismissible explanation in the SSH choice area on unsupported hosts so users understand they are on the ControlMaster-backed SSH path by design.

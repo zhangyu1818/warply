@@ -30,7 +30,7 @@ This spec covers the foundation: a shared protocol layer, a minimal request/resp
 ### ModelSpawner
 - `ui/src/core/model/context.rs:442-466` — `ModelContext::spawner()` creates a `ModelSpawner<T>` (Send + Clone)
 - `ui/src/core/model/context.rs:592-624` — `ModelSpawner<T>` definition; `spawn(work).await` dispatches `work` to main thread and returns the result
-- `app/src/ai/agent_sdk/driver.rs:890-1027` — `AgentDriver::run_internal`: long async workflow using `ModelSpawner` to step into the model at specific points
+- `app/src/remote_server/unix/mod.rs` and `app/src/remote_server/server_model.rs` — retained remote-server stdin reader flow using `ModelSpawner` to step into the headless server model
 - `app/src/workspace/view/global_search/model.rs:77-178` — `GlobalSearch`: background ripgrep task pushing result batches via `ModelSpawner`
 
 ### No-op asset provider
@@ -101,7 +101,7 @@ fn main() -> anyhow::Result<()> {
 - `AppCallbacks::default()` — all fields `None`, no custom callbacks needed
 - `Box::new(())` — uses `impl AssetProvider for ()` (no-op, returns errors for all lookups)
 - The headless `App::run()` creates the mpsc event channel, marks the current thread as main, and enters the blocking event loop. The `Background` executor inside the App IS the tokio runtime — there is exactly one runtime in the process.
-- The headless warpui `App` infrastructure is proven in production (the Oz CLI uses it via `AppBuilder::new_headless` + `add_singleton_model` + `ModelSpawner`). It provides the full entity/model runtime with zero rendering overhead.
+- The headless warpui `App` infrastructure is already used by retained local/runtime code paths such as the app headless entrypoint and remote-server model dispatch. `ModelSpawner` is also used by retained local models such as Global Search. This provides the full entity/model runtime with zero rendering overhead.
 
 **Logging:**
 
@@ -176,7 +176,7 @@ Two warpui primitives could bridge background I/O to main-thread model context:
 
 **`ModelSpawner` (chosen):** The background stdin reader task holds a `ModelSpawner<ServerModel>` and calls `spawner.spawn(|model, ctx| model.handle_message(msg, ctx)).await` for each decoded message. The transport loop is explicit code we own — it controls pacing, handles EOF, and manages shutdown. The model is a passive handler that doesn't know where messages come from.
 
-- Precedent: `AgentDriver::run_internal` (`app/src/ai/agent_sdk/driver.rs:890`) uses `ModelSpawner` for a long async workflow. `GlobalSearch` (`app/src/workspace/view/global_search/model.rs:77`) uses it for a background producer pushing results.
+- Precedent: the retained remote-server stdin reader uses `ModelSpawner` to enter `ServerModel`, and `GlobalSearch` (`app/src/workspace/view/global_search/model.rs:77`) uses it for a background producer pushing results.
 - Advantage: transport-level concerns (reconnect, backpressure, batching, error recovery) stay in the transport loop, not in model callbacks. EOF handling is a simple `break` + terminate dispatch.
 
 **`spawn_stream_local` (considered, not chosen):** The model would call `ctx.spawn_stream_local(request_rx, on_item, on_done)` during construction. Each item is delivered to an `on_item` callback; `on_done` fires on channel close.
@@ -237,7 +237,7 @@ Add to `remote_server/Cargo.toml`:
 ## 6. Risks and Mitigations
 
 - **Client request/response matching**: Responses can arrive out of order once the server handles multiple message types concurrently. Mitigation: track in-flight requests by `request_id` with a `DashMap<RequestId, oneshot::Sender>`
-- **warpui compile footprint**: Pulling in `warpui` brings transitive deps (fonts, rendering stubs). These are dead code in the headless binary — same tradeoff as the Oz CLI. No runtime cost, only compile time.
+- **warpui compile footprint**: Pulling in `warpui` brings transitive deps (fonts, rendering stubs). These are dead code in the headless binary. No runtime cost, only compile time.
 - **Main thread serialization**: All typed request handling runs on the main thread via the event loop. Handlers should be fast (in-memory dispatch and model coordination). Heavy work (filesystem I/O, tree building) must be offloaded to background tasks via `ctx.spawn()` or `ModelSpawner`.
 
 ## 7. Testing and Validation

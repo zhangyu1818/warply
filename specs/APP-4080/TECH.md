@@ -208,5 +208,4 @@ Do not run `cargo fmt --all` or file-specific `cargo fmt`; follow the repository
 
 ## Follow-ups
 - Add an explicit `title` field to the CLI agent plugin protocol if `summary` is not sufficiently stable for tab names.
-- Do not add telemetry for the setting in this fork.
 - If vertical-tabs search indexes both rendered and non-rendered counterpart text, document that behavior in a small helper test so future changes do not accidentally regress discoverability.

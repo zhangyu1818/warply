@@ -69,13 +69,13 @@ Figma: none provided
 4. A new "Auto dismiss composer after prompt submission" toggle appears below the second setting. Defaults to off.
 5. When enabled and no plugin is present, the auto-dismiss setting closes the composer after the user submits a prompt.
 6. When the plugin IS present and auto-toggle is active, the auto-dismiss setting has no observable effect (auto-show/hide from setting 1 takes precedence).
-7. All three settings persist via the standard settings infrastructure (cloud-synced).
+7. All three settings persist via the standard local settings infrastructure.
 8. All three settings are only effective when AI is enabled and the coding agent toolbar is enabled.
 
 ## Validation
 - Manual testing: Enable each setting independently and in combination, with and without the Warp plugin, to verify correct auto-show/hide behavior.
 - Unit tests: Verify that `CLIAgentSessionsModel` status transitions trigger the correct open/close calls when settings are enabled.
-- Settings persistence: Verify settings survive app restart and cloud sync.
+- Settings persistence: Verify settings survive app restart.
 
 ## Open Questions
 - Should there be a brief delay before auto-showing the composer to avoid flicker for very brief blocked states? (Recommend: no delay initially, iterate if needed.)

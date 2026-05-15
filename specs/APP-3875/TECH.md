@@ -121,10 +121,9 @@ pub enum VerticalTabsTabItemMode {
 }
 ```
 
-Register it in `TabSettings` with the same sync behavior as the existing vertical-tabs popup settings:
+Register it in `TabSettings` with the same local persistence behavior as the existing vertical-tabs popup settings:
 
 - `SupportedPlatforms::ALL`
-- `SyncToCloud::Globally(RespectUserSyncSetting::Yes)`
 - `hierarchy: "appearance.tabs"`
 
 This setting is only used when `vertical_tabs_display_granularity == Tabs`, but it should still be persisted independently so Warp can restore the user's last chosen Tabs-mode representation.
@@ -202,7 +201,7 @@ Implementation guidance:
 Summary mode also needs a small tab-level icon selection helper:
 
 - map each visible pane to a stable pane-kind enum used only for Summary icon rendering
-- distinguish terminal-backed agent sessions from plain terminals so Oz/ambient-agent and CLI-agent terminal panes render their semantic agent icons rather than the generic terminal icon
+- distinguish terminal-backed agent sessions from plain terminals so ACP AgentView and CLI-agent terminal panes render their semantic agent icons rather than the generic terminal icon
 - sort candidates by pane creation order, using the pane view `EntityId` as the current stable creation-order key
 - render `Single(kind)` if all visible panes share the same kind
 - render `Pair { primary, secondary }` for heterogeneous tabs, where `primary` is the oldest pane kind and `secondary` is the second-oldest distinct pane kind
