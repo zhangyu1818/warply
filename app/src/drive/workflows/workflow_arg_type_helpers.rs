@@ -45,13 +45,21 @@ where
     let cloud_model = CloudModel::as_ref(ctx);
     cloud_model
         .workflow_enums_with_owner(owner, ctx)
-        .filter(|workflow_enum| workflow_enum.model().string_model.is_shared)
+        .filter(|workflow_enum| {
+            workflow_enum
+                .model()
+                .string_model
+                .is_visible_to_other_workflows
+        })
         .map(|workflow_enum| {
             let enum_id = workflow_enum.id;
             let enum_data = WorkflowEnumData {
                 name: workflow_enum.model().string_model.name.clone(),
                 id: enum_id,
-                is_shared: workflow_enum.model().string_model.is_shared,
+                is_visible_to_other_workflows: workflow_enum
+                    .model()
+                    .string_model
+                    .is_visible_to_other_workflows,
                 revision_ts: workflow_enum.metadata.revision.clone(),
                 new_data: None,
             };
@@ -83,17 +91,20 @@ pub fn load_argument_into_selector(
             let revision_ts = workflow_enum_model.and_then(|model| model.metadata.revision.clone());
             let enum_data = workflow_enum_model.map(|workflow_enum| {
                 let workflow_enum = &workflow_enum.model().string_model;
-                (workflow_enum.name.clone(), workflow_enum.is_shared)
+                (
+                    workflow_enum.name.clone(),
+                    workflow_enum.is_visible_to_other_workflows,
+                )
             });
 
             // If we found an enum in memory, add the enum to the global list
-            if let Some((enum_name, is_shared)) = enum_data {
+            if let Some((enum_name, is_visible_to_other_workflows)) = enum_data {
                 all_workflow_enums.insert(
                     enum_id,
                     WorkflowEnumData {
                         id: enum_id,
                         name: enum_name.clone(),
-                        is_shared,
+                        is_visible_to_other_workflows,
                         revision_ts,
                         new_data: None,
                     },
@@ -164,7 +175,7 @@ pub fn save_enum<V>(
 
     let workflow_enum = WorkflowEnum {
         name: enum_data.name.clone(),
-        is_shared: true,
+        is_visible_to_other_workflows: true,
         variants,
     };
 
@@ -216,7 +227,7 @@ pub fn create_enum<V, T>(
     all_workflow_enums.insert(enum_id, enum_data.clone());
 
     // Add the new enum to each argument row's list
-    if enum_data.is_shared {
+    if enum_data.is_visible_to_other_workflows {
         arguments_rows.iter().for_each(|row| {
             row.arg_type_editor().update(ctx, |editor, ctx| {
                 editor.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
@@ -230,7 +241,7 @@ pub fn create_enum<V, T>(
             .arg_type_editor()
             .update(ctx, |selector, ctx| {
                 // Insert into the current selector even when it is not globally visible.
-                if !enum_data.is_shared {
+                if !enum_data.is_visible_to_other_workflows {
                     selector.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
                 }
                 selector.set_selected_enum(Some(enum_id), ctx);
@@ -257,7 +268,7 @@ pub fn edit_enum<V, T>(
     all_workflow_enums.insert(enum_data.id, enum_data.clone());
 
     // Update each argument row when a globally visible enum is renamed.
-    if enum_data.is_shared {
+    if enum_data.is_visible_to_other_workflows {
         arguments_rows.iter().for_each(|row| {
             row.arg_type_editor().update(ctx, |editor, ctx| {
                 editor.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
@@ -265,7 +276,7 @@ pub fn edit_enum<V, T>(
         });
     }
     // Otherwise, remove the enum from other dropdown lists if it is newly hidden.
-    else if !enum_data.is_shared && did_visibility_change {
+    else if !enum_data.is_visible_to_other_workflows && did_visibility_change {
         arguments_rows.iter().for_each(|row| {
             row.arg_type_editor().update(ctx, |editor, ctx| {
                 editor.remove_enum_from_menu(&enum_id, ctx);
@@ -279,7 +290,7 @@ pub fn edit_enum<V, T>(
             .arg_type_editor()
             .update(ctx, |selector, ctx| {
                 // Keep the enum visible in the selector currently editing it.
-                if !enum_data.is_shared {
+                if !enum_data.is_visible_to_other_workflows {
                     selector.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
                 }
             });
@@ -301,12 +312,12 @@ where
         // If we have local variants for this enum, pass them in
         Some(WorkflowEnumData {
             name,
-            is_shared,
+            is_visible_to_other_workflows,
             new_data: Some(new_data),
             ..
         }) => {
             enum_creation_dialog.update(ctx, |dialog, ctx| {
-                dialog.load_from_data(name, *id, *is_shared, new_data, ctx);
+                dialog.load_from_data(name, *id, *is_visible_to_other_workflows, new_data, ctx);
             });
             true
         }

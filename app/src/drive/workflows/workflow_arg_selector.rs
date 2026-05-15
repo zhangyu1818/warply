@@ -301,7 +301,8 @@ impl WorkflowArgSelector {
         self.all_workflow_enums = workflow_enums
             .iter()
             .filter_map(|(id, enum_data)| {
-                if enum_data.is_shared || Some(*id) == self.get_selected_enum() {
+                if enum_data.is_visible_to_other_workflows || Some(*id) == self.get_selected_enum()
+                {
                     Some((*id, EnumMenuItem::new(enum_data)))
                 } else {
                     None

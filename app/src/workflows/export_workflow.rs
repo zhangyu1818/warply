@@ -129,7 +129,7 @@ impl ExportArgument {
         enum_command: Option<String>,
     ) -> Result<WorkflowEnum, anyhow::Error> {
         // Imported enums should not become globally visible by default.
-        let is_shared = false;
+        let is_visible_to_other_workflows = false;
 
         // Try to grab variants or command
         let variants = if let Some(variants) = enum_variants {
@@ -142,7 +142,7 @@ impl ExportArgument {
 
         Ok(WorkflowEnum {
             name: enum_name,
-            is_shared,
+            is_visible_to_other_workflows,
             variants,
         })
     }

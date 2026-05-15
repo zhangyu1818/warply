@@ -18,7 +18,7 @@ pub struct WorkflowEnum {
     /// Enum name
     pub name: String,
     /// Whether or not the variable should be visible to other workflows
-    pub is_shared: bool,
+    pub is_visible_to_other_workflows: bool,
     /// The variants for this enum
     pub variants: EnumVariants,
 }

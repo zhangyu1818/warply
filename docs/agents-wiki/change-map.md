@@ -279,7 +279,7 @@ These names are not enough to decide merge behavior:
 - `CloudObject`: can be local persisted object data after cloud sync removal.
 - `CloudModel` and related object IDs can remain as legacy type names for retained local persistence, but new or updated docs/comments should describe them as local object model behavior, not cloud sync/server APIs.
 - Retained workflows and environment-variable collections should use saved/local naming in runtime code. Do not restore `CloudWorkflow`, `WorkflowType::Cloud`, `WorkflowSource::PersonalCloud`, `CloudEnvVarCollection`, or `cloud_workflow_id` for new command-history data.
-- Workflow enum `is_shared` remains a legacy local visibility field for argument selectors. Do not reinterpret it as Warp Drive/cloud sharing, and prefer local visibility wording in comments and docs.
+- Renamed workflow enum `is_shared` to `is_visible_to_other_workflows` without a serde alias or migration shim. Workflow enum visibility is local argument-selector behavior, not Warp Drive/cloud sharing.
 - `server_id` / `ServerId`: legacy naming only when still present in retained local-object data; describe it as a legacy server-style local identifier, and do not add new compatibility fallback around it.
 - `local_object_model`: contains retained shared DTOs/identity/object types after cloud API removal.
 - `remote_server`: remote terminal, not necessarily cloud account auth.

@@ -86,7 +86,7 @@ pub struct WorkflowEnumData {
     pub id: SyncId,
     pub name: String,
     /// Determines whether this enum is visible in other argument dropdowns.
-    pub is_shared: bool,
+    pub is_visible_to_other_workflows: bool,
     /// The revision_ts of the enum, None if it has not yet been created.
     pub revision_ts: Option<Revision>,
     /// This field contains any new enum data that has not been saved,
@@ -132,7 +132,7 @@ pub struct EnumCreationDialog {
 struct BaseEnumDialogState {
     /// Store the number of rows to determine if a variant was removed
     variant_rows: usize,
-    is_enum_shared: bool,
+    is_enum_visible_to_other_workflows: bool,
     selected_type: EnumType,
 }
 
@@ -223,7 +223,7 @@ impl EnumCreationDialog {
         self.add_variant_row(ctx);
         self.base_dialog_state = BaseEnumDialogState {
             variant_rows: 1,
-            is_enum_shared: false,
+            is_enum_visible_to_other_workflows: false,
             selected_type: EnumType::Static,
         }
     }
@@ -233,7 +233,7 @@ impl EnumCreationDialog {
         &mut self,
         name: &str,
         enum_id: SyncId,
-        is_shared: bool,
+        is_visible_to_other_workflows: bool,
         variants: &EnumVariants,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -272,7 +272,7 @@ impl EnumCreationDialog {
 
         self.base_dialog_state = BaseEnumDialogState {
             variant_rows: self.variant_rows.len(),
-            is_enum_shared: is_shared,
+            is_enum_visible_to_other_workflows: is_visible_to_other_workflows,
             selected_type: base_selected_type,
         };
     }
@@ -282,11 +282,11 @@ impl EnumCreationDialog {
         &mut self,
         name: &str,
         enum_id: SyncId,
-        is_shared: bool,
+        is_visible_to_other_workflows: bool,
         enum_data: &EnumVariants,
         ctx: &mut ViewContext<Self>,
     ) {
-        self.load_enum(name, enum_id, is_shared, enum_data, ctx);
+        self.load_enum(name, enum_id, is_visible_to_other_workflows, enum_data, ctx);
     }
 
     // Load an enum from memory
@@ -303,7 +303,7 @@ impl EnumCreationDialog {
             self.load_enum(
                 &workflow_enum.name,
                 enum_id,
-                workflow_enum.is_shared,
+                workflow_enum.is_visible_to_other_workflows,
                 &workflow_enum.variants,
                 ctx,
             );
@@ -493,7 +493,7 @@ impl EnumCreationDialog {
                         WorkflowEnumData {
                             id,
                             name: self.name_editor.as_ref(ctx).buffer_text(ctx),
-                            is_shared: true,
+                            is_visible_to_other_workflows: true,
                             revision_ts: self.revision_ts.clone(),
                             new_data: Some(variants),
                         },
@@ -506,7 +506,7 @@ impl EnumCreationDialog {
                 ctx.emit(EnumCreationDialogEvent::CreateEnum(WorkflowEnumData {
                     id: SyncId::ClientId(ClientId::default()),
                     name: self.name_editor.as_ref(ctx).buffer_text(ctx),
-                    is_shared: true,
+                    is_visible_to_other_workflows: true,
                     revision_ts: self.revision_ts.clone(),
                     new_data: Some(variants),
                 }));
