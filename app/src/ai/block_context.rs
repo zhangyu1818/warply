@@ -1,4 +1,3 @@
-use channel_versions::overrides::TargetOS;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use warp_core::command::ExitCode;
@@ -78,7 +77,7 @@ impl BlockContext {
                 .as_ref()
                 .map(|sh| sh.hostname.clone()),
             git_branch: block_completed.serialized_block.git_head.clone(),
-            os: TargetOS::current().and_then(|os| os.name()),
+            os: Some("MacOS".to_owned()),
             session_id: block_completed
                 .serialized_block
                 .session_id

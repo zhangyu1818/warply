@@ -5,7 +5,6 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use channel_versions::overrides::TargetOS;
 use enum_iterator::Sequence;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -309,27 +308,18 @@ impl ShellType {
     }
 
     /// Returns the potential paths to the RC file relative to the `home` directory.
-    pub fn rc_file_paths(&self, os: TargetOS) -> Vec<PathBuf> {
-        let home_dir = Path::new(match os {
-            TargetOS::Windows => "$HOME",
-            _ => "~",
-        });
-        let relative_paths = match (self, os) {
-            (ShellType::PowerShell, TargetOS::Windows) => {
-                vec![Path::new(
-                    ".config/powershell/Microsoft.PowerShell_profile.ps1",
-                )]
-            }
+    pub fn rc_file_paths(&self) -> Vec<PathBuf> {
+        let home_dir = Path::new("~");
+        let relative_paths = match self {
             // We need to make sure this works for either editor of PowerShell (PowerShell Core or
             // Windows PowerShell) so just write the file to both.
-            (ShellType::PowerShell, _) => vec![
+            ShellType::PowerShell => vec![
                 Path::new("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"),
                 Path::new("Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1"),
             ],
-            (_, TargetOS::Windows) => vec![],
-            (ShellType::Bash, _) => vec![Path::new(".bashrc")],
-            (ShellType::Zsh, _) => vec![Path::new(".zshrc")],
-            (ShellType::Fish, _) => vec![Path::new(".config/fish/config.fish")],
+            ShellType::Bash => vec![Path::new(".bashrc")],
+            ShellType::Zsh => vec![Path::new(".zshrc")],
+            ShellType::Fish => vec![Path::new(".config/fish/config.fish")],
         };
         relative_paths
             .iter()

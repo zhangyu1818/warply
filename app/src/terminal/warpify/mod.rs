@@ -6,7 +6,6 @@ pub mod trigger_state;
 use crate::terminal::model::terminal_model::SubshellInitializationInfo;
 use crate::terminal::shell::ShellType;
 use crate::ASSETS;
-use channel_versions::overrides::TargetOS;
 use warpui::AssetProvider;
 
 #[derive(Debug)]
@@ -41,7 +40,6 @@ fn get_subshell_bootstrap_success_block_path(shell_type: ShellType) -> Option<&'
 pub fn subshell_bootstrap_success_block_bytes(
     subshell_initialization_info: &SubshellInitializationInfo,
     shell_type: ShellType,
-    os: TargetOS,
     disable_tmux: bool,
 ) -> (Vec<u8>, bool) {
     let from_env_var_collection = subshell_initialization_info
@@ -65,7 +63,7 @@ pub fn subshell_bootstrap_success_block_bytes(
         })
         .to_vec();
 
-    let rc_file_paths = shell_type.rc_file_paths(os);
+    let rc_file_paths = shell_type.rc_file_paths();
     let mut is_executable = true;
     let commands: Vec<Vec<u8>> = rc_file_paths
         .iter()

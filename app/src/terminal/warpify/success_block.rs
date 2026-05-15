@@ -9,7 +9,6 @@ use crate::terminal::shell::{Shell, ShellType};
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as UiIcon;
 use crate::workspace::WorkspaceAction;
-use channel_versions::overrides::TargetOS;
 use parking_lot::RwLock;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::theme::WarpTheme;
@@ -76,10 +75,6 @@ impl WarpifySuccessBlock {
             ctx.notify();
         });
 
-        // Mac + Linux have the same behavior. We'd need to handle
-        // getting the OS to write to the correct RC file.
-        let remote_os = TargetOS::Linux;
-
         let is_auto_warpify_configured = subshell_info
             .as_ref()
             .map(|info| info.was_triggered_by_rc_file_snippet)
@@ -95,7 +90,6 @@ impl WarpifySuccessBlock {
                     let (command, is_executable) = subshell_bootstrap_success_block_bytes(
                         &subshell_info,
                         shell.shell_type(),
-                        remote_os,
                         disable_tmux,
                     );
                     if command.is_empty() {
