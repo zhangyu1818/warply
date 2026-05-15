@@ -168,9 +168,6 @@ pub enum FeatureFlag {
     /// Enables find/search in code review pane
     CodeReviewFind,
 
-    /// Enables auto-opening code review pane on first agent change and its setting UI.
-    AutoOpenCodeReviewPane,
-
     /// Enables inline code review functionality
     InlineCodeReview,
 
