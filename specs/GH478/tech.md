@@ -79,7 +79,7 @@ closest analog. Today:
 
 The new override follows the same path but with richer types (an
 override-source enum, see §3) and an apply-time resolver (§2) instead of
-direct serde (which is what Oz's first-pass review correctly flagged).
+direct serde, matching the first-pass review finding.
 
 ### Existing pane cwd tracking
 
@@ -104,18 +104,18 @@ pub theme: Option<String>,
 ```
 
 The field is `Option<String>` rather than `Option<ThemeKind>` for two
-reasons that directly address Oz's first-pass concerns:
+reasons that directly address the first-pass review concerns:
 
-- **Serde-compat (Oz concern 1).** `ThemeKind` derives `Deserialize`,
+- **Serde surface (review concern 1).** `ThemeKind` derives `Deserialize`,
   but its accepted string form (variant names / snake-case) is not
   guaranteed to match the human-readable display strings the product
   spec promises (`"Dark City"`, `"Solarized Dark"`). Going through
   `String` decouples the YAML surface from the enum's internal
   representation.
-- **Field-level fallback (Oz concern 2).** A direct `ThemeKind`
+- **Field-level invalid-value handling (review concern 2).** A direct `ThemeKind`
   deserialization on an unknown string would fail the entire YAML load
   and reject every tab in the file. With `Option<String>` the load
-  always succeeds; resolution and fallback happen at apply time per the
+  always succeeds; resolution and invalid-value handling happen at apply time per the
   product spec's behavior #11.
 
 The `From<WindowSnapshot> for WindowTemplate` (lines 43–70) and
@@ -157,7 +157,7 @@ not through the saved launch configuration.)
    theme on reopen will be either a fresh directory match or the
    global theme.
 
-This is what Oz's v3 review correctly flagged: a window opened with a
+This is what the v3 review correctly flagged: a window opened with a
 window-level `theme:` would otherwise drop the theme on save, because
 v2's "only emit manual" rule treated `window_default` as not preserved.
 The `preserved_override` helper makes the logic symmetric with
@@ -196,7 +196,7 @@ Implementation:
    (the same registry that powers the theme picker).
 4. Return `None` on no match.
 
-This satisfies Oz concerns 1 and 2 by making YAML-format coupling
+This satisfies review concerns 1 and 2 by making YAML-format coupling
 explicit and keeping unknown-theme handling field-level.
 
 ### 3. `TabThemeState` on `TabSnapshot` and `TabData`
@@ -209,7 +209,7 @@ launch-config window-level default — and the product spec defines a
 strict priority order between them (menu > launch-config-manual > cwd >
 window default > global). A single `Option<enum>` cannot represent the
 state "menu pin cleared, launch-config-manual still applies, cwd also
-exists as a deeper fallback" because the sources are not mutually
+exists as a deeper next-priority source" because the sources are not mutually
 exclusive at storage time, only at render time. Replace the single
 field with a struct holding all four slots, plus a resolver:
 
@@ -247,7 +247,7 @@ pub struct TabThemeState {
 
 impl TabThemeState {
     /// Resolution order: menu_pin > launch_config_pin > cwd_resolved
-    /// > window_default > caller's global fallback. Mirrors
+    /// > window_default > caller's global theme. Mirrors
     /// product.md §"Resolution order" exactly.
     pub fn effective<'a>(&'a self, global: &'a ThemeKind) -> &'a ThemeKind {
         self.menu_pin.as_ref()
@@ -281,7 +281,7 @@ launch-config theme lives only on the *tabs* it opened (in their
 `window_default` slot). The dedicated slot is what makes
 `effective()`'s priority order honor the product spec without
 collapsing into an enum that could mis-rank window defaults — the
-finding Oz raised in the v2 review.
+finding raised in the v2 review.
 
 Menu actions (§6) target individual slots:
 
@@ -317,10 +317,6 @@ define_settings_group!(DirectoryThemeOverrides, settings: [
         // remain user-controllable through the right-click "Pin theme"
         // menu, which writes to the local tab snapshot, not to
         // this map. See *Privacy model* below.
-        // (Per Zach's v4 review: `Never` is the correct variant here.
-        // The settings system uses `Globally`, `Never`, `PerPlatform`;
-        // there is no `Locally` variant.)
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
         toml_path: "appearance.themes.directory_overrides",
         max_table_depth: 1,
@@ -333,15 +329,14 @@ define_settings_group!(DirectoryThemeOverrides, settings: [
 ]);
 ```
 
-#### Privacy model (responding to Oz's [SECURITY] finding on v2)
+#### Privacy model (responding to the v2 [SECURITY] finding)
 
 Directory paths are not just configuration — they encode information
 about the user's employer, clients, and projects. A key like
 `~/Work/AcmeCorp/redesign-2026` reveals all three. The settings system
 must keep this map local and private; the design rule applied here is:
 
-- **Keys are locally stored.** `sync_to_cloud: Never`
-  and `private: true`. The map is written only to the user's local
+- **Keys are locally stored.** `private: true`. The map is written only to the user's local
   `settings.toml` and is not transmitted off-machine by export or
   share paths.
 - **No off-machine reporting.** The match function never reports path
@@ -359,7 +354,7 @@ must keep this map local and private; the design rule applied here is:
 
 Helper, alongside the settings group:
 
-Per Oz's v5 [SECURITY] review: a stable unsalted 24-bit FxHash over
+Per the v5 [SECURITY] review: a stable unsalted 24-bit FxHash over
 the raw key is dictionary-guessable — an adversary with a shared log
 can hash a list of plausible candidate paths and recover the key by
 collision. The fix is a **per-installation keyed hash**: a 32-byte
@@ -403,7 +398,7 @@ If the salt file is missing or unreadable at runtime — for example
 the user deleted it, or Warp is running in a container without write
 access — the redaction helper emits `directory_overrides[unsalted]:
 ...` with no derived identifier from the path at all, which is the
-safest fallback and surfaces the configuration error to the user.
+safest invalid-state behavior and surfaces the configuration error to the user.
 
 **Even-stronger alternative considered and rejected**: storing an
 opaque local ID alongside each entry (e.g. a sidecar file mapping
@@ -469,7 +464,7 @@ Match semantics (per product spec #2, #3):
   per-match. **Warnings refer to the offending entry by a short hash of
   its key, never by the key itself, per *Diagnostic redaction* below.**
 
-Matching is invoked from **three** places (responding to Oz's v2
+Matching is invoked from **three** places (responding to the v2
 finding that settings edits were not handled):
 
 - **Tab creation** — when a tab is added (from a launch configuration
@@ -507,7 +502,7 @@ the value re-trigger this validation.
 
 ### 5. Renderer: `Appearance` gains a theme catalog
 
-This addresses Oz concern 3 (`Appearance::theme_for` cannot return
+This addresses review concern 3 (`Appearance::theme_for` cannot return
 `&WarpTheme` for arbitrary overrides because `Appearance` only owns the
 global `WarpTheme` today).
 
@@ -596,15 +591,14 @@ global `theme()` form. Concretely:
 | `app/src/terminal/{share_block_modal.rs, profile_model_selector.rs}` | per-tab | scoped to a specific tab's content |
 | `app/src/{tab.rs, root_view.rs, voltron.rs, modal.rs, menu.rs, search_bar.rs, input_suggestions.rs}` | global | window chrome, command palette, top-level modals |
 | `app/src/settings/**` | global | settings UI |
-| `app/src/reward_view.rs`, `wasm_nux_dialog.rs`, `word_block_editor.rs` | global | full-window modals/views |
-| `crates/onboarding/**` | global | onboarding flow runs outside a tab |
+| `app/src/word_block_editor.rs` and other full-window modal/view surfaces | global | full-window modals/views |
 | `crates/ui_components/**` | global | generic widgets — they do not know about tabs |
 | `crates/editor/**` | global by default; per-tab when invoked from `terminal/view/**` (the call site, not the crate, decides) | editor is reusable |
 | `crates/integration/**` | tests; updated to assert both forms |
 
 **Migration enforcement — concrete tooling**
 
-Per Oz's v5 suggestion, the spec commits to a specific mechanism
+Per the v5 suggestion, the spec commits to a specific mechanism
 rather than leaving it open between tooling families. The
 implementation adds the lint as a **`dylint`** library named
 `appearance_theme_in_tab_path` under a new top-level `tools/lints/`
@@ -699,7 +693,7 @@ in-development features like `OpenWarpNewSettingsModes`).
 
 **Flag check at the resolver (single source of truth)**
 
-Per Oz's v5 [IMPORTANT] finding: the table above implied populated
+Per the v5 [IMPORTANT] finding: the table above implied populated
 slots could not exist when the flag is off, but the persistence
 section preserves them so flipping the flag back on is non-lossy.
 Both must be true. The resolution is to put the flag check inside the
@@ -805,9 +799,9 @@ name to avoid typos.
   - `menu=None launch=B cwd=C window=D` → `B`.
   - `menu=None launch=None cwd=C window=D` → `C`.
   - `menu=None launch=None cwd=None window=D` → `D`.
-  - All `None` → global fallback.
+  - All `None` → global theme.
   Pins the 5-layer resolution order from product.md and addresses
-  the CRITICAL finding from Oz's v2 review (window defaults must
+  the CRITICAL finding from the v2 review (window defaults must
   not outrank cwd) plus Zach's v4 split (menu pin must outrank
   launch-config pin).
 - "Reset theme" semantics: a tab with `menu=A launch=B` resolves to
@@ -865,14 +859,14 @@ name to avoid typos.
   theme; the other two are unchanged. Then edit the same key's value
   to a different theme name. Assert the matched tab redraws again.
   Then delete the key. Assert the tab falls through to its
-  next-priority theme. (Pins product behavior #6 and addresses Oz's
+  next-priority theme. (Pins product behavior #6 and addresses the
   v2 IMPORTANT finding that this path was missing from the design.)
 - **Save-from-snapshot for window-level theme.** Open a launch config
   whose window has `theme: "Dark City"` and three tabs (no per-tab
   pins, no directory matches). Save the resulting layout to a new
   launch config. Assert the saved YAML contains a window-level
   `theme: "Dark City"` and no per-tab `theme:` fields. Reopen it.
-  Assert all three tabs render Dark City. (Addresses Oz v3 IMPORTANT
+  Assert all three tabs render Dark City. (Addresses the v3 IMPORTANT
   finding on save-rule dropping window defaults.)
 - **Save-from-snapshot for mixed pinning.** Open a layout with a mix
   of manually pinned tabs (different themes), tabs with only a window
@@ -899,14 +893,14 @@ name to avoid typos.
   installation).
 - **Salt file mode.** On a Unix platform, after first-launch salt
   generation, `stat` the file and assert mode bits == `0600`.
-- **Salt missing fallback.** Delete the salt file mid-test, trigger a
+- **Salt missing behavior.** Delete the salt file mid-test, trigger a
   fresh validation. Assert the warning string contains
   `[unsalted]` and does not contain any derived identifier.
 - Open a launch configuration with a window-level `theme:` and three
   tabs, one of which sits in a `directory_overrides`-matched cwd.
   Assert the matched tab uses the cwd theme (cwd > window default);
   the other two use the window default. (Pins the priority order and
-  addresses Oz's v2 CRITICAL finding.)
+  addresses the v2 CRITICAL finding.)
 - Quit and relaunch. Assert manually-pinned tabs restore their pin;
   tabs that had only a `cwd_resolved` theme have `cwd_resolved` set
   to `None` after deserialization but are recomputed on startup from
@@ -941,9 +935,8 @@ name to avoid typos.
 
 ### Privacy invariant tests
 
-- `DirectoryThemeOverrides` settings group has `private == true` and
-  `sync_to_cloud == SyncToCloud::Never`. Pinned by a settings-system
-  test for local-only persistence.
+- `DirectoryThemeOverrides` settings group has `private == true`.
+  Pinned by a settings-system test for local-only persistence.
 - The redaction-salt file (`~/.warp/redaction_salt`) is created with
   mode `0600` on first launch and is never included in exported or
   shareable settings data.
@@ -1036,7 +1029,7 @@ name to avoid typos.
   PR. The trade-off is the small cost of maintaining the lint config
   (one entry per top-level area).
 
-- **Concern 1 / Concern 2 / Concern 3 from Oz's first-pass review.**
+- **Concern 1 / Concern 2 / Concern 3 from the first-pass review.**
   Addressed in §1 (Option<String> + apply-time resolver), §2
   (`resolve_theme_ref` returns `Option<ThemeKind>`), and §5 (theme
   catalog, `Arc<WarpTheme>` ownership) respectively. Each concern has
