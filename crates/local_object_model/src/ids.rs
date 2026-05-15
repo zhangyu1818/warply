@@ -161,11 +161,11 @@ const SERVER_ID_LENGTH: usize = 22;
 /// Because it's of fixed length, it can implement the Copy trait
 /// (in contrast to simply using a String type).
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, schemars::JsonSchema)]
-#[schemars(description = "A legacy server-style unique identifier.")]
+#[schemars(description = "A legacy server-style identifier for a local object.")]
 pub struct ServerId([char; SERVER_ID_LENGTH]);
 
-/// For server IDs, this is the value that is stored
-/// in the database. For client IDs, it is of the form "Client-{id}".
+/// For legacy server-style local IDs, this is the value stored in the database.
+/// For client IDs, it is of the form "Client-{id}".
 /// Used to index objects in the local object model.
 pub type ObjectUid = String;
 
@@ -308,8 +308,8 @@ pub trait ToServerId {
     fn to_server_id(&self) -> ServerId;
 }
 
-/// string_id_traits is a macro used for generating implementations for the type aliases on
-/// ServerId, implements different To/From and Display, and HashableId traits.
+/// server_id_traits generates implementations for legacy server-style local object ID newtypes.
+/// It implements different To/From, Display, and HashableId traits.
 /// Takes type and desired prefix for HashableId.
 #[macro_export]
 macro_rules! server_id_traits {

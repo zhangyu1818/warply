@@ -195,17 +195,14 @@ pub fn save_enum<V>(
                 });
             }
         }
-        SyncId::ServerId(_) => {
-            // We will issue enum update requests here
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.update_workflow_enum(
-                    workflow_enum,
-                    enum_data.id,
-                    enum_data.revision_ts.clone(),
-                    ctx,
-                );
-            })
-        }
+        SyncId::ServerId(_) => UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
+            update_manager.update_workflow_enum(
+                workflow_enum,
+                enum_data.id,
+                enum_data.revision_ts.clone(),
+                ctx,
+            );
+        }),
     }
 }
 

@@ -1677,7 +1677,6 @@ impl Workspace {
             me.handle_palette_event(event, ctx);
         });
 
-        // Handle theme updates when there is a cloud update to themes while the picker is open.
         ctx.subscribe_to_model(&ThemeSettings::handle(ctx), |me, _, _, ctx| {
             if me.is_theme_chooser_open() {
                 me.theme_chooser_view.update(ctx, |view, ctx| {

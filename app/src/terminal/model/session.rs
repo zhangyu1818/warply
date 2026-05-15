@@ -770,10 +770,9 @@ pub enum SessionType {
     /// The session host is a different host from where Warp is running.
     /// Note that we only know this for sure when we Warpify a block.
     ///
-    /// `host_id` is `Some` when the remote server feature flag is enabled and
-    /// `RemoteServerManager` has completed the connection handshake. It is
-    /// `None` when the feature flag is off or the connection hasn't been
-    /// established yet.
+    /// `host_id` is `Some` after `RemoteServerManager` has completed the
+    /// connection handshake. It is `None` before that handshake finishes or
+    /// when no remote-server connection is available.
     WarpifiedRemote { host_id: Option<warp_core::HostId> },
 }
 

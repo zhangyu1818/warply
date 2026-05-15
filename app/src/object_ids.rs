@@ -3,8 +3,8 @@ pub use local_object_model::ids::{
     ToServerId,
 };
 
-/// server_id_traits is a macro used for generating implementations for the type aliases on
-/// ServerId. It implements different To/From and Display, and HashableId traits.
+/// server_id_traits generates implementations for legacy server-style local object ID newtypes.
+/// It implements different To/From, Display, and HashableId traits.
 /// Takes type and desired prefix for HashableId.
 ///
 /// Note: This macro uses `$crate::object_ids::*` paths, so it only works within the warp crate.
