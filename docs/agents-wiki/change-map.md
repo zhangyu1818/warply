@@ -371,6 +371,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `GitOperationsInCodeReview` rollout flag and Cargo feature. Local code-review commit, push, publish, and create/view PR actions are retained direct git/GitHub CLI UI, while the old non-git-operations header/sidebar fallback was removed.
 - Removed the AI user-query `profile_image_path` plumbing and dead conversation-details creator/photo URL section. AgentView user avatars now render from local identity display names only; do not restore Warp account/cloud profile image paths around ACP history or pending queued prompts.
 - Removed conversation-list owner/creator filters and creator metadata from local ACP conversation entries. Conversation navigation is local-only in this fork; do not restore team/cloud owner or creator filtering unless a retained local data source owns those fields.
+- Removed unused conversation-list copy-link/share capability fields. Local ACP conversation entries expose only retained local actions such as open, delete, fork, and cancel; do not restore cloud link sharing controls.
 
 ## Legacy Names Still Present
 

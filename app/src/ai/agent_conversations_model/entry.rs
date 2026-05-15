@@ -60,8 +60,6 @@ pub struct AgentConversationBackingData {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentConversationCapabilities {
     pub can_open: bool,
-    pub can_copy_link: bool,
-    pub can_share: bool,
     pub can_delete: bool,
     pub can_fork_locally: bool,
     pub can_cancel: bool,
@@ -165,8 +163,6 @@ fn entry_for_conversation_parts(
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data,
-            can_copy_link: false,
-            can_share: false,
             can_delete: has_local_persisted_data,
             can_fork_locally: has_local_persisted_data,
             can_cancel: status.is_cancellable(),
