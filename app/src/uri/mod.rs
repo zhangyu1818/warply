@@ -3,6 +3,7 @@ mod docker;
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::linear::{LinearAction, LinearIssueWork};
 use crate::root_view::{open_new_window_get_handles, OpenLaunchConfigArg};
+use crate::tab_configs::TabConfig;
 use crate::ui_events::LaunchConfigUiLocation;
 use crate::util::openable_file_type::{
     is_file_openable_in_warp, is_runnable_shell_script, starts_with_shebang,
@@ -13,14 +14,14 @@ use crate::workspace::{Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
 use crate::settings_view::SettingsSection;
-use crate::user_config::load_launch_configs;
+use crate::user_config::{load_launch_configs, load_tab_configs, tab_configs_dir};
 use crate::{quake_mode_window_id, quake_mode_window_is_open, ChannelState, OpenPath};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use url::Url;
-use warp_core::safe_info;
+use warp_core::{features::FeatureFlag, safe_info};
 use warpui::{SingletonEntity as _, TypedActionView};
 
 use warpui::{AppContext, WindowId};
@@ -40,6 +41,7 @@ pub enum UriHost {
     Home,
     /// Actions triggered from Linear integrations (e.g. work on issue).
     Linear,
+    TabConfig,
     /// Focuses a specific terminal pane by its persistent session UUID.
     Session,
 }
@@ -54,6 +56,7 @@ impl FromStr for UriHost {
             "settings" => Ok(Self::Settings),
             "home" => Ok(Self::Home),
             "linear" => Ok(Self::Linear),
+            "tab_config" if FeatureFlag::TabConfigs.is_enabled() => Ok(Self::TabConfig),
             "session" => Ok(Self::Session),
             _ => Err(anyhow!("Received url with unexpected host: {}", s)),
         }
@@ -142,6 +145,9 @@ impl UriHost {
                     log::warn!("{err}");
                 }
             },
+            UriHost::TabConfig => {
+                handle_tab_config_uri(primary_window_id, url, ctx);
+            }
             UriHost::Session => {
                 let uuid_hex = url
                     .path_segments()
@@ -261,6 +267,65 @@ fn find_matching_config_name<'a>(
     configs
         .iter()
         .find(|&config| config.name.to_lowercase() == target_name_lower)
+}
+
+fn handle_tab_config_uri(primary_window_id: Option<WindowId>, url: &Url, ctx: &mut AppContext) {
+    let Some(desired) = get_launch_config_path(url.path()) else {
+        log::warn!("couldn't turn tab config link '{}' into name", url.path());
+        return;
+    };
+
+    let (configs, _errors) = load_tab_configs(&tab_configs_dir());
+    let Some(config) = find_matching_tab_config(desired.as_str(), configs) else {
+        log::warn!("couldn't find a tab config matching '{}'", desired);
+        return;
+    };
+
+    let force_new_window = url
+        .query_pairs()
+        .any(|(k, v)| k == "new_window" && matches!(v.as_ref(), "1" | "true"));
+    let target_window_id = if force_new_window {
+        None
+    } else {
+        primary_window_id.filter(|id| WorkspaceRegistry::as_ref(ctx).get(*id, ctx).is_some())
+    };
+
+    let workspace = match target_window_id {
+        Some(window_id) => WorkspaceRegistry::as_ref(ctx).get(window_id, ctx),
+        None => {
+            let new_window_id = open_new_window_get_handles(None, ctx).0;
+            WorkspaceRegistry::as_ref(ctx).get(new_window_id, ctx)
+        }
+    };
+
+    let Some(workspace) = workspace else {
+        log::warn!(
+            "no workspace available to open tab config '{}'",
+            config.name
+        );
+        return;
+    };
+
+    workspace.update(ctx, |workspace, ctx| {
+        workspace.open_tab_config(config, ctx);
+    });
+}
+
+fn find_matching_tab_config(target: &str, configs: Vec<TabConfig>) -> Option<TabConfig> {
+    let raw = target.to_lowercase();
+    let stripped = remove_extension(target).map(str::to_lowercase);
+    configs.into_iter().find(|config| {
+        config
+            .source_path
+            .as_ref()
+            .and_then(|path| path.file_stem())
+            .and_then(|stem| stem.to_str())
+            .map(|stem| {
+                let stem = stem.to_lowercase();
+                stem == raw || Some(stem.as_str()) == stripped.as_deref()
+            })
+            .unwrap_or(false)
+    })
 }
 
 /// Extract the `path` query parameter, expanding a leading `~` to the

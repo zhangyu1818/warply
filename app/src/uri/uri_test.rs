@@ -1,7 +1,9 @@
 use super::*;
 use crate::launch_configs::launch_config::make_mock_single_window_launch_config;
 use crate::linear::{LinearAction, LinearIssueWork};
+use crate::tab_configs::TabConfig;
 use crate::ChannelState;
+use std::{collections::HashMap, path::PathBuf};
 
 #[test]
 fn test_find_matching_config() {
@@ -89,6 +91,50 @@ fn add_mock_config_with_name(name: &str, configs: &mut Vec<LaunchConfig>) {
     new_config.name = name.to_string();
     new_config.windows[0].tabs[0].title = Some(String::from("First tab from config ") + name);
     configs.push(new_config);
+}
+
+#[test]
+fn test_find_matching_tab_config() {
+    let configs = vec![
+        make_mock_tab_config("my tab", Some("/tab_configs/my_tab.toml")),
+        make_mock_tab_config("Deploy", Some("/tab_configs/Deploy.yaml")),
+        make_mock_tab_config("dotted", Some("/tab_configs/foo.bar.toml")),
+        make_mock_tab_config("orphan", None),
+    ];
+
+    assert_eq!(
+        find_matching_tab_config("my_tab", configs.clone()).map(|config| config.name),
+        Some(String::from("my tab")),
+    );
+    assert_eq!(
+        find_matching_tab_config("my_tab.toml", configs.clone()).map(|config| config.name),
+        Some(String::from("my tab")),
+    );
+    assert_eq!(
+        find_matching_tab_config("deploy", configs.clone()).map(|config| config.name),
+        Some(String::from("Deploy")),
+    );
+    assert_eq!(
+        find_matching_tab_config("foo.bar", configs.clone()).map(|config| config.name),
+        Some(String::from("dotted")),
+    );
+    assert_eq!(
+        find_matching_tab_config("foo.bar.toml", configs.clone()).map(|config| config.name),
+        Some(String::from("dotted")),
+    );
+    assert!(find_matching_tab_config("unknown", configs.clone()).is_none());
+    assert!(find_matching_tab_config("orphan", configs).is_none());
+}
+
+fn make_mock_tab_config(name: &str, source_path: Option<&str>) -> TabConfig {
+    TabConfig {
+        name: name.to_string(),
+        title: None,
+        color: None,
+        panes: vec![],
+        params: HashMap::new(),
+        source_path: source_path.map(PathBuf::from),
+    }
 }
 
 #[test]
