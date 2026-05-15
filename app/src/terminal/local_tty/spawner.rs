@@ -1,10 +1,7 @@
 use anyhow::Result;
 use warpui::{AppContext, Entity, SingletonEntity};
 
-use crate::{
-    terminal::local_tty::{self},
-    ui_events::PtySpawnMode,
-};
+use crate::terminal::local_tty::{self};
 
 use super::{PtyOptions, PtySpawnResult};
 use {
@@ -104,24 +101,14 @@ impl PtySpawner {
         options: PtyOptions,
         _ctx: &mut AppContext,
     ) -> Result<(PtySpawnResult, Box<dyn PtyHandle>)> {
-        let mut is_fallback = false;
-
         if let Some(server) = &self.server {
             let result = Self::spawn_pty_via_server(server, options.clone()).context(
                 "Failed to spawn pty via terminal server; falling back to spawning locally...",
             );
-            if let Err(_err) = result {
-                is_fallback = true;
-            } else {
+            if result.is_ok() {
                 return result;
             }
         }
-
-        let _mode = if is_fallback {
-            PtySpawnMode::FallbackToDirect
-        } else {
-            PtySpawnMode::Direct
-        };
 
         Self::spawn_pty_directly(options)
     }

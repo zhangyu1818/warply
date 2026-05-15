@@ -218,6 +218,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `TrimTrailingBlankLines` rollout flag and `trim_trailing_blank_lines` Cargo feature. CLI-agent block blank-row trimming is current retained terminal/AgentView behavior and should not be restored as an optional old branch.
 - Removed the `SelectionAsContext` rollout flag and `selection_as_context` Cargo feature. Code editor and code review selection-to-context affordances are retained local ACP context attachment behavior and remain controlled by current AI enablement, not by an old rollout gate.
 - Removed the unused `CodeContextDestination` metadata enum and no-op destination calculation from selection-as-context routing. Selection-as-context behavior remains retained; do not restore inert destination/source enums without a local consumer.
+- Removed the unused `PtySpawnMode` metadata enum and no-op PTY spawn mode assignment. The retained terminal-server/direct PTY spawn behavior remains unchanged; do not restore inert spawn-mode analytics metadata.
 
 ## 2026-05 Local Object Cloud Gate Cleanup
 

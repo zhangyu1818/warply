@@ -21,13 +21,6 @@ pub enum PaletteSource {
     TitleBarSearchBar,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub enum PtySpawnMode {
-    TerminalServer,
-    FallbackToDirect,
-    Direct,
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum LaunchConfigUiLocation {
     CommandPalette,
