@@ -1471,8 +1471,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewFind,
         #[cfg(feature = "ui_zoom")]
         FeatureFlag::UIZoom,
-        #[cfg(feature = "fork_from_command")]
-        FeatureFlag::ForkFromCommand,
         #[cfg(feature = "global_search")]
         FeatureFlag::GlobalSearch,
         #[cfg(feature = "embedded_code_review_comments")]

@@ -173,9 +173,6 @@ pub enum FeatureFlag {
     /// Enables rendering markdown tables in notebooks.
     MarkdownTables,
 
-    /// Enables the /fork-from slash command.
-    ForkFromCommand,
-
     /// Enables global search
     GlobalSearch,
 

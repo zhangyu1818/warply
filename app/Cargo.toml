@@ -340,7 +340,6 @@ default = [
     "ui_zoom",
     "discard_per_file_and_all_changes",
     "code_review_find",
-    "fork_from_command",
     "classic_completions",
     "force_classic_completions",
     "pluggable_notifications",
@@ -484,7 +483,6 @@ file_tree = []
 discard_per_file_and_all_changes = []
 ui_zoom = []
 code_review_find = []
-fork_from_command = []
 global_search = []
 file_and_diff_set_comments = []
 classic_completions = []

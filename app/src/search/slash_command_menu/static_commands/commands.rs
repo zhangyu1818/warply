@@ -371,9 +371,7 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.push(FORK.clone());
 
-    if FeatureFlag::ForkFromCommand.is_enabled() {
-        commands.push(FORK_FROM);
-    }
+    commands.push(FORK_FROM);
 
     commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
 
