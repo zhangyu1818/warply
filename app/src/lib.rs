@@ -1477,8 +1477,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InlineMenuHeaders,
         #[cfg(feature = "directory_tab_colors")]
         FeatureFlag::DirectoryTabColors,
-        #[cfg(feature = "hoa_code_review")]
-        FeatureFlag::HoaCodeReview,
         #[cfg(feature = "vertical_tabs")]
         FeatureFlag::VerticalTabs,
         #[cfg(feature = "vertical_tabs_summary_mode")]

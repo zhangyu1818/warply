@@ -214,6 +214,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the remaining `warpui` text-layout test/example platform branches and the `cfg_aliases` build dependency. Text layout tests now assert the retained CoreText/macOS behavior directly instead of carrying non-macOS expected values or ignore gates.
 - Removed the final source-level `target_os` checks from retained macOS host code. Rectangular selection now directly uses the macOS Cmd+Option modifier rule, and rust-analyzer auto-install selects only between macOS architecture assets.
 - Collapsed remaining local macOS dependency gates in `app`, `command`, `prevent_sleep`, and `computer_use` into direct dependencies/modules. Test-only noop behavior remains feature-driven, not platform fallback-driven.
+- Removed the `HoaCodeReview` rollout flag and `hoa_code_review` Cargo feature. Code review selection-as-context and active CLI-agent routing are retained local AgentView/ACP UI behavior, not a House Of Agents compatibility branch.
 
 ## 2026-05 Local Object Cloud Gate Cleanup
 
