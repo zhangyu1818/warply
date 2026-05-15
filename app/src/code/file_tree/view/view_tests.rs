@@ -14,7 +14,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::vim_registers::VimRegisters;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use super::FileTreeView;
 
@@ -36,7 +35,6 @@ fn initialize_app(
     app.add_singleton_model(|_| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let detected_repositories = app.add_singleton_model(|_| DetectedRepositories::default());
     let repository_metadata_model = app.add_singleton_model(RepoMetadataModel::new);

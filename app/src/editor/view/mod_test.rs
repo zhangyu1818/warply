@@ -7,7 +7,6 @@ use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use anyhow::Error;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -44,8 +43,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| VimRegisters::new());
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-
-    app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
 #[test]

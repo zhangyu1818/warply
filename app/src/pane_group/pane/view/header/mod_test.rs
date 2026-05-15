@@ -13,7 +13,7 @@ use crate::{
     pane_group::{focus_state::PaneFocusHandle, BackingView, PaneConfiguration, PaneId, PaneView},
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
-    UpdateManager, UserWorkspaces,
+    UpdateManager,
 };
 
 use super::{Event, OpenOverlay};
@@ -108,7 +108,6 @@ fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 
     app.add_singleton_model(|_| Appearance::mock());
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|ctx| UpdateManager::new(None, ctx));

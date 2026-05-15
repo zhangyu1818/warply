@@ -14,7 +14,6 @@ use crate::{
     test_util::settings::initialize_settings_for_tests,
     vim_registers::VimRegisters,
     workspace::{sync_inputs::SyncedInputState, ActiveSession},
-    workspaces::user_workspaces::UserWorkspaces,
     LocalIdentityProvider,
 };
 
@@ -35,9 +34,6 @@ fn initialize_editor(app: &mut App) -> (WindowId, ViewHandle<CodeEditorView>) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(NotebookKeybindings::new);
-
-    // Add UserWorkspaces mock (required by EditorView)
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let (window, editor_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         CodeEditorView::new(

@@ -70,7 +70,6 @@ mod vim_registers;
 mod voltron;
 mod warp_managed_paths_watcher;
 mod window_settings;
-mod workspaces;
 
 // PLEASE DO NOT ADD MORE PUBLIC MODULES!
 //
@@ -214,7 +213,6 @@ use crate::root_view::{
 use crate::ui_events::PaletteSource;
 use crate::util::bindings::is_binding_supported_on_mac;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction};
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use warp_logging::LogDestination;
 
 #[cfg(feature = "local_fs")]
@@ -727,8 +725,6 @@ pub(crate) fn initialize_app(
                 Default::default(),
             )
         });
-
-    ctx.add_singleton_model(UserWorkspaces::new);
 
     ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));
 

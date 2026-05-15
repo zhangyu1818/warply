@@ -182,7 +182,6 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
 use crate::terminal::{self, SizeInfo, TerminalView};
 use crate::ui_events::LaunchConfigUiLocation;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use ::settings::{Setting, ToggleableSetting};
 use warp_core::{features::FeatureFlag, SessionId};
 
@@ -9567,7 +9566,7 @@ impl Workspace {
                     &WorkflowOpenSource::New {
                         title: None,
                         content: initial_content.clone(),
-                        owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                        owner: crate::cloud_object::current_user_owner(ctx),
                         initial_folder_id: None,
                         is_for_agent_mode: true,
                     },
@@ -11038,7 +11037,7 @@ impl Workspace {
     fn open_workflow_with_temporary(&mut self, workflow: Workflow, ctx: &mut ViewContext<Self>) {
         let source = WorkflowOpenSource::NewFromWorkflow {
             workflow: workflow.into(),
-            owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+            owner: crate::cloud_object::current_user_owner(ctx),
             initial_folder_id: None,
         };
         self.open_workflow_in_pane(&source, WorkflowViewMode::Create, ctx);
@@ -11049,7 +11048,7 @@ impl Workspace {
         let source = WorkflowOpenSource::New {
             title: None,
             content: Some(command),
-            owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+            owner: crate::cloud_object::current_user_owner(ctx),
             initial_folder_id: None,
             is_for_agent_mode: false,
         };
@@ -13542,7 +13541,7 @@ impl TypedActionView for Workspace {
                 self.open_env_var_collection(
                     &EnvVarCollectionSource::New {
                         title: None,
-                        owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                        owner: crate::cloud_object::current_user_owner(ctx),
                         initial_folder_id: None,
                     },
                     false,

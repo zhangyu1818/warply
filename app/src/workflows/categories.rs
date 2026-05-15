@@ -11,14 +11,12 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
+use crate::cloud_object::{model::persistence::CloudModel, Space};
 use crate::editor::Event as EditorEvent;
 use crate::user_config::WarpConfig;
 use crate::util::bindings::CustomAction;
 use crate::voltron::{VoltronFeatureViewMeta, VoltronMetadata};
 use crate::workflows::WorkflowType;
-use crate::{
-    cloud_object::model::persistence::CloudModel, workspaces::user_workspaces::UserWorkspaces,
-};
 use crate::{
     themes::theme::{self, Blend, WarpTheme},
     user_config::WarpConfigUpdateEvent,
@@ -479,10 +477,9 @@ impl CategoriesView {
     }
 
     pub fn load_saved_workflows(&mut self, ctx: &mut ViewContext<Self>) {
-        let user_workspaces = UserWorkspaces::as_ref(ctx);
         let local_object_model = CloudModel::as_ref(ctx);
 
-        for space in user_workspaces.all_user_spaces(ctx) {
+        for space in [Space::Personal] {
             let workflows_in_space = local_object_model.active_workflows_in_space(space, ctx);
             let new_workflows_in_space = Self::categorize_workflows(
                 // Don't include AI workflows in Voltron.

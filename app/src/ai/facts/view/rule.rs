@@ -2,7 +2,7 @@ use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::cloud_object::{
-    CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
+    current_user_owner, CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
@@ -18,7 +18,6 @@ use crate::view_components::{
     DismissibleToast,
 };
 use crate::workspace::ToastStack;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
 use markdown_parser::{
     weight::CustomWeight, FormattedText, FormattedTextFragment, FormattedTextLine,
@@ -166,7 +165,7 @@ impl RuleView {
             me.handle_local_object_model_event(event, ctx);
         });
 
-        let owner = UserWorkspaces::as_ref(ctx).current_user_owner(ctx);
+        let owner = current_user_owner(ctx);
 
         ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
             if matches!(

@@ -1,13 +1,13 @@
 use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, PaneView};
 use crate::{
     app_state::{LeafContents, WorkflowPaneSnapshot},
+    cloud_object::current_user_owner,
     object_ids::SyncId,
     workflows::{
         manager::{WorkflowManager, WorkflowOpenSource},
         workflow_view::{WorkflowView, WorkflowViewEvent},
         WorkflowSelectionSource, WorkflowSource, WorkflowType, WorkflowViewMode,
     },
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use std::{collections::HashMap, sync::Arc};
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
@@ -41,7 +41,7 @@ impl WorkflowPane {
             None => WorkflowOpenSource::New {
                 title: None,
                 content: None,
-                owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                owner: current_user_owner(ctx),
                 initial_folder_id: None,
                 is_for_agent_mode: false,
             },

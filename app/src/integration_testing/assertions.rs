@@ -1,12 +1,12 @@
 use crate::{
     cloud_object::update_manager::UpdateManager,
     cloud_object::{
-        model::persistence::CloudModel, CloudObjectEventEntrypoint, CloudObjectLocation, Space,
+        current_user_owner, model::persistence::CloudModel, CloudObjectEventEntrypoint,
+        CloudObjectLocation, Space,
     },
     object_ids::ClientId,
     util::bindings::keybinding_name_to_display_string,
     workflows::workflow::Workflow,
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use warpui::{async_assert, async_assert_eq, integration::TestStep, SingletonEntity};
 
@@ -16,7 +16,7 @@ pub fn create_a_personal_workflow() -> TestStep {
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_workflow(
                     Workflow::new("My first workflow", "ls"),
-                    UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                    current_user_owner(ctx),
                     None,
                     ClientId::default(),
                     CloudObjectEventEntrypoint::Unknown,

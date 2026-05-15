@@ -29,7 +29,6 @@ use crate::identity::LocalIdentityProvider;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::ActiveSession;
-use crate::UserWorkspaces;
 use crate::{
     cloud_object::model::persistence::CloudModel, search::files::model::FileSearchModel,
     GlobalResourceHandles, GlobalResourceHandlesProvider,
@@ -79,8 +78,6 @@ fn initialize_editor(
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let (window, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         let window_id = ctx.window_id();

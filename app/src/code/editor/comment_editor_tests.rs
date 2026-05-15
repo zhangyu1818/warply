@@ -21,7 +21,7 @@ use crate::{
     terminal::keys::TerminalKeybindings,
     test_util::settings::initialize_settings_for_tests,
     workspace::ActiveSession,
-    GlobalResourceHandles, GlobalResourceHandlesProvider, UserWorkspaces,
+    GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 
 struct TestView {
@@ -73,7 +73,6 @@ fn initialize_editor(
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     let (window, test_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
         let window_id = ctx.window_id();

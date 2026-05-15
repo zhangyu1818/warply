@@ -10,7 +10,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::update_manager::UpdateManager;
 use crate::identity::LocalIdentityProvider;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::LaunchMode;
 use ai::agent::action::AskUserQuestionItem;
 use ai::agent::action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult};
@@ -75,7 +74,6 @@ fn initialize_ask_user_question_test(
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     let profiles = app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });

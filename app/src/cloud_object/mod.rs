@@ -2,11 +2,11 @@ use self::{breadcrumbs::ContainingObject, model::persistence::CloudModel};
 use crate::{
     appearance::Appearance,
     drive::{items::LocalObjectItem, CloudObjectTypeAndId},
+    identity::LocalIdentityProvider,
     object_ids::{ClientId, HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId},
     persistence::ModelEvent,
     util::time_format::format_approx_duration_from_now_utc,
     workflows::WorkflowSource,
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use derivative::Derivative;
 use std::{any::Any, collections::HashSet, fmt::Debug, sync::Arc};
@@ -18,6 +18,12 @@ pub mod toast_message;
 pub mod update_manager;
 
 pub use local_object_model::cloud_object::*;
+
+pub fn current_user_owner(app: &AppContext) -> Owner {
+    Owner::User {
+        user_uid: LocalIdentityProvider::as_ref(app).get().user_id(),
+    }
+}
 
 /// A CloudObject represents a retained local object such as a workflow, folder, or notebook.
 /// Local revision metadata is kept only for persisted object bookkeeping.
@@ -107,8 +113,8 @@ pub trait CloudObject: Debug {
 
     fn to_local_object_item(&self, appearance: &Appearance) -> Option<Box<dyn LocalObjectItem>>;
 
-    fn space(&self, app: &AppContext) -> Space {
-        UserWorkspaces::as_ref(app).owner_to_space(self.permissions().owner, app)
+    fn space(&self, _app: &AppContext) -> Space {
+        Space::Personal
     }
 
     /// Returns the name of the containing "object" for this object.

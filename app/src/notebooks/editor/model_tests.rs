@@ -24,7 +24,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{SavedWorkflow, SavedWorkflowModel};
 use crate::workspace::ActiveSession;
-use crate::UserWorkspaces;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use futures::prelude::*;
 use itertools::Itertools;
@@ -126,7 +125,6 @@ fn model_from_markdown(
 
 fn initialize_deps(app: &mut App) {
     app.add_singleton_model(|_| Appearance::mock());
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
 
     initialize_settings_for_tests(app);

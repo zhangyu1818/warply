@@ -11,7 +11,6 @@ use crate::drive::DriveIndexVariant;
 use crate::http_api::HttpApiProvider;
 use crate::identity::LocalIdentityProvider;
 use crate::system::SystemStats;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use crate::cloud_object::update_manager::UpdateManager;
 use crate::workflows::workflow::Workflow;
@@ -33,7 +32,6 @@ fn initialize_app(app: &mut App, cached_objects: Vec<Box<dyn CloudObject>>) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(|_ctx| CloudModel::new(None, cached_objects));
     app.add_singleton_model(|ctx| UpdateManager::new(None, ctx));
     app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
@@ -139,7 +137,6 @@ fn test_collapse_all_in_location() {
 
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         let cloud_model = create_cloud_model(&mut app, folders);
 
         cloud_model.update(&mut app, |model, ctx| {
@@ -238,7 +235,6 @@ fn test_collapse_all_in_trash() {
 
     App::test((), |mut app| async move {
         app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-        app.add_singleton_model(UserWorkspaces::default_mock);
         let cloud_model = create_cloud_model(&mut app, folders);
 
         cloud_model.update(&mut app, |model, ctx| {

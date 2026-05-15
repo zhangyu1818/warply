@@ -249,7 +249,6 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
         let executor = Arc::new(RecordingCommandExecutor::default());
         let sessions = app.add_model(|ctx| {
             let mut sessions = Sessions::new_for_test().with_command_executor(executor.clone());
@@ -416,7 +415,6 @@ fn test_github_pr_chip_is_disabled_when_github_cli_is_missing() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::default());
         let sessions = app.add_model(|ctx| {
@@ -497,7 +495,6 @@ fn test_github_pr_chip_empty_success_does_not_set_failure_suppression() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::with_success_responses([
             "gh\ngit\n",
@@ -586,7 +583,6 @@ fn test_github_pr_chip_revisiting_empty_result_directory_reruns_and_clears_previ
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::with_success_responses([
             "gh\ngit\n",
@@ -722,7 +718,6 @@ fn test_github_pr_chip_revisiting_failed_directory_uses_failure_suppression() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::with_outputs([
             RecordingCommandExecutor::success_output("gh\ngit\n"),
@@ -860,7 +855,6 @@ fn test_github_pr_chip_transient_failure_retries_with_same_fingerprint() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::with_outputs([
             RecordingCommandExecutor::success_output("gh\ngit\n"),
@@ -1021,7 +1015,6 @@ fn test_disabling_chips() {
         app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
         crate::settings::InputSettings::register(&mut app);
         app.update(crate::settings::AISettings::register_and_subscribe_to_events);
-        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
 
         let executor = Arc::new(RecordingCommandExecutor::default());
 

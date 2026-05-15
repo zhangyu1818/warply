@@ -4,13 +4,12 @@ use warpui::{
 
 use crate::{
     cloud_object::{
-        model::persistence::CloudModel, update_manager::UpdateManager, CloudObjectEventEntrypoint,
-        Space,
+        current_user_owner, model::persistence::CloudModel, update_manager::UpdateManager,
+        CloudObjectEventEntrypoint, Space,
     },
     integration_testing::view_getters::workspace_view,
     object_ids::{ClientId, SyncId},
     workflows::{manager::WorkflowOpenSource, workflow::Workflow, WorkflowViewMode},
-    workspaces::user_workspaces::UserWorkspaces,
 };
 
 use super::open_workflow_count;
@@ -26,7 +25,7 @@ pub fn create_a_personal_workflow(key: impl Into<String>) -> TestStep {
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_workflow(
                     workflow.clone(),
-                    UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                    current_user_owner(ctx),
                     None,
                     client_id,
                     CloudObjectEventEntrypoint::Unknown,

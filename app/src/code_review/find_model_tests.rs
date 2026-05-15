@@ -12,7 +12,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::vim_registers::VimRegisters;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::ActiveSession;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::NotebookKeybindings;
 use repo_metadata::repositories::DetectedRepositories;
 use std::path::PathBuf;
@@ -149,7 +148,6 @@ fn initialize_test_app(app: &mut App) {
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(|_| GlobalCodeReviewModel);
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     // Add mocks required by rich text editor (used in the CommentEditor)
     app.add_singleton_model(CloudModel::mock);

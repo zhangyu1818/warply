@@ -30,7 +30,6 @@ use crate::{
     warp_managed_paths_watcher::WarpManagedPathsWatcher,
     workflows::local_workflows::LocalWorkflows,
     workspace::{sync_inputs::SyncedInputState, ActiveSession, WorkspaceRegistry},
-    workspaces::user_workspaces::UserWorkspaces,
     GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 #[cfg(feature = "local_fs")]
@@ -57,7 +56,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
 
     app.add_singleton_model(|_| DetectedRepositories::default());

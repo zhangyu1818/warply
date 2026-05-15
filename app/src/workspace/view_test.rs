@@ -38,7 +38,6 @@ use crate::system::SystemStats;
 use crate::tab_configs::tab_config::{TabConfigPaneNode, TabConfigPaneType};
 use crate::terminal::history::History;
 use crate::terminal::keys::TerminalKeybindings;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use crate::terminal::local_tty::spawner::PtySpawner;
 
@@ -69,7 +68,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);

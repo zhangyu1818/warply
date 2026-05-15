@@ -2,6 +2,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use crate::{
     app_state::{EnvVarCollectionPaneSnapshot, LeafContents},
+    cloud_object::current_user_owner,
     env_vars::{
         manager::{EnvVarCollectionManager, EnvVarCollectionSource},
         view::env_var_collection::{EnvVarCollectionEvent, EnvVarCollectionView},
@@ -9,7 +10,6 @@ use crate::{
     },
     object_ids::SyncId,
     pane_group::focus_state::PaneFocusHandle,
-    workspaces::user_workspaces::UserWorkspaces,
 };
 
 use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
@@ -54,7 +54,7 @@ impl EnvVarCollectionPane {
             Some(id) => EnvVarCollectionSource::Existing(id),
             None => EnvVarCollectionSource::New {
                 title: None,
-                owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
+                owner: current_user_owner(ctx),
                 initial_folder_id: None,
             },
         };

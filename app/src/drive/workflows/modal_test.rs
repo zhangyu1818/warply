@@ -9,7 +9,6 @@ use crate::{
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
     workflows::workflow::{Argument, Workflow},
-    UserWorkspaces,
 };
 
 fn initialize_app(app: &mut App) {
@@ -19,8 +18,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| KeybindingChangedNotifier::mock());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-
-    app.add_singleton_model(UserWorkspaces::default_mock);
 }
 
 fn create_modal(app: &mut App) -> ViewHandle<WorkflowModal> {

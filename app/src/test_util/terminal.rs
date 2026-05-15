@@ -42,7 +42,6 @@ use crate::{
     },
     workflows::local_workflows::LocalWorkflows,
     workspace::{sync_inputs::SyncedInputState, ActiveSession},
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use repo_metadata::watcher::DirectoryWatcher;
 
@@ -54,7 +53,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_ctx| SyncedInputState::mock());

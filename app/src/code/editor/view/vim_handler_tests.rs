@@ -10,7 +10,6 @@ use crate::{
     test_util::settings::initialize_settings_for_tests,
     vim_registers::VimRegisters,
     workspace::sync_inputs::SyncedInputState,
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use unindent::Unindent;
 use vim::vim::{MotionType, VimMode};
@@ -51,9 +50,6 @@ fn initialize_code_editor_app(app: &mut App) {
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(NotebookKeybindings::new);
-
-    // Add UserWorkspaces mock (required by CodeEditorView)
-    app.add_singleton_model(UserWorkspaces::default_mock);
 
     // Enable vim mode in editor settings
     app.update_model(

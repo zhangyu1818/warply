@@ -6,10 +6,11 @@ use warpui::{
 
 use crate::{
     ai::facts::{view::AIFactPage, AIMemory},
-    cloud_object::{model::persistence::CloudModel, update_manager::UpdateManager, Space},
+    cloud_object::{
+        current_user_owner, model::persistence::CloudModel, update_manager::UpdateManager, Space,
+    },
     integration_testing::view_getters::workspace_view,
     object_ids::{ClientId, SyncId},
-    workspaces::user_workspaces::UserWorkspaces,
 };
 
 /// Create a personal rule and save its sync ID into the step data.
@@ -30,12 +31,7 @@ pub fn create_a_personal_rule(
                     name: name.as_ref().clone(),
                     content: content.as_ref().clone(),
                 });
-                update_manager.create_ai_fact(
-                    ai_fact,
-                    client_id,
-                    UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
-                    ctx,
-                );
+                update_manager.create_ai_fact(ai_fact, client_id, current_user_owner(ctx), ctx);
             });
 
             data.insert(key.clone(), sync_id);

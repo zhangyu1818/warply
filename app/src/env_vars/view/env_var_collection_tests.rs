@@ -13,7 +13,6 @@ use crate::{
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
     workspace::ActiveSession,
-    workspaces::user_workspaces::UserWorkspaces,
     GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 
@@ -24,8 +23,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resources));
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(|_| Appearance::mock());
-
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
     app.add_singleton_model(|_| ActiveSession::default());

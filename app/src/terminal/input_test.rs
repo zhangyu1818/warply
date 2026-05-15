@@ -36,7 +36,6 @@ use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::event::BootstrappedEvent;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::local_shell::LocalShellState;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use crate::terminal::block_list_viewport::ScrollPosition;
 use crate::terminal::local_tty::shell::ShellStarter;
@@ -93,7 +92,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(ImportedConfigModel::new);
-    app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_ctx| SyncedInputState::mock());
