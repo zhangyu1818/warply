@@ -46,7 +46,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use warp_core::assertions::safe_assert;
-use warpui::r#async::SpawnedFutureHandle;
 
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
@@ -172,9 +171,6 @@ pub struct BlocklistAIController {
     /// The ID of the terminal view this controller is associated with.
     terminal_view_id: EntityId,
 
-    /// Pending auto-resume tasks that are waiting for network connectivity.
-    /// These should be cancelled when a new request is sent for the same conversation.
-    pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
     /// Passive conversations explicitly requested to follow up after actions complete.
     pending_passive_follow_ups: HashSet<AIConversationId>,
 }
@@ -357,7 +353,6 @@ impl BlocklistAIController {
             active_session,
             terminal_model,
             terminal_view_id,
-            pending_auto_resume_handles: HashMap::new(),
             pending_passive_follow_ups: HashSet::new(),
         }
     }
@@ -1259,15 +1254,6 @@ impl BlocklistAIController {
             conversation.id()
         };
 
-        // Cancel any pending auto-resume for this conversation, since the user is sending a new
-        // request.
-        if let Some(handle) = self
-            .pending_auto_resume_handles
-            .remove(&request_input.conversation_id)
-        {
-            handle.abort();
-        }
-
         if AcpAgentModel::as_ref(ctx).has_active_session_for_conversation(conversation_id) {
             const AI_INPUT_NOT_SENT_ERROR_STR: &str =
                 "Not sending AI input because there is an in-flight request";
@@ -1429,11 +1415,6 @@ impl BlocklistAIController {
         reason: CancellationReason,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Cancel any pending auto-resume for this conversation.
-        if let Some(handle) = self.pending_auto_resume_handles.remove(&conversation_id) {
-            handle.abort();
-        }
-
         if !AcpAgentModel::handle(ctx).update(ctx, |model, _| model.cancel_session(conversation_id))
         {
             // Otherwise, cancel pending actions and update the input state.
