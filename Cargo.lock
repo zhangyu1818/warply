@@ -4336,20 +4336,16 @@ dependencies = [
 name = "http_client"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "async-compat",
  "async-stream",
  "bytes",
  "futures",
  "http",
- "log",
  "prevent_sleep",
  "prost 0.14.3",
  "reqwest",
  "reqwest-eventsource",
  "serde",
- "serde_json",
- "serde_urlencoded",
 ]
 
 [[package]]

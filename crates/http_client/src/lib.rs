@@ -18,24 +18,7 @@ use serde::de::DeserializeOwned;
 /// run outside of a Tokio context.
 pub struct Client {
     wrapped: reqwest::Client,
-
-    /// A callback that is executed before every request is sent with a cloned
-    /// version of the outbound request.  If for some reason the request cannot be
-    /// cloned the function is not called.
-    before_request_sent: Option<RequestHookFn>,
-
-    /// A callback that is executed on after each response is received.
-    after_response_received: Option<ResponseHookFn>,
 }
-
-/// Type for 'hook' functions to be executed prior to sending a request. A reference to the
-/// outbound request object is given as the first argument. The second argument the request's
-/// serialized JSON payload, if any.
-pub type RequestHookFn = Box<dyn Fn(&reqwest::Request, &Option<String>) + 'static + Send + Sync>;
-
-/// Type for 'hook' functions to be executed after receiving a response. The sole argument is a
-/// reference to the inbound response object.
-pub type ResponseHookFn = Box<dyn Fn(&reqwest::Response) + 'static + Send + Sync>;
 
 pub type EventSourceStream = futures::stream::BoxStream<
     'static,
@@ -48,16 +31,11 @@ pub type EventSourceStream = futures::stream::BoxStream<
 pub struct RequestBuilder<'a> {
     wrapped: reqwest::RequestBuilder,
     client: &'a Client,
-
-    // The JSON payload of the request, if any, serialized to a pretty-printed String.
-    serialized_payload: Option<String>,
-
     prevent_sleep_reason: Option<&'static str>,
 }
 
 pub struct Request {
     wrapped: reqwest::Request,
-    serialized_payload: Option<String>,
     prevent_sleep_reason: Option<&'static str>,
 }
 
@@ -98,26 +76,15 @@ impl Client {
     }
 
     pub fn from_client_builder(client_builder: reqwest::ClientBuilder) -> reqwest::Result<Self> {
-        client_builder.build().map(|client| Self {
-            wrapped: client,
-            before_request_sent: None,
-            after_response_received: None,
-        })
-    }
-
-    pub fn set_before_request_fn(&mut self, hook_fn: RequestHookFn) {
-        self.before_request_sent = Some(hook_fn);
-    }
-
-    pub fn set_after_response_fn(&mut self, hook_fn: ResponseHookFn) {
-        self.after_response_received = Some(hook_fn);
+        client_builder
+            .build()
+            .map(|client| Self { wrapped: client })
     }
 
     fn builder(&self, wrapped: reqwest::RequestBuilder) -> RequestBuilder<'_> {
         RequestBuilder {
             wrapped,
             client: self,
-            serialized_payload: None,
             prevent_sleep_reason: None,
         }
     }
@@ -145,21 +112,12 @@ impl Client {
     pub async fn execute(&self, request: Request) -> reqwest::Result<Response> {
         let Request {
             wrapped: request,
-            serialized_payload,
             prevent_sleep_reason,
         } = request;
-
-        if let Some(before_response_send_fn) = &self.before_request_sent {
-            before_response_send_fn(&request, &serialized_payload);
-        }
 
         let _guard = prevent_sleep_reason.map(prevent_sleep::prevent_sleep);
 
         let result = Compat::new(async { self.wrapped.execute(request).await }).await?;
-
-        if let Some(after_response_received_fn) = &self.after_response_received {
-            after_response_received_fn(&result);
-        }
 
         Ok(Response(result))
     }
@@ -173,7 +131,6 @@ impl<'a> RequestBuilder<'a> {
     pub fn build_split(self) -> (&'a Client, reqwest::Result<Request>) {
         let request = self.wrapped.build().map(|request| Request {
             wrapped: request,
-            serialized_payload: self.serialized_payload,
             prevent_sleep_reason: self.prevent_sleep_reason,
         });
         (self.client, request)
@@ -185,27 +142,14 @@ impl<'a> RequestBuilder<'a> {
     }
 
     pub fn json<T: Serialize + ?Sized>(self, json: &T) -> RequestBuilder<'a> {
-        let serialized_payload =
-            match serde_json::to_string_pretty(json).map_err(anyhow::Error::from) {
-                Ok(payload) => Some(payload),
-                Err(err) => {
-                    log::warn!(
-                        "{:#}",
-                        err.context("Failed to serialize JSON request payload.")
-                    );
-                    None
-                }
-            };
         Self {
             wrapped: self.wrapped.json(json),
-            serialized_payload,
             ..self
         }
     }
 
     pub fn proto<T: prost::Message>(self, proto: &T) -> RequestBuilder<'a> {
         let bytes = proto.encode_to_vec();
-        let serialized = String::from_utf8(bytes.clone());
 
         Self {
             wrapped: self
@@ -215,7 +159,6 @@ impl<'a> RequestBuilder<'a> {
                     HeaderValue::from_static("application/x-protobuf"),
                 )
                 .body(bytes),
-            serialized_payload: serialized.ok(),
             ..self
         }
     }
@@ -306,20 +249,8 @@ impl<'a> RequestBuilder<'a> {
     }
 
     pub fn form<T: Serialize + ?Sized>(self, form: &T) -> RequestBuilder<'a> {
-        let serialized_payload =
-            match serde_urlencoded::to_string(form).map_err(anyhow::Error::from) {
-                Ok(payload) => Some(payload),
-                Err(err) => {
-                    log::warn!(
-                        "{:#}",
-                        err.context("Failed to serialize url-encoded form payload")
-                    );
-                    None
-                }
-            };
         Self {
             wrapped: self.wrapped.form(form),
-            serialized_payload,
             ..self
         }
     }
