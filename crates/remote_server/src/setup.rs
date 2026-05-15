@@ -12,7 +12,7 @@ use warp_core::channel::{Channel, ChannelState};
 pub enum RemoteServerSetupState {
     /// Checking if the binary exists on remote.
     Checking,
-    /// Downloading and installing the binary for the first time on this host.
+    /// Running the install script for the first time on this host.
     Installing { progress_percent: Option<u8> },
     /// Replacing an existing install with a differently-versioned binary.
     /// Rendered as "Updating..." in the UI so the user understands this
@@ -22,11 +22,11 @@ pub enum RemoteServerSetupState {
     Initializing,
     /// Handshake complete. Ready.
     Ready,
-    /// Something failed. Fall back to ControlMaster.
+    /// Something failed. Continue without the remote-server extension.
     Failed { error: String },
     /// Preinstall check classified the host as incompatible with the
     /// prebuilt remote-server binary. The controller treats this as a
-    /// clean fall-back to the legacy ControlMaster-backed SSH flow,
+    /// clean fall-back to the retained ControlMaster-backed SSH flow,
     /// distinct from `Failed` (which is rendered as a real error).
     Unsupported { reason: UnsupportedReason },
 }
@@ -360,9 +360,9 @@ pub fn binary_name() -> &'static str {
 ///   `version` is the baked-in `GIT_RELEASE_TAG` when present and falls
 ///   back to `CARGO_PKG_VERSION` otherwise. The fallback keeps the path
 ///   deterministic for misconfigured `cargo run --bin {dev,preview,...}`
-///   builds; the resulting `&version=...` query is expected to 404 against
-///   `/download/cli` and surface a clean `SetupFailed` rather than silently
-///   writing to a path that doesn't follow the rule.
+///   builds; the install script remains responsible for reporting that
+///   auto-install is unavailable in this fork rather than silently writing
+///   to a path that doesn't follow the rule.
 pub fn remote_server_binary() -> String {
     let dir = remote_server_dir();
     let name = binary_name();
@@ -386,16 +386,14 @@ pub fn binary_check_command() -> String {
 /// `GIT_RELEASE_TAG` from [`ChannelState::app_version`]; falls back to
 /// `CARGO_PKG_VERSION` so the path / install URL is deterministic even on
 /// dev `cargo run` builds without a release tag. The `CARGO_PKG_VERSION`
-/// fallback is not expected to map to a real `/download/cli` artifact —
-/// it exists to produce a clean install-time failure rather than silently
-/// fall through to the unversioned (Local/Oss-only) path.
+/// fallback exists to keep the remote path deterministic on dev builds
+/// rather than silently falling through to the unversioned
+/// (Local/Oss-only) path.
 fn pinned_version() -> &'static str {
     ChannelState::app_version().unwrap_or(env!("CARGO_PKG_VERSION"))
 }
 
-/// The install script template, loaded from a standalone `.sh` file for
-/// readability. Placeholders like `{download_base_url}` are substituted by
-/// [`install_script`].
+/// The install script template, loaded from a standalone `.sh` file for readability.
 const INSTALL_SCRIPT_TEMPLATE: &str = include_str!("install_remote_server.sh");
 
 pub fn install_script() -> String {

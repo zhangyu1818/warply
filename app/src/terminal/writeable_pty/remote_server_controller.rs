@@ -232,7 +232,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         // Preinstall gate. Runs **before** any user-visible install
         // affordance: if the script positively classified the host as
         // unsupported, skip the install/prompt entirely and fall back to
-        // the legacy ControlMaster-backed SSH flow.
+        // the retained ControlMaster-backed SSH flow.
         let unsupported = preinstall_check
             .as_ref()
             .and_then(|check| match &check.status {

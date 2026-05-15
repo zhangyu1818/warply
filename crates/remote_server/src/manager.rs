@@ -1387,7 +1387,7 @@ impl RemoteServerManager {
     /// Marks a session as `Disconnected`, cleans up the host index, and
     /// emits the appropriate disconnect events. Used by
     /// `mark_session_disconnected` when reconnection is not possible
-    /// (SSH transport failure, missing auth context).
+    /// (SSH transport failure, missing remote-server identity context).
     ///
     /// Not used by `handle_reconnect_failure` because that path enters
     /// from `attempt_reconnect`, which already cleared the host index
