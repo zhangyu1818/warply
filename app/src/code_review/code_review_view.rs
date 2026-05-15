@@ -5138,18 +5138,16 @@ impl CodeReviewView {
             .finish(),
         );
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() {
-            right_row.add_child(
-                EventHandler::new(
-                    Container::new(ChildView::new(&file.discard_button).finish())
-                        .with_margin_left(4.)
-                        .finish(),
-                )
-                .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
-                .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
-                .finish(),
-            );
-        }
+        right_row.add_child(
+            EventHandler::new(
+                Container::new(ChildView::new(&file.discard_button).finish())
+                    .with_margin_left(4.)
+                    .finish(),
+            )
+            .on_left_mouse_up(|_, _, _| DispatchEventResult::StopPropagation)
+            .on_left_mouse_down(|_, _, _| DispatchEventResult::StopPropagation)
+            .finish(),
+        );
 
         right_row.add_child(
             EventHandler::new(
@@ -6762,7 +6760,7 @@ impl CodeReviewView {
             );
         }
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() && has_changes {
+        if has_changes {
             items.push(
                 MenuItemFields::new("Discard all")
                     .with_icon(Icon::ReverseLeft)

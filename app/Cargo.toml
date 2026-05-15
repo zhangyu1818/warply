@@ -331,7 +331,6 @@ default = [
     "vim_code_editor",
     "expand_edit_to_pane",
     "ui_zoom",
-    "discard_per_file_and_all_changes",
     "classic_completions",
     "force_classic_completions",
     "pluggable_notifications",
@@ -455,7 +454,6 @@ projects = []
 vim_code_editor = []
 undo_closed_panes = []
 revert_diff_hunk = []
-discard_per_file_and_all_changes = []
 ui_zoom = []
 global_search = []
 classic_completions = []

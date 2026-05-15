@@ -1441,8 +1441,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::VimCodeEditor,
         #[cfg(feature = "revert_diff_hunk")]
         FeatureFlag::RevertDiffHunk,
-        #[cfg(feature = "discard_per_file_and_all_changes")]
-        FeatureFlag::DiscardPerFileAndAllChanges,
         #[cfg(feature = "ui_zoom")]
         FeatureFlag::UIZoom,
         #[cfg(feature = "global_search")]

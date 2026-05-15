@@ -14,7 +14,6 @@ use crate::{
     view_components::action_button::ActionButton,
 };
 use pathfinder_geometry::vector::vec2f;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{Hoverable, ParentElement};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent};
@@ -125,14 +124,12 @@ impl CodeReviewHeader {
 
         let has_no_changes = state.to_diff_stats().has_no_changes();
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() {
-            right_section_wide.add_child(self.create_discard_button(
-                state,
-                &code_review_header_fields.diff_state_model,
-                appearance,
-                app,
-            ));
-        }
+        right_section_wide.add_child(self.create_discard_button(
+            state,
+            &code_review_header_fields.diff_state_model,
+            appearance,
+            app,
+        ));
 
         if !has_no_changes {
             right_section_wide.add_child(self.render_header_dropdown_button(
@@ -200,14 +197,12 @@ impl CodeReviewHeader {
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
-        if FeatureFlag::DiscardPerFileAndAllChanges.is_enabled() {
-            right_subsection_compact.add_child(self.create_discard_button(
-                state,
-                &code_review_header_fields.diff_state_model,
-                appearance,
-                app,
-            ));
-        }
+        right_subsection_compact.add_child(self.create_discard_button(
+            state,
+            &code_review_header_fields.diff_state_model,
+            appearance,
+            app,
+        ));
 
         let has_no_changes = state.to_diff_stats().has_no_changes();
 
