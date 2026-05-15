@@ -398,19 +398,16 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::SMART_SELECT_FLAG,
     ));
 
-    toggle_binding_pairs.push(
-        ToggleSettingActionPair::new(
-            "terminal input message line",
-            builder(SettingsAction::FeaturesPageToggle(
-                FeaturesPageAction::ToggleShowTerminalInputMessageLine,
-            )),
-            context,
-            flags::SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG,
-        )
-        .with_enabled(|| FeatureFlag::AgentView.is_enabled()),
-    );
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "terminal input message line",
+        builder(SettingsAction::FeaturesPageToggle(
+            FeaturesPageAction::ToggleShowTerminalInputMessageLine,
+        )),
+        context,
+        flags::SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG,
+    ));
 
-    if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
+    if AISettings::as_ref(app).is_any_ai_enabled(app) {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
                 "slash commands in terminal mode",
@@ -1788,10 +1785,9 @@ impl FeaturesPageView {
             editor_widgets.push(Box::new(AtContextMenuInTerminalModeWidget::default()));
         }
 
-        if FeatureFlag::AgentView.is_enabled()
-            && input_settings
-                .enable_slash_commands_in_terminal
-                .is_supported_on_current_platform()
+        if input_settings
+            .enable_slash_commands_in_terminal
+            .is_supported_on_current_platform()
         {
             editor_widgets.push(Box::new(SlashCommandsInTerminalModeWidget::default()));
         }
@@ -1805,9 +1801,7 @@ impl FeaturesPageView {
             ));
         }
 
-        if FeatureFlag::AgentView.is_enabled() {
-            editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
-        }
+        editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
 
         editor_widgets.push(Box::new(TabKeyBehaviorWidget::default()));
 
@@ -1841,9 +1835,7 @@ impl FeaturesPageView {
             terminal_widgets.push(Box::new(AudibleBellWidget::default()));
         }
 
-        if FeatureFlag::AgentView.is_enabled() {
-            terminal_widgets.push(Box::new(ShowTerminalZeroStateBlockWidget::default()));
-        }
+        terminal_widgets.push(Box::new(ShowTerminalZeroStateBlockWidget::default()));
 
         terminal_widgets.push(Box::new(SmartSelectWidget::default()));
         terminal_widgets.push(Box::new(CopyOnSelectWidget::default()));

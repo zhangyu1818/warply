@@ -7703,9 +7703,7 @@ impl Workspace {
         conversation_id: AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
-        let terminal_view_for_active_pane = self
-            .active_session_view(ctx)
-            .filter(|_| FeatureFlag::AgentView.is_enabled());
+        let terminal_view_for_active_pane = self.active_session_view(ctx);
 
         // If we can't restore in the active pane, fall back to restoring in new tab.
         let Some(terminal_view) = &terminal_view_for_active_pane else {
@@ -7771,7 +7769,7 @@ impl Workspace {
                     .set_conversation_transcript_viewer_status(None);
                 terminal_view.restore_conversation_and_directory_context(
                     conversation,
-                    FeatureFlag::AgentView.is_enabled(),
+                    true,
                     |terminal_view, ctx| {
                         terminal_view.redetermine_global_focus(ctx);
                     },
@@ -14586,16 +14584,14 @@ impl View for Workspace {
                 context.set.insert("LongRunningCommand");
             }
 
-            if FeatureFlag::AgentView.is_enabled() {
-                let agent_view_state = terminal_view
-                    .agent_view_controller()
-                    .as_ref(app)
-                    .agent_view_state();
-                if agent_view_state.is_fullscreen() {
-                    context.set.insert(flags::ACTIVE_AGENT_VIEW);
-                } else if agent_view_state.is_inline() {
-                    context.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
-                }
+            let agent_view_state = terminal_view
+                .agent_view_controller()
+                .as_ref(app)
+                .agent_view_state();
+            if agent_view_state.is_fullscreen() {
+                context.set.insert(flags::ACTIVE_AGENT_VIEW);
+            } else if agent_view_state.is_inline() {
+                context.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
             }
         }
 
