@@ -137,23 +137,6 @@ impl AgentConversationsModel {
         ctx.emit(AgentConversationsModelEvent::ConversationsLoaded);
     }
 
-    pub fn register_view_open(
-        &mut self,
-        _window_id: warpui::WindowId,
-        _view_id: warpui::EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.sync_conversations(ctx);
-    }
-
-    pub fn register_view_closed(
-        &mut self,
-        _window_id: warpui::WindowId,
-        _view_id: warpui::EntityId,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-    }
-
     pub fn get_entries(&self, app: &AppContext) -> Vec<AgentConversationEntry> {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
         let mut entries: Vec<_> = self
