@@ -3,7 +3,6 @@ use std::{ops::Range, rc::Rc, sync::MutexGuard};
 use pathfinder_geometry::vector::Vector2F;
 use serde::{Deserialize, Serialize};
 use sum_tree::{Cursor, SeekBias};
-use warp_core::features::FeatureFlag;
 use warpui::{
     elements::ClippedScrollStateHandle,
     units::{IntoLines, IntoPixels, Lines, Pixels},
@@ -2050,7 +2049,7 @@ impl Iterator for ViewportIter<'_> {
                     }
                 },
                 _ => {
-                    if !FeatureFlag::AgentView.is_enabled() || block_height.as_f64() > 0. {
+                    if block_height.as_f64() > 0. {
                         return next;
                     }
                 }

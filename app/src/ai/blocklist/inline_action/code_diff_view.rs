@@ -2802,7 +2802,7 @@ impl BackingView for CodeDiffView {
 }
 
 fn accept_keystroke_source(is_passive: bool) -> KeystrokeSource {
-    if FeatureFlag::AgentView.is_enabled() && is_passive {
+    if is_passive {
         KeystrokeSource::Binding(ACCEPT_PROMPT_SUGGESTION_KEYBINDING)
     } else {
         KeystrokeSource::Fixed(keystroke_for_mode(ACCEPT_KEY, is_passive))

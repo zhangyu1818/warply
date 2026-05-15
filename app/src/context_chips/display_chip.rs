@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::blocklist::prompt::plan_and_todo_list::{PlanAndTodoListEvent, PlanAndTodoListView};
+use crate::ai::blocklist::prompt::plan_and_todo_list::PlanAndTodoListView;
 use crate::ai::{
     blocklist::{BlocklistAIContextModel, BlocklistAIInputModel},
     document::ai_document_model::{AIDocumentId, AIDocumentVersion},
@@ -516,21 +516,8 @@ impl DisplayChip {
                         context_model,
                         config.menu_positioning_provider.clone(),
                         view_id,
-                        is_in_agent_view,
                         ctx,
                     )
-                });
-
-                ctx.subscribe_to_view(&plan_and_todo_list, |_me, _, event, ctx| match event {
-                    PlanAndTodoListEvent::OpenAIDocument {
-                        document_id,
-                        document_version,
-                    } => {
-                        ctx.emit(PromptDisplayChipEvent::OpenAIDocument {
-                            document_id: *document_id,
-                            document_version: *document_version,
-                        });
-                    }
                 });
 
                 DisplayChipKind::AgentPlanAndTodoList { plan_and_todo_list }
