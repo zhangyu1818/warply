@@ -323,7 +323,6 @@ default = [
     "kitty_images",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
-    "image_as_context",
     "command_palette_file_search",
     "tab_close_button_on_left",
     "code_find_replace",
@@ -395,7 +394,6 @@ inline_slash_commands = []
 #
 # Enabled on Warply development builds by default.
 heap_usage_tracking = ["jemalloc_pprof"]
-image_as_context = []
 in_band_generators_ssh = []
 jemalloc = ["dep:tikv-jemallocator", "ai/jemalloc"]
 jemalloc_with_profiling = ["jemalloc", "tikv-jemallocator/profiling"]
@@ -427,7 +425,6 @@ remote_tty = []
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 resize_fix = []
 pluggable_notifications = []
-# This enables `read_files` to support images.
 # This feature enables plugin support in Warply. Note that its typically checked
 # directly, rather than via the `FeatureFlag` enum, because its value is
 # required early in the app lifecycle prior to `FeatureFlag` initialization.

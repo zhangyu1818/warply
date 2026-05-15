@@ -95,9 +95,6 @@ pub enum FeatureFlag {
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
-    /// Enables image as context for AM.
-    ImageAsContext,
-
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
 

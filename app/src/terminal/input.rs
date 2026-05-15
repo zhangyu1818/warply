@@ -3624,9 +3624,7 @@ impl Input {
             })
             .count();
 
-        let image_context_options = if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
-        {
+        let image_context_options = if matches!(ai_input_model.input_type(), InputType::AI) {
             ImageContextOptions::Enabled {
                 unsupported_model: false,
                 is_processing_attached_images: self.is_processing_attached_images,
@@ -7810,8 +7808,7 @@ impl Input {
     /// Check if we can attach on filepaths paste or drag-drop
     fn can_attach_on_filepaths_paste_or_dragdrop(&self, ctx: &mut ViewContext<Self>) -> bool {
         // CLI agent rich input always supports image attachment, independent of
-        // the terminal input setting. Its own composer gates image chips on
-        // `ImageAsContext` + an active CLI agent session.
+        // the terminal input setting.
         let is_cli_agent_input_open =
             CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
         if is_cli_agent_input_open {

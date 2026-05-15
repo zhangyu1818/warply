@@ -18,7 +18,7 @@ use crate::{
     settings::InputModeSettings,
     terminal::{settings::TerminalSettings, view::TerminalAction},
 };
-use warp_core::{features::FeatureFlag, settings::Setting};
+use warp_core::settings::Setting;
 use warpui::{
     elements::{
         Border, Container, DropTarget, Element, Flex, Hoverable, ParentElement, SavePosition, Stack,
@@ -54,9 +54,7 @@ impl Input {
 
         let ai_input_model = self.ai_input_model.as_ref(app);
 
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && matches!(ai_input_model.input_type(), InputType::AI)
-        {
+        if matches!(ai_input_model.input_type(), InputType::AI) {
             if let Some(images) = self.render_attachment_chips(appearance) {
                 column.add_child(
                     Container::new(images)
