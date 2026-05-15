@@ -87,7 +87,11 @@ This map explains the large fork baseline change at a path level.
 - Ported the upstream new-session/tab-config menu clipping fix by using the current 268px menu width for all new-session menu entrypoints instead of keeping a vertical-tabs-only branch.
 - Ported the markdown link display-text escaping fix for retained notebook/plan/editor markdown behavior. Autolinks now store the unescaped URL text after parsing markdown backslash escapes, and round trips no longer accumulate extra backslashes.
 - Ported the repo metadata large-repo fallback for retained local file tree behavior. A repository that exceeds the full file limit retries as a first-level lazy tree so users can still browse folders. Upstream telemetry from that patch remains rejected.
+- Ported local startup performance fixes for retained code review and repo menus: code review diff metadata waits until the panel enables refresh, and inline repo menu git stats are no longer queried during terminal startup.
+- Ported queued prompt text selection for retained AgentView terminal blocks, including copy-on-select and right-click copy integration with the existing terminal selection clearing model.
+- Ported the macOS AppKit minimum-window-size fix and the local `warp://tab_config/<name>` deeplink for retained tab config workflows. The upstream WASM tab-config stub was not ported.
 - Deferred upstream remote file-location and remote diff-state commits for a separate SSH remote-server/code review pass. They are relevant to retained SSH behavior, but the current fork lacks upstream's global buffer-location module layout.
+- Deferred remote-server SCP tarball cache, unsupported-platform preinstall gating, and command-palette fixed-filter cleanup into separate follow-up passes because each touches broader retained subsystems.
 
 ## 2026-05 macOS-Only Host Cleanup
 

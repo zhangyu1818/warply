@@ -47,8 +47,42 @@ Reviewed commits 1 through 24 in chronological order. Compatible changes were ma
 - `f6faaf0d3` Cloud mode v2 history menu: rejected as cloud mode UI.
 - `4e99f5f25` Server forking endpoint for local conversation forking: rejected as server conversation API.
 
+## Batch 2 Reviewed
+
+Reviewed commits 25 through 44 in chronological order. Compatible local UI, code review, tab config, and macOS AppKit changes were manually adapted. Remote-server installer changes were deferred into a dedicated SSH remote-server pass because they are retained but larger than the local UI batch.
+
+## Batch 2 Ported Or Adapted
+
+- `cda1694eb` Don't run code review git operations on startup when panel is closed: ported to the retained monolithic `DiffStateModel`. Repository watching still initializes, but metadata/diff loading and watcher-triggered invalidations wait until metadata refresh is enabled.
+- `35d951cdc` Make queued prompt text selectable: ported to retained AgentView/terminal pending-query blocks. Queued prompt text now participates in selection, copy-on-select, right-click copy, and selection clearing.
+- `152d62c8c` Don't run repo menu git stats on startup: ported by removing the eager repo menu query during inline repo menu construction.
+- `1679cf4d0` Set the minimum window size in AppKit: ported for the retained macOS host path.
+- `207f9d5eb` Add `warp://tab_config/<name>` deeplink: ported for retained local tab configs. The handler reuses `Workspace::open_tab_config`; the old WASM stub from upstream was not ported.
+
+## Batch 2 Deferred
+
+- `ae69bd4c7` Cache remote-server tarballs for SCP fallback: deferred to the SSH remote-server pass. Remote server install reliability is retained scope, but this patch is large and should be reviewed with install/download ownership rules.
+- `095fe37b1` Skip SSH extension install on unsupported remote platforms: deferred with the remote-server batch. Remote OS/arch gating is retained SSH behavior, but upstream telemetry pieces must be stripped or reduced.
+- `9600cde9d` Remove dead command palette fixed filters: deferred to a command-palette cleanup pass. It is local UI, but it touches stale conversation/repo filter modes and telemetry-adjacent code.
+
+## Batch 2 Rejected Or Not Applicable
+
+- `008969072` Remove lag from add custom model: rejected as old custom inference/model endpoint UI.
+- `429fa758c` Orchestrator transcript avatar child-agent pane: rejected as orchestration/child-agent UI.
+- `4de3ffdde` Release local-to-cloud handoff flags: rejected as cloud handoff.
+- `8b90b4414` Bedrock OIDC SDK error detail: rejected as old agent SDK/AWS credential path.
+- `72751748f` Handoff chip toolbar migration: rejected as cloud handoff migration.
+- `0d5da4d2d` Discard files panic: not applicable to the current fork because `FileStatusInfo` still uses local `PathBuf`, not upstream's `StandardizedPath` shape.
+- `127b626bf` ONNX runtime incompatibility on new NLD classifier: not applicable. The fork's macOS bundle uses the retained `nld_onnx_model` feature and `bert_tiny.onnx`; upstream's `bert_tiny_v2.onnx` file and Linux/Windows bundle toggles are not present.
+- `8da83b42a` Markdown Viewer preference for Markdown file links: not applicable to current notebook link code. The fork emits `OpenFile`, and downstream local file opening already resolves the Markdown Viewer preference.
+- `cc9ef06a2` Orchestration pill bar horizontal scrolling: rejected as orchestration UI.
+- `151ef9e56` Warp credit fallback for custom endpoints: rejected as credit/billing plus old server model endpoint behavior.
+- `7aa162504` Orchestration pill bar for shared session viewers: rejected as orchestration/shared-session viewer action sync.
+- `16df56882` Revert in-app notifications for child agents: rejected because child-agent management is deleted.
+
 ## Verification For Ported Batch
 
 - `cargo fmt`
 - `cargo nextest run -E 'test(test_autolink) | test(test_parse_url_preserves_non_escaped_backslash) | test(test_url_link_display_text_round_trip_is_stable) | test(test_pointer_opened_tab_configs_menu_does_not_select_top_item)'`
 - `cargo nextest run -p repo_metadata`
+- `cargo nextest run -p warp -E 'test(test_find_matching_tab_config) | test(test_pointer_opened_tab_configs_menu_does_not_select_top_item)'`
