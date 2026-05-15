@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::context_chips::{agent_footer_available_chips, available_chips, ContextChipKind};
-use crate::features::FeatureFlag;
 use crate::ui_components::icons::Icon;
 
 use super::editor::AgentToolbarEditorMode;
@@ -97,16 +96,13 @@ impl AgentToolbarItemKind {
 
     /// Default left-side items for the agent view footer.
     pub fn default_left() -> Vec<Self> {
-        let mut items = vec![
+        vec![
             Self::ContextChip(ContextChipKind::Ssh),
             Self::ContextChip(ContextChipKind::WorkingDirectory),
             Self::ContextChip(ContextChipKind::ShellGitBranch),
             Self::ContextChip(ContextChipKind::GitDiffStats),
-        ];
-        if FeatureFlag::GithubPrPromptChip.is_enabled() {
-            items.push(Self::ContextChip(ContextChipKind::GithubPullRequest));
-        }
-        items
+            Self::ContextChip(ContextChipKind::GithubPullRequest),
+        ]
     }
 
     /// Default right-side items for the agent view footer.

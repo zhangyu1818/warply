@@ -138,9 +138,6 @@ pub enum FeatureFlag {
     /// Enables selection-as-context functionality in the code editor.
     SelectionAsContext,
 
-    /// Enables the prompt chip that displays the GitHub PR for the current branch.
-    GithubPrPromptChip,
-
     /// A button on the homepage for easily creating new projects.
     CreateProjectFlow,
 

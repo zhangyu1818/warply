@@ -357,7 +357,6 @@ default = [
     "inline_repo_menu",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
-    "github_pr_prompt_chip",
     "markdown_tables",
     "markdown_mermaid",
     "pr_comments_slash_command",
@@ -388,7 +387,6 @@ full_screen_zen_mode = []
 # for things that pull in external dependencies.
 gui = []
 welcome_tab = []
-github_pr_prompt_chip = []
 create_project_flow = []
 inline_slash_commands = []
 

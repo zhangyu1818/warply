@@ -1459,8 +1459,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PRCommentsV2,
         #[cfg(feature = "selection_as_context")]
         FeatureFlag::SelectionAsContext,
-        #[cfg(feature = "github_pr_prompt_chip")]
-        FeatureFlag::GithubPrPromptChip,
         #[cfg(feature = "create_project_flow")]
         FeatureFlag::CreateProjectFlow,
         #[cfg(feature = "vim_code_editor")]

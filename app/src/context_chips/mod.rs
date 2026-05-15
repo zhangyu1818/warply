@@ -28,7 +28,7 @@ use warpui::{
 };
 
 use crate::ui_components::{blended_colors, icons::Icon};
-use crate::{appearance::Appearance, features::FeatureFlag, themes::theme::PromptColors};
+use crate::{appearance::Appearance, themes::theme::PromptColors};
 
 #[allow(unused_imports)]
 pub use self::context_chip::{
@@ -298,7 +298,6 @@ impl ContextChipKind {
                 )
                 .with_allow_empty_value(),
             ),
-            Self::GithubPullRequest if !FeatureFlag::GithubPrPromptChip.is_enabled() => None,
             Self::GithubPullRequest => {
                 let generator = builtins::github_pull_request_url();
                 let policy = ChipRuntimePolicy::new(
@@ -539,9 +538,7 @@ pub fn available_chips() -> Vec<ContextChipKind> {
         ContextChipKind::ShellGitBranch,
         ContextChipKind::GitDiffStats,
     ];
-    if FeatureFlag::GithubPrPromptChip.is_enabled() {
-        chips.push(ContextChipKind::GithubPullRequest);
-    }
+    chips.push(ContextChipKind::GithubPullRequest);
     chips.extend([
         ContextChipKind::Date,
         ContextChipKind::Time12,

@@ -23,7 +23,6 @@ use crate::{
         prompt::Prompt,
         ChipAvailability, ChipDisabledReason, ChipRuntimeCapabilities, ContextChipKind,
     },
-    features::FeatureFlag,
     http_api::HttpApiProvider,
     identity::LocalIdentityProvider,
     menu::MenuItem,
@@ -304,7 +303,6 @@ fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
 
 #[test]
 fn test_github_pr_chip_runtime_policy_configuration() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     let chip = ContextChipKind::GithubPullRequest
         .to_chip()
         .expect("github pr chip should exist");
@@ -392,7 +390,6 @@ fn test_invalidating_command_count_unaffected_for_chips_without_invalidate_on_co
 
 #[test]
 fn test_github_pr_chip_is_disabled_when_github_cli_is_missing() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(654);
         app.add_singleton_model(|_| {
@@ -474,7 +471,6 @@ fn test_github_pr_chip_is_disabled_when_github_cli_is_missing() {
 
 #[test]
 fn test_github_pr_chip_empty_success_does_not_set_failure_suppression() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(789);
         app.add_singleton_model(|_| {
@@ -564,7 +560,6 @@ fn test_github_pr_chip_empty_success_does_not_set_failure_suppression() {
 
 #[test]
 fn test_github_pr_chip_revisiting_empty_result_directory_reruns_and_clears_previous_value() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(790);
         app.add_singleton_model(|_| {
@@ -701,7 +696,6 @@ fn test_github_pr_chip_revisiting_empty_result_directory_reruns_and_clears_previ
 
 #[test]
 fn test_github_pr_chip_revisiting_failed_directory_uses_failure_suppression() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(791);
         app.add_singleton_model(|_| {
@@ -840,7 +834,6 @@ fn test_github_pr_chip_revisiting_failed_directory_uses_failure_suppression() {
 
 #[test]
 fn test_github_pr_chip_transient_failure_retries_with_same_fingerprint() {
-    let _flag_guard = FeatureFlag::GithubPrPromptChip.override_enabled(true);
     App::test((), |mut app| async move {
         let session_id = SessionId::from(792);
         app.add_singleton_model(|_| {
