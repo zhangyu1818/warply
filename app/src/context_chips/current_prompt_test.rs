@@ -30,7 +30,7 @@ use crate::{
     terminal::{
         model::{
             block::BlockMetadata,
-            session::{CommandExecutor, ExecuteCommandOptions, SessionInfo, Sessions},
+            session::{CommandExecutor, SessionInfo, Sessions},
         },
         session_settings::{GithubPrPromptChipDefaultValidation, SessionSettings},
         shell::Shell,
@@ -1302,7 +1302,6 @@ impl CommandExecutor for RecordingCommandExecutor {
         _shell: &Shell,
         _current_directory_path: Option<&str>,
         _environment_variables: Option<HashMap<String, String>>,
-        _execute_command_options: ExecuteCommandOptions,
     ) -> anyhow::Result<CommandOutput> {
         self.commands.lock().push(command.to_string());
         let output = self

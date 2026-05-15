@@ -1,6 +1,6 @@
 use crate::settings::{InputSettings, WarpPromptSeparator};
 use crate::terminal::event::{BlockType, UserBlockCompleted};
-use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionsEvent};
+use crate::terminal::model::session::{Session, SessionsEvent};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::{
     debounce::debounce,
@@ -604,12 +604,7 @@ impl CurrentPrompt {
         timeout: Option<Duration>,
     ) -> (Option<warp_completer::completer::CommandOutput>, bool) {
         let command_future = session
-            .execute_command(
-                &command,
-                current_dir_path.as_deref(),
-                environment_variables,
-                ExecuteCommandOptions::default(),
-            )
+            .execute_command(&command, current_dir_path.as_deref(), environment_variables)
             .fuse();
         let timeout_future = match timeout {
             Some(duration) => Timer::after(duration),

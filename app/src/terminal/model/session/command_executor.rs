@@ -36,27 +36,6 @@ pub use noop_command_executor::NoOpCommandExecutor;
 pub use remote_command_executor::RemoteCommandExecutor;
 pub use shared::{shell_escape_single_quotes, ExecutorCommandEvent};
 
-#[derive(Copy, Clone, Debug)]
-pub struct ExecuteCommandOptions {
-    /// Whether the command must be run in the same shell as the currently running [`Session`].
-    ///
-    /// If false, it's an implementation detail which shell the command is run within.
-    /// i.e. For unix shells, the command may be run in an `sh` shell instead of `bash` or `zsh`.
-    /// On Windows, commands may be run through `cmd.exe`.
-    ///
-    /// ## Platform Support
-    /// This field is currently only respected on Windows.
-    pub run_command_in_same_shell_as_session: bool,
-}
-
-impl Default for ExecuteCommandOptions {
-    fn default() -> Self {
-        Self {
-            run_command_in_same_shell_as_session: true,
-        }
-    }
-}
-
 /// Trait to be implemented by structs that execute command in context that emulates or actually is
 /// identical to the active terminal session's context. `CommandExecutor` is commonly used to
 /// execute generator commands to power completions, syntax highlighting, and autosuggestions.
@@ -70,7 +49,6 @@ pub trait CommandExecutor: Send + Sync + Debug {
         shell: &Shell,
         current_directory_path: Option<&str>,
         environment_variables: Option<HashMap<String, String>>,
-        execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput>;
 
     /// Cancels in-progress commands.
@@ -311,7 +289,6 @@ pub mod testing {
             shell: &Shell,
             current_directory_path: Option<&str>,
             environment_variables: Option<HashMap<String, String>>,
-            _execute_command_options: ExecuteCommandOptions,
         ) -> Result<CommandOutput> {
             let mut command_process = Command::new(match shell.shell_type() {
                 ShellType::PowerShell => "pwsh",

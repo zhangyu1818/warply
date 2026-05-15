@@ -12,7 +12,6 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonE
 use crate::ai::agent::{AIAgentAction, AIAgentActionType, GrepResult};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::paths::{host_native_absolute_path, shell_native_absolute_path};
-use crate::terminal::model::session::ExecuteCommandOptions;
 use crate::{
     ai::agent::{AIAgentActionResultType, GrepFileMatch, GrepLineMatch},
     terminal::{
@@ -367,12 +366,7 @@ async fn run_git_grep_command(
     grep_command.push_str(format!(" \"{target_path}\"").as_str());
 
     let command_output = session
-        .execute_command(
-            grep_command.as_str(),
-            Some(execute_directory),
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(grep_command.as_str(), Some(execute_directory), None)
         .await
         .map_err(|e| GrepError::new(e.to_string()).with_command(grep_command.clone()))?;
     let output = String::from_utf8_lossy(command_output.output());
@@ -426,12 +420,7 @@ async fn run_grep_command(
     grep_command.push_str(format!(" \"{target_path}\"").as_str());
 
     let command_output = session
-        .execute_command(
-            grep_command.as_str(),
-            Some(execute_directory),
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(grep_command.as_str(), Some(execute_directory), None)
         .await
         .map_err(|e| GrepError::new(e.to_string()).with_command(grep_command.clone()))?;
     let output = String::from_utf8_lossy(command_output.output());
@@ -489,7 +478,6 @@ async fn run_select_string_command(
             select_string_command.as_str(),
             Some(execute_directory),
             None,
-            ExecuteCommandOptions::default(),
         )
         .await
         .map_err(|e| GrepError::new(e.to_string()).with_command(select_string_command.clone()))?;

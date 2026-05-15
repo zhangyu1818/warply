@@ -62,7 +62,7 @@ use crate::{
         get_relevant_files::controller::GetRelevantFilesController,
     },
     terminal::{
-        model::session::{active_session::ActiveSession, ExecuteCommandOptions, Session},
+        model::session::{active_session::ActiveSession, Session},
         model_events::ModelEventDispatcher,
         shell::ShellType,
         ShellLaunchData, TerminalModel,
@@ -885,7 +885,7 @@ async fn is_file_path(path: &str, session: &Session) -> bool {
         format!("test -f \"{path}\"")
     };
     session
-        .execute_command(&command, None, None, ExecuteCommandOptions::default())
+        .execute_command(&command, None, None)
         .await
         .map(|output| output.success())
         .unwrap_or(false)
@@ -895,12 +895,7 @@ async fn is_file_path(path: &str, session: &Session) -> bool {
 async fn is_git_repository(absolute_path: &str, session: &Session) -> anyhow::Result<bool> {
     let git_command = format!("git -C \"{absolute_path}\" rev-parse");
     let command_output = session
-        .execute_command(
-            git_command.as_str(),
-            None,
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(git_command.as_str(), None, None)
         .await?;
     Ok(command_output.success())
 }

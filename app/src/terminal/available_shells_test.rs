@@ -209,8 +209,6 @@ fn test_command_name_matches() {
     assert!(command_name_matches("zsh", "zsh"));
 
     assert!(!command_name_matches("pwsh", "PWSH"));
-    assert!(!command_name_matches("pwsh", "pwsh.exe"));
-    assert!(!command_name_matches("pwsh.exe", "pwsh"));
     assert!(!command_name_matches("pwsh", "powershell"));
     assert!(!command_name_matches("", "pwsh"));
 }

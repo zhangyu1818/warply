@@ -261,23 +261,13 @@ impl ShellType {
     // Returns a shell type from a shell executable name
     pub fn from_name(name: &str) -> Option<Self> {
         // Support (/usr/bin/zsh /bin/zsh -zsh or zsh)
-        if name == "bash"
-            || name == "-bash"
-            || name.ends_with("/bash")
-            || name.ends_with("bash.exe")
-        {
+        if name == "bash" || name == "-bash" || name.ends_with("/bash") {
             Some(ShellType::Bash)
         } else if name == "zsh" || name == "-zsh" || name.ends_with("/zsh") {
             Some(ShellType::Zsh)
         } else if name == "fish" || name == "-fish" || name.ends_with("/fish") {
             Some(ShellType::Fish)
-        } else if name == "pwsh"
-            || name.ends_with("/pwsh")
-            || name.ends_with("pwsh.exe")
-            || name == "powershell"
-            || name.ends_with("/powershell")
-            || name.ends_with("powershell.exe")
-        {
+        } else if name == "pwsh" || name.ends_with("/pwsh") {
             Some(ShellType::PowerShell)
         } else {
             None
@@ -311,12 +301,11 @@ impl ShellType {
     pub fn rc_file_paths(&self) -> Vec<PathBuf> {
         let home_dir = Path::new("~");
         let relative_paths = match self {
-            // We need to make sure this works for either editor of PowerShell (PowerShell Core or
-            // Windows PowerShell) so just write the file to both.
-            ShellType::PowerShell => vec![
-                Path::new("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"),
-                Path::new("Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1"),
-            ],
+            ShellType::PowerShell => {
+                vec![Path::new(
+                    "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+                )]
+            }
             ShellType::Bash => vec![Path::new(".bashrc")],
             ShellType::Zsh => vec![Path::new(".zshrc")],
             ShellType::Fish => vec![Path::new(".config/fish/config.fish")],

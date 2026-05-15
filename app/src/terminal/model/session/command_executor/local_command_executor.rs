@@ -1,4 +1,4 @@
-use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
+use super::{CommandExecutor, CommandOutput};
 use crate::terminal::shell::{Shell, ShellType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -75,7 +75,6 @@ impl LocalCommandExecutor {
         command: &str,
         current_directory_path: Option<&str>,
         environment_variables: Option<HashMap<String, String>>,
-        execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
         let shell_config_flag = match self.shell_type {
             ShellType::Zsh => "-f",
@@ -89,7 +88,6 @@ impl LocalCommandExecutor {
             current_directory_path,
             environment_variables,
             shell_config_flag,
-            execute_command_options,
         )
         .await
     }
@@ -110,19 +108,11 @@ impl LocalCommandExecutor {
             current_directory_path,
             environment_variables,
             shell_config_flag,
-            ExecuteCommandOptions {
-                // We have to run the command in the same shell as the session
-                // because we want to run it in a login shell.
-                run_command_in_same_shell_as_session: true,
-            },
         )
         .await
     }
 
-    fn command_builder(
-        &self,
-        _execute_command_options: ExecuteCommandOptions,
-    ) -> CommandBuilder<'_> {
+    fn command_builder(&self) -> CommandBuilder<'_> {
         CommandBuilder::ShellType {
             shell_type: self.shell_type,
             local_shell_path: self.local_shell_path.as_deref(),
@@ -138,9 +128,8 @@ impl LocalCommandExecutor {
         // indicating the supplied command should be run under some configuration,
         // i.e. in a login shell or without sourcing .rc files
         shell_config_flag: &str,
-        execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
-        let command_builder = self.command_builder(execute_command_options);
+        let command_builder = self.command_builder();
 
         let mut command_process = command_builder.build(command, shell_config_flag);
 
@@ -199,15 +188,9 @@ impl CommandExecutor for LocalCommandExecutor {
         _shell: &Shell,
         current_directory_path: Option<&str>,
         environment_variables: Option<HashMap<String, String>>,
-        execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
-        self.execute_local_command(
-            command,
-            current_directory_path,
-            environment_variables,
-            execute_command_options,
-        )
-        .await
+        self.execute_local_command(command, current_directory_path, environment_variables)
+            .await
     }
 
     fn as_any(&self) -> &dyn Any {

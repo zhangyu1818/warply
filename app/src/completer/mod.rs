@@ -20,7 +20,7 @@ use warp_core::{features::FeatureFlag, safe_warn};
 use warp_util::path::{EscapeChar, ShellFamily};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionType};
+use crate::terminal::model::session::{Session, SessionType};
 use crate::util::AsciiDebug;
 use crate::workflows::aliases::WorkflowAliases;
 
@@ -100,12 +100,7 @@ impl SessionContext {
                 // directory we want within the ls script.
                 let command_output_result = self
                     .session
-                    .execute_command(
-                        &ls_command,
-                        None,
-                        env_vars,
-                        ExecuteCommandOptions::default(),
-                    )
+                    .execute_command(&ls_command, None, env_vars)
                     .await;
 
                 if let Ok(command_output) = command_output_result {
@@ -236,14 +231,7 @@ impl GeneratorContext for SessionContext {
         };
 
         self.session
-            .execute_command(
-                shell_command,
-                self.pwd().to_str(),
-                env_vars_option,
-                ExecuteCommandOptions {
-                    run_command_in_same_shell_as_session: true,
-                },
-            )
+            .execute_command(shell_command, self.pwd().to_str(), env_vars_option)
             .await
     }
 

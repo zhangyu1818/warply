@@ -392,6 +392,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `RemoveAutosuggestionDuringTabCompletions` rollout flag. Opening tab completions now directly hides terminal autosuggestions unless completions-as-you-type is active; do not restore dogfood-only branches around retained terminal completion UX.
 - Removed the `.warp` workflow that copied the WarpDev keychain refresh token into the local app keychain service. This fork should not ship or document developer workflows that restore Warp account token reuse, login migration, or app authentication bootstrap paths.
 - Removed the leftover ConPTY reset-grid OSC handler, grid-check state, and constructor plumbing. Terminal grid parsing remains macOS/POSIX and SSH/remote-terminal oriented; do not restore Windows ConPTY synchronization hooks as part of upstream terminal merges.
+- Removed local Windows shell compatibility names and the no-op `ExecuteCommandOptions` Windows execution knob. Keep macOS `pwsh` / PowerShell Core terminal support, but do not restore `powershell.exe`, `pwsh.exe`, `bash.exe`, WindowsPowerShell profile paths, or Windows-only local command execution options.
 
 ## Legacy Names Still Present
 

@@ -997,12 +997,7 @@ impl Session {
                 .map(|path| HashMap::from_iter([("PATH".to_string(), path.to_string())]));
 
             let result = self
-                .execute_command(
-                    shell_command_to_get_executables,
-                    None,
-                    env_vars,
-                    ExecuteCommandOptions::default(),
-                )
+                .execute_command(shell_command_to_get_executables, None, env_vars)
                 .await;
 
             let new_commands = HashSet::from_iter(
@@ -1135,12 +1130,7 @@ impl Session {
             .map(|path| HashMap::from_iter([("PATH".to_string(), path.to_string())]));
 
         let output_in_bytes = self
-            .execute_command(
-                format!("cat {history_file}").as_str(),
-                None,
-                env_vars,
-                ExecuteCommandOptions::default(),
-            )
+            .execute_command(format!("cat {history_file}").as_str(), None, env_vars)
             .await
             .ok()?;
 
@@ -1182,7 +1172,6 @@ impl Session {
         command: &str,
         current_dir_path: Option<&str>,
         environment_variables: Option<HashMap<String, String>>,
-        execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
         // Clone the Arc out of the lock so we don't hold the read guard
         // across the await point.
@@ -1193,7 +1182,6 @@ impl Session {
                 &self.info.shell,
                 current_dir_path,
                 environment_variables,
-                execute_command_options,
             )
             .await
     }
@@ -1221,7 +1209,6 @@ impl Session {
                 "git --no-optional-locks branch --no-color",
                 Some(working_dir),
                 env_vars,
-                ExecuteCommandOptions::default(),
             )
             .await;
 

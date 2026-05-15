@@ -268,11 +268,6 @@ async fn capture_interactive_shell_env(
             command.args(["-i", "-l", "-c", command_str]);
         }
         ShellType::PowerShell => {
-            // Note: we intentionally omit `-Login` here. PowerShell 5.1
-            // (`powershell.exe`) does not support it, and on Windows the
-            // PATH is managed via system/user environment variables rather
-            // than login profile scripts, so `-Login` has no practical
-            // effect even on PowerShell 7.
             command.args(["-Command", command_str]);
         }
     }

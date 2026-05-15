@@ -107,19 +107,9 @@ fn test_from_name() {
         Some(ShellType::Fish),
         ShellType::from_name("/usr/local/bin/fish")
     );
-    assert_eq!(
-        Some(ShellType::PowerShell),
-        ShellType::from_name("pwsh.exe")
-    );
+    assert_eq!(Some(ShellType::PowerShell), ShellType::from_name("pwsh"));
     assert_eq!(None, ShellType::from_name("pwsh.bat"));
-    assert_eq!(
-        Some(ShellType::PowerShell),
-        ShellType::from_name("/usr/bin/env/powershell")
-    );
-    assert_eq!(
-        Some(ShellType::PowerShell),
-        ShellType::from_name("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
-    );
+    assert_eq!(None, ShellType::from_name("/usr/bin/env/powershell"));
     assert_eq!(None, ShellType::from_name("psh"));
 }
 

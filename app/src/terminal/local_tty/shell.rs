@@ -293,13 +293,7 @@ impl DirectShellStarter {
     }
 
     pub(super) fn display_name(&self) -> &str {
-        if self
-            .shell_path
-            .file_stem()
-            .is_some_and(|stem| stem.eq_ignore_ascii_case("powershell"))
-        {
-            "Windows PowerShell"
-        } else if self.shell_type == ShellType::PowerShell {
+        if self.shell_type == ShellType::PowerShell {
             "PowerShell Core"
         } else {
             self.shell_type.name()

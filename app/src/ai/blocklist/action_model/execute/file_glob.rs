@@ -9,7 +9,6 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonE
 use crate::ai::agent::{AIAgentAction, AIAgentActionType, FileGlobV2Match, FileGlobV2Result};
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::paths::{host_native_absolute_path, join_paths, shell_native_absolute_path};
-use crate::terminal::model::session::ExecuteCommandOptions;
 use crate::{
     ai::agent::AIAgentActionResultType,
     terminal::{
@@ -206,12 +205,7 @@ async fn run_git_ls_files_command(
     let command = format!("git ls-files -c -o --exclude-standard -- {pattern_args}");
 
     let command_output = session
-        .execute_command(
-            command.as_str(),
-            Some(target_path),
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(command.as_str(), Some(target_path), None)
         .await?;
     let output = String::from_utf8_lossy(command_output.output()).to_string();
 
@@ -247,12 +241,7 @@ async fn run_find_command(
     let find_command = format!("find \"{target_path}\" -type f {pattern_args}");
 
     let command_output = session
-        .execute_command(
-            find_command.as_str(),
-            Some(target_path),
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(find_command.as_str(), Some(target_path), None)
         .await?;
     let stdout = String::from_utf8_lossy(&command_output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&command_output.stderr).to_string();
@@ -291,12 +280,7 @@ async fn run_powershell_get_childitem_command(
     );
 
     let command_output = session
-        .execute_command(
-            command.as_str(),
-            Some(target_path),
-            None,
-            ExecuteCommandOptions::default(),
-        )
+        .execute_command(command.as_str(), Some(target_path), None)
         .await?;
     let output = String::from_utf8_lossy(command_output.output()).to_string();
 

@@ -9,7 +9,7 @@ use itertools::Itertools as _;
 use crate::env_vars::{serialize_variables_for_shell, EnvVarValue};
 use crate::terminal::shell::Shell;
 
-use super::{CommandExecutor, CommandOutput, ExecuteCommandOptions};
+use super::{CommandExecutor, CommandOutput};
 
 /// `CommandExecutor` implementation that executes the given `command` in a forked process
 /// that establishes a one-off SSH session with the same remote host as the active SSH session
@@ -36,7 +36,6 @@ impl CommandExecutor for RemoteCommandExecutor {
         shell: &Shell,
         current_directory_path: Option<&str>,
         environment_variables: Option<HashMap<String, String>>,
-        _execute_command_options: ExecuteCommandOptions,
     ) -> Result<CommandOutput> {
         // We can't use `.env` and `.current_dir` here to set the PATH and current dir respectively
         // since this is run locally. We just need the subprocess to send the bytes over the
