@@ -111,7 +111,6 @@ impl FilterChipRenderer for QueryFilter {
             | QueryFilter::Repos
             | QueryFilter::DiffSets
             | QueryFilter::StaticSlashCommands
-            | QueryFilter::Skills
             | QueryFilter::CurrentDirectoryConversations => appearance
                 .theme()
                 .main_text_color(appearance.theme().surface_2())

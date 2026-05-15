@@ -1,20 +1,18 @@
 //! Manages how we serialize blocklist AI data for persistence.
 #![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 
-use std::{collections::HashMap, sync::Arc};
-use uuid::Uuid;
-
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     ai::{
         agent::{
             conversation::AIConversationId, AIAgentActionType, AIAgentAttachment, AIAgentContext,
             AIAgentExchangeId, AIAgentInput, AIAgentPtyWriteMode, AskUserQuestionItem,
-            FileLocations, PassiveSuggestionResultType, ReadFilesRequest,
-            RequestComputerUseRequest, SearchCodebaseRequest, UseComputerRequest, UserQueryMode,
+            FileLocations, ReadFilesRequest, RequestComputerUseRequest, SearchCodebaseRequest,
+            UseComputerRequest, UserQueryMode,
         },
         llms::LLMId,
     },
@@ -72,31 +70,13 @@ impl TryFrom<&AIAgentInput> for PersistedAIInputType {
                 context: context.clone(),
                 referenced_attachments: Default::default(),
             }),
-            AIAgentInput::PassiveSuggestionResult {
-                suggestion: PassiveSuggestionResultType::Prompt { prompt },
-                context,
-                ..
-            } => Ok(Self::Query {
-                text: prompt.clone(),
-                context: context.clone(),
-                referenced_attachments: Default::default(),
-            }),
-            AIAgentInput::PassiveSuggestionResult {
-                suggestion: PassiveSuggestionResultType::CodeDiff { .. },
-                ..
-            } => Err(anyhow!(
-                "PassiveSuggestionResult::CodeDiff is not persisted as a query."
-            )),
             AIAgentInput::ActionResult { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::CodeReview { .. }
-            | AIAgentInput::FetchReviewComments { .. }
-            | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::InvokeSkill { .. } => Err(anyhow::anyhow!(
+            | AIAgentInput::FetchReviewComments { .. } => Err(anyhow::anyhow!(
                 "This input type is not persisted. Only Query inputs are persisted for up-arrow history."
             )),
         }
@@ -184,20 +164,6 @@ pub(crate) enum PersistedAIAgentActionType {
         patterns: Vec<String>,
         search_dir: Option<String>,
     },
-    ReadMCPResource {
-        server_id: Option<Uuid>,
-        name: String,
-        uri: Option<String>,
-    },
-    CallMCPTool {
-        server_id: Option<Uuid>,
-        name: String,
-        input: serde_json::Value,
-    },
-    SuggestNewConversation {
-        message_id: String,
-    },
-    SuggestPrompt,
     OpenCodeReview,
     InitProject,
     UseComputer {
@@ -266,30 +232,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
                 patterns: patterns.clone(),
                 search_dir: search_dir.clone(),
             },
-            AIAgentActionType::CallMCPTool {
-                server_id,
-                name,
-                input,
-            } => Self::CallMCPTool {
-                server_id: *server_id,
-                name: name.clone(),
-                input: input.clone(),
-            },
-            AIAgentActionType::ReadMCPResource {
-                server_id,
-                name,
-                uri,
-            } => Self::ReadMCPResource {
-                server_id: *server_id,
-                name: name.clone(),
-                uri: uri.clone(),
-            },
-            AIAgentActionType::SuggestNewConversation { message_id } => {
-                Self::SuggestNewConversation {
-                    message_id: message_id.clone(),
-                }
-            }
-            AIAgentActionType::SuggestPrompt { .. } => Self::SuggestPrompt,
             AIAgentActionType::OpenCodeReview => Self::OpenCodeReview,
             AIAgentActionType::InsertCodeReviewComments { .. } => Self::NotPersisted,
             AIAgentActionType::InitProject => Self::InitProject,
@@ -297,7 +239,6 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             | AIAgentActionType::EditDocuments(_)
             | AIAgentActionType::CreateDocuments(_)
             | AIAgentActionType::ReadShellCommandOutput { .. }
-            | AIAgentActionType::ReadSkill(_)
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
             AIAgentActionType::UseComputer(req) => Self::UseComputer {
                 action_summary: req.action_summary.clone(),
@@ -380,32 +321,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
                 patterns,
                 search_dir,
             }),
-            PersistedAIAgentActionType::CallMCPTool {
-                server_id,
-                name,
-                input,
-            } => Ok(Self::CallMCPTool {
-                server_id,
-                name,
-                input,
-            }),
-            PersistedAIAgentActionType::ReadMCPResource {
-                server_id,
-                name,
-                uri,
-            } => Ok(Self::ReadMCPResource {
-                server_id,
-                name,
-                uri,
-            }),
-            PersistedAIAgentActionType::SuggestNewConversation { message_id } => {
-                Ok(Self::SuggestNewConversation {
-                    message_id: message_id.clone(),
-                })
-            }
-            PersistedAIAgentActionType::SuggestPrompt => {
-                Err(anyhow!("Restoration for suggested prompts is unsupported."))
-            }
             PersistedAIAgentActionType::OpenCodeReview => Ok(Self::OpenCodeReview),
             PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
             PersistedAIAgentActionType::UseComputer {

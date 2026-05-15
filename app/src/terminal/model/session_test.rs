@@ -5,7 +5,8 @@ use warpui::{
     TypedActionView, View, ViewContext,
 };
 
-use super::{SessionId, Sessions, SessionsEvent};
+use super::{Sessions, SessionsEvent};
+use warp_core::SessionId;
 
 struct TestView {
     events: Vec<SessionsEvent>,

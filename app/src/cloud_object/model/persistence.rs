@@ -5,11 +5,11 @@ use crate::cloud_object::{
 };
 use crate::drive::folders::{CloudFolder, CloudFolderModel};
 use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
-use crate::env_vars::CloudEnvVarCollection;
+use crate::env_vars::SavedEnvVarCollection;
 use crate::object_ids::{HashableId, ObjectUid, SyncId, ToServerId};
 use crate::persistence::ModelEvent;
-use crate::workflows::workflow_enum::CloudWorkflowEnum;
-use crate::workflows::CloudWorkflow;
+use crate::workflows::workflow_enum::SavedWorkflowEnum;
+use crate::workflows::SavedWorkflow;
 
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
@@ -377,7 +377,6 @@ impl CloudModel {
 
             folder.set_model(CloudFolderModel {
                 is_open,
-                is_warp_pack: folder.model.is_warp_pack,
                 name: folder.model.name.clone(),
             });
 
@@ -544,9 +543,8 @@ impl CloudModel {
     }
 
     pub fn delete_object(&mut self, id: SyncId, ctx: &mut ModelContext<Self>) {
-        // TODO: for now we are simply hard deleting the object from memory. When
-        // we have conflict resolution. We should only mark the object as deleted
-        // without deleting the content until the server returns successful response.
+        // TODO: for now we are simply hard deleting the object from memory.
+        // Persisted content cleanup is handled separately by the local delete path.
         if let Some(object) = self.objects_by_id.remove(&id.uid()) {
             ctx.emit(CloudModelEvent::ObjectDeleted {
                 type_and_id: object.cloud_object_type_and_id(),
@@ -556,7 +554,7 @@ impl CloudModel {
         ctx.notify();
     }
 
-    /// Number of cloud objects that have not synced to the cloud
+    /// Number of local objects with pending content changes.
     pub fn num_unsaved_objects(&self) -> usize {
         self.objects_by_id
             .values()
@@ -564,7 +562,7 @@ impl CloudModel {
             .count()
     }
 
-    /// Number of cloud objects that have not synced to the cloud and require a user warning before quitting
+    /// Number of local objects with pending content changes that require a quit warning.
     pub fn num_unsaved_objects_to_warn_about_before_quitting(&self) -> usize {
         self.objects_by_id
             .values()
@@ -574,7 +572,7 @@ impl CloudModel {
             .count()
     }
 
-    /// Number of visible cloud objects that have errored in some way.
+    /// Number of visible local objects that have errored in some way.
     pub fn num_visible_errored_objects(&self) -> usize {
         self.objects_by_id
             .values()
@@ -632,36 +630,36 @@ impl CloudModel {
             .filter_map(|object| object.into())
     }
 
-    pub fn get_workflow(&self, workflow_id: &SyncId) -> Option<&CloudWorkflow> {
+    pub fn get_workflow(&self, workflow_id: &SyncId) -> Option<&SavedWorkflow> {
         self.objects_by_id
             .get(&workflow_id.uid())
             .and_then(|object| object.into())
     }
 
-    pub fn get_workflow_by_uid(&self, uid: &str) -> Option<&CloudWorkflow> {
+    pub fn get_workflow_by_uid(&self, uid: &str) -> Option<&SavedWorkflow> {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
 
-    pub fn get_workflow_enum(&self, enum_id: &SyncId) -> Option<&CloudWorkflowEnum> {
+    pub fn get_workflow_enum(&self, enum_id: &SyncId) -> Option<&SavedWorkflowEnum> {
         self.objects_by_id
             .get(&enum_id.uid())
             .and_then(|object| object.into())
     }
 
-    pub fn get_workflow_enum_mut(&mut self, enum_id: &SyncId) -> Option<&mut CloudWorkflowEnum> {
+    pub fn get_workflow_enum_mut(&mut self, enum_id: &SyncId) -> Option<&mut SavedWorkflowEnum> {
         self.objects_by_id
             .get_mut(&enum_id.uid())
             .and_then(|object| object.into())
     }
 
-    pub fn get_workflow_mut(&mut self, workflow_id: &SyncId) -> Option<&mut CloudWorkflow> {
+    pub fn get_workflow_mut(&mut self, workflow_id: &SyncId) -> Option<&mut SavedWorkflow> {
         self.objects_by_id
             .get_mut(&workflow_id.uid())
             .and_then(|object| object.into())
     }
 
     /// Returns only active (not trashed) workflows in cloud model.
-    pub fn get_all_active_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
+    pub fn get_all_active_workflows(&self) -> impl Iterator<Item = &SavedWorkflow> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))
@@ -669,7 +667,7 @@ impl CloudModel {
     }
 
     /// Returns all workflows (trashed or not) in cloud model.
-    pub fn get_all_active_and_inactive_workflows(&self) -> impl Iterator<Item = &CloudWorkflow> {
+    pub fn get_all_active_and_inactive_workflows(&self) -> impl Iterator<Item = &SavedWorkflow> {
         self.objects_by_id
             .values()
             .filter_map(|object| object.into())
@@ -678,7 +676,7 @@ impl CloudModel {
     /// Returns all workflows (trashed or not) in cloud model.
     pub fn get_all_active_and_inactive_workflows_mut(
         &mut self,
-    ) -> impl Iterator<Item = &mut CloudWorkflow> {
+    ) -> impl Iterator<Item = &mut SavedWorkflow> {
         self.objects_by_id
             .values_mut()
             .filter_map(|object| object.into())
@@ -689,7 +687,7 @@ impl CloudModel {
         &'a self,
         space: Space,
         app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
+    ) -> impl Iterator<Item = &'a SavedWorkflow> + 'a {
         self.active_cloud_objects_in_space(space, app)
             .filter_map(|object| object.into())
     }
@@ -699,7 +697,7 @@ impl CloudModel {
         &'a self,
         space: Space,
         app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a CloudWorkflow> + 'a {
+    ) -> impl Iterator<Item = &'a SavedWorkflow> + 'a {
         self.active_non_welcome_cloud_objects_in_space(space, app)
             .filter_map(|object| object.into())
     }
@@ -709,7 +707,7 @@ impl CloudModel {
         &'a self,
         space: Space,
         app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a CloudEnvVarCollection> + 'a {
+    ) -> impl Iterator<Item = &'a SavedEnvVarCollection> + 'a {
         self.active_non_welcome_cloud_objects_in_space(space, app)
             .filter_map(|object| object.into())
     }
@@ -719,7 +717,7 @@ impl CloudModel {
         &'a self,
         owner: Owner,
         _: &'a AppContext,
-    ) -> impl Iterator<Item = &'a CloudWorkflowEnum> + 'a {
+    ) -> impl Iterator<Item = &'a SavedWorkflowEnum> + 'a {
         self.objects_by_id
             .values()
             .filter(move |object| !object.is_trashed(self) && object.permissions().owner == owner)
@@ -762,20 +760,20 @@ impl CloudModel {
     pub fn get_env_var_collection(
         &self,
         env_var_collection_id: &SyncId,
-    ) -> Option<&CloudEnvVarCollection> {
+    ) -> Option<&SavedEnvVarCollection> {
         self.objects_by_id
             .get(&env_var_collection_id.uid())
             .and_then(|object| object.into())
     }
 
-    pub fn get_env_var_collection_by_uid(&self, uid: &str) -> Option<&CloudEnvVarCollection> {
+    pub fn get_env_var_collection_by_uid(&self, uid: &str) -> Option<&SavedEnvVarCollection> {
         self.objects_by_id.get(uid).and_then(|object| object.into())
     }
 
     /// Returns only active (not trashed) EVCs in cloud model.
     pub fn get_all_active_env_var_collections(
         &self,
-    ) -> impl Iterator<Item = &CloudEnvVarCollection> {
+    ) -> impl Iterator<Item = &SavedEnvVarCollection> {
         self.objects_by_id
             .values()
             .filter(|object| !object.is_trashed(self))
@@ -852,7 +850,7 @@ impl CloudModel {
         result
     }
 
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of active (not trashed) cloud objects
+    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of active local objects
     /// that live directly in this location (its children). I.e. this function does NOT look into nested folders in order
     /// to return those children.
     pub fn active_cloud_objects_in_location_without_descendents<'a>(
@@ -868,7 +866,7 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of trashed cloud objects
+    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of trashed local objects
     /// that live directly in this location (its children). I.e. this function does NOT look into nested folders in order
     /// to return those children.
     pub fn trashed_cloud_objects_in_location_without_descendents<'a>(
@@ -921,7 +919,7 @@ impl CloudModel {
             });
     }
 
-    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of cloud objects
+    /// Given a CloudObjectLocation (either a folder or a space), returns an iterator of local objects
     /// that live directly in this location (its children) are in the trash but have not been explicitly
     /// trashed by a user. I.e. this function does NOT look into nested folders in order to return those children.
     pub fn indirectly_trashed_cloud_objects_in_location_without_descendents<'a>(
@@ -939,7 +937,7 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Returns all active (not trashed) cloud objects in the space.
+    /// Returns all active local objects in the space.
     pub fn active_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
@@ -951,7 +949,7 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Returns all active (not trashed) cloud objects in the space.
+    /// Returns all active non-welcome local objects in the space.
     pub fn active_non_welcome_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
@@ -979,7 +977,7 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Returns all trashed cloud objects in the space.
+    /// Returns all trashed local objects in the space.
     pub fn trashed_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,
@@ -991,7 +989,7 @@ impl CloudModel {
             .map(|object| object.as_ref())
     }
 
-    /// Returns all cloud objects in the space that have been explicitly trashed by a user.
+    /// Returns all local objects in the space that have been explicitly trashed by a user.
     pub fn directly_trashed_cloud_objects_in_space<'a>(
         &'a self,
         space: Space,

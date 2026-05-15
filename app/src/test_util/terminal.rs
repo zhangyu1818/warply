@@ -6,10 +6,9 @@ use warp_core::ui::appearance::Appearance;
 use crate::ai::acp::model::AcpAgentModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
+use crate::ai::agent_tips::{AITipModel, AgentTip};
 use crate::ai::document::ai_document_model::AIDocumentModel;
-use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::ai::skills::SkillManager;
 use crate::code_review::git_status_update::GitStatusUpdateModel;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
@@ -20,7 +19,6 @@ use super::settings::initialize_settings_for_tests;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::llms::LLMPreferences;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::identity::LocalIdentityProvider;
@@ -33,7 +31,6 @@ use crate::{
     cloud_object::update_manager::UpdateManager,
     context_chips::prompt::Prompt,
     http_api::HttpApiProvider,
-    network::NetworkStatus,
     search::files::model::FileSearchModel,
     settings_view::keybindings::KeybindingChangedNotifier,
     system::SystemInfo,
@@ -53,7 +50,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     initialize_settings_for_tests(app);
 
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
@@ -63,6 +59,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_ctx| SyncedInputState::mock());
     app.add_singleton_model(|_| ResizableData::default());
     app.add_singleton_model(LocalWorkflows::new);
+    app.add_singleton_model(|ctx| AITipModel::<AgentTip>::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| History::default());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(AcpAgentModel::new_for_test);
@@ -75,7 +72,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
     #[cfg(feature = "local_fs")]
@@ -85,13 +81,10 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(RepoOutlines::new_for_test);
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-    app.add_singleton_model(SkillManager::new);
-    app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
 
-    #[cfg(not(target_family = "wasm"))]
     app.add_singleton_model(SystemInfo::new);
 
     app.add_singleton_model(|_| RestoredAgentConversations::new(vec![]));

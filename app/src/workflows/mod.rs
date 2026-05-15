@@ -36,7 +36,7 @@ pub enum WorkflowSource {
     Global,
     Local,
     Project,
-    PersonalCloud,
+    Saved,
     Agent,
     Notebook {
         location: NotebookLocation,
@@ -111,7 +111,7 @@ pub enum AIWorkflowOrigin {
 #[derive(Clone, Debug, PartialEq)]
 pub enum WorkflowType {
     Local(Workflow),
-    Cloud(Box<CloudWorkflow>),
+    Saved(Box<SavedWorkflow>),
     AIGenerated {
         workflow: Workflow,
         origin: AIWorkflowOrigin,
@@ -124,7 +124,7 @@ impl WorkflowType {
         match self {
             WorkflowType::Local(workflow) => workflow,
             WorkflowType::AIGenerated { workflow, .. } => workflow,
-            WorkflowType::Cloud(workflow) => &workflow.model().data,
+            WorkflowType::Saved(workflow) => &workflow.model().data,
             WorkflowType::Notebook(workflow) => workflow,
         }
     }
@@ -134,28 +134,21 @@ impl WorkflowType {
         match self {
             WorkflowType::Local(workflow) => workflow,
             WorkflowType::AIGenerated { workflow, .. } => workflow,
-            WorkflowType::Cloud(workflow) => workflow.model().data.clone(),
+            WorkflowType::Saved(workflow) => workflow.model().data.clone(),
             WorkflowType::Notebook(workflow) => workflow,
         }
     }
 
     pub fn object_id(&self) -> Option<CloudObjectTypeAndId> {
         match self {
-            WorkflowType::Cloud(workflow) => Some(CloudObjectTypeAndId::Workflow(workflow.id)),
+            WorkflowType::Saved(workflow) => Some(CloudObjectTypeAndId::Workflow(workflow.id)),
             _ => None,
         }
     }
 
     pub fn sync_id(&self) -> Option<SyncId> {
         match self {
-            WorkflowType::Cloud(workflow) => Some(workflow.id),
-            _ => None,
-        }
-    }
-
-    pub fn server_id(&self) -> Option<WorkflowId> {
-        match self.object_id() {
-            Some(CloudObjectTypeAndId::Workflow(id)) => id.into_server().map(Into::into),
+            WorkflowType::Saved(workflow) => Some(workflow.id),
             _ => None,
         }
     }
@@ -167,20 +160,20 @@ impl WorkflowType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct CloudWorkflowModel {
+pub struct SavedWorkflowModel {
     pub data: Workflow,
 }
 
-impl CloudWorkflowModel {
+impl SavedWorkflowModel {
     pub fn new(workflow: Workflow) -> Self {
         Self { data: workflow }
     }
 }
 
-pub type CloudWorkflow = GenericCloudObject<WorkflowId, CloudWorkflowModel>;
+pub type SavedWorkflow = GenericCloudObject<WorkflowId, SavedWorkflowModel>;
 
-impl CloudModelType for CloudWorkflowModel {
-    type CloudObjectType = CloudWorkflow;
+impl CloudModelType for SavedWorkflowModel {
+    type CloudObjectType = SavedWorkflow;
     type IdType = WorkflowId;
 
     fn model_type_name(&self) -> &'static str {
@@ -207,13 +200,13 @@ impl CloudModelType for CloudWorkflowModel {
         self.data.set_name(name);
     }
 
-    fn upsert_event(&self, workflow: &CloudWorkflow) -> ModelEvent {
+    fn upsert_event(&self, workflow: &SavedWorkflow) -> ModelEvent {
         ModelEvent::UpsertWorkflow {
             workflow: workflow.clone(),
         }
     }
 
-    fn bulk_upsert_event(objects: &[CloudWorkflow]) -> ModelEvent {
+    fn bulk_upsert_event(objects: &[SavedWorkflow]) -> ModelEvent {
         ModelEvent::UpsertWorkflows(objects.to_vec())
     }
 
@@ -231,7 +224,7 @@ impl CloudModelType for CloudWorkflowModel {
         &self,
         id: SyncId,
         _appearance: &Appearance,
-        workflow: &CloudWorkflow,
+        workflow: &SavedWorkflow,
     ) -> Option<Box<dyn LocalObjectItem>> {
         Some(Box::new(LocalObjectWorkflow::new(
             self.cloud_object_type_and_id(id),
@@ -244,27 +237,27 @@ impl CloudModelType for CloudWorkflowModel {
     }
 }
 
-impl PartialEq<Workflow> for CloudWorkflow {
+impl PartialEq<Workflow> for SavedWorkflow {
     fn eq(&self, other: &Workflow) -> bool {
         self.model().data == *other
     }
 }
 
-impl PartialEq<CloudWorkflow> for CloudWorkflow {
-    fn eq(&self, other: &CloudWorkflow) -> bool {
+impl PartialEq<SavedWorkflow> for SavedWorkflow {
+    fn eq(&self, other: &SavedWorkflow) -> bool {
         self.model().data == other.model().data && self.id == other.id
     }
 }
 
-impl From<CloudWorkflow> for Workflow {
-    fn from(cloud_workflow: CloudWorkflow) -> Self {
-        cloud_workflow.model().data.clone()
+impl From<SavedWorkflow> for Workflow {
+    fn from(saved_workflow: SavedWorkflow) -> Self {
+        saved_workflow.model().data.clone()
     }
 }
 
-impl From<&CloudWorkflow> for Workflow {
-    fn from(cloud_workflow: &CloudWorkflow) -> Self {
-        cloud_workflow.model().data.to_owned()
+impl From<&SavedWorkflow> for Workflow {
+    fn from(saved_workflow: &SavedWorkflow) -> Self {
+        saved_workflow.model().data.to_owned()
     }
 }
 

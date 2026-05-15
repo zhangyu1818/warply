@@ -1861,8 +1861,6 @@ impl AppearanceSettingsPageView {
 
         ctx.notify();
     }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn set_system_fonts(
         &mut self,
         available_families: Vec<(Option<FamilyId>, FontInfo)>,
@@ -2522,9 +2520,7 @@ impl SettingsWidget for CustomAppIconWidget {
         appearance: &Appearance,
         _app: &AppContext,
     ) -> Box<dyn Element> {
-        #[allow(unused_mut)]
         let show_bundle_warning = {
-            #[cfg(target_os = "macos")]
             #[allow(deprecated)]
             {
                 use cocoa::base::id;
@@ -2535,10 +2531,6 @@ impl SettingsWidget for CustomAppIconWidget {
                     let bundle_id: id = msg_send![running_app, bundleIdentifier];
                     bundle_id.is_null()
                 }
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                false
             }
         };
 
@@ -2551,7 +2543,6 @@ impl SettingsWidget for CustomAppIconWidget {
             &view.app_icon_dropdown,
         );
 
-        #[cfg(target_os = "macos")]
         {
             use crate::appearance::AppearanceManager;
 

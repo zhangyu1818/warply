@@ -8,7 +8,6 @@ pub use view::{CloseReason, InlineSlashCommandView, SlashCommandsEvent};
 #[cfg(feature = "local_fs")]
 use std::path::PathBuf;
 
-use ai::skills::SkillReference;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
 #[cfg(feature = "local_fs")]
@@ -54,11 +53,6 @@ pub enum AcceptSlashCommandOrSavedPrompt {
     },
     SavedPrompt {
         id: SyncId,
-    },
-    /// A skill selected from browse or search. Contains name (for display/insertion) and path/bundled_skill_id (for execution).
-    Skill {
-        reference: SkillReference,
-        name: String,
     },
 }
 impl InlineMenuAction for AcceptSlashCommandOrSavedPrompt {
@@ -234,22 +228,6 @@ impl Input {
                     self.open_completion_suggestions(CompletionsTrigger::Keybinding, ctx);
                 }
             }
-            SlashCommandEntryState::SkillCommand(detected_skill) => {
-                // Hide the menu once the user has started typing the prompt
-                if self.suggestions_mode_model.as_ref(ctx).is_slash_commands()
-                    && (self
-                        .inline_slash_commands_view
-                        .as_ref(ctx)
-                        .result_count(ctx)
-                        < 2
-                        || detected_skill.argument.is_some())
-                {
-                    self.close_slash_commands_menu(ctx);
-                }
-
-                // Skill commands always require AI mode
-                self.enter_ai_mode(ctx);
-            }
         }
     }
 
@@ -280,7 +258,7 @@ impl Input {
                     && self.agent_view_controller.as_ref(ctx).is_fullscreen();
 
                 self.show_workflows_info_box_on_workflow_selection(
-                    WorkflowType::Cloud(Box::new(workflow)),
+                    WorkflowType::Saved(Box::new(workflow)),
                     WorkflowSource::Agent,
                     WorkflowSelectionSource::SlashMenu,
                     None,
@@ -319,13 +297,6 @@ impl Input {
                     self.submit_ai_query(None, ctx);
                 }
             }
-            SlashCommandsEvent::SelectedSkill { name, reference: _ } => {
-                // Insert /{skill-name} into the buffer
-                self.editor.update(ctx, |editor, ctx| {
-                    editor.set_buffer_text(format!("/{name} ").as_str(), ctx);
-                });
-                self.close_slash_commands_menu(ctx);
-            }
         }
     }
 
@@ -361,8 +332,7 @@ impl Input {
         let is_supported_ai_command = command.name == commands::AGENT.name
             || command.name == commands::CONVERSATIONS.name
             || command.name == commands::CREATE_DOCKER_SANDBOX.name
-            || command.name == commands::PLAN.name
-            || command.name == commands::COMPACT.name;
+            || command.name == commands::PLAN.name;
         if command.availability.contains(Availability::AI_ENABLED) && !is_supported_ai_command {
             return false;
         }
@@ -388,9 +358,6 @@ impl Input {
                     conversation_id: None,
                     origin: AgentViewEntryOrigin::SlashCommand { trigger },
                 });
-            }
-            add_mcp if command.name == commands::ADD_MCP.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddMCPPane);
             }
             add_prompt if command.name == commands::ADD_PROMPT.name => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenAddPromptPane);
@@ -593,21 +560,7 @@ impl Input {
                 });
             }
             export_to_file if command.name == commands::EXPORT_TO_FILE.name => {
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    self.export_conversation_to_file(
-                        argument.map(|filename| filename.to_owned()),
-                        ctx,
-                    );
-                }
-                #[cfg(target_family = "wasm")]
-                {
-                    show_error_toast(
-                        "Export conversation to file unsupported in web".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
+                self.export_conversation_to_file(argument.map(|filename| filename.to_owned()), ctx);
             }
             init if command.name == commands::INIT.name => {
                 ctx.dispatch_typed_action(&TerminalAction::InitProject);
@@ -616,9 +569,6 @@ impl Input {
                 ctx.dispatch_typed_action(&TerminalAction::ToggleCodeReviewPane {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,
                 });
-            }
-            open_mcp_servers if command.name == commands::OPEN_MCP_SERVERS.name => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenViewMCPPane);
             }
             open_settings_file if command.name == commands::OPEN_SETTINGS_FILE.name => {
                 if !FeatureFlag::SettingsFile.is_enabled() || !cfg!(feature = "local_fs") {
@@ -631,19 +581,6 @@ impl Input {
             }
             open_rules if command.name == commands::OPEN_RULES.name => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenRulesPane);
-            }
-            edit_skill if command.name == commands::EDIT_SKILL.name => {
-                if !FeatureFlag::ListSkills.is_enabled() {
-                    return false;
-                }
-                // Open the skill selector menu - user will select a skill from the inline menu
-                self.open_skill_selector(ctx);
-            }
-            invoke_skill if command.name == commands::INVOKE_SKILL.name => {
-                if !FeatureFlag::ListSkills.is_enabled() {
-                    return false;
-                }
-                self.open_invoke_skill_selector(ctx);
             }
             prompts if command.name == commands::PROMPTS.name => {
                 if FeatureFlag::AgentView.is_enabled() {
@@ -697,8 +634,6 @@ impl Input {
                 ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
                     conversation_id,
                     fork_from_exchange: None,
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
                     initial_prompt: argument.cloned(),
                     destination,
                 });
@@ -706,53 +641,6 @@ impl Input {
             fork_from if command.name == commands::FORK_FROM.name => {
                 self.open_user_query_menu(UserQueryMenuAction::ForkFrom, ctx);
                 return true;
-            }
-            fork_and_compact if command.name == commands::FORK_AND_COMPACT.name => {
-                let Some(conversation_id) = self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                else {
-                    show_error_toast(
-                        "/fork-and-compact requires an active conversation".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                };
-
-                let destination = if trigger.is_cmd_or_ctrl_enter() {
-                    ForkedConversationDestination::SplitPane
-                } else {
-                    ForkedConversationDestination::CurrentPane
-                };
-
-                ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
-                    conversation_id,
-                    fork_from_exchange: None,
-                    summarize_after_fork: true,
-                    summarization_prompt: None,
-                    initial_prompt: argument.cloned(),
-                    destination,
-                });
-            }
-            compact_and if command.name == commands::COMPACT_AND.name => {
-                if self
-                    .ai_context_model
-                    .as_ref(ctx)
-                    .selected_conversation_id(ctx)
-                    .is_none()
-                {
-                    show_error_toast(
-                        "/compact-and requires an active conversation".to_owned(),
-                        ctx,
-                    );
-                    return true;
-                };
-
-                ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
-                    prompt: None,
-                    initial_prompt: argument.cloned(),
-                });
             }
             queue if command.name == commands::QUEUE.name => {
                 let Some(conversation_id) = self
@@ -790,8 +678,7 @@ impl Input {
                 self.open_repos_menu(ctx);
             }
             command_that_just_sends_ai_request_with_prefix
-                if command.name == commands::COMPACT.name
-                    || command.name == commands::PLAN.name =>
+                if command.name == commands::PLAN.name =>
             {
                 // These slash commands just send AI requests with the slash command text as a
                 // prefix, and special handling is done downstream as an implementation detail
@@ -852,13 +739,6 @@ impl Input {
                     ctx,
                 )
             }
-            SlashCommandEntryState::SkillCommand(detected_skill) => {
-                let reference = detected_skill.reference.clone();
-                let user_query = detected_skill.argument.clone();
-                self.execute_skill_command(
-                    reference, user_query, /*is_queued_prompt*/ false, ctx,
-                )
-            }
             SlashCommandEntryState::None
             | SlashCommandEntryState::Composing { .. }
             | SlashCommandEntryState::DisabledUntilEmptyBuffer => false,
@@ -896,13 +776,6 @@ impl Input {
                     SlashCommandTrigger::input(),
                     /*is_queued_prompt*/ false,
                     ctx,
-                )
-            }
-            SlashCommandEntryState::SkillCommand(detected_skill) => {
-                let reference = detected_skill.reference.clone();
-                let user_query = detected_skill.argument.clone();
-                self.execute_skill_command(
-                    reference, user_query, /*is_queued_prompt*/ false, ctx,
                 )
             }
             SlashCommandEntryState::None

@@ -3,11 +3,9 @@ pub mod assertions;
 pub mod channel;
 pub mod command;
 pub mod context_flag;
-pub mod errors;
 pub mod execution_mode;
 pub mod features;
 pub mod interval_timer;
-#[cfg(target_os = "macos")]
 pub mod macos;
 pub mod operating_system_info;
 pub mod paths;
@@ -15,10 +13,6 @@ pub mod platform;
 pub mod safe_log;
 pub mod semantic_selection;
 pub use settings;
-// Re-export settings macros for backward compatibility
-pub use settings::{
-    define_setting, define_settings_group, implement_setting_for_enum, maybe_define_setting,
-};
 pub mod host_id;
 pub mod session_id;
 pub mod sync_queue;

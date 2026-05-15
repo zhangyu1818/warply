@@ -4,7 +4,6 @@ use crate::ai::agent::util::parse_markdown_into_text_and_code_sections;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{RequestInput, ResponseStreamId, SerializedBlockListItem};
 use crate::ai::llms::LLMId;
-use crate::ai::skills::SkillDescriptor;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::block::{AgentViewVisibility, BlockId, SerializedBlock};
 use chrono::{DateTime, Local};
@@ -20,14 +19,13 @@ use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
 use warp_core::command::ExitCode;
 use warp_core::execution_mode::AppExecutionMode;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::WarpTheme;
 use warpui::color::ColorU;
 use warpui::{EntityId, ModelContext, SingletonEntity};
 
-use crate::ai::agent::{AIIdentifiers, CancellationReason};
+use crate::ai::agent::CancellationReason;
 use crate::{
     ai::{
         agent::{
@@ -57,9 +55,7 @@ use super::{
     AIAgentInput, AIAgentOutputStatus, AIAgentTodo, AIAgentTodoId, FinishedAIAgentOutput,
     MessageId, RenderableAIError, UserQueryMode,
 };
-use super::{
-    AIAgentOutput, OutputModelInfo, ServerOutputId, Shared, SuggestedLoggingId, Suggestions,
-};
+use super::{AIAgentOutput, OutputModelInfo, Shared};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TodoStatus {
@@ -279,7 +275,6 @@ impl AcpTranscriptOutput {
             output.model_info = Some(OutputModelInfo {
                 model_id,
                 display_name,
-                is_fallback: false,
             });
         }
 
@@ -424,12 +419,6 @@ pub struct AIConversation {
     /// A set of action IDs that have been reverted by the user.
     reverted_action_ids: HashSet<AIAgentActionId>,
 
-    /// Accumulated suggestions received in the course of this conversation.
-    existing_suggestions: Option<Suggestions>,
-
-    /// A set of suggestion logging IDs that have been dismissed for this conversation.
-    dismissed_suggestion_ids: HashSet<SuggestedLoggingId>,
-
     /// Fallback title used when no task description or initial query exists.
     fallback_display_title: Option<String>,
 
@@ -455,8 +444,6 @@ impl AIConversation {
             added_exchanges_by_response: Default::default(),
             hidden_exchanges: Default::default(),
             reverted_action_ids: Default::default(),
-            existing_suggestions: None,
-            dismissed_suggestion_ids: Default::default(),
             fallback_display_title: None,
             artifacts: Vec::new(),
         }
@@ -486,14 +473,10 @@ impl AIConversation {
             })
             .unwrap_or_default();
         let run_id = conversation_data.run_id;
-        let autoexecute_override = if FeatureFlag::RememberFastForwardState.is_enabled() {
-            conversation_data
-                .autoexecute_override
-                .map(Into::into)
-                .unwrap_or_default()
-        } else {
-            AIConversationAutoexecuteMode::default()
-        };
+        let autoexecute_override = conversation_data
+            .autoexecute_override
+            .map(Into::into)
+            .unwrap_or_default();
         let fallback_display_title = conversation_data.display_title;
 
         let reverted_action_ids = reverted_action_ids.into_iter().map_into().collect();
@@ -518,10 +501,8 @@ impl AIConversation {
             transaction: None,
             autoexecute_override,
             added_exchanges_by_response: Default::default(),
-            existing_suggestions: None,
             hidden_exchanges: Default::default(),
             reverted_action_ids,
-            dismissed_suggestion_ids: Default::default(),
             optimistic_cli_subagent_subtask_id: None,
             fallback_display_title,
             artifacts,
@@ -831,27 +812,6 @@ impl AIConversation {
             || self.is_orphaned_cli_subagent_conversation()
     }
 
-    pub fn existing_suggestions(&self) -> Option<&Suggestions> {
-        self.existing_suggestions.as_ref()
-    }
-
-    pub fn dismissed_suggestion_ids(&self) -> &HashSet<SuggestedLoggingId> {
-        &self.dismissed_suggestion_ids
-    }
-
-    pub fn dismiss_current_suggestions(&mut self) {
-        if let Some(suggestions) = &self.existing_suggestions {
-            self.dismissed_suggestion_ids
-                .extend(suggestions.rules.iter().map(|r| r.logging_id.clone()));
-            self.dismissed_suggestion_ids.extend(
-                suggestions
-                    .agent_mode_workflows
-                    .iter()
-                    .map(|w| w.logging_id.clone()),
-            );
-        }
-    }
-
     pub fn is_exchange_hidden(&self, exchange_id: AIAgentExchangeId) -> bool {
         self.hidden_exchanges.contains(&exchange_id)
     }
@@ -917,8 +877,6 @@ impl AIConversation {
             .into_iter()
             .flat_map(|task| task.exchanges_reversed())
     }
-
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub fn exchange_with_id(&self, exchange_id: AIAgentExchangeId) -> Option<&AIAgentExchange> {
         for task in self.task_store.tasks() {
             if let Some(exchange) = task.exchanges().find(|exchange| exchange.id == exchange_id) {
@@ -948,10 +906,6 @@ impl AIConversation {
 
     pub fn latest_exchange(&self) -> Option<&AIAgentExchange> {
         self.task_store.latest_exchange()
-    }
-
-    pub fn latest_skills(&self) -> Option<Vec<SkillDescriptor>> {
-        self.task_store.latest_skills()
     }
 
     /// Get the auto-generated title of the given conversation
@@ -1015,7 +969,6 @@ impl AIConversation {
             .find_map(|input| {
                 AIAgentInput::user_query(input)
                     .or_else(|| AIAgentInput::auto_code_diff_query(input).map(|s| s.to_string()))
-                    .or_else(|| AIAgentInput::prompt_suggestion_result(input).cloned())
             })
     }
 
@@ -1142,10 +1095,7 @@ impl AIConversation {
         } = request_input;
 
         for (task_id, inputs) in input_messages.into_iter() {
-            let should_hide = inputs
-                .iter()
-                .any(|input| input.is_passive_suggestion_trigger());
-
+            let should_hide = false;
             let new_exchange = AIAgentExchange {
                 id: AIAgentExchangeId::new(),
                 input: inputs,
@@ -1306,13 +1256,12 @@ impl AIConversation {
             return Err(UpdateConversationError::NoPendingRequest);
         };
 
-        let output_id = ServerOutputId::new(format!("acp-{}", stream_id.as_str()));
         for new_exchange_info in new_exchanges.iter() {
             let is_hidden = self
                 .hidden_exchanges
                 .contains(&new_exchange_info.exchange_id);
             self.get_exchange_to_update(new_exchange_info.exchange_id)?
-                .init_output(output_id.clone())?;
+                .init_output()?;
 
             let exchange = self.get_exchange_to_update(new_exchange_info.exchange_id)?;
             if let AIAgentOutputStatus::Streaming {
@@ -1322,7 +1271,6 @@ impl AIConversation {
                 output.get_mut().model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
             }
 
@@ -1368,7 +1316,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 let message_id = if let Some(message) =
@@ -1451,7 +1398,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 let message_id = if let Some(message) =
@@ -1538,7 +1484,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 if let Some(message) = output
@@ -1610,7 +1555,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 if let Some(message) = output
@@ -1711,7 +1655,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 if let Some(message) = output
@@ -1783,7 +1726,6 @@ impl AIConversation {
                 output.model_info = Some(OutputModelInfo {
                     model_id: model_id.clone(),
                     display_name: display_name.clone(),
-                    is_fallback: false,
                 });
 
                 if let Some(message) = output
@@ -1898,17 +1840,6 @@ impl AIConversation {
             if let Some(output_shared) = output {
                 let output = output_shared.get();
                 has_new_actions |= output.actions().next().is_some();
-
-                if let Some(new_suggestions) = output.suggestions.clone() {
-                    if let Some(existing_suggestions) = self.existing_suggestions.as_mut() {
-                        existing_suggestions.rules.extend(new_suggestions.rules);
-                        existing_suggestions
-                            .agent_mode_workflows
-                            .extend(new_suggestions.agent_mode_workflows);
-                    } else {
-                        self.existing_suggestions = Some(new_suggestions);
-                    }
-                }
             }
 
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
@@ -1942,25 +1873,7 @@ impl AIConversation {
                 task_id,
             } in added_exchanges.into_iter()
             {
-                let completed_exchange = self.mark_exchange_completed(&task_id, exchange_id)?;
-                let output = completed_exchange
-                    .output_status
-                    .output()
-                    .map(Shared::get_owned);
-                if let Some(output_shared) = output {
-                    let output = output_shared.get();
-
-                    if let Some(new_suggestions) = output.suggestions.clone() {
-                        if let Some(existing_suggestions) = self.existing_suggestions.as_mut() {
-                            existing_suggestions.rules.extend(new_suggestions.rules);
-                            existing_suggestions
-                                .agent_mode_workflows
-                                .extend(new_suggestions.agent_mode_workflows);
-                        } else {
-                            self.existing_suggestions = Some(new_suggestions);
-                        }
-                    }
-                }
+                self.mark_exchange_completed(&task_id, exchange_id)?;
 
                 ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                     exchange_id,
@@ -2053,25 +1966,6 @@ impl AIConversation {
         if self.transaction.is_some() {
             self.commit_transaction()
         }
-
-        let AddedExchange {
-            exchange_id: initial_exchange_id,
-            ..
-        } = added_exchanges.first();
-        let _identifiers = AIIdentifiers {
-            server_output_id: None,
-            client_conversation_id: Some(self.id),
-            client_exchange_id: Some(*initial_exchange_id),
-            model_id: None,
-        };
-
-        let _will_attempt_to_resume = matches!(
-            &error,
-            RenderableAIError::Other {
-                will_attempt_resume: true,
-                ..
-            }
-        );
 
         for AddedExchange { exchange_id, .. } in added_exchanges.into_iter() {
             let exchange = self.get_exchange_to_update(exchange_id)?;
@@ -2644,8 +2538,8 @@ impl AIConversation {
             .is_none_or(|task| task.exchanges_len() == 0);
 
         // If all exchanges were removed, reset the root task to optimistic state.
-        // This allows the next message to go through the normal "first message" flow,
-        // where the server will create a new task and we'll promote the optimistic task.
+        // This allows the next message to go through the normal "first message" flow
+        // and promote the optimistic task.
         if root_task_is_empty {
             let root_task_id = self.task_store.root_task_id().clone();
             self.task_store.remove(&root_task_id);
@@ -2723,21 +2617,13 @@ pub(super) fn context_in_exchanges<'a>(
 
 impl AIAgentExchange {
     /// Returns an error if the output was already initialized.
-    pub(super) fn init_output(
-        &mut self,
-        server_output_id: ServerOutputId,
-    ) -> Result<(), UpdateTaskError> {
+    pub(super) fn init_output(&mut self) -> Result<(), UpdateTaskError> {
         match &mut self.output_status {
             AIAgentOutputStatus::Streaming { ref mut output } => {
-                if let Some(shared_output) = output {
-                    shared_output.get_mut().server_output_id = Some(server_output_id);
-                } else {
+                if output.is_none() {
                     *output = Some(Shared::new(AIAgentOutput {
                         messages: vec![],
                         citations: vec![],
-                        server_output_id: Some(server_output_id),
-                        api_metadata_bytes: None,
-                        suggestions: None,
                         model_info: None,
                     }));
                 }

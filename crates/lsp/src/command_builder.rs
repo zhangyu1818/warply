@@ -1,12 +1,9 @@
-#[cfg(not(target_arch = "wasm32"))]
 use command::r#async::Command;
 
 /// A wrapper around `path_env_var` that produces correctly-configured commands.
 ///
-/// This follows the same wrapping pattern as `command::r#async::Command`:
-/// callers construct commands through the executor, which transparently sets
-/// the PATH environment variable. On wasm, a dummy implementation is provided
-/// so that consumer code doesn't need cfg gating.
+/// Callers construct commands through the executor, which transparently sets
+/// the PATH environment variable.
 #[derive(Clone)]
 pub struct CommandBuilder {
     path_env_var: Option<String>,
@@ -29,7 +26,6 @@ impl CommandBuilder {
     /// same API as `command::r#async::Command`, so callers don't need to change
     /// how they construct commands.
     ///
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn command(&self, program: impl AsRef<std::ffi::OsStr>) -> Command {
         let mut cmd = Command::new(program);
         if let Some(path) = &self.path_env_var {

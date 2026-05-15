@@ -16,7 +16,7 @@ use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::terminal::ssh::util::{InteractiveSshCommand, SshLoginState};
 use crate::terminal::{block_filter::BlockFilterQuery, model::ansi::Handler};
-use crate::terminal::{color, ssh, BlockPadding, ShellHost, SizeUpdate, SizeUpdateReason};
+use crate::terminal::{color, ssh, BlockPadding, ShellHost, SizeUpdate};
 use crate::terminal::{ShellLaunchData, ShellLaunchState};
 use crate::util::AsciiDebug;
 
@@ -40,7 +40,7 @@ use super::kitty::{
 };
 use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
-use super::session::{BootstrapSessionType, InBandCommandOutputReceiver, SessionId};
+use super::session::{BootstrapSessionType, InBandCommandOutputReceiver};
 use super::tmux::commands::TmuxCommand;
 use super::{
     super::{AltScreen, BlockList},
@@ -55,9 +55,9 @@ use crate::terminal::model::ansi::{
 use crate::terminal::model::grid::IndexRegion;
 use crate::terminal::model::session::SessionInfo;
 use crate::terminal::shell::ShellType;
+use warp_core::SessionId;
 
 use crate::terminal::model::secrets::ObfuscateSecrets;
-#[cfg(not(target_family = "wasm"))]
 use warpui::util::save_as_file;
 
 use base64::Engine;
@@ -88,7 +88,7 @@ const TITLE_STACK_MAX_DEPTH: usize = 4096;
 /// This tracks both the loading state and the type of conversation being viewed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversationTranscriptViewerStatus {
-    /// Loading conversation data from the server.
+    /// Loading conversation data from local history.
     Loading,
     /// Viewing a local conversation.
     ViewingLocalConversation,
@@ -1571,11 +1571,7 @@ impl TerminalModel {
         {
             self.alt_screen.resize(&size_update);
 
-            let update_old_blocks = !matches!(
-                size_update.update_reason,
-                SizeUpdateReason::ViewerSizeReported { .. }
-            );
-            self.block_list.resize(&size_update, update_old_blocks);
+            self.block_list.resize(&size_update, true);
         }
 
         if size_update.rows_or_columns_changed() {
@@ -2816,7 +2812,6 @@ impl ansi::Handler for TerminalModel {
                 pending.data = decoded_bytes;
 
                 if !pending.metadata.inline {
-                    #[cfg(not(target_family = "wasm"))]
                     if let Some(cwd) = self
                         .active_block_metadata()
                         .current_working_directory()

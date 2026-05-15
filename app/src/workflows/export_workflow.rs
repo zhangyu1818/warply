@@ -32,10 +32,9 @@ struct ExportArgument {
     pub default_value: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(tag = "arg_type")]
 enum ExportArgumentType {
-    #[default]
     Text,
     Enum {
         enum_name: String,
@@ -52,41 +51,43 @@ enum ExportArgumentType {
 
 impl ExportArgument {
     /// Create a new ExportArgument given an Argument
-    fn new(argument: &Argument, app: &AppContext) -> Self {
+    fn new(argument: &Argument, app: &AppContext) -> Result<Self, String> {
         let arg_type = match argument.arg_type {
             ArgumentType::Text => ExportArgumentType::Text,
-            ArgumentType::Enum { enum_id } => CloudModel::as_ref(app)
-                .get_workflow_enum(&enum_id)
-                .map(|workflow_enum| {
-                    let model = &workflow_enum.model().string_model;
-                    let enum_name = model.name.clone();
+            ArgumentType::Enum { enum_id } => {
+                let workflow_enum = CloudModel::as_ref(app)
+                    .get_workflow_enum(&enum_id)
+                    .ok_or_else(|| format!("Unable to export workflow enum {enum_id}"))?;
+                let model = &workflow_enum.model().string_model;
+                let enum_name = model.name.clone();
 
-                    let mut enum_variants = None;
-                    let mut enum_command = None;
+                let mut enum_variants = None;
+                let mut enum_command = None;
 
-                    match &model.variants {
-                        EnumVariants::Static(variants) => enum_variants = Some(variants.clone()),
-                        EnumVariants::Dynamic(command) => enum_command = Some(command.clone()),
-                    };
-                    ExportArgumentType::Enum {
-                        enum_name,
-                        enum_variants,
-                        enum_command,
-                    }
-                })
-                .unwrap_or(ExportArgumentType::Text),
+                match &model.variants {
+                    EnumVariants::Static(variants) => enum_variants = Some(variants.clone()),
+                    EnumVariants::Dynamic(command) => enum_command = Some(command.clone()),
+                };
+                ExportArgumentType::Enum {
+                    enum_name,
+                    enum_variants,
+                    enum_command,
+                }
+            }
         };
 
-        ExportArgument {
+        Ok(ExportArgument {
             name: argument.name.clone(),
             arg_type,
             description: argument.description.clone(),
             default_value: argument.default_value.clone(),
-        }
+        })
     }
 
     /// Convert an ExportArgument to an Argument and create a new WorkflowEnum, if possible
-    fn to_argument(argument: ExportArgument) -> (Argument, Option<(ClientId, WorkflowEnum)>) {
+    fn to_argument(
+        argument: ExportArgument,
+    ) -> Result<(Argument, Option<(ClientId, WorkflowEnum)>), anyhow::Error> {
         let mut new_enum_info = None;
 
         let name = argument.name;
@@ -100,27 +101,17 @@ impl ExportArgument {
                 enum_variants,
                 enum_command,
             } => {
-                let workflow_enum =
-                    Self::try_into_workflow_enum(enum_name, enum_variants, enum_command);
-
-                match workflow_enum {
-                    Ok(enum_data) => {
-                        let client_id = ClientId::default();
-                        new_enum_info = Some((client_id, enum_data));
-                        ArgumentType::Enum {
-                            enum_id: SyncId::ClientId(client_id),
-                        }
-                    }
-                    // If we are missing some enum info, use the default type instead
-                    Err(_) => {
-                        log::warn!("Tried to deserialize an enum argument without any static variants or dynamic command provided, defaulting to {:?} argument", ArgumentType::default());
-                        ArgumentType::default()
-                    }
+                let enum_data =
+                    Self::try_into_workflow_enum(enum_name, enum_variants, enum_command)?;
+                let client_id = ClientId::default();
+                new_enum_info = Some((client_id, enum_data));
+                ArgumentType::Enum {
+                    enum_id: SyncId::ClientId(client_id),
                 }
             }
         };
 
-        (
+        Ok((
             Argument {
                 name,
                 arg_type,
@@ -128,7 +119,7 @@ impl ExportArgument {
                 default_value,
             },
             new_enum_info,
-        )
+        ))
     }
 
     /// Try to create a new workflow enum from parsed data
@@ -137,7 +128,7 @@ impl ExportArgument {
         enum_variants: Option<Vec<String>>,
         enum_command: Option<String>,
     ) -> Result<WorkflowEnum, anyhow::Error> {
-        // Always create unshared enums on import
+        // Imported enums should not become globally visible by default.
         let is_shared = false;
 
         // Try to grab variants or command
@@ -171,8 +162,8 @@ where
     let export_args: Vec<ExportArgument> = workflow
         .arguments()
         .iter()
-        .map(|arg| ExportArgument::new(arg, app))
-        .collect();
+        .map(|arg| ExportArgument::new(arg, app).map_err(serde::ser::Error::custom))
+        .collect::<Result<_, _>>()?;
     match workflow {
         Workflow::Command {
             name,
@@ -339,13 +330,15 @@ where
             );
 
             // Convert the ExportArguments to Arguments, and get a list of workflow enums that need to be created
+            let converted_arguments: Vec<_> = export_arguments
+                .into_iter()
+                .map(ExportArgument::to_argument)
+                .collect::<Result<_, _>>()
+                .map_err(de::Error::custom)?;
             let (arguments, potential_enums): (
                 Vec<Argument>,
                 Vec<Option<(ClientId, WorkflowEnum)>>,
-            ) = export_arguments
-                .into_iter()
-                .map(ExportArgument::to_argument)
-                .unzip();
+            ) = converted_arguments.into_iter().unzip();
             let workflow_enums = potential_enums.into_iter().flatten().collect();
 
             Ok((
@@ -370,25 +363,24 @@ where
     deserializer.deserialize_struct("Workflow", FIELDS, WorkflowVisitor)
 }
 
-/// Custom deserialization for argument types, used to both `flatten` the argument type
-/// and allow for the specification of `default` behavior.
-///
-/// We need to specify default behavior to remain compatible with old workflow formats.
-///
-/// Necessary because serde currently does not support the use of `flatten` with a `default`,
-/// related GitHub issue here: https://github.com/serde-rs/serde/issues/1626
+/// Custom deserialization for flattened export argument types.
 fn deserialize_arg_type<'de, D>(deserializer: D) -> Result<ExportArgumentType, D::Error>
 where
     D: Deserializer<'de>,
 {
     let value: Value = Deserialize::deserialize(deserializer)?;
 
-    let arg_type = match value.get("arg_type").and_then(|value| value.as_str()) {
-        Some("Text") => ExportArgumentType::Text,
-        Some("Enum") => {
+    let arg_type = match value
+        .get("arg_type")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| de::Error::missing_field("arg_type"))?
+    {
+        "Text" => ExportArgumentType::Text,
+        "Enum" => {
             let enum_name = value
                 .get("enum_name")
-                .and_then(|s| s.as_str().map(|s| s.to_string()));
+                .and_then(|s| s.as_str().map(|s| s.to_string()))
+                .ok_or_else(|| de::Error::missing_field("enum_name"))?;
 
             let enum_variants = value
                 .get("enum_variants")
@@ -402,17 +394,21 @@ where
                 .get("enum_command")
                 .and_then(|v| v.as_str().map(|s| s.to_string()));
 
-            // If we don't have an enum name, default to a text argument
-            match enum_name {
-                Some(enum_name) => ExportArgumentType::Enum {
-                    enum_name,
-                    enum_variants,
-                    enum_command,
-                },
-                None => ExportArgumentType::default(),
+            if enum_variants.is_none() && enum_command.is_none() {
+                return Err(de::Error::custom(
+                    "enum argument requires enum_variants or enum_command",
+                ));
+            }
+
+            ExportArgumentType::Enum {
+                enum_name,
+                enum_variants,
+                enum_command,
             }
         }
-        _ => ExportArgumentType::default(),
+        other => {
+            return Err(de::Error::unknown_variant(other, &["Text", "Enum"]));
+        }
     };
 
     Ok(arg_type)

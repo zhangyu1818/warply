@@ -11,7 +11,6 @@
 //!
 //! [`RemoteServerManager`]: crate::manager::RemoteServerManager
 use std::future::Future;
-#[cfg(not(target_family = "wasm"))]
 use std::path::PathBuf;
 use std::pin::Pin;
 
@@ -125,7 +124,6 @@ impl Error {
 /// once.
 ///
 /// [`RemoteServerManager`]: crate::manager::RemoteServerManager
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct Connection {
     pub client: RemoteServerClient,
     pub event_rx: Receiver<ClientEvent>,
@@ -136,7 +134,6 @@ pub struct Connection {
     /// lifetime of the session and drops it on teardown.
     ///
     /// [`RemoteServerManager`]: crate::manager::RemoteServerManager
-    #[cfg(not(target_family = "wasm"))]
     pub child: async_process::Child,
     /// For transports that multiplex through a local SSH
     /// `ControlMaster` socket: the path to that socket, used on
@@ -146,7 +143,6 @@ pub struct Connection {
     /// no separate master process (in-process tests, etc.).
     ///
     /// See [`crate::ssh::stop_control_master`] for the exact command.
-    #[cfg(not(target_family = "wasm"))]
     pub control_path: Option<PathBuf>,
 }
 
@@ -171,7 +167,7 @@ pub trait RemoteTransport: Send + Sync + std::fmt::Debug {
     /// This runs **before** any user-visible install affordance (the
     /// install choice block, auto-install, auto-update, or connect) and
     /// is the gate that decides whether to proceed with the install
-    /// pipeline or fall back to the legacy SSH flow.
+    /// pipeline or continue without the remote-server extension.
     ///
     /// Returns `Ok(_)` on success (including when the script reported
     /// `Unknown` — that's a parser-level outcome, not a transport-level

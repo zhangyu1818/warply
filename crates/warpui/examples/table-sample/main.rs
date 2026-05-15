@@ -79,13 +79,10 @@ fn main() -> Result<()> {
             ..Default::default()
         };
         let config = capture_config.clone();
-        #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
         let (window_id, _root) = ctx.add_window(window_options, move |view_ctx| {
             root_view::RootView::new(view_ctx, config)
         });
-        #[cfg(target_os = "macos")]
         if capture_config.capture_screenshots {
-            // Make it visible for rendering but keep z-index
             ctx.windows()
                 .show_window_and_focus_app_without_ordering_front(window_id);
         }

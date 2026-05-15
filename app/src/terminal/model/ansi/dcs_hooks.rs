@@ -1,12 +1,11 @@
 //! This module defines the schema for DCS hooks sent from the shell to the Rust
 //! app -- for example, the payloads sent from shell precmd and preexec.
 use crate::terminal::model::block::BlockId;
-use crate::terminal::model::session::SessionId;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use warp_core::command::ExitCode;
+use warp_core::{command::ExitCode, SessionId};
 
 /// Indicates that the following JSON-encoded message is hex-encoded for Warp's lifecycle hooks.
 /// In DCS, it is used as the final char in the DCS start sequence.
@@ -248,6 +247,9 @@ impl DProtoHook {
                 "path" => {
                     value.path = map_empty_to_none(v);
                 }
+                "cdpath" => {
+                    value.cdpath = map_empty_to_none(v);
+                }
                 "editor" => {
                     value.editor = map_empty_to_none(v);
                 }
@@ -339,9 +341,7 @@ impl DProtoHook {
 /// we should suggest to the user.
 #[derive(Clone, Debug, Deserialize, Default, Serialize, PartialEq, Eq)]
 pub struct SystemDetails {
-    #[serde(alias = "os")]
     pub operating_system: String,
-    #[serde(alias = "pkg")]
     pub package_manager: String,
     pub shell: String,
     /// Is the user's home directory writable? This is None if we haven't gathered that
@@ -492,6 +492,9 @@ pub struct BootstrappedValue {
 
     #[serde(deserialize_with = "empty_string_is_none")]
     pub path: Option<String>,
+
+    #[serde(deserialize_with = "empty_string_is_none", default)]
+    pub cdpath: Option<String>,
 
     #[serde(deserialize_with = "empty_string_is_none", default)]
     pub editor: Option<String>,

@@ -1,17 +1,10 @@
 pub mod app;
-#[cfg(target_os = "macos")]
 pub mod mac;
 
 pub mod headless;
 
 pub mod current {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            pub use super::mac::*;
-        } else {
-            pub use warpui_core::platform::test::*;
-        }
-    }
+    pub use super::mac::*;
 }
 
 pub use warpui_core::platform::*;

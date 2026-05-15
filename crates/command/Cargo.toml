@@ -9,8 +9,6 @@ license.workspace = true
 test-util = []
 
 [dependencies]
-
-[target.'cfg(target_os = "macos")'.dependencies]
 async-process = { workspace = true }
 futures-lite.workspace = true
 libc.workspace = true

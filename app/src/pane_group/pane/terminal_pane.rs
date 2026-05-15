@@ -247,9 +247,6 @@ impl PaneContent for TerminalPane {
         let pane_stack = self.view.as_ref(ctx).pane_stack().clone();
         let contents = pane_stack.as_ref(ctx).entries().to_vec();
         for (manager, view) in contents {
-            // Notify the view that it's being detached so it can react appropriately
-            // (e.g. the shared-session viewer tears down its network only when the detach
-            // is not reversible).
             manager.update(ctx, |terminal_manager, ctx| {
                 terminal_manager.on_view_detached(detach_type, ctx);
             });
@@ -508,8 +505,8 @@ fn handle_terminal_view_event(
                     command.clone(),
                 ));
             }
-            Event::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                ctx.emit(pane_group::Event::OpenCloudWorkflowForEdit(*workflow_id));
+            Event::OpenWorkflowModalWithSavedWorkflow(workflow_id) => {
+                ctx.emit(pane_group::Event::OpenSavedWorkflowForEdit(*workflow_id));
             }
             Event::OpenWorkflowModalWithTemporary(workflow) => {
                 ctx.emit(pane_group::Event::OpenWorkflowModalWithTemporary(
@@ -586,19 +583,6 @@ fn handle_terminal_view_event(
             }
             Event::OpenLocalObjectInPane(uid) => {
                 ctx.emit(pane_group::Event::OpenLocalObjectInPane(uid.clone()));
-            }
-            Event::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
-                ctx.emit(pane_group::Event::OpenSuggestedAgentModeWorkflowModal {
-                    workflow_and_id: workflow_and_id.clone(),
-                });
-            }
-            Event::OpenSuggestedRuleDialog { rule_and_id } => {
-                ctx.emit(pane_group::Event::OpenSuggestedRuleModal {
-                    rule_and_id: rule_and_id.clone(),
-                });
-            }
-            Event::OpenAIFactCollection { sync_id } => {
-                ctx.emit(pane_group::Event::OpenAIFactCollection { sync_id: *sync_id });
             }
             Event::SummarizationCancelDialogToggled { is_open } => {
                 group.terminal_with_open_summarization_dialog = is_open.then_some(terminal_pane_id);

@@ -43,7 +43,6 @@ use crate::terminal::view::TerminalAction;
 use crate::ui_components::blended_colors;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::tab_settings::{TabSettings, TabSettingsChangedEvent};
-#[cfg(not(target_family = "wasm"))]
 use crate::workspace::WorkspaceAction;
 use crate::BlocklistAIHistoryModel;
 
@@ -503,7 +502,6 @@ impl MessageProvider<AgentMessageArgs<'_>> for ZeroStateMessageProducer {
         }
 
         // Code review only works locally.
-        #[cfg(not(target_family = "wasm"))]
         if shortcut_visibility.show_code_review {
             let code_review_keystroke = if OperatingSystem::get().is_mac() {
                 Keystroke::parse("cmd-shift-+").expect("keystroke should parse")
@@ -616,10 +614,7 @@ fn should_fork_from_last_known_good_state(
     };
 
     match error {
-        RenderableAIError::ServerOverloaded
-        | RenderableAIError::ContextWindowExceeded(_)
-        | RenderableAIError::InvalidApiKey { .. } => false,
-        RenderableAIError::InternalWarpError => true,
+        RenderableAIError::ProviderOverloaded => false,
         RenderableAIError::Other {
             will_attempt_resume,
             ..
@@ -637,25 +632,15 @@ impl MessageProvider<AgentMessageArgs<'_>> for ForkSlashCommandMessageProducer {
             return None;
         };
         let command_name = detected_command.command.name;
-        let is_fork_family = command_name == commands::FORK.name
-            || command_name == commands::FORK_FROM.name
-            || command_name == commands::FORK_AND_COMPACT.name;
+        let is_fork_family =
+            command_name == commands::FORK.name || command_name == commands::FORK_FROM.name;
         if !is_fork_family {
             return None;
         }
-        let modifier_keystroke = if cfg!(target_os = "macos") {
-            Keystroke {
-                key: "enter".to_owned(),
-                cmd: true,
-                ..Default::default()
-            }
-        } else {
-            Keystroke {
-                key: "enter".to_owned(),
-                ctrl: true,
-                shift: true,
-                ..Default::default()
-            }
+        let modifier_keystroke = Keystroke {
+            key: "enter".to_owned(),
+            cmd: true,
+            ..Default::default()
         };
 
         let primary_to_new_pane = command_name == commands::FORK.name;

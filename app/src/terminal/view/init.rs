@@ -174,23 +174,12 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ToggleAIDocumentPane,
             id!("Terminal") & !id!("IMEOpen"),
         ),
-        // On the web, we get pastes from system paste events.
-        #[cfg(target_family = "wasm")]
-        FixedBinding::standard(
-            warpui::actions::StandardAction::Paste,
-            TerminalAction::Paste,
-            id!("Terminal") & !id!("IMEOpen"),
-        ),
     ]);
-    if cfg!(target_os = "macos") {
-        // On MacOS, if the user has the 'Option as meta' setting enabled, the cmd-alt-y binding
-        // above will not match.
-        app.register_fixed_bindings([FixedBinding::new(
-            "cmd-meta-y",
-            TerminalAction::ForkConversationFromLastKnownGoodState,
-            id!("Terminal") & !id!("IMEOpen") & id!(CAN_FORK_FROM_LAST_KNOWN_GOOD_STATE_KEY),
-        )]);
-    }
+    app.register_fixed_bindings([FixedBinding::new(
+        "cmd-meta-y",
+        TerminalAction::ForkConversationFromLastKnownGoodState,
+        id!("Terminal") & !id!("IMEOpen") & id!(CAN_FORK_FROM_LAST_KNOWN_GOOD_STATE_KEY),
+    )]);
 
     // Register binding to toggle plans in agent conversations.
     {
@@ -199,18 +188,11 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ToggleAIDocumentPane,
             id!("Terminal") & !id!("IMEOpen"),
         )]);
-        if cfg!(target_os = "macos") {
-            // On MacOS, if the user has the 'Option as meta' setting enabled, the cmd-alt-p binding
-            // above will not match.
-            //
-            // TODO(zachbai): Consider if, for the purposes of fixed bindings, alt/meta should work
-            // fungibly regardless of underlying setting.
-            app.register_fixed_bindings([FixedBinding::new(
-                "cmd-meta-p",
-                TerminalAction::ToggleAIDocumentPane,
-                id!("Terminal") & !id!("IMEOpen"),
-            )]);
-        }
+        app.register_fixed_bindings([FixedBinding::new(
+            "cmd-meta-p",
+            TerminalAction::ToggleAIDocumentPane,
+            id!("Terminal") & !id!("IMEOpen"),
+        )]);
     }
 
     if ChannelState::channel() == Channel::Integration {
@@ -359,8 +341,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_custom_action(CustomAction::FocusInput)
         .with_context_predicate(id!("Terminal")),
-        // Paste is not rebindable on the web.
-        #[cfg(not(target_family = "wasm"))]
         EditableBinding::new("terminal:paste", "Paste", TerminalAction::Paste)
             .with_custom_action(CustomAction::Paste)
             .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
@@ -784,8 +764,7 @@ pub fn init(app: &mut AppContext) {
         )
         .with_key_binding("cmdorctrl-shift-I")
         .with_group(bindings::BindingGroup::Ai.as_str())
-        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal"))
-        .with_enabled(|| FeatureFlag::FastForwardAutoexecuteButton.is_enabled()),
+        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal")),
         EditableBinding::new(
             TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
             "Toggle Queue Next Prompt",
@@ -793,8 +772,7 @@ pub fn init(app: &mut AppContext) {
         )
         .with_key_binding("cmdorctrl-shift-J")
         .with_group(bindings::BindingGroup::Ai.as_str())
-        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal"))
-        .with_enabled(|| FeatureFlag::QueueSlashCommand.is_enabled()),
+        .with_context_predicate(id!(flags::IS_ANY_AI_ENABLED) & id!("Terminal")),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(
@@ -820,7 +798,6 @@ pub fn init(app: &mut AppContext) {
     .with_enabled(|| FeatureFlag::Projects.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
 
-    #[cfg(not(target_arch = "wasm32"))]
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_conversation_details_panel",
         "Toggle Conversation Details Panel",

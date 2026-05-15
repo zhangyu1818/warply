@@ -1,15 +1,7 @@
-#[cfg_attr(macos, path = "mac/mod.rs")]
-#[cfg(not(noop))]
+#[path = "mac/mod.rs"]
 mod imp;
 mod noop;
-#[cfg(macos)]
 mod screenshot_utils;
-
-// Clippy doesn't like us pulling in a file as two different modules,
-// so we add this alias instead of using another cfg_attr on the imp
-// module definition.
-#[cfg(noop)]
-use noop as imp;
 
 use std::borrow::Cow;
 

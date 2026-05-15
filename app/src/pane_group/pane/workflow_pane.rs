@@ -9,7 +9,6 @@ use crate::{
     },
     workspaces::user_workspaces::UserWorkspaces,
 };
-use anyhow::Context;
 use std::{collections::HashMap, sync::Arc};
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
@@ -42,9 +41,7 @@ impl WorkflowPane {
             None => WorkflowOpenSource::New {
                 title: None,
                 content: None,
-                owner: UserWorkspaces::as_ref(ctx)
-                    .current_user_owner(ctx)
-                    .context("local identity unavailable")?,
+                owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
                 initial_folder_id: None,
                 is_for_agent_mode: false,
             },
@@ -123,7 +120,7 @@ impl PaneContent for WorkflowPane {
     /// Snapshot this pane for session restoration.
     fn snapshot(&self, app: &AppContext) -> LeafContents {
         let workflow_id = self.get_view(app).as_ref(app).workflow_id();
-        LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow {
+        LeafContents::Workflow(WorkflowPaneSnapshot::SavedWorkflow {
             workflow_id: Some(workflow_id),
         })
     }

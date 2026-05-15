@@ -51,7 +51,7 @@ maybe_define_setting!(EnableSshWarpification, group: WarpifySettings, {
 
 maybe_define_setting!(UseSshTmuxWrapper, group: WarpifySettings, {
     type: bool,
-    default: false,
+    default: true,
     supported_platforms: SupportedPlatforms::MAC,
     private: false,
     toml_path: "warpify.ssh.use_ssh_tmux_wrapper",
@@ -83,7 +83,7 @@ pub enum SshExtensionInstallMode {
     AlwaysAsk,
     /// Automatically install and connect without prompting.
     AlwaysInstall,
-    /// Never install; fall back to legacy warpification.
+    /// Never install; continue without the SSH extension auto-install flow.
     NeverInstall,
 }
 
@@ -133,8 +133,7 @@ pub struct WarpifySettings {
     /// A list of hosts that we shouldn't attempt to warpify. This supports regex.
     /// These can be added either b/c the "don't ask again" button was clicked in the trigger banner,
     /// or it was added explicitly on the Warpify settings page.
-    /// While this could live in the `SshSettings` group, the custom processing shared with the other
-    /// subshell logic better justifies it living in the `WarpifySettings` group.
+    /// The custom processing shared with the other subshell logic keeps this in `WarpifySettings`.
     pub ssh_hosts_denylist: SshHostsDenylist,
     /// This is ssh_hosts_denylist compiled to actual executable Regex. This is a Result as we
     /// cannot guarantee the values are valid regex. Even if we prevent them in the UI from entering
@@ -146,8 +145,7 @@ pub struct WarpifySettings {
     /// This setting controls whether we should ever warpify ssh sessions.
     pub enable_ssh_warpification: EnableSshWarpification,
 
-    /// This setting controls whether we should prompt the user to warpify an ssh session using the
-    /// tmux wrapper instead of the default legacy wrapper.
+    /// This setting controls whether we should prompt the user to warpify an ssh session using tmux.
     pub use_ssh_tmux_wrapper: UseSshTmuxWrapper,
 
     /// Controls the installation behavior for the SSH extension (remote server) when the binary

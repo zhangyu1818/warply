@@ -1,5 +1,5 @@
 use crate::identity::local_identity::LocalIdentityProvider;
-use crate::remote_server::identity_context::server_api_identity_context;
+use crate::remote_server::identity_context::remote_server_identity_context;
 use instant::Instant;
 use remote_server::identity::RemoteServerIdentityContext;
 use std::path::PathBuf;
@@ -60,7 +60,7 @@ enum SshInitState {
     },
 }
 
-/// Per-pane orchestrator that defers the bootstrap script write for SSH sessions,
+/// Per-pane coordinator that defers the bootstrap script write for SSH sessions,
 /// checks for the remote-server binary, and presents a two-option choice block when the binary is missing.
 ///
 /// Uses a [`WeakModelHandle`] back to [`PtyController`] to avoid preventing
@@ -241,7 +241,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             });
         if let Some((check, reason)) = unsupported {
             log::info!(
-                "Remote server preinstall check classified as unsupported, falling back to legacy SSH: session={session_id:?} status={:?}",
+                "Remote server preinstall check classified as unsupported, continuing without remote server: session={session_id:?} status={:?}",
                 check.status
             );
             RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
@@ -488,7 +488,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
 
     fn build_identity_context(&self, ctx: &ModelContext<Self>) -> Arc<RemoteServerIdentityContext> {
         let local_identity = LocalIdentityProvider::as_ref(ctx).get().clone();
-        Arc::new(server_api_identity_context(local_identity))
+        Arc::new(remote_server_identity_context(local_identity))
     }
 
     fn connect_session_for_current_identity(

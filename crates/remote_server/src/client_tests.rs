@@ -75,13 +75,7 @@ async fn initialize_round_trip() {
         })
     });
 
-    let resp = client
-        .initialize(InitializeParams {
-            user_id: String::new(),
-            user_email: String::new(),
-        })
-        .await
-        .unwrap();
+    let resp = client.initialize().await.unwrap();
     assert_eq!(resp.server_version, "test-0.1.0");
     assert_eq!(resp.host_id, "test-host-id");
 }
@@ -98,12 +92,7 @@ async fn disconnected_on_closed_stream() {
         RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
 
     // An initialize call on a dead stream must complete with an error rather than hang.
-    let result = client
-        .initialize(InitializeParams {
-            user_id: String::new(),
-            user_email: String::new(),
-        })
-        .await;
+    let result = client.initialize().await;
     assert!(result.is_err());
 
     // The reader task should detect EOF and emit a Disconnected event.
@@ -159,12 +148,7 @@ async fn concurrent_in_flight_requests() {
     for _ in 0..10 {
         let c = std::sync::Arc::clone(&client);
         handles.push(tokio::spawn(async move {
-            c.initialize(InitializeParams {
-                user_id: String::new(),
-                user_email: String::new(),
-            })
-            .await
-            .expect("concurrent initialize failed")
+            c.initialize().await.expect("concurrent initialize failed")
         }));
     }
 

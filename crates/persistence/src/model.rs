@@ -9,8 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use super::schema::{
     agent_conversations, ai_document_panes, ai_memory_panes, app, blocks, code_pane_tabs,
     code_panes, code_review_panes, commands, env_var_collection_panes, folders,
-    generic_string_objects, ignored_suggestions, mcp_environment_variables,
-    mcp_server_installations, mcp_server_panes, object_actions, object_metadata,
+    generic_string_objects, ignored_suggestions, object_actions, object_metadata,
     object_permissions, pane_branches, pane_leaves, pane_nodes, panels, project_rules, projects,
     settings_panes, tabs, terminal_panes, welcome_panes, windows, workflow_panes, workflows,
     workspace_language_server, workspace_metadata, workspaces,
@@ -70,7 +69,6 @@ pub struct Folder {
     pub id: i32,
     pub name: String,
     pub is_open: bool,
-    pub is_warp_pack: bool,
 }
 
 #[derive(Insertable)]
@@ -78,7 +76,6 @@ pub struct Folder {
 pub struct NewFolder {
     pub name: String,
     pub is_open: bool,
-    pub is_warp_pack: bool,
 }
 
 #[derive(Identifiable, Insertable, Queryable)]
@@ -436,9 +433,6 @@ pub const SETTINGS_PANE_KIND: &str = "settings";
 /// (where kind name is historical and not worth a migration to change).
 pub const AI_FACT_PANE_KIND: &str = "ai_memory";
 
-/// The [`pane_leaves::kind`] value for MCP server panes
-pub const MCP_SERVER_PANE_KIND: &str = "mcp_server";
-
 /// The [`pane_leaves::kind`] value for code review panes.
 pub const CODE_REVIEW_PANE_KIND: &str = "code_review";
 
@@ -519,12 +513,6 @@ pub struct NewSettingsPane {
 #[derive(Insertable)]
 #[diesel(table_name = ai_memory_panes)]
 pub struct NewAIFactPane {
-    pub id: i32,
-}
-
-#[derive(Insertable)]
-#[diesel(table_name = mcp_server_panes)]
-pub struct NewMCPServerPane {
     pub id: i32,
 }
 
@@ -631,7 +619,7 @@ pub struct NewCommand {
     pub hostname: Option<String>,
     pub session_id: Option<i64>,
     pub git_branch: Option<String>,
-    pub cloud_workflow_id: Option<String>,
+    pub saved_workflow_id: Option<String>,
     pub workflow_command: Option<String>,
     pub is_agent_executed: Option<bool>,
 }
@@ -650,7 +638,7 @@ pub struct Command {
     pub hostname: Option<String>,
     pub session_id: Option<i64>,
     pub git_branch: Option<String>,
-    pub cloud_workflow_id: Option<String>,
+    pub saved_workflow_id: Option<String>,
     pub workflow_command: Option<String>,
     pub is_agent_executed: Option<bool>,
 }
@@ -682,13 +670,6 @@ pub struct PersistedObjectAction {
     pub latest_timestamp: Option<NaiveDateTime>,
     pub pending: Option<bool>,
     pub processed_at_timestamp: Option<NaiveDateTime>,
-}
-
-#[derive(Debug, Insertable, Queryable, AsChangeset)]
-#[diesel(table_name = mcp_environment_variables)]
-pub struct MCPEnvironmentVariables {
-    pub mcp_server_uuid: Vec<u8>,
-    pub environment_variables: String,
 }
 
 // Queryable structs for reading from the database
@@ -772,19 +753,6 @@ pub struct AIAgentActionId(pub String);
 pub struct NewIgnoredSuggestion {
     pub suggestion: String,
     pub suggestion_type: String,
-}
-
-#[derive(Insertable, AsChangeset)]
-#[diesel(table_name = mcp_server_installations)]
-#[diesel(treat_none_as_null = true)]
-#[diesel(primary_key(id))]
-pub struct NewMCPServerInstallation {
-    pub id: String,
-    pub templatable_mcp_server: String,
-    pub template_version_ts: NaiveDateTime,
-    pub variable_values: String,
-    pub restore_running: bool,
-    pub last_modified_at: NaiveDateTime,
 }
 
 #[derive(Insertable)]

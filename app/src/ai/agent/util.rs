@@ -3,8 +3,7 @@ use super::{
     AgentOutputTable, ProgrammingLanguage,
 };
 use crate::code::editor_management::CodeSource;
-use crate::features::FeatureFlag;
-use ai::gfm_table::{format_gfm_table, maybe_collect_gfm_table_lines};
+use ai::gfm_table::maybe_collect_gfm_table_lines;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use markdown_parser::{
@@ -44,12 +43,7 @@ pub(crate) fn parse_markdown_into_text_and_code_sections(
                     CODE_START_REGEX.is_match(l)
                 }) {
                     let markdown_source = table_lines.join("\n");
-                    let table_section = if FeatureFlag::BlocklistMarkdownTableRendering.is_enabled()
-                    {
-                        parse_agent_output_table(&markdown_source)
-                    } else {
-                        Some(AgentOutputTable::legacy(format_gfm_table(&table_lines)))
-                    };
+                    let table_section = parse_agent_output_table(&markdown_source);
                     if let Some(table_section) = table_section {
                         if !text.is_empty() {
                             flush_plain_text_sections(text, &mut sections);

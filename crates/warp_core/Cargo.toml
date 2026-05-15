@@ -6,6 +6,7 @@ publish.workspace = true
 license.workspace = true
 
 [features]
+default = ["local_fs"]
 integration_tests = []
 local_fs = []
 release_bundle = []
@@ -13,52 +14,24 @@ test-util = ["dep:mockito", "warp_features/test-util"]
 
 [dependencies]
 anyhow.workspace = true
-cfg-if.workspace = true
+async-broadcast.workspace = true
+asset_macro.workspace = true
+chrono.workspace = true
+cocoa.workspace = true
 command-corrections.workspace = true
+concat-idents.workspace = true
 dashmap.workspace = true
 dirs.workspace = true
 directories.workspace = true
-shellexpand.workspace = true
 enum-iterator.workspace = true
-warp_features.workspace = true
-itertools.workspace = true
-getset.workspace = true
-http.workspace = true
-lazy_static.workspace = true
-log.workspace = true
-parking_lot.workspace = true
-reqwest.workspace = true
-serde.workspace = true
-settings.workspace = true
-serde_json.workspace = true
-serde_with.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
-sysinfo.workspace = true
-thiserror.workspace = true
-concat-idents.workspace = true
-url.workspace = true
-regex.workspace = true
-websocket.workspace = true
-instant.workspace = true
-schemars = "1"
-settings_value = { workspace = true, features = ["derive"] }
-async-broadcast.workspace = true
 futures.workspace = true
+getset.workspace = true
+instant.workspace = true
+itertools.workspace = true
+lazy_static.workspace = true
 line-ending.workspace = true
-warpui.workspace = true
-warpui_extras = { workspace = true, features = ["default"] }
+log.workspace = true
 mockito = { workspace = true, optional = true }
-asset_macro.workspace = true
-string-offset.workspace = true
-inventory = "0.3.20"
-chrono.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-tokio.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
-cocoa.workspace = true
 objc.workspace = true
 objc2-foundation = { workspace = true, features = [
     "NSString",
@@ -66,11 +39,26 @@ objc2-foundation = { workspace = true, features = [
     "NSFileManager",
     "NSBundle",
 ] }
+parking_lot.workspace = true
+regex.workspace = true
+schemars = "1"
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+settings.workspace = true
+settings_value = { workspace = true, features = ["derive"] }
+shellexpand.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+string-offset.workspace = true
+sysinfo.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
+url.workspace = true
+warp_features.workspace = true
+warpui.workspace = true
+warpui_extras = { workspace = true, features = ["default"] }
 
 [dev-dependencies]
 rand.workspace = true
 serde_yaml.workspace = true
-
-[build-dependencies]
-anyhow.workspace = true

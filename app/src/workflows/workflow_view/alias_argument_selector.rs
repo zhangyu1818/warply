@@ -120,7 +120,7 @@ impl AliasArgumentSelector {
                 let cloud_model = CloudModel::as_ref(ctx);
 
                 // Get the variants from the unsaved enum data, if it exists.
-                // Otherwise, pull it from the cloud model.
+                // Otherwise, pull it from the local object model.
                 let enum_variants = enum_data
                     .get(enum_id)
                     .and_then(|workflow_enum| workflow_enum.new_data.clone())

@@ -517,11 +517,13 @@ impl CurrentPrompt {
             return false;
         };
 
-        let should_skip = self
-            .states
-            .get(chip_kind)
-            .and_then(|state| state.last_fingerprint.as_ref())
-            .is_some_and(|existing| existing == &new_fingerprint);
+        let should_skip = self.states.get(chip_kind).is_some_and(|state| {
+            state.last_fingerprint.as_ref() == Some(&new_fingerprint)
+                && !matches!(
+                    state.update_status,
+                    ChipUpdateStatus::Error | ChipUpdateStatus::TimedOut
+                )
+        });
 
         if should_skip {
             self.set_chip_update_status(chip_kind, ChipUpdateStatus::Cached);
@@ -981,7 +983,7 @@ impl CurrentPrompt {
                     chip_kind_clone
                 },
                 |me, chip_kind, ctx| {
-                    me.fetch_chip_value_at_interval(&chip_kind, None, None, false, ctx);
+                    me.fetch_chip_value_at_interval(&chip_kind, None, None, true, ctx);
                 },
             );
 

@@ -15,8 +15,7 @@ use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use crate::cloud_object::update_manager::UpdateManager;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::CloudWorkflowModel;
-use crate::NetworkStatus;
+use crate::workflows::SavedWorkflowModel;
 
 use super::*;
 
@@ -31,7 +30,6 @@ fn create_cloud_model(
 
 fn initialize_app(app: &mut App, cached_objects: Vec<Box<dyn CloudObject>>) {
     // Add the necessary singleton models to the App
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
@@ -53,15 +51,10 @@ fn mock_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>) -> Clo
         CloudFolderModel {
             name,
             is_open: true,
-            is_warp_pack: false,
         },
         CloudObjectMetadata {
             pending_changes_statuses: CloudObjectStatuses {
                 content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
             },
             folder_id,
             revision: Default::default(),
@@ -77,17 +70,13 @@ fn mock_cloud_folder(id: SyncId, name: String, folder_id: Option<SyncId>) -> Clo
     )
 }
 
-fn mock_cloud_workflow(id: SyncId, title: String, folder_id: Option<SyncId>) -> CloudWorkflow {
-    CloudWorkflow::new(
+fn mock_saved_workflow(id: SyncId, title: String, folder_id: Option<SyncId>) -> SavedWorkflow {
+    SavedWorkflow::new(
         id,
-        CloudWorkflowModel::new(Workflow::new(title, "test")),
+        SavedWorkflowModel::new(Workflow::new(title, "test")),
         CloudObjectMetadata {
             pending_changes_statuses: CloudObjectStatuses {
                 content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
             },
             folder_id,
             revision: Default::default(),
@@ -344,7 +333,7 @@ fn active_object_uids_matches_naive_with_no_trashed_objects() {
     let folder_id = SyncId::ServerId(1.into());
     let objects: Vec<Box<dyn CloudObject>> = vec![
         Box::new(mock_cloud_folder(folder_id, "Folder".into(), None)),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             SyncId::ServerId(2.into()),
             "Workflow".into(),
             Some(folder_id),
@@ -370,7 +359,7 @@ fn active_object_uids_matches_naive_with_directly_trashed_object() {
             "Trashed Folder".into(),
             None,
         )),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             active_workflow_id,
             "Active Workflow".into(),
             None,
@@ -400,12 +389,12 @@ fn active_object_uids_matches_naive_with_indirectly_trashed_children() {
             "Trashed Folder".into(),
             None,
         )),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             child_workflow_id,
             "Child in Trashed Folder".into(),
             Some(trashed_folder_id),
         )),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             active_workflow_id,
             "Top-level Notebook".into(),
             None,
@@ -440,12 +429,12 @@ fn active_object_uids_matches_naive_with_nested_trashed_folder() {
             "Folder B".into(),
             Some(folder_a_id),
         )),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             workflow_id,
             "Deeply nested".into(),
             Some(folder_b_id),
         )),
-        Box::new(mock_cloud_workflow(
+        Box::new(mock_saved_workflow(
             active_workflow_id,
             "Active".into(),
             None,

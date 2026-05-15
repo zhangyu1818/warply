@@ -79,7 +79,7 @@ pub enum ActionOrigin {
 
 /// A [`PaneId`] that is known to belong to a terminal pane.
 /// Generally, prefer [`PaneId`], except for logic/features that will only
-/// ever apply to terminal sessions (like synced inputs and the block-sharing modal).
+/// ever apply to terminal sessions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TerminalPaneId(EntityId);
 

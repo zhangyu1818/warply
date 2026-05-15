@@ -2,7 +2,6 @@ use std::{fmt, sync::LazyLock};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub const TEST_USER_EMAIL: &str = "test_user@warply.local";
 pub const TEST_USER_UID: &str = "test_user_uid";
 
 /// UserUid represents the unique identifier for a user.

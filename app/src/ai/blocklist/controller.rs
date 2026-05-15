@@ -1,8 +1,7 @@
-//! This module contains core business logic for Agent Mode, primarily sending input to an AI
-//! model and receiving output.
+//! This module contains core business logic for Agent Mode, primarily sending input to the ACP
+//! agent and applying protocol output to the local UI.
 //!
-//! The `BlocklistAIController` orchestrates state updates and service calls to power the
-//! Agent Mode UI.
+//! The `BlocklistAIController` coordinates local state updates that power the Agent Mode UI.
 pub mod input_context;
 pub mod response_stream;
 mod slash_command;
@@ -20,25 +19,18 @@ use super::{
     BlocklistAIInputModel, InputType,
 };
 use crate::ai::acp::model::{AcpAgentModel, AcpRunTarget};
-use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
+use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
-    AIAgentActionResult, CancellationReason, PassiveSuggestionResultType, PassiveSuggestionTrigger,
-    PassiveSuggestionTriggerType, RunningCommand,
+    extract_user_query_mode, AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment,
+    AIAgentContext, AIAgentExchangeId, AIAgentInput, CancellationReason, RunningCommand,
+    StaticQueryType, UserQueryMode,
 };
 use crate::ai::agent::{AnyFileContent, DocumentContentAttachmentSource, FileContext};
 use crate::ai::document::ai_document_model::{
     AIDocumentId, AIDocumentModel, AIDocumentUserEditStatus,
 };
 use crate::ai::llms::LLMId;
-use crate::ai::{
-    agent::{
-        conversation::AIConversationId, extract_user_query_mode, AIAgentActionResultType,
-        AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput, EntrypointType,
-        RequestMetadata, StaticQueryType, UserQueryMode,
-    },
-    llms::LLMPreferences,
-};
 use crate::features::FeatureFlag;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
@@ -112,11 +104,9 @@ impl RequestInput {
         task_id: TaskId,
         active_session: &ModelHandle<ActiveSession>,
         conversation_id: AIConversationId,
-        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
-        let mut me =
-            Self::new_with_common_fields(conversation_id, active_session, terminal_view_id, app);
+        let mut me = Self::new_with_common_fields(conversation_id, active_session, app);
         me.input_messages.insert(task_id, inputs);
         me
     }
@@ -126,11 +116,9 @@ impl RequestInput {
         context: Arc<[AIAgentContext]>,
         active_session: &ModelHandle<ActiveSession>,
         conversation_id: AIConversationId,
-        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
-        let mut me =
-            Self::new_with_common_fields(conversation_id, active_session, terminal_view_id, app);
+        let mut me = Self::new_with_common_fields(conversation_id, active_session, app);
         for result in action_results.into_iter() {
             me.input_messages
                 .entry(result.task_id.clone())
@@ -150,26 +138,12 @@ impl RequestInput {
     fn new_with_common_fields(
         conversation_id: AIConversationId,
         active_session: &ModelHandle<ActiveSession>,
-        terminal_view_id: EntityId,
         app: &AppContext,
     ) -> Self {
-        let llm_prefs = LLMPreferences::as_ref(app);
-        let model_id = llm_prefs
-            .get_active_base_model(app, Some(terminal_view_id))
-            .id
-            .clone();
-        let coding_model_id = llm_prefs
-            .get_active_coding_model(app, Some(terminal_view_id))
-            .id
-            .clone();
-        let cli_agent_model_id = llm_prefs
-            .get_active_cli_agent_model(app, Some(terminal_view_id))
-            .id
-            .clone();
-        let computer_use_model_id = llm_prefs
-            .get_active_computer_use_model(app, Some(terminal_view_id))
-            .id
-            .clone();
+        let model_id = LLMId::from("auto");
+        let coding_model_id = model_id.clone();
+        let cli_agent_model_id = model_id.clone();
+        let computer_use_model_id = model_id.clone();
         let working_directory = active_session
             .as_ref(app)
             .current_working_directory()
@@ -212,16 +186,6 @@ pub struct BlocklistAIController {
     pending_auto_resume_handles: HashMap<AIConversationId, SpawnedFutureHandle>,
     /// Passive conversations explicitly requested to follow up after actions complete.
     pending_passive_follow_ups: HashSet<AIConversationId>,
-    /// Passive suggestion results that should be included with the next request
-    /// for a given conversation (e.g. accepted/iterated code diffs that weren't
-    /// auto-resumed).
-    pending_passive_suggestion_results: HashMap<
-        AIConversationId,
-        Vec<(
-            PassiveSuggestionResultType,
-            Option<PassiveSuggestionTrigger>,
-        )>,
-    >,
 }
 
 enum InputQueryType {
@@ -253,8 +217,6 @@ enum FollowUpTrigger {
 struct InputQuery {
     which_task: WhichTask,
     input_query: InputQueryType,
-    /// Additional referenced attachments to include in the query
-    /// (e.g. file path references from shared session file uploads).
     additional_attachments: HashMap<String, AIAgentAttachment>,
 }
 
@@ -418,7 +380,6 @@ impl BlocklistAIController {
             attachments_download_dir: None,
             pending_auto_resume_handles: HashMap::new(),
             pending_passive_follow_ups: HashSet::new(),
-            pending_passive_suggestion_results: HashMap::new(),
         }
     }
 
@@ -432,7 +393,6 @@ impl BlocklistAIController {
     fn send_query(
         &mut self,
         input_query: InputQuery,
-        entrypoint_type: EntrypointType,
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -447,14 +407,6 @@ impl BlocklistAIController {
                 task_id,
             } => (conversation_id, task_id),
         };
-
-        // Drain any queued passive suggestion results for this conversation
-        // *before* cancelling progress, since cancel_conversation_progress
-        // clears the pending map.
-        let pending_passive_results = self
-            .pending_passive_suggestion_results
-            .remove(&conversation_id)
-            .unwrap_or_default();
 
         let ai_history_model = BlocklistAIHistoryModel::as_ref(ctx);
         let active_conversation_id = ai_history_model.active_conversation_id(self.terminal_view_id);
@@ -521,16 +473,6 @@ impl BlocklistAIController {
             vec![]
         };
 
-        // Append any queued passive suggestion results that were drained
-        // earlier (before cancel_conversation_progress).
-        for (suggestion, trigger) in pending_passive_results {
-            inputs.push(AIAgentInput::PassiveSuggestionResult {
-                trigger,
-                suggestion,
-                context: context.clone(),
-            });
-        }
-
         let additional_attachments = input_query.additional_attachments;
         let ai_input = match input_query.input_query {
             InputQueryType::UserSubmittedQueryFromInput {
@@ -554,21 +496,8 @@ impl BlocklistAIController {
         inputs.push(ai_input);
 
         let send_result = self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                task_id,
-                &self.active_session,
-                conversation_id,
-                self.terminal_view_id,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: !self.input_model.as_ref(ctx).is_input_type_locked(),
-                entrypoint: entrypoint_type,
-                is_auto_resume_after_error: false,
-            }),
+            RequestInput::for_task(inputs, task_id, &self.active_session, conversation_id, ctx),
             /*default_to_follow_up_on_success*/ true,
-            /*can_attempt_resume_on_error*/ true,
             is_queued_prompt,
             ctx,
         );
@@ -636,13 +565,11 @@ impl BlocklistAIController {
         &mut self,
         query: String,
         static_query_type: Option<StaticQueryType>,
-        entrypoint_type: EntrypointType,
         ctx: &mut ModelContext<Self>,
     ) {
         self.send_user_query_in_new_conversation_internal(
             query,
             static_query_type,
-            entrypoint_type,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -656,13 +583,11 @@ impl BlocklistAIController {
         &mut self,
         query: String,
         static_query_type: Option<StaticQueryType>,
-        entrypoint_type: EntrypointType,
         ctx: &mut ModelContext<Self>,
     ) {
         self.send_user_query_in_new_conversation_internal(
             query,
             static_query_type,
-            entrypoint_type,
             /*is_queued_prompt*/ true,
             ctx,
         );
@@ -672,7 +597,6 @@ impl BlocklistAIController {
         &mut self,
         query: String,
         static_query_type: Option<StaticQueryType>,
-        entrypoint_type: EntrypointType,
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -710,7 +634,6 @@ impl BlocklistAIController {
                     },
                     additional_attachments: HashMap::new(),
                 },
-                entrypoint_type,
                 is_queued_prompt,
                 ctx,
             );
@@ -725,7 +648,6 @@ impl BlocklistAIController {
                     },
                     additional_attachments: HashMap::new(),
                 },
-                entrypoint_type,
                 is_queued_prompt,
                 ctx,
             );
@@ -745,7 +667,6 @@ impl BlocklistAIController {
             conversation_id,
             false,
             HashMap::new(),
-            EntrypointType::AgentInitiated,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -763,7 +684,6 @@ impl BlocklistAIController {
             conversation_id,
             false, // skip_running_command_detection
             HashMap::new(),
-            EntrypointType::UserInitiated,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -784,7 +704,6 @@ impl BlocklistAIController {
             conversation_id,
             false, // skip_running_command_detection
             HashMap::new(),
-            EntrypointType::UserInitiated,
             /*is_queued_prompt*/ true,
             ctx,
         );
@@ -803,7 +722,6 @@ impl BlocklistAIController {
             conversation_id,
             false, // skip_running_command_detection
             additional_attachments,
-            EntrypointType::UserInitiated,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -824,7 +742,6 @@ impl BlocklistAIController {
             conversation_id,
             true, // skip_running_command_detection
             HashMap::new(),
-            EntrypointType::UserInitiated,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -837,7 +754,6 @@ impl BlocklistAIController {
         conversation_id: AIConversationId,
         skip_running_command_detection: bool,
         additional_attachments: HashMap<String, AIAgentAttachment>,
-        entrypoint_type: EntrypointType,
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -937,7 +853,6 @@ impl BlocklistAIController {
                 },
                 additional_attachments,
             },
-            entrypoint_type,
             is_queued_prompt,
             ctx,
         );
@@ -959,7 +874,6 @@ impl BlocklistAIController {
                 },
                 additional_attachments: HashMap::new(),
             },
-            EntrypointType::ZeroStateAgentModePromptSuggestion,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -993,7 +907,6 @@ impl BlocklistAIController {
                 input_query: InputQueryType::AIInputType { ai_input },
                 additional_attachments: HashMap::new(),
             },
-            EntrypointType::UserInitiated,
             /*is_queued_prompt*/ false,
             ctx,
         )
@@ -1071,81 +984,6 @@ impl BlocklistAIController {
         self.send_custom_ai_input_query(build_input(context), ctx);
     }
 
-    /// Sends the result of a passive suggestion (accepted/rejected code diff or
-    /// prompt) back to the model so it can continue with accurate context.
-    pub fn send_passive_suggestion_result(
-        &mut self,
-        conversation_id: Option<AIConversationId>,
-        suggestion: PassiveSuggestionResultType,
-        trigger: Option<PassiveSuggestionTrigger>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let which_task = match conversation_id {
-            Some(id) => {
-                let Some(conversation) = BlocklistAIHistoryModel::as_ref(ctx).conversation(&id)
-                else {
-                    log::error!("[passive-suggestion-result] conversation not found for id {id:?}");
-                    return;
-                };
-                WhichTask::Task {
-                    conversation_id: conversation.id(),
-                    task_id: conversation.get_root_task_id().clone(),
-                }
-            }
-            None => WhichTask::NewConversation,
-        };
-
-        let context = input_context_for_request(
-            false,
-            self.context_model.as_ref(ctx),
-            self.active_session.as_ref(ctx),
-            conversation_id,
-            vec![],
-            ctx,
-        );
-
-        let trigger_type = trigger.as_ref().map(PassiveSuggestionTriggerType::from);
-        log::debug!(
-            "[passive-suggestions] sending result: trigger={}, trigger_type={:?}",
-            if trigger.is_some() { "Some" } else { "None" },
-            trigger_type,
-        );
-        self.send_query(
-            InputQuery {
-                which_task,
-                input_query: InputQueryType::AIInputType {
-                    ai_input: AIAgentInput::PassiveSuggestionResult {
-                        trigger,
-                        suggestion,
-                        context,
-                    },
-                },
-                additional_attachments: HashMap::new(),
-            },
-            EntrypointType::TriggerPassiveSuggestion {
-                trigger: trigger_type,
-            },
-            /*is_queued_prompt*/ false,
-            ctx,
-        );
-    }
-
-    /// Queues a passive suggestion result to be included with the next request
-    /// for the given conversation. Use this instead of `send_passive_suggestion_result`
-    /// when the result should not trigger an immediate server request (e.g. the user
-    /// accepted a code diff without auto-resuming).
-    pub fn queue_passive_suggestion_result(
-        &mut self,
-        conversation_id: AIConversationId,
-        suggestion: PassiveSuggestionResultType,
-        trigger: Option<PassiveSuggestionTrigger>,
-    ) {
-        self.pending_passive_suggestion_results
-            .entry(conversation_id)
-            .or_default()
-            .push((suggestion, trigger));
-    }
-
     fn send_follow_up_for_conversation(
         &mut self,
         conversation_id: AIConversationId,
@@ -1192,15 +1030,12 @@ impl BlocklistAIController {
             context,
             &self.active_session,
             conversation_id,
-            self.terminal_view_id,
             ctx,
         );
 
         let _ = self.send_request_input(
             request_input,
-            None,
             /*default_to_follow_up_on_success*/ false,
-            /*can_attempt_resume_on_error*/ true,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -1211,8 +1046,6 @@ impl BlocklistAIController {
     pub fn resume_conversation(
         &mut self,
         conversation_id: AIConversationId,
-        can_attempt_resume_on_error: bool,
-        is_auto_resume_after_error: bool,
         additional_context: Vec<AIAgentContext>,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -1250,27 +1083,9 @@ impl BlocklistAIController {
         );
 
         let inputs = vec![AIAgentInput::ResumeConversation { context }];
-        let metadata = if is_auto_resume_after_error {
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::ResumeConversation,
-                is_auto_resume_after_error: true,
-            })
-        } else {
-            None
-        };
         let _ = self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                task_id,
-                &self.active_session,
-                conversation_id,
-                self.terminal_view_id,
-                ctx,
-            ),
-            metadata,
+            RequestInput::for_task(inputs, task_id, &self.active_session, conversation_id, ctx),
             /*default_to_follow_up_on_success*/ true,
-            can_attempt_resume_on_error,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -1408,19 +1223,6 @@ impl BlocklistAIController {
                 execution_context.shell_name,
                 execution_context.shell_version.as_deref().unwrap_or("")
             )),
-            AIAgentContext::Skills { skills } => {
-                if skills.is_empty() {
-                    None
-                } else {
-                    Some(format!(
-                        "Available skills:\n{}",
-                        skills
-                            .iter()
-                            .map(|skill| format!("{}: {}", skill.name, skill.description))
-                            .join("\n")
-                    ))
-                }
-            }
             AIAgentContext::Image(_) => None,
         }
     }
@@ -1489,9 +1291,7 @@ impl BlocklistAIController {
     fn send_request_input(
         &mut self,
         mut request_input: RequestInput,
-        _query_metadata: Option<RequestMetadata>,
         default_to_follow_up_on_success: bool,
-        _can_attempt_resume_on_error: bool,
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
@@ -1707,10 +1507,6 @@ impl BlocklistAIController {
         if let Some(handle) = self.pending_auto_resume_handles.remove(&conversation_id) {
             handle.abort();
         }
-
-        // Discard any queued passive suggestion results for this conversation.
-        self.pending_passive_suggestion_results
-            .remove(&conversation_id);
 
         if !AcpAgentModel::handle(ctx).update(ctx, |model, _| model.cancel_session(conversation_id))
         {

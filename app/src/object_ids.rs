@@ -21,7 +21,10 @@ macro_rules! server_id_traits {
 
         impl From<String> for $t {
             fn from(id: String) -> Self {
-                Self($crate::object_ids::ServerId::from_string_lossy(id))
+                Self(
+                    $crate::object_ids::ServerId::try_from(id)
+                        .expect("server-style object id should be valid"),
+                )
             }
         }
 

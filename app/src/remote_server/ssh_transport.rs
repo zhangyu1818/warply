@@ -55,15 +55,17 @@ impl SshTransport {
 
     pub fn remote_daemon_socket_path(&self) -> String {
         format!(
-            "{}/server.sock",
-            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key())
+            "{}/{}",
+            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key()),
+            remote_server::setup::daemon_socket_name()
         )
     }
 
     pub fn remote_daemon_pid_path(&self) -> String {
         format!(
-            "{}/server.pid",
-            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key())
+            "{}/{}",
+            remote_server_daemon_dir(&self.identity_context.remote_server_identity_key()),
+            remote_server::setup::daemon_pid_name()
         )
     }
 
@@ -131,19 +133,20 @@ impl RemoteTransport for SshTransport {
     fn check_binary(&self) -> Pin<Box<dyn Future<Output = Result<bool, Error>> + Send>> {
         let socket_path = self.socket_path.clone();
         Box::pin(async move {
-            let cmd = format!("test -x {}", remote_server::setup::remote_server_binary());
+            let cmd = remote_server::setup::binary_check_command();
+            log::info!("Running binary check: {cmd}");
             let output = remote_server::ssh::run_ssh_command(
                 &socket_path,
                 &cmd,
                 remote_server::setup::CHECK_TIMEOUT,
             )
             .await?;
-            // `test -x` exits 0 when present+executable, 1 when missing.
-            // Anything else (e.g. SSH exit 255 for a dead connection, or
-            // signal termination) is a transport-level failure.
-            match output.status.code() {
+            let code = output.status.code();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::info!("Binary check result: exit={code:?} stdout={stdout}");
+            match code {
                 Some(0) => Ok(true),
-                Some(1) => Ok(false),
+                Some(126) | Some(127) => Ok(false),
                 Some(code) => {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     Err(Error::Other(anyhow::anyhow!(

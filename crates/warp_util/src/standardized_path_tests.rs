@@ -101,7 +101,6 @@ fn to_local_path() {
 }
 
 #[test]
-#[cfg(unix)]
 fn to_local_path_unix_on_unix() {
     let p = StandardizedPath::try_new("/home/user").unwrap();
     assert_eq!(p.to_local_path().unwrap(), Path::new("/home/user"));

@@ -22,39 +22,28 @@ pub struct BlockContext {
     pub command: String,
     pub output: String,
     pub exit_code: ExitCode,
-    /// Whether this block was auto-attached (via AgentViewBlockContext feature)
-    /// rather than manually attached by the user.
-    #[serde(default)]
+    /// Whether this block was auto-attached rather than manually attached by the user.
     pub is_auto_attached: bool,
     /// Timestamp when the command started executing.
-    #[serde(default)]
     pub started_ts: Option<DateTime<Local>>,
     /// Timestamp when the command finished executing.
-    #[serde(default)]
     pub finished_ts: Option<DateTime<Local>>,
 
     // Environment fields — populated by the constructors below, left as
     // None at construction sites that don't need them.
     /// The working directory where the command was executed.
-    #[serde(default)]
     pub pwd: Option<String>,
     /// The shell type (e.g., "zsh", "bash").
-    #[serde(default)]
     pub shell: Option<String>,
     /// The username of the user who executed the command.
-    #[serde(default)]
     pub username: Option<String>,
     /// The hostname of the machine where the command was executed.
-    #[serde(default)]
     pub hostname: Option<String>,
     /// The git branch at the time of execution.
-    #[serde(default)]
     pub git_branch: Option<String>,
     /// The operating system name (e.g., "MacOS", "Linux").
-    #[serde(default)]
     pub os: Option<String>,
     /// The terminal session ID.
-    #[serde(default)]
     pub session_id: Option<u64>,
 }
 

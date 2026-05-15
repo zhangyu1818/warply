@@ -75,8 +75,7 @@ pub enum EnumCreationDialogEvent {
     /// Create a new enum, with the `WorkflowEnumData` included
     CreateEnum(WorkflowEnumData),
     /// Edit the enum with this ID in the list of enums stored, with the `WorkflowEnumData`
-    /// The boolean value represents if the visibility of the enum changed (went from unshared to shared
-    /// or vice versa), which is used when updating the selector states.
+    /// The boolean value represents if the selector visibility changed.
     EditEnum(WorkflowEnumData, bool),
 }
 
@@ -86,7 +85,7 @@ pub struct WorkflowEnumData {
     /// Every enum argument will have an id and a name
     pub id: SyncId,
     pub name: String,
-    /// If the enum is shared or not, used when determining if an enum should be displayed in the dropdown
+    /// Determines whether this enum is visible in other argument dropdowns.
     pub is_shared: bool,
     /// The revision_ts of the enum, None if it has not yet been created.
     pub revision_ts: Option<Revision>,

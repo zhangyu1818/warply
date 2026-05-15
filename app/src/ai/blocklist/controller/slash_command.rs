@@ -7,39 +7,21 @@ use crate::{
     ai::{
         agent::{
             conversation::AIConversationId, AIAgentContext, AIAgentInput, CancellationReason,
-            CloneRepositoryURL, EntrypointType, RequestMetadata,
+            CloneRepositoryURL,
         },
         blocklist::agent_view::AgentViewEntryOrigin,
     },
-    search::slash_command_menu::static_commands::commands,
     terminal::input::slash_commands::SlashCommandTrigger,
     BlocklistAIHistoryModel,
 };
 
-use super::{
-    input_context_for_request, parse_context_attachments, BlocklistAIController,
-    BlocklistAIControllerEvent, RequestInput,
-};
+use super::{input_context_for_request, BlocklistAIController, RequestInput};
 
 pub enum SlashCommandRequest {
-    CreateNewProject {
-        query: String,
-    },
-    CloneRepository {
-        url: String,
-    },
+    CreateNewProject { query: String },
+    CloneRepository { url: String },
     InitProjectRules,
-    Summarize {
-        prompt: Option<String>,
-    },
-    FetchReviewComments {
-        repo_path: String,
-    },
-    /// Invoke a skill.
-    InvokeSkill {
-        skill: ai::skills::ParsedSkill,
-        user_query: Option<String>,
-    },
+    FetchReviewComments { repo_path: String },
 }
 
 impl SlashCommandRequest {
@@ -49,13 +31,6 @@ impl SlashCommandRequest {
         // Check if this is an exact /init query and route it to InitProjectRules instead
         if query == "/init" {
             return Some(Self::InitProjectRules);
-        }
-
-        // Check if query starts with /compact and route to summarize conversation
-        if let Some(prompt) = query.strip_prefix(commands::COMPACT.name) {
-            return Some(Self::Summarize {
-                prompt: prompt.strip_prefix(' ').map(String::from),
-            });
         }
 
         None
@@ -68,21 +43,15 @@ impl SlashCommandRequest {
         ctx: &mut ModelContext<BlocklistAIController>,
     ) {
         let conversation_id = self.conversation_id(controller, ctx);
-        // For skill invocations, include user-attached context (images, blocks, and selected
-        // text) so the skill's agent sees the same attachments a non-slash-command user query
-        // would. Other slash commands continue to pass `false` to preserve existing behavior.
-        let is_invoke_skill = matches!(self, Self::InvokeSkill { .. });
         let context = input_context_for_request(
-            is_invoke_skill,
+            false,
             controller.context_model.as_ref(ctx),
             controller.active_session.as_ref(ctx),
             conversation_id,
             vec![],
             ctx,
         );
-        let entrypoint = self.entrypoint();
-        let is_summarize = matches!(self, Self::Summarize { .. });
-        let inputs = self.input(context, controller.context_model.as_ref(ctx), ctx);
+        let inputs = self.input(context);
         if inputs.is_empty() {
             return;
         }
@@ -135,44 +104,15 @@ impl SlashCommandRequest {
             conversation.get_root_task_id().clone(),
             &controller.active_session,
             conversation_id,
-            controller.terminal_view_id,
             ctx,
         );
-        let model_id = request_input.model_id.clone();
-
         match controller.send_request_input(
             request_input,
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint,
-                is_auto_resume_after_error: false,
-            }),
             /*default_to_follow_up_on_success*/ true,
-            /*can_attempt_resume_on_error*/ true,
             is_queued_prompt,
             ctx,
         ) {
-            Ok((_, stream_id)) => {
-                // Skill invocations now consume user-attached context (images, blocks, and
-                // selected text) the same way regular user queries do. `send_request_input`
-                // only clears that context for `AIAgentInput::UserQuery`, so we mirror its
-                // reset here for `InvokeSkill` to avoid pending attachments sticking around
-                // and getting re-sent on subsequent messages.
-                if is_invoke_skill {
-                    controller.context_model.update(ctx, |context_model, ctx| {
-                        context_model.reset_context_to_default(ctx);
-                    });
-                }
-                // Emit SentRequest event to trigger buffer clearing
-                if is_summarize {
-                    ctx.emit(BlocklistAIControllerEvent::SentRequest {
-                        contains_user_query: true,
-                        is_queued_prompt,
-                        model_id,
-                        stream_id,
-                    });
-                }
-            }
+            Ok(_) => {}
             Err(e) => log::error!("Failed to send agent slash command request: {e:?}"),
         }
     }
@@ -183,9 +123,7 @@ impl SlashCommandRequest {
         app: &AppContext,
     ) -> Option<AIConversationId> {
         match self {
-            Self::Summarize { .. }
-            | Self::InvokeSkill { .. }
-            | Self::FetchReviewComments { .. } => controller
+            Self::FetchReviewComments { .. } => controller
                 .context_model
                 .as_ref(app)
                 .selected_conversation_id(app),
@@ -193,12 +131,7 @@ impl SlashCommandRequest {
         }
     }
 
-    fn input(
-        self,
-        context: Arc<[AIAgentContext]>,
-        context_model: &crate::ai::blocklist::BlocklistAIContextModel,
-        app: &AppContext,
-    ) -> Vec<AIAgentInput> {
+    fn input(self, context: Arc<[AIAgentContext]>) -> Vec<AIAgentInput> {
         match self {
             SlashCommandRequest::CreateNewProject { query } => {
                 vec![AIAgentInput::CreateNewProject { query, context }]
@@ -213,45 +146,9 @@ impl SlashCommandRequest {
                 context,
                 display_query: Some("/init".to_string()),
             }],
-            SlashCommandRequest::Summarize { prompt, .. } => {
-                vec![AIAgentInput::SummarizeConversation { prompt }]
-            }
             SlashCommandRequest::FetchReviewComments { repo_path } => {
                 vec![AIAgentInput::FetchReviewComments { repo_path, context }]
             }
-            SlashCommandRequest::InvokeSkill { skill, user_query } => {
-                let user_query = if FeatureFlag::SkillArguments.is_enabled() {
-                    user_query
-                        .map(|query| query.trim().to_string())
-                        .filter(|query| !query.is_empty())
-                        .map(|query| crate::ai::agent::InvokeSkillUserQuery {
-                            referenced_attachments: parse_context_attachments(
-                                &query,
-                                context_model,
-                                app,
-                            ),
-                            query,
-                        })
-                } else {
-                    None
-                };
-                vec![AIAgentInput::InvokeSkill {
-                    skill,
-                    user_query,
-                    context,
-                }]
-            }
-        }
-    }
-
-    fn entrypoint(&self) -> EntrypointType {
-        match self {
-            SlashCommandRequest::CloneRepository { .. } => EntrypointType::CloneRepository,
-            SlashCommandRequest::InitProjectRules => EntrypointType::InitProjectRules,
-            SlashCommandRequest::CreateNewProject { .. }
-            | SlashCommandRequest::Summarize { .. }
-            | SlashCommandRequest::FetchReviewComments { .. }
-            | SlashCommandRequest::InvokeSkill { .. } => EntrypointType::UserInitiated,
         }
     }
 }

@@ -52,7 +52,7 @@ fn test_acp_tool_call_update_merges_existing_call() {
     };
 
     let mut call = AcpToolCall::from_acp(
-        ToolCall::new("read-1", "Read SKILL.md")
+        ToolCall::new("read-1", "Read README.md")
             .kind(ToolKind::Read)
             .status(ToolCallStatus::InProgress),
     );
@@ -63,7 +63,7 @@ fn test_acp_tool_call_update_merges_existing_call() {
     ));
 
     assert_eq!(call.id.as_str(), "read-1");
-    assert_eq!(call.title, "Read SKILL.md");
+    assert_eq!(call.title, "Read README.md");
     assert_eq!(call.kind, ToolKind::Read);
     assert_eq!(call.status, ToolCallStatus::Completed);
 }
@@ -296,7 +296,7 @@ Test that text before and after a tool call becomes two separate assistant messa
 fn test_acp_text_does_not_merge_across_tool_call() {
     let stream_id = ResponseStreamId::new("stream-1".to_string());
     let tool_call = AcpToolCall::from_acp(
-        agent_client_protocol::schema::ToolCall::new("tool-1", "Read SKILL.md"),
+        agent_client_protocol::schema::ToolCall::new("tool-1", "Read README.md"),
     );
 
     conversation.append_local_text_delta_to_response_stream(&stream_id, terminal_id, "before", model, name, ctx).unwrap();
@@ -367,7 +367,7 @@ Expected: pass.
 
 - [x] **Step 1: Add failing render tests**
 
-Add tests that a completed read call renders `Read SKILL.md`, an edit call renders diff content, and an execute call renders terminal/code output when content is present.
+Add tests that a completed read call renders `Read README.md`, an edit call renders diff content, and an execute call renders terminal/code output when content is present.
 
 - [x] **Step 2: Implement `render_acp_tool_call`**
 
@@ -385,7 +385,7 @@ Map kind:
 - `Think`: thinking/action row
 - `Other/SwitchMode`: generic row
 
-For ACP read calls that include a standard `ToolCallLocation` pointing exactly at a recognized skill `SKILL.md`, reuse the existing Warp ReadSkill row renderer with an ACP status icon. Do not infer skill reads from the title, model wording, adapter-specific metadata, or missing fields.
+For ACP read calls, render the protocol title, location, and content generically. Do not infer skill semantics from the title, path, model wording, adapter-specific metadata, or missing fields; skills belong to the ACP agent process, not the Warp app.
 
 - [x] **Step 3: Render ACP content**
 
@@ -613,7 +613,7 @@ Expected: no output.
 
 Launch Warp locally, open AgentView, select Codex ACP, and verify:
 - `/agent 你好` creates a conversation entry
-- tool calls such as `Read SKILL.md` render as separate rows
+- tool calls such as `Read README.md` render as separate rows
 - assistant text before and after tool calls is not merged incorrectly
 - permission prompts wait for user input
 - plan updates render as plan UI

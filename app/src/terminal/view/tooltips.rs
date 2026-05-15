@@ -77,19 +77,13 @@ fn open_in_warp_tooltip(
     })
 }
 
-/// Returns a GridTooltipLink for revealing the file in the platform's file explorer
-/// (Finder on macOS, file manager on Linux/Windows).
+/// Returns a GridTooltipLink for revealing the file in Finder.
 #[cfg(feature = "local_fs")]
 fn show_in_file_explorer_tooltip(
     path: std::path::PathBuf,
     mouse_state: MouseStateHandle,
 ) -> GridTooltipLink {
-    let text = if cfg!(target_os = "macos") {
-        "Show in Finder"
-    } else {
-        "Show containing folder"
-    }
-    .to_string();
+    let text = "Show in Finder".to_string();
     GridTooltipLink {
         text,
         action: TerminalAction::ShowInFileExplorer(path),

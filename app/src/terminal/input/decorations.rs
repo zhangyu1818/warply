@@ -123,8 +123,6 @@ impl Input {
         }
     }
 
-    /// Applies background highlighting to slash command and skill command prefixes that should be
-    /// syntax highlighted.
     fn apply_slash_command_prefix_highlighting(
         &mut self,
         buffer_text: &str,
@@ -175,7 +173,7 @@ impl Input {
                     .slash_command_model
                     .as_ref(ctx)
                     .state()
-                    .is_detected_command_or_skill())
+                    .is_detected_command())
         {
             self.clear_decorations(ctx);
             self.apply_slash_command_prefix_highlighting(&buffer_text, ctx);
@@ -237,7 +235,6 @@ impl Input {
             }
             CompletionSessionContext::Empty(detection_ctx) => {
                 if mode.ai_input_detection {
-                    // No session context available (e.g., shared session viewer).
                     // Use a dedicated detection context that does not expose top-level commands.
                     let buffer_text = self.editor.as_ref(ctx).buffer_text(ctx);
                     let ai_input_model = self.ai_input_model.clone();

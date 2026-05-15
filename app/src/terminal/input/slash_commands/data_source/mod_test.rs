@@ -37,7 +37,6 @@ fn case_insensitive() {
 
 #[test]
 fn name_without_slash_prefix() {
-    // Skills don't have the '/' prefix in their name.
     let bonus = prefix_match_bonus("figma", "figma-create-new-file");
     let coverage = 5.0 / 21.0 * 100.0;
     assert!((bonus - coverage).abs() < f64::EPSILON);

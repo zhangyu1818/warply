@@ -1,19 +1,14 @@
-//! This crate provides an ipmlementation of a basic IPC request/response protocol.
+//! This crate provides an implementation of a basic IPC request/response protocol.
 //!
 //! Users may instantiate a server that implements any number of [`Service`]s as well as
 //! corresponding typed "clients" ([`ServiceCaller`]s) which provide a typed interface to call the
 //! services across process boundaries.
 //!
-//! This is intended to initially be used to support communication between the Warp app and
-//! third-party plugins running in a separate "plugin host" process, but is designed generically to
-//! be extended to other use cases (such as the terminal server).  Where possible,
-//! transport-specific details are abstracted out to eventually support the same protocol on top of
-//! the WebWorkers `MessagePort` API in the browser for Warp on Web.
+//! This is intended to support communication between the Warp app and third-party plugins running
+//! in a separate "plugin host" process, but is designed generically to be extended to other native
+//! process-boundary use cases, such as the terminal server.
 //!
-//! On native platforms, this is implemented on top of the `interprocess` crate, which uses
-//! Unix Domain Sockets on Unix platforms and named pipes on Windows as the underlying transport.
-//!
-//! WASM (wasm32-unknown-unknown) is currently unsupported.
+//! This is implemented on top of the `interprocess` crate for local socket transport.
 //!
 //!
 //! Basic usage is like so:
@@ -40,16 +35,11 @@
 //! let response = my_service_stub.call(MyServiceRequest { .. }).await;
 //! ```
 mod client;
+#[path = "native.rs"]
+mod platform;
 mod protocol;
 mod server;
 mod service;
-
-// Platform-specific implementations of the underlying transport for both server and client.  For
-// native platforms, this uses the `interprocess` crate. On wasm, we plan to use the WebWorkers
-// MessagePort API, but this is not yet implemented.
-#[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
-#[cfg_attr(target_family = "wasm", path = "wasm.rs")]
-mod platform;
 
 pub use client::{Client, ClientError};
 pub use protocol::ConnectionAddress;

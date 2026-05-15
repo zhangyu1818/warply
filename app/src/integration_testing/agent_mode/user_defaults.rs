@@ -3,17 +3,12 @@ use std::collections::HashMap;
 // User default keys
 const IS_ACTIVE_AI_ENABLED: &str = "IsActiveAIEnabled";
 const INTELLIGENT_AUTOSUGGESTIONS_ENABLED: &str = "IntelligentAutosuggestionsEnabled";
-const AGENT_PROMPT_SUGGESTIONS_ENABLED: &str = "AgentPromptSuggestionsEnabled";
 const CODE_SUGGESTIONS_ENABLED: &str = "CodeSuggestionsEnabled";
 
 pub fn user_defaults_map_with_active_ai(enabled: bool) -> HashMap<String, String> {
     HashMap::from_iter([
         (
             INTELLIGENT_AUTOSUGGESTIONS_ENABLED.to_owned(),
-            enabled.to_string(),
-        ),
-        (
-            AGENT_PROMPT_SUGGESTIONS_ENABLED.to_owned(),
             enabled.to_string(),
         ),
         (CODE_SUGGESTIONS_ENABLED.to_owned(), enabled.to_string()),

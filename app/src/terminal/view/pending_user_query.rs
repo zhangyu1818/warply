@@ -1,4 +1,3 @@
-use warp_core::features::FeatureFlag;
 use warpui::{SingletonEntity, ViewContext};
 
 use crate::{
@@ -37,9 +36,7 @@ impl TerminalView {
         self.remove_pending_user_query_block(ctx);
         self.pending_user_query_kind = Some(kind);
         let local_identity = LocalIdentityProvider::as_ref(ctx).get().clone();
-        let user_display_name = local_identity
-            .username_for_display()
-            .unwrap_or_else(|| "User".to_owned());
+        let user_display_name = local_identity.username_for_display();
         let profile_image_path = None;
 
         let prompt_for_send_now = prompt.clone();
@@ -94,7 +91,7 @@ impl TerminalView {
     /// Removes the pending block and immediately submits the queued prompt.
     ///
     /// The plain-text submission path cancels any in-flight stream itself (via
-    /// `send_query` -> `cancel_conversation_progress`), but slash- and skill-command
+    /// `send_query` -> `cancel_conversation_progress`), but slash-command
     /// submissions route through `send_request_input` directly without cancelling,
     /// which trips the in-flight-request assertion when the agent is still streaming.
     ///
@@ -127,14 +124,9 @@ impl TerminalView {
 
     /// Shows a pending user query indicator and queues the query to be sent after
     /// the current conversation finishes. If the conversation completes successfully,
-    /// the queued prompt is re-submitted through the normal input flow (so slash
-    /// commands, skill commands, and session sharing are all handled correctly).
+    /// the queued prompt is re-submitted through the normal input flow.
     /// The pending indicator is removed regardless of the finish reason.
     ///
-    /// `show_close_button` controls whether a dismiss ("X") button appears on the pending
-    /// block. `show_send_now_button` controls whether a "Send now" button appears that
-    /// interrupts the active conversation and sends the queued prompt immediately. This
-    /// should be false for summarization-triggered queuing (e.g. `/compact-and`).
     pub fn send_user_query_after_next_conversation_finished(
         &mut self,
         prompt: String,
@@ -142,20 +134,16 @@ impl TerminalView {
         show_send_now_button: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::PendingUserQueryIndicator.is_enabled() {
-            self.insert_pending_user_query_block(
-                prompt.clone(),
-                show_close_button,
-                show_send_now_button,
-                PendingUserQueryKind::QueuedPrompt,
-                ctx,
-            );
-        }
+        self.insert_pending_user_query_block(
+            prompt.clone(),
+            show_close_button,
+            show_send_now_button,
+            PendingUserQueryKind::QueuedPrompt,
+            ctx,
+        );
         // Replace any previously queued prompt so the latest one always wins.
         self.queued_prompt_callback = Some(Box::new(move |terminal_view, reason, ctx| {
-            if FeatureFlag::PendingUserQueryIndicator.is_enabled() {
-                terminal_view.remove_pending_user_query_block(ctx);
-            }
+            terminal_view.remove_pending_user_query_block(ctx);
             match reason {
                 FinishReason::Complete => {
                     terminal_view.input.update(ctx, |input, ctx| {

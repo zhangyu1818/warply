@@ -6,17 +6,11 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
-cfg-if.workspace = true
 futures.workspace = true
 log.workspace = true
 pin-project.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
 objc2.workspace = true
 objc2-foundation = { workspace = true, features = [
     "NSProcessInfo",
     "NSString",
 ] }
-
-[build-dependencies]
-cfg_aliases.workspace = true

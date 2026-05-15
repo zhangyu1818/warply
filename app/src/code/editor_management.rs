@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ai::skills::SkillReference;
 use serde::{Deserialize, Serialize};
 use warp_util::path::LineAndColumnArg;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
@@ -121,11 +120,6 @@ pub enum CodeSource {
     FileTree { path: PathBuf },
     /// Opened from macOS Finder via "Open With".
     Finder { path: PathBuf },
-    /// Opened from a skill.
-    Skill {
-        reference: SkillReference,
-        path: PathBuf,
-    },
 }
 
 impl CodeSource {
@@ -138,8 +132,7 @@ impl CodeSource {
             | Self::AIAction { .. }
             | Self::ProjectRules { .. }
             | Self::FileTree { .. }
-            | Self::Finder { .. }
-            | Self::Skill { .. } => None,
+            | Self::Finder { .. } => None,
         }
     }
 
@@ -149,20 +142,8 @@ impl CodeSource {
             Self::Link { path, .. }
             | Self::ProjectRules { path }
             | Self::FileTree { path }
-            | Self::Finder { path }
-            | Self::Skill { path, .. } => Some(path.clone()),
+            | Self::Finder { path } => Some(path.clone()),
         }
-    }
-
-    /// Returns true if this is a bundled skill that should be read-only.
-    pub fn is_bundled_skill(&self) -> bool {
-        matches!(
-            self,
-            Self::Skill {
-                reference: SkillReference::BundledSkillId(_),
-                ..
-            }
-        )
     }
 
     pub fn omit_line_col(&self) -> CodeSource {
@@ -193,7 +174,6 @@ struct CodePaneData {
     locator: PaneViewLocator,
 }
 
-// Allow dead_code here for wasm compilation
 #[allow(dead_code)]
 pub enum CodeManagerEvent {
     EditCompleted { action_id: AIAgentActionId },
@@ -249,7 +229,6 @@ impl CodeManager {
             .map(|(_, data)| data.locator)
     }
 
-    // Allow dead_code here for wasm compilation
     #[allow(dead_code)]
     pub fn complete_pending_diffs(&mut self, source: CodeSource, ctx: &mut ModelContext<Self>) {
         if !self.source_to_pane_data.contains_key(&source) {

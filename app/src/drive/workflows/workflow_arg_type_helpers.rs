@@ -34,7 +34,7 @@ impl ArgumentTypeEditor for super::modal::ArgumentEditorRow {
     }
 }
 
-/// Get all workflow enums in the space, filtering to only show the shared ones
+/// Get workflow enums in the space that should be visible in argument selectors.
 pub fn load_workflow_enums_with_owner<V>(
     owner: Owner,
     ctx: &mut warpui::ViewContext<V>,
@@ -77,7 +77,7 @@ pub fn load_argument_into_selector(
         if let Some(enum_data) = all_workflow_enums.get(&enum_id) {
             selector.insert_enum_into_menu(enum_id, enum_data.name.clone(), ctx);
         } else {
-            // Grab the revision_ts, enum name, and shared status from the cloud model
+            // Grab the revision_ts, enum name, and selector visibility from the local object model.
             let cloud_model = CloudModel::as_ref(ctx);
             let workflow_enum_model = cloud_model.get_workflow_enum(&enum_id);
             let revision_ts = workflow_enum_model.and_then(|model| model.metadata.revision.clone());
@@ -150,7 +150,7 @@ pub fn extract_typed_argument_from_selector(
     }
 }
 
-/// Given arg type data, a space, and a ViewContext, saves the data represented by arg type data to the cloud.
+/// Given arg type data, an owner, and a ViewContext, saves the represented data to the local object model.
 pub fn save_enum<V>(
     enum_data: &WorkflowEnumData,
     owner: Option<Owner>,
@@ -229,7 +229,7 @@ pub fn create_enum<V, T>(
         arguments_rows[*index]
             .arg_type_editor()
             .update(ctx, |selector, ctx| {
-                // Insert into the menu, which we might not have done earlier if the enum is not shared
+                // Insert into the current selector even when it is not globally visible.
                 if !enum_data.is_shared {
                     selector.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
                 }
@@ -256,7 +256,7 @@ pub fn edit_enum<V, T>(
     // Replace this item in the global enum map
     all_workflow_enums.insert(enum_data.id, enum_data.clone());
 
-    // Update the enum to each argument row's list, in case its name was updated, if it is shared
+    // Update each argument row when a globally visible enum is renamed.
     if enum_data.is_shared {
         arguments_rows.iter().for_each(|row| {
             row.arg_type_editor().update(ctx, |editor, ctx| {
@@ -264,7 +264,7 @@ pub fn edit_enum<V, T>(
             })
         });
     }
-    // Otherwise, remove the enum from the dropdown list for every row if it is newly "unshared"
+    // Otherwise, remove the enum from other dropdown lists if it is newly hidden.
     else if !enum_data.is_shared && did_visibility_change {
         arguments_rows.iter().for_each(|row| {
             row.arg_type_editor().update(ctx, |editor, ctx| {
@@ -278,7 +278,7 @@ pub fn edit_enum<V, T>(
         arguments_rows[*index]
             .arg_type_editor()
             .update(ctx, |selector, ctx| {
-                // Insert into the menu, which we might have undone earlier if the enum is unshared
+                // Keep the enum visible in the selector currently editing it.
                 if !enum_data.is_shared {
                     selector.insert_enum_into_menu(enum_id, enum_name.clone(), ctx);
                 }

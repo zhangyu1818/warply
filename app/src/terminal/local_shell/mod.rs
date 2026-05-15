@@ -255,10 +255,7 @@ async fn capture_interactive_shell_env(
     //
     // [1]: https://pubs.opengroup.org/onlinepubs/007904975/functions/tcsetpgrp.html
     // [2]: https://man7.org/linux/man-pages/man2/setsid.2.html
-    #[cfg(unix)]
     let mut command = Command::new_with_session(&shell_path);
-    #[cfg(not(unix))]
-    let mut command = Command::new(&shell_path);
 
     // Add shell-specific flags for interactive login shell
     match shell_type {

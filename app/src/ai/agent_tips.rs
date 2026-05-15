@@ -113,12 +113,6 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
         },
         AgentTip {
-            description: "`/add-mcp` to add an MCP server to your workspace.".to_string(),
-            link: None,
-            binding_name: None,
-            action: None,
-        },
-        AgentTip {
             description: "`/open-code-review` to inspect agent-generated diffs.".to_string(),
             link: None,
             binding_name: None,

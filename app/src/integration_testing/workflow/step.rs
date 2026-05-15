@@ -26,9 +26,7 @@ pub fn create_a_personal_workflow(key: impl Into<String>) -> TestStep {
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_workflow(
                     workflow.clone(),
-                    UserWorkspaces::as_ref(ctx)
-                        .current_user_owner(ctx)
-                        .expect("User UID must be set in tests"),
+                    UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
                     None,
                     client_id,
                     CloudObjectEventEntrypoint::Unknown,

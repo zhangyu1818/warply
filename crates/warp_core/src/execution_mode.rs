@@ -1,8 +1,4 @@
-use std::sync::OnceLock;
 use warpui::{Entity, ModelContext, SingletonEntity};
-
-// Global execution mode, for logic that runs outside the UI framework.
-static GLOBAL_EXECUTION_MODE: OnceLock<ExecutionMode> = OnceLock::new();
 
 /// Execution mode that Warp is running under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10,23 +6,12 @@ pub enum ExecutionMode {
     /// Warp is running as a normal desktop app.
     App,
     /// Warp is running as a CLI.
-    Sdk,
-}
-
-impl ExecutionMode {
-    /// Returns the client ID to report to the server.
-    /// This must stay in sync with the util/client.go constants on the server.
-    pub fn client_id(&self) -> &'static str {
-        match self {
-            ExecutionMode::App => "warp-app",
-            ExecutionMode::Sdk => "warp-cli",
-        }
-    }
+    CommandLine,
 }
 
 /// Model tracking the mode that Warp is running in.
 ///
-/// This gates functionality that's disabled when Warp is running in SDK mode.
+/// This gates functionality that's disabled when Warp is running without the full desktop GUI.
 #[derive(Clone, Debug)]
 pub struct AppExecutionMode {
     mode: ExecutionMode,
@@ -36,7 +21,6 @@ pub struct AppExecutionMode {
 impl AppExecutionMode {
     /// Create an `AppExecutionMode` model with the execution mode set.
     pub fn new(mode: ExecutionMode, is_sandboxed: bool, _ctx: &mut ModelContext<Self>) -> Self {
-        let _ = GLOBAL_EXECUTION_MODE.set(mode);
         Self { mode, is_sandboxed }
     }
 
@@ -58,21 +42,9 @@ impl AppExecutionMode {
         self.is_app()
     }
 
-    /// Whether the app can automatically start MCP servers from the previous session.
-    pub fn can_autostart_mcp_servers(&self) -> bool {
-        self.is_app()
-    }
-
     /// If true, the app is running autonomously, without a user present.
-    /// Wherever possible, prefer more targeted capability checks like
-    /// [`Self::can_autostart_mcp_servers`].
     pub fn is_autonomous(&self) -> bool {
-        matches!(self.mode, ExecutionMode::Sdk)
-    }
-
-    /// Returns the client ID to report to the server.
-    pub fn client_id(&self) -> &'static str {
-        self.mode.client_id()
+        matches!(self.mode, ExecutionMode::CommandLine)
     }
 
     /// If true, Warp is running in a sandbox like a Docker container or VM, rather than directly
@@ -87,10 +59,3 @@ impl Entity for AppExecutionMode {
 }
 
 impl SingletonEntity for AppExecutionMode {}
-
-/// Returns the current global client ID string ("warp-app" or "warp-cli").
-/// This is set when AppExecutionMode is constructed during application start.
-/// Returns None if the execution mode has not been set yet.
-pub fn current_client_id() -> Option<&'static str> {
-    GLOBAL_EXECUTION_MODE.get().map(|mode| mode.client_id())
-}

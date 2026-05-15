@@ -1,4 +1,3 @@
-use anyhow::Context;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext, ViewHandle};
 
 use crate::{
@@ -55,9 +54,7 @@ impl EnvVarCollectionPane {
             Some(id) => EnvVarCollectionSource::Existing(id),
             None => EnvVarCollectionSource::New {
                 title: None,
-                owner: UserWorkspaces::as_ref(ctx)
-                    .current_user_owner(ctx)
-                    .context("local identity unavailable")?,
+                owner: UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
                 initial_folder_id: None,
             },
         };
@@ -84,7 +81,7 @@ impl PaneContent for EnvVarCollectionPane {
             .env_var_collection_view(app)
             .as_ref(app)
             .env_var_collection_id(app);
-        LeafContents::EnvVarCollection(EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+        LeafContents::EnvVarCollection(EnvVarCollectionPaneSnapshot::SavedEnvVarCollection {
             env_var_collection_id,
         })
     }

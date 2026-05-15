@@ -3,7 +3,6 @@
 
 mod ai;
 mod alloc;
-#[cfg(target_os = "macos")]
 mod app_menus;
 mod app_services;
 mod app_state;
@@ -33,17 +32,14 @@ mod linear;
 mod login_item;
 mod menu;
 mod modal;
-mod network;
 mod notebooks;
 mod notification;
 mod object_ids;
 mod palette;
 mod persistence;
-mod platform;
 #[cfg(feature = "plugin_host")]
 mod plugin;
 mod prefix;
-#[cfg(target_os = "macos")]
 mod preview_config_migration;
 mod profiling;
 mod projects;
@@ -108,8 +104,6 @@ pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::mcp::FileBasedMCPManager;
-use crate::ai::mcp::FileMCPWatcher;
 use ::ai::project_context::model::ProjectContextModel;
 pub use ai::agent::{todos::AIAgentTodoList, AIAgentActionResultType, FileEdit, TodoOperation};
 use ai::agent_conversations_model::AgentConversationsModel;
@@ -137,7 +131,7 @@ use watcher::HomeDirectoryWatcher;
 use settings_view::pane_manager::SettingsPaneManager;
 use terminal::general_settings::GeneralSettings;
 use terminal::keys_settings::KeysSettings;
-#[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+#[cfg(feature = "local_tty")]
 use terminal::local_shell::LocalShellState;
 pub use util::bindings::cmd_or_ctrl_shift;
 pub mod workflows;
@@ -150,18 +144,14 @@ use ::settings::Setting;
 
 #[cfg(feature = "plugin_host")]
 pub use plugin::{run_plugin_host, PLUGIN_HOST_FLAG};
-use warp_core::user_preferences::GetUserPreferences as _;
 use warpui::platform::app::ApproveTerminateResult;
 use window_settings::WindowSettings;
 use workflows::manager::WorkflowManager;
 
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::facts::manager::AIFactManager;
-use crate::ai::llms::LLMPreferences;
-use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
-use crate::ai::skills::SkillManager;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::update_manager::UpdateManager;
 use crate::code::global_buffer_model::GlobalBufferModel;
@@ -171,7 +161,6 @@ use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
 use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::gpu_state::GPUState;
-use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::palette::PaletteMode;
 use crate::persistence::PersistenceWriter;
@@ -231,9 +220,6 @@ use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use warp_logging::LogDestination;
 
-// Re-export the safe logging macros at the crate root level for backwards compatibility
-pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
-
 #[cfg(feature = "local_fs")]
 use warp_files::FileModel;
 use warpui::platform::TerminationMode;
@@ -243,8 +229,8 @@ use warpui::{AppContext, SingletonEntity, WindowId};
 #[derive(Clone, Copy, RustEmbed)]
 #[folder = "assets"]
 #[include = "bundled/**"] // Should be kept in sync with BUNDLED_ASSETS_DIR.
-#[include = "async/**"] // Should be kept in sync with ASYNC_ASSETS_DIR.
-#[cfg_attr(target_family = "wasm", exclude = "async/**")]
+#[include = "async/**"]
+// Should be kept in sync with ASYNC_ASSETS_DIR.
 // Excludes take precedence.
 // Standalone CLI builds are headless and never render the async image set, so
 // we exclude those bytes to keep the CLI binary small.
@@ -334,12 +320,12 @@ impl LaunchMode {
     fn execution_mode(&self) -> ExecutionMode {
         match self {
             LaunchMode::App { .. } => ExecutionMode::App,
-            LaunchMode::CommandLine { .. } => ExecutionMode::Sdk,
+            LaunchMode::CommandLine { .. } => ExecutionMode::CommandLine,
             LaunchMode::Test { .. } => ExecutionMode::App,
             // RemoteServerProxy and RemoteServerDaemon don't use execution
-            // mode, but Sdk is the closest match (headless, no GUI).
+            // mode, but CommandLine is the closest match (headless, no GUI).
             LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => {
-                ExecutionMode::Sdk
+                ExecutionMode::CommandLine
             }
         }
     }
@@ -443,9 +429,6 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 
 /// Runs the app. If a subcommand was requested, it'll be run instead of the main application.
 pub fn run() -> Result<()> {
-    // Perform any necessary platform-specific initialization.
-    platform::init();
-
     // Ensure feature flags are initialized before parsing command-line arguments.
     init_feature_flags();
 
@@ -468,7 +451,6 @@ pub fn run() -> Result<()> {
             warp_cli::Command::Worker(warp_cli::WorkerCommand::PluginHost { .. }) => {
                 return crate::run_plugin_host();
             }
-            #[cfg(not(target_family = "wasm"))]
             warp_cli::Command::Worker(warp_cli::WorkerCommand::RemoteServerProxy(args)) => {
                 // Proxy is a thin byte bridge (stdin/stdout ↔ Unix socket).
                 // It only needs logging to stderr since stdout is the protocol
@@ -480,12 +462,10 @@ pub fn run() -> Result<()> {
                 })?;
                 return crate::remote_server::run_proxy(args.identity_key.clone());
             }
-            #[cfg(not(target_family = "wasm"))]
             warp_cli::Command::Worker(warp_cli::WorkerCommand::RemoteServerDaemon(args)) => {
                 // Daemon handles its own full initialization inside run_daemon_app.
                 return crate::remote_server::run_daemon(args.identity_key.clone());
             }
-            #[cfg(not(target_family = "wasm"))]
             warp_cli::Command::Worker(warp_cli::WorkerCommand::RipgrepSearch {
                 parent,
                 ignore_case,
@@ -503,18 +483,11 @@ pub fn run() -> Result<()> {
                 .map_err(|err| anyhow!(err.to_string()))?;
                 return Ok(());
             }
-            #[cfg(not(any(
-                feature = "local_tty",
-                feature = "plugin_host",
-                not(target_family = "wasm")
-            )))]
+            #[cfg(not(any(feature = "local_tty", feature = "plugin_host")))]
             warp_cli::Command::Worker(worker) => {
                 // Need this case to handle platforms where there are no enum variants in
                 // warp_cli::WorkerCommand, as we still need to check Command::Worker.
-
-                // On wasm, specifically, we should fail spectacularly if we get here.
-                #[cfg(target_family = "wasm")]
-                panic!("Worker process not supported on WASM: {worker:?}")
+                panic!("Worker process not supported: {worker:?}")
             }
             warp_cli::Command::Completions { shell } => {
                 return warp_cli::completions::generate_to_stdout(*shell);
@@ -611,7 +584,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     // Configure rustls to use its default crypto provider.  This MUST be called
     // before making any network requests that use TLS, otherwise rustls will
     // panic.
-    #[cfg(not(target_family = "wasm"))]
     rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .expect("must be able to initialize crypto provider for TLS support");
@@ -644,7 +616,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         )
     };
 
-    #[cfg(target_os = "macos")]
     {
         use warpui::platform::mac::AppExt;
 
@@ -664,7 +635,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     );
 
     app_builder.run(move |ctx| {
-        #[cfg(not(target_family = "wasm"))]
         // Rotate the log files in the background.
         ctx.background_executor()
             .spawn(warp_logging::rotate_log_files())
@@ -729,7 +699,6 @@ pub(crate) fn initialize_app(
     // One-time migration: give Preview its own config directory by
     // symlinking contents from the shared ~/.warp location. Must run
     // before ensure_warp_watch_roots_exist() creates the new directory.
-    #[cfg(target_os = "macos")]
     preview_config_migration::migrate_preview_config_dir_if_needed();
 
     ensure_warp_watch_roots_exist();
@@ -788,8 +757,6 @@ pub(crate) fn initialize_app(
         persisted_projects,
         persisted_project_rules,
         persisted_ignored_suggestions,
-        persisted_mcp_server_installations,
-        mcp_servers_to_restore,
     ) = sqlite_data
         .map(|sqlite_data| {
             (
@@ -804,14 +771,10 @@ pub(crate) fn initialize_app(
                 sqlite_data.projects,
                 sqlite_data.project_rules,
                 sqlite_data.ignored_suggestions,
-                sqlite_data.mcp_server_installations,
-                sqlite_data.mcp_servers_to_restore,
             )
         })
         .unwrap_or_else(|| {
             (
-                Default::default(),
-                Default::default(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -828,8 +791,6 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(UserWorkspaces::new);
 
-    ctx.add_singleton_model(::ai::api_keys::ApiKeyManager::new);
-
     ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));
 
     ctx.set_default_binding_validator(is_binding_cross_platform);
@@ -840,7 +801,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| SettingsPaneManager::new());
     ctx.add_singleton_model(|_| AIFactManager::new());
     ctx.add_singleton_model(|_| ExecutionProfileEditorManager::default());
-    #[cfg(target_os = "macos")]
     if !launch_mode.is_headless() {
         AppearanceManager::as_ref(ctx).set_app_icon(ctx);
     }
@@ -884,7 +844,7 @@ pub(crate) fn initialize_app(
         });
     });
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "local_fs")]
     {
         ctx.add_singleton_model(DirectoryWatcher::new);
         ctx.add_singleton_model(|_| DetectedRepositories::default());
@@ -899,9 +859,7 @@ pub(crate) fn initialize_app(
     {
         let imported_config_model = ctx.add_singleton_model(ImportedConfigModel::new);
 
-        if FeatureFlag::SettingsImport.is_enabled()
-            && ChannelState::channel() != warp_core::channel::Channel::Integration
-        {
+        if ChannelState::channel() != warp_core::channel::Channel::Integration {
             imported_config_model.update(ctx, |model, ctx| {
                 model.search_for_settings_to_import(ctx);
             });
@@ -954,8 +912,6 @@ pub(crate) fn initialize_app(
     // Register initial keybindings prior to creating menus
     ai::init(ctx);
     app_services::init(ctx);
-    // // TODO: Temporarily disabling keybindings for WASM builds. Will be implemented in future WASM support.
-    #[cfg(not(target_family = "wasm"))]
     code::editor::find::view::init(ctx);
     workspace::init(ctx);
     pane_group::init(ctx);
@@ -994,7 +950,6 @@ pub(crate) fn initialize_app(
     let display_count = ctx.windows().display_count();
     ctx.add_singleton_model(|_| DisplayCount(display_count));
 
-    ctx.add_singleton_model(|_| NetworkStatus::new());
     ctx.add_singleton_model(|_| SystemStats::new());
     ctx.add_singleton_model(|_| KeybindingChangedNotifier::new());
     ctx.add_singleton_model(|_| search::command_palette::SelectedItems::new());
@@ -1028,24 +983,8 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(|ctx| UpdateManager::new(persistence_writer.sender(), ctx));
 
-    // LogManager must be registered before any subsystem (e.g. MCP, LSP) that creates file-based loggers.
+    // LogManager must be registered before subsystems that create file-based loggers.
     ctx.add_singleton_model(|_| simple_logger::manager::LogManager::new());
-
-    // FileMCPWatcher must be registered before FileBasedMCPManager, which subscribes to it.
-    ctx.add_singleton_model(FileMCPWatcher::new);
-    ctx.add_singleton_model(FileBasedMCPManager::new);
-
-    // TemplatableMCPServerManager must be registered after FileBasedMCPManager so it can receive file-based server updates.
-    ctx.add_singleton_model(|ctx| {
-        TemplatableMCPServerManager::new(
-            persisted_mcp_server_installations,
-            mcp_servers_to_restore,
-            ctx,
-        )
-    });
-
-    // SkillManager is used to cache SKILL.md files for all active terminal views and their working directories
-    ctx.add_singleton_model(SkillManager::new);
 
     ctx.add_singleton_model(AIDocumentModel::new);
 
@@ -1057,7 +996,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(NotebookKeybindings::new);
     ctx.add_singleton_model(TerminalKeybindings::new);
     ctx.add_singleton_model(|_| ActiveSession::default());
-    #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+    #[cfg(feature = "local_tty")]
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
@@ -1074,8 +1013,6 @@ pub(crate) fn initialize_app(
 
     ctx.add_singleton_model(LocalWorkflows::new);
 
-    ctx.add_singleton_model(LLMPreferences::new);
-
     ctx.add_singleton_model(|ctx| {
         ai::agent_tips::AITipModel::<ai::AgentTip>::new_for_agent_tips(ctx)
     });
@@ -1083,17 +1020,6 @@ pub(crate) fn initialize_app(
     timer.mark_interval_end("SINGLETON_MODELS_REGISTERED");
 
     ctx.add_singleton_model(move |_| timer);
-
-    let is_ssh_tmux_wrapper_enabled = ctx
-        .private_user_preferences()
-        .read_value("SshTmuxWrapperOverride")
-        .ok()
-        .flatten()
-        .and_then(|s| s.parse().ok());
-
-    if let Some(is_ssh_tmux_wrapper_enabled) = is_ssh_tmux_wrapper_enabled {
-        FeatureFlag::SSHTmuxWrapper.set_user_preference(is_ssh_tmux_wrapper_enabled);
-    }
 
     ctx.add_singleton_model(|ctx| AIExecutionProfilesModel::new(launch_mode, ctx));
 
@@ -1122,8 +1048,6 @@ pub(crate) fn initialize_app(
         aliases.connect(ctx);
     });
 
-    // When running natively, add the http server singleton to the application.
-    #[cfg(not(target_family = "wasm"))]
     ctx.add_singleton_model(move |ctx| {
         let routers = vec![profiling::make_router()];
         http_server::HttpServer::new(routers, ctx)
@@ -1134,10 +1058,7 @@ pub(crate) fn initialize_app(
 
 pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
     warpui::platform::AppCallbacks {
-        on_internet_reachability_changed: Some(Box::new(move |reachable, ctx| {
-            NetworkStatus::handle(ctx)
-                .update(ctx, move |me, ctx| me.reachability_changed(reachable, ctx));
-        })),
+        on_internet_reachability_changed: None,
         on_become_active: None,
         on_screen_changed: Some(Box::new(move |ctx| {
             ctx.dispatch_global_action(
@@ -1462,34 +1383,23 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 maybe_register_app_as_login_item(ctx);
             }
         }
-        #[cfg_attr(target_family = "wasm", allow(unused_variables))]
         LaunchMode::CommandLine {
             command,
             global_options: _,
             ..
         } => {
-            cfg_if::cfg_if! {
-                if #[cfg(target_family = "wasm")] {
-                    panic!("Cannot execute CLI command {command:?} on the web");
-                } else {
-                    eprintln!("Command-line agent command {command:?} is not available in the ACP-only build.");
-                    std::process::exit(1);
-                }
-            }
+            eprintln!(
+                "Command-line agent command {command:?} is not available in the ACP-only build."
+            );
+            std::process::exit(1);
         }
         // Proxy should never reach launch() — it's a thin byte bridge.
         LaunchMode::RemoteServerProxy => {
             log::error!("Proxy mode should not use the launch() path");
             std::process::exit(1);
         }
-        #[cfg(unix)]
         LaunchMode::RemoteServerDaemon { identity_key } => {
             remote_server::unix::launch_daemon(&identity_key, ctx);
-        }
-        #[cfg(not(unix))]
-        LaunchMode::RemoteServerDaemon { .. } => {
-            log::error!("RemoteServerDaemon is not supported on this platform");
-            std::process::exit(1);
         }
     }
 }
@@ -1549,44 +1459,28 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::RichTextMultiselect,
         #[cfg(feature = "settings_file")]
         FeatureFlag::SettingsFile,
-        #[cfg(feature = "settings_import")]
-        FeatureFlag::SettingsImport,
         #[cfg(feature = "rect_selection")]
         FeatureFlag::RectSelection,
         #[cfg(feature = "alacritty_settings_import")]
         FeatureFlag::AlacrittySettingsImport,
         #[cfg(feature = "dynamic_workflow_enums")]
         FeatureFlag::DynamicWorkflowEnums,
-        #[cfg(feature = "am_workflows")]
-        FeatureFlag::AgentModeWorkflows,
         #[cfg(feature = "ai_rules")]
         FeatureFlag::AIRules,
-        #[cfg(feature = "ssh_tmux_wrapper")]
-        FeatureFlag::SSHTmuxWrapper,
-        #[cfg(feature = "less_horizontal_terminal_padding")]
-        FeatureFlag::LessHorizontalTerminalPadding,
         #[cfg(feature = "shell_selector")]
         FeatureFlag::ShellSelector,
-        #[cfg(feature = "block_toolbelt_save_as_workflow")]
-        FeatureFlag::BlockToolbeltSaveAsWorkflow,
         #[cfg(feature = "full_screen_zen_mode")]
         FeatureFlag::FullScreenZenMode,
         #[cfg(feature = "minimalist_ui")]
         FeatureFlag::MinimalistUI,
-        #[cfg(feature = "remove_alt_screen_padding")]
-        FeatureFlag::RemoveAltScreenPadding,
         #[cfg(feature = "workflow_aliases")]
         FeatureFlag::WorkflowAliases,
         #[cfg(feature = "ssh_drag_and_drop")]
         FeatureFlag::SshDragAndDrop,
-        #[cfg(feature = "cycle_next_command_suggestion")]
-        FeatureFlag::CycleNextCommandSuggestion,
         #[cfg(feature = "multi_workspace")]
         FeatureFlag::MultiWorkspace,
         #[cfg(feature = "ime_marked_text")]
         FeatureFlag::ImeMarkedText,
-        #[cfg(feature = "partial_next_command_suggestions")]
-        FeatureFlag::PartialNextCommandSuggestions,
         #[cfg(feature = "iterm_images")]
         FeatureFlag::ITermImages,
         #[cfg(feature = "validate_autosuggestions")]
@@ -1595,20 +1489,12 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ClearAutosuggestionOnEscape,
         #[cfg(feature = "kitty_images")]
         FeatureFlag::KittyImages,
-        #[cfg(feature = "warp_packs")]
-        FeatureFlag::WarpPacks,
-        #[cfg(feature = "suggested_rules")]
-        FeatureFlag::SuggestedRules,
-        #[cfg(feature = "suggested_agent_mode_workflows")]
-        FeatureFlag::SuggestedAgentModeWorkflows,
         #[cfg(feature = "command_correction_key")]
         FeatureFlag::CommandCorrectionKey,
         #[cfg(feature = "use_tantivy_search")]
         FeatureFlag::UseTantivySearch,
         #[cfg(feature = "markdown_tables")]
         FeatureFlag::MarkdownTables,
-        #[cfg(feature = "blocklist_markdown_table_rendering")]
-        FeatureFlag::BlocklistMarkdownTableRendering,
         #[cfg(feature = "blocklist_markdown_images")]
         FeatureFlag::BlocklistMarkdownImages,
         #[cfg(feature = "markdown_mermaid")]
@@ -1617,36 +1503,18 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EditableMarkdownMermaid,
         #[cfg(feature = "image_as_context")]
         FeatureFlag::ImageAsContext,
-        #[cfg(feature = "retry_truncated_code_responses")]
-        FeatureFlag::RetryTruncatedCodeResponses,
         #[cfg(feature = "ai_context_menu")]
         FeatureFlag::AIContextMenuEnabled,
-        #[cfg(feature = "at_menu_outside_of_ai_mode")]
-        FeatureFlag::AtMenuOutsideOfAIMode,
-        #[cfg(feature = "ai_resume_button")]
-        FeatureFlag::AIResumeButton,
-        #[cfg(feature = "agent_decides_command_execution")]
-        FeatureFlag::AgentDecidesCommandExecution,
         #[cfg(feature = "context_line_review_comments")]
         FeatureFlag::ContextLineReviewComments,
-        #[cfg(feature = "nld_fasttext_model")]
-        FeatureFlag::NLDClassifierModelEnabled,
-        #[cfg(feature = "fast_forward_autoexecute_button")]
-        FeatureFlag::FastForwardAutoexecuteButton,
         #[cfg(feature = "code_find_replace")]
         FeatureFlag::CodeFindReplace,
         #[cfg(feature = "command_palette_file_search")]
         FeatureFlag::CommandPaletteFileSearch,
-        #[cfg(feature = "ai_context_menu_commands")]
-        FeatureFlag::AIContextMenuCommands,
-        #[cfg(feature = "ai_context_menu_code")]
-        FeatureFlag::AIContextMenuCode,
         #[cfg(feature = "expand_edit_to_pane")]
         FeatureFlag::ExpandEditToPane,
         #[cfg(feature = "tab_close_button_on_left")]
         FeatureFlag::TabCloseButtonOnLeft,
-        #[cfg(feature = "search_codebase_ui")]
-        FeatureFlag::SearchCodebaseUI,
         #[cfg(feature = "changed_lines_only_apply_diff_result")]
         FeatureFlag::ChangedLinesOnlyApplyDiffResult,
         #[cfg(feature = "tabbed_editor_view")]
@@ -1661,8 +1529,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::PRCommentsSlashCommand,
         #[cfg(feature = "pr_comments_v2")]
         FeatureFlag::PRCommentsV2,
-        #[cfg(feature = "pr_comments_skill")]
-        FeatureFlag::PRCommentsSkill,
         #[cfg(feature = "selection_as_context")]
         FeatureFlag::SelectionAsContext,
         #[cfg(feature = "github_pr_prompt_chip")]
@@ -1673,8 +1539,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::VimCodeEditor,
         #[cfg(feature = "allow_opening_file_links_using_editor_env")]
         FeatureFlag::AllowOpeningFileLinksUsingEditorEnv,
-        #[cfg(feature = "nld_improvements")]
-        FeatureFlag::NldImprovements,
         #[cfg(feature = "revert_diff_hunk")]
         FeatureFlag::RevertDiffHunk,
         #[cfg(feature = "code_review_save_changes")]
@@ -1683,8 +1547,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::FileTree,
         #[cfg(feature = "allow_ignoring_input_suggestions")]
         FeatureFlag::AllowIgnoringInputSuggestions,
-        #[cfg(feature = "file_based_mcp")]
-        FeatureFlag::FileBasedMcp,
         #[cfg(feature = "diff_set_as_context")]
         FeatureFlag::DiffSetAsContext,
         #[cfg(feature = "discard_per_file_and_all_changes")]
@@ -1697,10 +1559,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::AutoOpenCodeReviewPane,
         #[cfg(feature = "inline_code_review")]
         FeatureFlag::InlineCodeReview,
-        #[cfg(feature = "summarize_conversation_command")]
-        FeatureFlag::SummarizationConversationCommand,
-        #[cfg(feature = "mcp_grouped_server_context")]
-        FeatureFlag::MCPGroupedServerContext,
         #[cfg(feature = "fork_from_command")]
         FeatureFlag::ForkFromCommand,
         #[cfg(feature = "global_search")]
@@ -1709,62 +1567,28 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EmbeddedCodeReviewComments,
         #[cfg(feature = "file_and_diff_set_comments")]
         FeatureFlag::FileAndDiffSetComments,
-        #[cfg(feature = "revert_to_checkpoints")]
-        FeatureFlag::RevertToCheckpoints,
-        #[cfg(feature = "rewind_slash_command")]
-        FeatureFlag::RewindSlashCommand,
         #[cfg(feature = "agent_view")]
         FeatureFlag::AgentView,
-        #[cfg(feature = "agent_view_block_context")]
-        FeatureFlag::AgentViewBlockContext,
-        #[cfg(feature = "agent_tips")]
-        FeatureFlag::AgentTips,
-        #[cfg(feature = "local_computer_use")]
-        FeatureFlag::LocalComputerUse,
         #[cfg(feature = "agent_toolbar_editor")]
         FeatureFlag::AgentToolbarEditor,
         #[cfg(feature = "configurable_toolbar")]
         FeatureFlag::ConfigurableToolbar,
-        #[cfg(feature = "agent_view_prompt_chip")]
-        FeatureFlag::AgentViewPromptChip,
         #[cfg(feature = "classic_completions")]
         FeatureFlag::ClassicCompletions,
         #[cfg(feature = "force_classic_completions")]
         FeatureFlag::ForceClassicCompletions,
-        #[cfg(feature = "agent_view_conversation_list_view")]
-        FeatureFlag::AgentViewConversationListView,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "inline_repo_menu")]
         FeatureFlag::InlineRepoMenu,
-        #[cfg(feature = "summarization_via_message_replacement")]
-        FeatureFlag::SummarizationViaMessageReplacement,
         #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
-        #[cfg(feature = "list_skills")]
-        FeatureFlag::ListSkills,
-        #[cfg(feature = "ask_user_question")]
-        FeatureFlag::AskUserQuestion,
-        #[cfg(feature = "lsp_as_a_tool")]
-        FeatureFlag::LSPAsATool,
-        #[cfg(feature = "platform_skills")]
-        FeatureFlag::PlatformSkills,
-        #[cfg(feature = "bundled_skills")]
-        FeatureFlag::BundledSkills,
         #[cfg(feature = "new_tab_styling")]
         FeatureFlag::NewTabStyling,
-        #[cfg(feature = "skill_arguments")]
-        FeatureFlag::SkillArguments,
         #[cfg(feature = "active_conversation_requires_interaction")]
         FeatureFlag::ActiveConversationRequiresInteraction,
-        #[cfg(feature = "conversations_as_context")]
-        FeatureFlag::ConversationsAsContext,
         #[cfg(feature = "incremental_auto_reload")]
         FeatureFlag::IncrementalAutoReload,
-        #[cfg(feature = "pending_user_query_indicator")]
-        FeatureFlag::PendingUserQueryIndicator,
-        #[cfg(feature = "queue_slash_command")]
-        FeatureFlag::QueueSlashCommand,
         #[cfg(feature = "kitty_keyboard_protocol")]
         FeatureFlag::KittyKeyboardProtocol,
         #[cfg(feature = "inline_menu_headers")]
@@ -1783,8 +1607,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TabConfigs,
         #[cfg(feature = "cli_agent_rich_input")]
         FeatureFlag::CLIAgentRichInput,
-        #[cfg(feature = "warpify_footer")]
-        FeatureFlag::WarpifyFooter,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
         #[cfg(feature = "trim_trailing_blank_lines")]

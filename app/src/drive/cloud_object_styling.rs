@@ -37,8 +37,6 @@ pub fn local_object_icon_color(
         }
         DriveObjectType::AIFactCollection
         | DriveObjectType::AIFact
-        | DriveObjectType::MCPServer
-        | DriveObjectType::MCPServerCollection
         | DriveObjectType::AgentModeWorkflow => appearance
             .theme()
             .main_text_color(appearance.theme().background())

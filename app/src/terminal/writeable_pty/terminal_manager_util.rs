@@ -79,7 +79,7 @@ pub fn wire_up_pty_controller_with_view<T: EventLoopSender>(
                     return;
                 };
 
-                model_clone.lock().block_list_mut().active_block_mut().set_cloud_workflow_state(event.workflow_id);
+                model_clone.lock().block_list_mut().active_block_mut().set_saved_workflow_state(event.workflow_id);
                 controller.update(ctx, |controller, ctx| {
                     controller.write_command(&event.command, shell_type, event.source.clone(), ctx)
                 });
@@ -124,7 +124,6 @@ pub fn wire_up_pty_controller_with_view<T: EventLoopSender>(
 /// NOTE: we cannot simply use the strong references (the handle arguments to this wire_up fn)
 /// in the subscription callbacks because that will create a reference cycle. Instead,
 /// we should use weak handles and upgrade them lazily.
-#[cfg(not(target_family = "wasm"))]
 pub fn wire_up_remote_server_controller_with_view<T: EventLoopSender>(
     remote_server_controller: &ModelHandle<
         super::remote_server_controller::RemoteServerController<T>,
@@ -178,8 +177,7 @@ pub fn init_pty_controller_model<Sender: EventLoopSender>(
     })
 }
 
-/// Creates a [`RemoteServerController`] that orchestrates the SSH init flow.
-#[cfg(not(target_family = "wasm"))]
+/// Creates a [`RemoteServerController`] that coordinates the SSH init flow.
 pub fn init_remote_server_controller<Sender: EventLoopSender>(
     pty_controller: &ModelHandle<PtyController<Sender>>,
     model_events: &ModelHandle<ModelEventDispatcher>,

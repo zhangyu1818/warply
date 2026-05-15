@@ -17,7 +17,7 @@
 - 自然语言输入入口：旧流程在 `app/src/terminal/input.rs` 做 NLD，再通过 `AgentViewEntryOrigin::Input { was_prompt_autodetected }` 进入 `AgentView`，最终走 `BlocklistAIController::send_user_query_in_conversation`。当前 ACP 已在 `app/src/ai/blocklist/controller.rs` 的请求提交处接管，这条路径应继续复用。
 - `/agent` 入口：旧流程通过 slash command 进入相同 `AgentView`，当前也应继续进入 ACP 请求路径。
 - assistant 正文和 thought：ACP `AgentMessageChunk` / `AgentThoughtChunk` 已映射到 `Text` / `Reasoning` 消息，应该继续使用旧 Warp output renderer，而不是混在同一文本块里。
-- tool call：ACP `ToolCall` / `ToolCallUpdate` 已进入 `AcpToolCall`，可由 Warp 现有 `RenderableAction`、diff view、read skill 行组件承载。
+- tool call：ACP `ToolCall` / `ToolCallUpdate` 已进入 `AcpToolCall`，可由 Warp 现有 `RenderableAction`、diff view 和通用工具调用行承载。
 - plan：ACP `Plan` 由 AgentView 输出区渲染为 ACP plan card，使用 Warp inline action 的视觉语言，不再拼成通用文本行。
 - permission：ACP `RequestPermissionRequest` 渲染为 ACP permission card，并通过协议 option 精确回写用户选择。
 - available commands：ACP `AvailableCommandsUpdate` 可以进入 AgentView 的 `/` slash commands 菜单。当前已有数据源接入，应补足显示/执行验证。
@@ -388,15 +388,15 @@ cargo test -p warp --lib ai::blocklist::controller --locked
 - 测试：`app/src/ai/blocklist/block/view_impl/output_tests.rs`
 - 测试：`app/src/ai/acp/tests.rs`
 
-- [x] **Step 1: 保留 read skill 精确规则**
+- [x] **Step 1: 移除 read skill 特殊规则**
 
-规则保持：
+规则改为：
 
-- `ToolKind::Read`
-- `locations` 指向已识别 skill 的精确 `SKILL.md`
-- `location.path == skill_path_from_file_path(location.path)`
+- `ToolKind::Read` 只按 ACP 协议字段渲染为通用读取工具调用
+- `locations` 只作为普通文件/资源位置显示
+- 不识别、不扫描、不复用 Warp app-managed skill
 
-不允许从 title、raw input、meta 或 adapter 文案推断。
+不允许从 title、raw input、meta、路径或 adapter 文案推断 skill 语义；skills 属于 ACP agent process。
 
 - [x] **Step 2: 为 diff、terminal、resource、image 补测试**
 
@@ -606,7 +606,7 @@ git diff --check
 - 输入中文自然语言，例如 `你好`，触发 ACP。
 - 输入 `/agent 你好`，触发同一 ACP 流程。
 - assistant thought 和 assistant final 分开显示；如果 adapter 只发 thought，那 UI 只显示 thought，不做伪造 final。
-- read skill 使用旧 Warp read skill 行组件。
+- read tool call 使用 ACP 通用工具调用行组件。
 - tool call diff 显示为 Warp diff UI。
 - permission request 可以选择并回写 adapter。
 - `/` 显示 ACP available commands。
@@ -673,6 +673,6 @@ git diff --check
 
 - 覆盖旧 Warp AI 入口：已覆盖 NLD、`/agent`、AgentView、message bar、shortcuts、toolbar、conversation、code review、slash commands、context、suggestions。
 - 覆盖 ACP 事件：已覆盖 text、thought、tool call、tool update、terminal trace、plan、available commands、current mode、config options、session info、permission、completion/error。
-- 没有协议外补造：read skill、tool kind、locations、content、terminal trace 渲染均要求协议字段或 ACP terminal request 事件链。
+- 没有协议外补造：tool kind、locations、content、terminal trace 渲染均要求协议字段或 ACP terminal request 事件链，且不补造 skill 语义。
 - 不误删通用 UI：code review 和 conversation navigation 不按 ACP 后端隐藏。
 - 不迁移云端能力：remote-control、handoff、shared session、Warp Drive/Teams/Login 不进入 ACP 单机路径。

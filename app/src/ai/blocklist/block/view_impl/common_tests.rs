@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use ai::skills::{ParsedSkill, SkillProvider, SkillScope};
 #[cfg(feature = "local_fs")]
 use warpui::assets::asset_cache::AssetSource;
 use warpui::App;
@@ -24,28 +23,6 @@ use crate::{
 };
 use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warpui::{elements::Empty, Element};
-
-#[test]
-fn query_prefix_highlight_len_highlights_invoke_skill_inputs() {
-    let input = AIAgentInput::InvokeSkill {
-        context: Arc::new([]),
-        skill: ParsedSkill {
-            path: PathBuf::from("/tmp/.agents/skills/review-pr/SKILL.md"),
-            name: "review-pr".to_string(),
-            description: "Review a pull request.".to_string(),
-            content: String::new(),
-            line_range: None,
-            provider: SkillProvider::Agents,
-            scope: SkillScope::Project,
-        },
-        user_query: None,
-    };
-
-    assert_eq!(
-        query_prefix_highlight_len(&input, "/review-pr tighten the summary"),
-        Some("/review-pr".len())
-    );
-}
 
 #[test]
 fn query_prefix_highlight_len_does_not_guess_from_plain_user_query_text() {

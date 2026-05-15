@@ -156,6 +156,10 @@ pub trait PathCompletionContext: Send + Sync {
     /// This is used to expand '~' and '$HOME' in user input.
     fn home_directory(&self) -> Option<&str>;
 
+    fn cdpath(&self) -> Option<&str> {
+        None
+    }
+
     fn shell_family(&self) -> ShellFamily;
 
     /// The current working directory, which is used to determine how relative path suggestions
@@ -211,7 +215,6 @@ impl CommandOutput {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
 impl From<command::Output> for CommandOutput {
     fn from(other: command::Output) -> CommandOutput {
         let status = if other.status.success() {

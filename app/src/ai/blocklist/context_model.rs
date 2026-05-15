@@ -28,7 +28,6 @@ use crate::{
             AIAgentAttachment, AIAgentContext, ImageContext,
         },
         document::ai_document_model::AIDocumentId,
-        llms::LLMPreferences,
         outline::RepoOutlines,
     },
     terminal::{
@@ -140,8 +139,6 @@ pub struct BlocklistAIContextModel {
     agent_view_controller: ModelHandle<AgentViewController>,
 
     /// Block IDs of user-executed commands to be auto-attached as context.
-    /// When `AgentViewBlockContext` is enabled, completed user commands are tracked here
-    /// and automatically included as context with the next user query.
     auto_attached_agent_view_user_block_ids: Vec<BlockId>,
 
     /// When true, submitting a prompt while the agent is responding will queue it
@@ -198,22 +195,11 @@ impl BlocklistAIContextModel {
                 block_id,
                 ..
             }) => {
-                // If AgentViewBlockContext is enabled and we're in agent view, track user-executed
-                // blocks for auto-attachment as context.
-                if FeatureFlag::AgentViewBlockContext.is_enabled()
-                    && me.agent_view_controller.as_ref(ctx).is_fullscreen()
+                if me.agent_view_controller.as_ref(ctx).is_fullscreen()
                     && !user_block_completed.was_part_of_agent_interaction
                 {
                     me.auto_attached_agent_view_user_block_ids
                         .push(block_id.clone());
-                }
-
-                // If the block that finished was part of an agent interaction (i.e. LRC finishing),
-                // we should preserve input context.
-                if !FeatureFlag::AgentViewBlockContext.is_enabled()
-                    && !user_block_completed.was_part_of_agent_interaction
-                {
-                    me.reset_context_to_default(ctx);
                 }
             }
             ModelEvent::BlockMetadataReceived(block_metadata_received) => {
@@ -268,14 +254,6 @@ impl BlocklistAIContextModel {
             }
         });
 
-        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _event, ctx| {
-            let llm_prefs = LLMPreferences::as_ref(ctx);
-            let vision_supported = llm_prefs.vision_supported(ctx, Some(me.terminal_view_id));
-            if !vision_supported {
-                me.clear_pending_images(ctx);
-            }
-        });
-
         // Clear auto-attached blocks when exiting agent view or switching conversations
         ctx.subscribe_to_model(&agent_view_controller, |me, event, _ctx| {
             use super::agent_view::AgentViewControllerEvent;
@@ -288,7 +266,7 @@ impl BlocklistAIContextModel {
             }
         });
 
-        // In sandboxed/autonomous mode (SDK mode with --sandboxed flag), automatically set
+        // In sandboxed/autonomous command-line mode with --sandboxed flag, automatically set
         // conversations to RunToCompletion mode so they don't wait for user confirmation.
         let pending_query_state =
             if warp_core::execution_mode::AppExecutionMode::as_ref(ctx).is_sandboxed() {
@@ -317,7 +295,7 @@ impl BlocklistAIContextModel {
 
     /// Test-only constructor that skips every subscription and singleton lookup performed by
     /// [`Self::new`], so unit tests can build a [`BlocklistAIContextModel`] without registering
-    /// `BlocklistAIHistoryModel`, `LLMPreferences`, `ModelEventDispatcher`, `Sessions`, or
+    /// `BlocklistAIHistoryModel`, `ModelEventDispatcher`, `Sessions`, or
     /// `AppExecutionMode`. Callers still pass real [`TerminalModel`] and [`AgentViewController`]
     /// handles to populate the struct fields, but neither needs to be functional for the
     /// methods exercised by these tests.
@@ -484,15 +462,10 @@ impl BlocklistAIContextModel {
                 }
             }
 
-            // Add auto-attached user-executed blocks (when AgentViewBlockContext is enabled)
-            if FeatureFlag::AgentViewBlockContext.is_enabled() {
-                for block_id in &self.auto_attached_agent_view_user_block_ids {
-                    // Skip if already in pending_context_block_ids to avoid duplicates
-                    if !self.pending_context_block_ids.contains(block_id) {
-                        if let Some(block_context) = self.transform_block_to_context(block_id, true)
-                        {
-                            context.push(block_context);
-                        }
+            for block_id in &self.auto_attached_agent_view_user_block_ids {
+                if !self.pending_context_block_ids.contains(block_id) {
+                    if let Some(block_context) = self.transform_block_to_context(block_id, true) {
+                        context.push(block_context);
                     }
                 }
             }

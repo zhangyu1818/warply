@@ -1,5 +1,5 @@
 use warpui::{
-    elements::{Container, Flex, MouseStateHandle, ParentElement},
+    elements::{Container, Flex, ParentElement},
     fonts::Weight,
     ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element,
@@ -86,17 +86,6 @@ impl LocalObjectItem for LocalObjectAIFact {
 
     fn local_object_id(&self) -> LocalObjectItemId {
         LocalObjectItemId::Object(self.id)
-    }
-
-    fn sync_status_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        self.ai_fact
-            .metadata
-            .pending_changes_statuses
-            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, _app: &AppContext) -> Option<String> {

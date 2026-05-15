@@ -202,8 +202,6 @@ pub mod flags {
     pub const EXTRA_META_KEYS_LEFT_CONTEXT_FLAG: &str = "Extra_Meta_Keys_Left";
     pub const SCROLL_REPORTING_CONTEXT_FLAG: &str = "Scroll_Reporting";
     pub const FOCUS_REPORTING_CONTEXT_FLAG: &str = "Focus_Reporting";
-    #[deprecated = "Use `SSH_TMUX_WRAPPER_CONTEXT_FLAG` for new ssh warpification logic"]
-    pub const LEGACY_SSH_WRAPPER_CONTEXT_FLAG: &str = "SSH_Wrapper";
     pub const SSH_TMUX_WRAPPER_CONTEXT_FLAG: &str = "SSH_Tmux_Wrapper";
     pub const NOTIFICATIONS_CONTEXT_FLAG: &str = "Notifications_Enabled";
     pub const LINK_TOOLTIP_CONTEXT_FLAG: &str = "Link_Tooltip";
@@ -256,13 +254,11 @@ pub mod flags {
     pub const RECORDING_MODE_FLAG: &str = "Recording_Mode_Enabled";
     pub const IN_BAND_GENERATORS_FLAG: &str = "In_Band_Generators_Enabled";
     pub const WARP_SAME_LINE_PROMPT_FLAG: &str = "Warp_Same_Line_Prompt_Enabled";
-    pub const DEBUG_NETWORK_ONLINE_FLAG: &str = "Network_Status_Online";
     pub const AI_INPUT_AUTODETECTION_FLAG: &str = "AI_Input_Autodetection";
     pub const NLD_IN_TERMINAL_FLAG: &str = "NLD_In_Terminal";
     pub const INTELLIGENT_AUTOSUGGESTIONS_FLAG: &str = "Intelligent_Autosuggestions";
     pub const PROMPT_SUGGESTIONS_FLAG: &str = "Prompt_Suggestions";
     pub const CODE_SUGGESTIONS_FLAG: &str = "Code_Suggestions";
-    pub const SHARED_BLOCK_TITLE_GENERATION_FLAG: &str = "Shared_Block_Title_Generation";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
     pub const IS_ANY_AI_ENABLED: &str = "IsAnyAIEnabled";
     pub const IS_ACTIVE_AI_ENABLED: &str = "IsActiveAIEnabled";
@@ -361,12 +357,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                     WorkspaceAction::ToggleInBandGenerators,
                     &id!("Workspace"),
                     flags::IN_BAND_GENERATORS_FLAG,
-                ),
-                ToggleSettingActionPair::new(
-                    "debug network status",
-                    WorkspaceAction::ToggleDebugNetworkStatus,
-                    &id!("Workspace"),
-                    flags::DEBUG_NETWORK_ONLINE_FLAG,
                 ),
                 ToggleSettingActionPair::new(
                     "memory statistics",

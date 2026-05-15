@@ -14,7 +14,6 @@ use warp_terminal::model::Point;
 use warpui::r#async::block_on;
 
 use crate::datetime_ext::DateTimeExt;
-use crate::safe_info;
 use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::shell::{Shell, ShellType};
 use warp_util::on_cancel::OnCancelFutureExt;
@@ -24,6 +23,7 @@ use crate::terminal::model::session::command_executor::{
 };
 use crate::terminal::SizeInfo;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
+use warp_core::safe_info;
 
 use super::ExecuteCommandOptions;
 
@@ -165,7 +165,6 @@ impl InBandCommandExecutor {
     /// it represents an *internal* cancellation where something downstack has cancelled
     /// a command believed to be running. In this case, we remove the command from
     /// execution, but also resolve the command with a CommandResult.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(super) fn handle_cancelled_in_band_command_event(
         &self,
         InBandCommandCancelledEvent { command_id }: InBandCommandCancelledEvent,

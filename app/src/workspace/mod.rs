@@ -114,30 +114,15 @@ pub fn init(app: &mut AppContext) {
         ]);
         #[cfg(debug_assertions)]
         {
-            app.register_editable_bindings([
-                EditableBinding::new(
-                    "workspace:install_opencode_warp_plugin",
-                    "[Debug] Install OpenCode Warp plugin",
-                    WorkspaceAction::InstallOpenCodeWarpPlugin,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:use_local_opencode_warp_plugin",
-                    "[Debug] Use local OpenCode Warp plugin (testing only)",
-                    WorkspaceAction::UseLocalOpenCodeWarpPlugin,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:open_session_config_modal",
-                    "[Debug] Open Session Config Modal",
-                    WorkspaceAction::ShowSessionConfigModal,
-                )
-                .with_context_predicate(id!("Workspace")),
-            ]);
+            app.register_editable_bindings([EditableBinding::new(
+                "workspace:open_session_config_modal",
+                "[Debug] Open Session Config Modal",
+                WorkspaceAction::ShowSessionConfigModal,
+            )
+            .with_context_predicate(id!("Workspace"))]);
         }
     }
 
-    #[cfg(target_os = "macos")]
     app.register_editable_bindings([EditableBinding::new(
         "workspace:sample_process",
         "Sample Process",
@@ -530,7 +515,6 @@ pub fn init(app: &mut AppContext) {
         )
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("Workspace") & id!(flags::SHOW_CONVERSATION_HISTORY))
-        .with_enabled(|| FeatureFlag::AgentViewConversationListView.is_enabled())
         .with_custom_action(CustomAction::ToggleConversationListView),
         EditableBinding::new(
             LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME,
@@ -572,7 +556,6 @@ pub fn init(app: &mut AppContext) {
             ),
             WorkspaceAction::ToggleConversationListView,
         )
-        .with_enabled(|| FeatureFlag::AgentViewConversationListView.is_enabled())
         .with_context_predicate(id!("Workspace") & id!(flags::SHOW_CONVERSATION_HISTORY))
         .with_mac_key_binding("cmd-shift-A")
         .with_group(bindings::BindingGroup::Ai.as_str()),
@@ -594,7 +577,7 @@ pub fn init(app: &mut AppContext) {
             },
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
-        .with_context_predicate(id!("Workspace") & !id!("Workspace_CloudConversationWebViewer"))
+        .with_context_predicate(id!("Workspace"))
         .with_custom_action(CustomAction::CommandPalette),
         EditableBinding::new(
             "workspace:move_tab_left",
@@ -652,25 +635,22 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace")),
     ]);
 
-    // TODO(PLAT-113): Support a11y on non-MacOS platforms
-    if cfg!(target_os = "macos") {
-        app.register_editable_bindings([
-            EditableBinding::new(
-                "workspace:set_a11y_concise_verbosity_level",
-                "[a11y] Set concise accessibility announcements",
-                WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Concise),
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_key_binding("cmdorctrl-alt-c"),
-            EditableBinding::new(
-                "workspace:set_a11y_verbose_verbosity_level",
-                "[a11y] Set verbose accessibility announcements",
-                WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Verbose),
-            )
-            .with_context_predicate(id!("Workspace"))
-            .with_key_binding("cmdorctrl-alt-v"),
-        ]);
-    }
+    app.register_editable_bindings([
+        EditableBinding::new(
+            "workspace:set_a11y_concise_verbosity_level",
+            "[a11y] Set concise accessibility announcements",
+            WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Concise),
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_key_binding("cmdorctrl-alt-c"),
+        EditableBinding::new(
+            "workspace:set_a11y_verbose_verbosity_level",
+            "[a11y] Set verbose accessibility announcements",
+            WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Verbose),
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_key_binding("cmdorctrl-alt-v"),
+    ]);
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:rename_active_tab",

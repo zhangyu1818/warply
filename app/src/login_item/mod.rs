@@ -6,7 +6,6 @@
 //! the platform-specific register/unregister logic for each OS where the
 //! feature is supported.
 
-#[cfg(target_os = "macos")]
 mod macos;
 
 use warp_core::channel::ChannelState;

@@ -1,5 +1,5 @@
 use parking_lot::FairMutex;
-use warp_core::ui::appearance::Appearance;
+use warp_core::{ui::appearance::Appearance, SessionId};
 use warpui::{
     r#async::SpawnedFutureHandle, AppContext, EntityId, SingletonEntity as _, ViewContext,
     ViewHandle,
@@ -9,7 +9,6 @@ use crate::terminal::{
     model::{
         ansi::SystemDetails,
         block::BlockId,
-        session::SessionId,
         terminal_model::{SubshellInitializationInfo, TmuxInstallationState},
     },
     settings::TerminalSettings,

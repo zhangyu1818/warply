@@ -37,7 +37,7 @@ diesel print-schema --database-url="/Users/$USER/Library/Application Support/dev
 ```
 
 ## Reverting/redo-ing migrations
-As you are writing features and changing branches, you'll want to undo migrations to fix your database and make it compatible with older code. Redo-ing can also be helpful as you are iterating on your schema.
+As you are writing features and changing branches, you may want to undo migrations while iterating on the current local schema. Redo-ing can also be helpful as you are changing the migration.
 ```
 diesel migration revert --database-url="/Users/$USER/Library/Application Support/dev.zhangyu1818.warply/warply.sqlite"
 diesel migration redo --database-url="/Users/$USER/Library/Application Support/dev.zhangyu1818.warply/warply.sqlite"

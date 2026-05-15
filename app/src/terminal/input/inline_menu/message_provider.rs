@@ -71,28 +71,20 @@ pub fn default_navigation_message_items<A: InlineMenuAction, T>(
 
 fn navigation_keystrokes(app: &AppContext) -> (Keystroke, Keystroke) {
     static DEFAULT_SELECT_UP_BINDING: LazyLock<Option<Keystroke>> = LazyLock::new(|| {
-        if cfg!(target_os = "macos") {
-            Some(Keystroke {
-                key: "P".to_owned(),
-                shift: true,
-                ctrl: true,
-                ..Default::default()
-            })
-        } else {
-            None
-        }
+        Some(Keystroke {
+            key: "P".to_owned(),
+            shift: true,
+            ctrl: true,
+            ..Default::default()
+        })
     });
     static DEFAULT_SELECT_DOWN_BINDING: LazyLock<Option<Keystroke>> = LazyLock::new(|| {
-        if cfg!(target_os = "macos") {
-            Some(Keystroke {
-                key: "N".to_owned(),
-                shift: true,
-                ctrl: true,
-                ..Default::default()
-            })
-        } else {
-            None
-        }
+        Some(Keystroke {
+            key: "N".to_owned(),
+            shift: true,
+            ctrl: true,
+            ..Default::default()
+        })
     });
 
     if let Some((up_keystroke, down_keystroke)) =

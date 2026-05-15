@@ -10,5 +10,4 @@ mod windowing;
 pub use app::App;
 pub use delegate::AppDelegate;
 
-#[cfg(target_os = "macos")]
 pub(crate) use windowing::Window;

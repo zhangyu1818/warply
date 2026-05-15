@@ -48,7 +48,6 @@ impl Command {
     /// This ensures the process does not inherit the controlling terminal.
     ///
     /// See [`setsid(2)`](https://man7.org/linux/man-pages/man2/setsid.2.html).
-    #[cfg(target_os = "macos")]
     pub fn new_with_session<S: AsRef<OsStr>>(program: S) -> Command {
         let mut command = std::process::Command::new(program);
 

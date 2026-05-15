@@ -5,17 +5,9 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    elements::{
-        ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
-        MouseStateHandle, ParentElement,
-    },
-    fonts::Weight,
-    ui_components::{
-        button::ButtonVariant,
-        components::{UiComponent, UiComponentStyles},
-        text::Span,
-    },
-    AppContext, Element, EntityId, EventContext, SingletonEntity,
+    elements::{ConstrainedBox, Container, MouseStateHandle, ParentElement},
+    ui_components::components::{UiComponent, UiComponentStyles},
+    AppContext, Element, EntityId, SingletonEntity,
 };
 
 use crate::{
@@ -30,16 +22,12 @@ use warpui::elements::ParentAnchor;
 use warpui::elements::ParentOffsetBounds;
 use warpui::elements::Stack;
 
-const PROVIDER_BUTTON_ICON_SIZE: f32 = 14.;
-const PROVIDER_BUTTON_ICON_TEXT_GAP: f32 = 8.;
-
 /// Text to use as a label throughout the app for user interactions that will attach selected
 /// block(s) or text selections to a new AI query.
 pub static ATTACH_AS_AGENT_MODE_CONTEXT_TEXT: LazyLock<&'static str> =
     LazyLock::new(|| "Attach as agent context");
 
 /// Claude/Anthropic brand color (official brand orange #D97757).
-/// Reference: https://github.com/anthropics/skills/blob/main/skills/brand-guidelines/SKILL.md
 pub const CLAUDE_ORANGE: ColorU = ColorU {
     r: 0xD9,
     g: 0x77,
@@ -145,62 +133,4 @@ pub fn get_attached_blocks_chip_element_position_id(view_id: EntityId) -> String
 /// Returns the saved position ID of the overflow menu inside the [`AIBlock`] header.
 pub fn get_ai_block_overflow_menu_element_position_id(view_id: EntityId) -> String {
     format!("aiblock:{view_id}.overflow_menu_position")
-}
-
-/// Renders a secondary button with an MCP/skill provider icon and a text label.
-pub(crate) fn render_provider_icon_button<F>(
-    button_label: &str,
-    button_handle: MouseStateHandle,
-    appearance: &Appearance,
-    icon: Icon,
-    color: Fill,
-    on_click: F,
-) -> Box<dyn Element>
-where
-    F: FnMut(&mut EventContext) + 'static,
-{
-    let theme = appearance.theme();
-    let font_color = theme.foreground().into_solid();
-    let mut label_children = vec![ConstrainedBox::new(icon.to_warpui_icon(color).finish())
-        .with_width(PROVIDER_BUTTON_ICON_SIZE)
-        .with_height(PROVIDER_BUTTON_ICON_SIZE)
-        .finish()];
-    label_children.push(
-        Container::new(
-            Span::new(
-                button_label.to_string(),
-                UiComponentStyles {
-                    font_family_id: Some(appearance.ui_font_family()),
-                    font_size: Some(appearance.ui_font_size()),
-                    font_weight: Some(Weight::Semibold),
-                    font_color: Some(font_color),
-                    ..Default::default()
-                },
-            )
-            .build()
-            .finish(),
-        )
-        .with_padding_left(PROVIDER_BUTTON_ICON_TEXT_GAP)
-        .finish(),
-    );
-    let label = Flex::row()
-        .with_children(label_children)
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_alignment(MainAxisAlignment::Center)
-        .with_main_axis_size(MainAxisSize::Min)
-        .finish();
-    let mut on_click = on_click;
-    appearance
-        .ui_builder()
-        .button(ButtonVariant::Secondary, button_handle)
-        .with_custom_label(label)
-        .with_style(UiComponentStyles {
-            font_weight: Some(Weight::Semibold),
-            ..Default::default()
-        })
-        .build()
-        .on_click(move |ctx, _, _| {
-            on_click(ctx);
-        })
-        .finish()
 }

@@ -8,32 +8,16 @@ type RemoteServerIdentityKeyFn = dyn Fn() -> String + Send + Sync;
 #[derive(Clone)]
 pub struct RemoteServerIdentityContext {
     remote_server_identity_key: Arc<RemoteServerIdentityKeyFn>,
-    user_id: String,
-    user_email: String,
 }
 
 impl RemoteServerIdentityContext {
-    pub fn new(
-        remote_server_identity_key: impl Fn() -> String + Send + Sync + 'static,
-        user_id: String,
-        user_email: String,
-    ) -> Self {
+    pub fn new(remote_server_identity_key: impl Fn() -> String + Send + Sync + 'static) -> Self {
         Self {
             remote_server_identity_key: Arc::new(remote_server_identity_key),
-            user_id,
-            user_email,
         }
     }
 
     pub fn remote_server_identity_key(&self) -> String {
         (self.remote_server_identity_key)()
-    }
-
-    pub fn user_id(&self) -> &str {
-        &self.user_id
-    }
-
-    pub fn user_email(&self) -> &str {
-        &self.user_email
     }
 }

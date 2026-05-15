@@ -140,7 +140,7 @@ impl WorkspaceDecorationVisibility {
     rename_all = "snake_case"
 )]
 pub enum DirectoryTabColor {
-    /// User explicitly removed this directory. Retained for backwards compatibility with settings files written by older versions.
+    /// User explicitly removed this directory from tab coloring.
     #[schemars(description = "The directory was explicitly removed from tab coloring.")]
     Suppressed,
     /// Directory is tracked but has no assigned color.
@@ -164,8 +164,7 @@ impl DirectoryTabColor {
 ///
 /// Keys are directory paths (as strings). Values indicate the color state:
 /// - `Suppressed`: directory was explicitly removed by the user via the per-row X button.
-///   Retained so `color_for_directory` can shadow broader prefix matches, and for
-///   backwards compatibility with settings files written by older versions.
+///   It shadows broader prefix matches in `color_for_directory`.
 /// - `Unassigned`: directory is tracked but has no specific color.
 /// - `Color(c)`: directory is tracked with the given color.
 #[derive(

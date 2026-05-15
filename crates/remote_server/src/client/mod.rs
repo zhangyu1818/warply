@@ -71,13 +71,6 @@ pub enum ClientEvent {
     /// A server message could not be decoded and had no parseable request_id.
     MessageDecodingError,
 }
-/// Parameters for the `Initialize` handshake, sent to the daemon at
-/// connection time.
-pub struct InitializeParams {
-    pub user_id: String,
-    pub user_email: String,
-}
-
 /// Client for communicating with a `remote_server` process over the remote server protocol.
 ///
 /// Exposes async request/response APIs over generic I/O streams (child-process pipes,
@@ -115,8 +108,6 @@ impl fmt::Debug for RemoteServerClient {
         f.debug_struct("RemoteServerClient").finish_non_exhaustive()
     }
 }
-
-#[cfg(not(target_family = "wasm"))]
 impl RemoteServerClient {
     /// Creates a client from a child process's stdin, stdout, and stderr.
     ///
@@ -190,17 +181,11 @@ impl RemoteServerClient {
     }
 
     /// Sends an `Initialize` request and awaits the `InitializeResponse`.
-    pub async fn initialize(
-        &self,
-        params: InitializeParams,
-    ) -> Result<InitializeResponse, ClientError> {
+    pub async fn initialize(&self) -> Result<InitializeResponse, ClientError> {
         let request_id = RequestId::new();
         let msg = ClientMessage {
             request_id: request_id.to_string(),
-            message: Some(client_message::Message::Initialize(Initialize {
-                user_id: params.user_id,
-                user_email: params.user_email,
-            })),
+            message: Some(client_message::Message::Initialize(Initialize {})),
         };
 
         let response = self.send_request(request_id, msg).await?;
@@ -616,7 +601,6 @@ impl RemoteServerClient {
 
 /// Spawns a background task that reads lines from the server's stderr and
 /// forwards them to the client's logging.
-#[cfg(not(target_family = "wasm"))]
 pub fn spawn_stderr_forwarder(
     stderr: impl AsyncRead + TransportStream,
     executor: &executor::Background,

@@ -136,7 +136,7 @@ impl View for ConversationActionButtonsRow {
         if self.config.open_action.is_some() {
             row.add_child(ChildView::new(&self.open_button).finish());
         }
-        if self.config.fork_conversation_id.is_some() && !cfg!(target_family = "wasm") {
+        if self.config.fork_conversation_id.is_some() {
             row.add_child(ChildView::new(&self.fork_conversation_button).finish());
         }
         row.finish()

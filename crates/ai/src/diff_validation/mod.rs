@@ -283,9 +283,32 @@ fn unmatched_line_suffix<'a>(search_line: &str, file_line: &'a str) -> Option<&'
     }
 }
 
+fn append_unmatched_line_suffix(search: &str, file_line: &str, insertion: &mut String) {
+    let Some(search_last_line) = lines(search).last() else {
+        return;
+    };
+    let Some(suffix) = unmatched_line_suffix(search_last_line, file_line) else {
+        return;
+    };
+
+    let search_line_count = lines(search).count();
+    let insertion_line_count = lines(insertion).count();
+    let Some(insertion_last_line) = lines(insertion).last() else {
+        return;
+    };
+
+    if search_line_count != insertion_line_count
+        && search_last_line.trim_start() != insertion_last_line.trim_start()
+    {
+        return;
+    }
+
+    let insertion_point = insertion.trim_end_matches('\n').len();
+    insertion.insert_str(insertion_point, suffix);
+}
+
 /// We told the model not to include line numbers for the replacement content. However, it can
 /// still happen. Try to remove them here.
-/// https://github.com/warpdotdev/warp-server/blob/d9c1b6d1443290f2355979ae552d41af01a63bde/logic/ai/prompt/tools/suggest_diff.yaml#L34-L34
 fn remove_extra_line_num_prefix(replace: String) -> String {
     static LINE_NUMBER_PATTERN: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^\d+\|").expect("line number regex must compile"));
@@ -582,13 +605,12 @@ fn fuzzy_match_file_diffs(
                 // the delta would replace the entire line and drop the unmatched
                 // suffix. Detect this and preserve the suffix in the insertion.
                 let mut insertion = diff.replace.clone();
-                if range.end >= 2 && lines(&search).count() == lines(&insertion).count() {
-                    if let Some(suffix) = lines(&search)
-                        .last()
-                        .and_then(|last| unmatched_line_suffix(last, target_lines[range.end - 2]))
-                    {
-                        insertion.push_str(suffix);
-                    }
+                if range.end >= 2 {
+                    append_unmatched_line_suffix(
+                        &search,
+                        target_lines[range.end - 2],
+                        &mut insertion,
+                    );
                 }
                 deltas.push(DiffDelta {
                     replacement_line_range: range.start..range.end,

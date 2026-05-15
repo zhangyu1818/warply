@@ -173,7 +173,13 @@ pub(super) async fn handle_daemon_connection(
                     log::warn!("Daemon: skipping malformed message from conn {conn_id}: {e}");
                 }
                 Err(e) => {
-                    log::error!("Daemon: fatal read error from conn {conn_id}: {e}");
+                    if is_disconnect_error(&e) {
+                        log::warn!(
+                            "Daemon: read error from conn {conn_id} (client disconnected): {e}"
+                        );
+                    } else {
+                        log::error!("Daemon: fatal read error from conn {conn_id}: {e}");
+                    }
                     break;
                 }
             }
@@ -193,13 +199,56 @@ pub(super) async fn handle_daemon_connection(
     // deregister_connection) or a fatal write error occurs.
     while let Ok(msg) = conn_rx.recv().await {
         if let Err(e) = remote_server::protocol::write_server_message(&mut writer, &msg).await {
-            log::error!("Daemon: write error on conn {conn_id}: {e}");
-            break;
+            if !e.is_write_recoverable() {
+                if is_disconnect_error(&e) {
+                    log::warn!("Daemon: write error on conn {conn_id} (client disconnected): {e}");
+                } else {
+                    log::error!("Daemon: write error on conn {conn_id}: {e}");
+                }
+                break;
+            }
+            log::warn!("Daemon: skipping undeliverable message on conn {conn_id}: {e}");
+
+            if msg.request_id.is_empty() {
+                continue;
+            }
+            let error_msg = remote_server::proto::ServerMessage {
+                request_id: msg.request_id.clone(),
+                message: Some(remote_server::proto::server_message::Message::Error(
+                    remote_server::proto::ErrorResponse {
+                        code: remote_server::proto::ErrorCode::Internal.into(),
+                        message: format!("Response could not be delivered: {e}"),
+                    },
+                )),
+            };
+            if let Err(e2) =
+                remote_server::protocol::write_server_message(&mut writer, &error_msg).await
+            {
+                if !e2.is_write_recoverable() {
+                    if is_disconnect_error(&e2) {
+                        log::warn!(
+                            "Daemon: failed to send error response on conn {conn_id} \
+                             (client disconnected): {e2}"
+                        );
+                    } else {
+                        log::error!(
+                            "Daemon: failed to send error response on conn {conn_id}: {e2}"
+                        );
+                    }
+                    break;
+                }
+                log::warn!("Daemon: failed to send error response on conn {conn_id}: {e2}");
+                continue;
+            }
         }
         // Flush after every message so responses reach the proxy without
         // waiting for the BufWriter's internal buffer to fill up.
         if let Err(e) = writer.flush().await {
-            log::error!("Daemon: flush error on conn {conn_id}: {e}");
+            if is_disconnect_io_error(&e) {
+                log::warn!("Daemon: flush error on conn {conn_id} (client disconnected): {e}");
+            } else {
+                log::error!("Daemon: flush error on conn {conn_id}: {e}");
+            }
             break;
         }
     }
@@ -213,4 +262,20 @@ pub(super) async fn handle_daemon_connection(
             me.deregister_connection(conn_id, ctx);
         })
         .await;
+}
+
+fn is_disconnect_io_error(e: &std::io::Error) -> bool {
+    matches!(
+        e.kind(),
+        std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+    )
+}
+
+fn is_disconnect_error(e: &remote_server::protocol::ProtocolError) -> bool {
+    match e {
+        remote_server::protocol::ProtocolError::Io(io_err) => is_disconnect_io_error(io_err),
+        _ => false,
+    }
 }

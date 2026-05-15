@@ -35,8 +35,6 @@ use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 
 use crate::settings::DebugSettings;
-use crate::settings::SshSettings;
-
 use crate::terminal::model::session::Sessions;
 
 use crate::terminal::model_events::ModelEventDispatcher;
@@ -549,15 +547,9 @@ impl TerminalManager {
             .is_shell_debug_mode_enabled
             .value();
         let is_honor_ps1_enabled = *SessionSettings::as_ref(ctx).honor_ps1;
-        // The TMUX SSH wrapper supercedes the original ControlMaster wrapper.
-        let enable_ssh_wrapper = if FeatureFlag::SSHTmuxWrapper.is_enabled() {
-            *WarpifySettings::as_ref(ctx)
-                .enable_ssh_warpification
-                .value()
-                && !*WarpifySettings::as_ref(ctx).use_ssh_tmux_wrapper.value()
-        } else {
-            *SshSettings::as_ref(ctx).enable_legacy_ssh_wrapper.value()
-        };
+        let warpify_settings = WarpifySettings::as_ref(ctx);
+        let enable_ssh_wrapper = *warpify_settings.enable_ssh_warpification.value()
+            && !*warpify_settings.use_ssh_tmux_wrapper.value();
 
         let size: crate::terminal::SizeInfo = model.lock().block_list().size().to_owned();
         let options = PtyOptions {

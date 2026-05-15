@@ -96,8 +96,7 @@ pub struct SshInstallTmuxBlock {
     show_tmux_install_block: bool,
     script_status: RequestedScriptStatus,
     system_details: SystemDetails,
-    /// The script to install tmux locally, in a ~/.warp directory
-    tmux_local_install_script: String,
+    tmux_local_install_script: Option<String>,
     ssh_host: Option<String>,
     ssh_command: String,
     system_install_state: Option<SystemInstallState>,
@@ -158,7 +157,7 @@ impl SshInstallTmuxBlock {
     #[allow(clippy::new_without_default)]
     pub fn new(
         system_details: SystemDetails,
-        tmux_local_install_script: String,
+        tmux_local_install_script: Option<String>,
         tmux_system_install_script: Option<String>,
         ssh_command: String,
         ssh_host: Option<String>,
@@ -191,16 +190,21 @@ impl SshInstallTmuxBlock {
 
     pub fn get_install_method(&self) -> TmuxInstallMethod {
         if let Some(ref system_install_state) = self.system_install_state {
-            // The user has selected the first script, which is the system install
-            if system_install_state.is_first_script_active {
+            if system_install_state.is_first_script_active
+                || self.tmux_local_install_script.is_none()
+            {
                 return TmuxInstallMethod {
                     script: system_install_state.tmux_system_install_script.clone(),
                     should_use_package_manager: true,
                 };
             }
         }
+        let local_script = self
+            .tmux_local_install_script
+            .as_ref()
+            .expect("tmux local install script should exist without a system install script");
         TmuxInstallMethod {
-            script: self.tmux_local_install_script.clone(),
+            script: local_script.clone(),
             should_use_package_manager: false,
         }
     }
@@ -255,6 +259,27 @@ impl SshInstallTmuxBlock {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let package_manager = &self.system_details.package_manager;
+        let Some(local_script) = &self.tmux_local_install_script else {
+            return Container::new(requested_script::render_requested_script(
+                "",
+                tmux_system_install_script,
+                self.script_status.clone(),
+                self.is_collapsed,
+                self.show_tmux_install_block,
+                move |ctx, _, _| {
+                    ctx.dispatch_typed_action(SshInstallTmuxBlockAction::ToggleVisibility)
+                },
+                |ctx| ctx.dispatch_typed_action(SshInstallTmuxBlockAction::InstallTmux),
+                |ctx| ctx.dispatch_typed_action(SshInstallTmuxBlockAction::Cancel),
+                &ENTER_KEYSTROKE,
+                &ESCAPE_KEYSTROKE,
+                &self.requested_script_mouse_states,
+                self.is_focused,
+                app,
+            ))
+            .with_margin_top(16.)
+            .finish();
+        };
         Container::new(requested_script::render_requested_scripts(
             TitledScript {
                 title: format!("Install with {package_manager}"),
@@ -262,7 +287,7 @@ impl SshInstallTmuxBlock {
             },
             TitledScript {
                 title: "Install to ~/.warp".to_string(),
-                content: self.tmux_local_install_script.clone(),
+                content: local_script.clone(),
             },
             *is_first_script_active,
             self.script_status.clone(),
@@ -288,6 +313,9 @@ impl SshInstallTmuxBlock {
     }
 
     fn render_local_install_ui(&self, app: &AppContext) -> Box<dyn Element> {
+        let local_script = self.tmux_local_install_script.as_ref().expect(
+            "tmux local install script should exist when no system install script is present",
+        );
         let header = if self.is_focused {
             "Run this script to install tmux?"
         } else {
@@ -295,7 +323,7 @@ impl SshInstallTmuxBlock {
         };
         Container::new(requested_script::render_requested_script(
             header,
-            &self.tmux_local_install_script,
+            local_script,
             self.script_status.clone(),
             self.is_collapsed,
             self.show_tmux_install_block,
@@ -518,12 +546,6 @@ pub fn install_tmux_script(system: &SystemDetails, app: &AppContext) -> Option<S
         system.package_manager.as_str(),
         system.shell.as_str(),
     ) {
-        ("Linux", _, "bash" | "zsh") => {
-            bundled_asset!("ssh/bash_zsh/install_tmux_and_warpify_linux.sh")
-        }
-        ("Linux", _, "fish") => {
-            bundled_asset!("ssh/fish/install_tmux_and_warpify_linux.sh")
-        }
         ("Darwin", "homebrew", "bash" | "zsh") => {
             bundled_asset!("ssh/bash_zsh/install_tmux_and_warpify_brew.sh")
         }

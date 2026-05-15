@@ -12,18 +12,14 @@ pub(crate) mod util;
 // Re-export types that were moved to the ai crate.
 pub use ai::agent::{action::*, action_result::*, AIAgentCitation, FileLocations};
 
-#[cfg(test)]
-mod suggestion_test;
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::block::view_impl::output::are_all_text_sections_empty;
-use crate::ai::skills::SkillDescriptor;
 use crate::code::editor_management::CodeSource;
 use crate::code_review::comments::{
     AttachedReviewComment as CodeReviewComment, ReviewCommentBatch,
 };
 use crate::http_api::AIApiError;
 use crate::search::slash_command_menu::static_commands::commands;
-use ai::skills::ParsedSkill;
 use chrono::{DateTime, Local, TimeDelta};
 use comment::ReviewComment;
 pub use identifiers::AIIdentifiers;
@@ -48,29 +44,6 @@ use markdown_parser::{parse_markdown, FormattedTable, FormattedText, FormattedTe
 use serde::{Deserialize, Serialize};
 
 use super::llms::LLMId;
-
-/// A server supplied ID for a specific AI generated output.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ServerOutputId(String);
-
-impl std::fmt::Display for ServerOutputId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Display only the inner UUID string without the wrapper
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct InvokeSkillUserQuery {
-    pub query: String,
-    pub referenced_attachments: HashMap<String, AIAgentAttachment>,
-}
-
-impl ServerOutputId {
-    pub fn new(value: String) -> Self {
-        ServerOutputId(value)
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CancellationReason {
@@ -166,11 +139,6 @@ impl Display for FinishedAIAgentOutput {
 }
 
 impl FinishedAIAgentOutput {
-    pub fn server_output_id(&self) -> Option<ServerOutputId> {
-        self.output()
-            .and_then(|output| output.get().server_output_id.clone())
-    }
-
     pub fn model_id(&self) -> Option<LLMId> {
         self.output()
             .and_then(|output| output.get().model_info.as_ref().map(|m| m.model_id.clone()))
@@ -254,11 +222,6 @@ impl Display for AIAgentOutputStatus {
 }
 
 impl AIAgentOutputStatus {
-    pub fn server_output_id(&self) -> Option<ServerOutputId> {
-        self.output()
-            .and_then(|output| output.get().server_output_id.clone())
-    }
-
     pub fn cancel_reason(&self) -> Option<&CancellationReason> {
         match self {
             Self::Finished {
@@ -324,17 +287,6 @@ pub struct AIAgentOutput {
     /// The set of documents that were referenced in the LLM's response.
     pub citations: Vec<AIAgentCitation>,
 
-    pub server_output_id: Option<ServerOutputId>,
-
-    /// Optional metadata that may be attached by the `AIAgentApi` when emitting this output.
-    ///
-    /// This is guaranteed to be stored and passed back with this output if/when it is passed back
-    /// to `AIAgentApi` as conversation history.
-    pub api_metadata_bytes: Option<Vec<u8>>,
-
-    /// Suggested objects to apply to the output.
-    pub suggestions: Option<Suggestions>,
-
     /// Information about the model that generated this output.
     pub model_info: Option<OutputModelInfo>,
 }
@@ -343,7 +295,6 @@ pub struct AIAgentOutput {
 pub struct OutputModelInfo {
     pub model_id: LLMId,
     pub display_name: String,
-    pub is_fallback: bool,
 }
 
 impl Display for AIAgentOutput {
@@ -523,7 +474,6 @@ impl AIAgentOutput {
                     last_was_action = false;
                 }
                 AIAgentOutputMessageType::ArtifactCreated(_) => continue,
-                AIAgentOutputMessageType::SkillInvoked(_) => continue,
             }
         }
 
@@ -564,13 +514,7 @@ impl AIAgentOutput {
 /// Represents user visible errors.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RenderableAIError {
-    ServerOverloaded,
-    InternalWarpError,
-    ContextWindowExceeded(String),
-    InvalidApiKey {
-        provider: String,
-        model_name: String,
-    },
+    ProviderOverloaded,
     Other {
         error_message: String,
         will_attempt_resume: bool,
@@ -581,10 +525,6 @@ pub enum RenderableAIError {
 }
 
 impl RenderableAIError {
-    pub fn is_invalid_api_key(&self) -> bool {
-        matches!(self, Self::InvalidApiKey { .. })
-    }
-
     /// Returns true if an automatic resume will be attempted for this error.
     pub fn will_attempt_resume(&self) -> bool {
         matches!(
@@ -600,7 +540,7 @@ impl RenderableAIError {
 impl From<&AIApiError> for RenderableAIError {
     fn from(value: &AIApiError) -> Self {
         match value {
-            AIApiError::ServerOverloaded => Self::ServerOverloaded,
+            AIApiError::ProviderOverloaded => Self::ProviderOverloaded,
             _ => Self::Other {
                 error_message: format!("Request failed with error: {value:?}"),
                 will_attempt_resume: false,
@@ -613,18 +553,11 @@ impl From<&AIApiError> for RenderableAIError {
 impl Display for RenderableAIError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ServerOverloaded => {
+            Self::ProviderOverloaded => {
                 write!(
                     f,
                     "AI provider is currently overloaded. Please try again later."
                 )
-            }
-            Self::InternalWarpError => write!(f, "Internal Warp error."),
-            Self::ContextWindowExceeded(message) => {
-                write!(f, "Context window exceeded: {message}")
-            }
-            Self::InvalidApiKey { provider, .. } => {
-                write!(f, "Invalid API key for {provider}")
             }
             Self::Other { error_message, .. } => write!(f, "{error_message}"),
         }
@@ -648,7 +581,6 @@ impl ProgrammingLanguage {
 
     /// Returns the file extension for the given programming language.
     // TODO(INT-605): Refactor so we don't have to edit this function and the `languages` crate.
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub fn to_extension(&self) -> Option<&str> {
         match self {
             // The arms below cover both canonical language names emitted by the agent (e.g.
@@ -673,6 +605,7 @@ impl ProgrammingLanguage {
                 "css" => Some("css"),
                 "c" => Some("c"),
                 "json" => Some("json"),
+                "jq" => Some("jq"),
                 "hcl" | "terraform" | "tf" => Some("hcl"),
                 "lua" => Some("lua"),
                 "ruby" | "rb" => Some("rb"),
@@ -727,13 +660,6 @@ impl From<String> for ProgrammingLanguage {
 pub enum AgentOutputImageLayout {
     Block,
     Inline,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SuggestedAgentModeWorkflow {
-    pub name: String,
-    pub prompt: String,
-    pub logging_id: SuggestedLoggingId,
 }
 
 /// A ID for an AI action generated as part of an [`AIAgentOutput`].
@@ -1121,13 +1047,7 @@ impl AIAgentActionResult {
                 | AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled)
                 | AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
                 | AIAgentActionResultType::Grep(GrepResult::Cancelled)
-                | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled)
-                | AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
-                | AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
-                | AIAgentActionResultType::SuggestNewConversation(
-                    SuggestNewConversationResult::Cancelled,
-                )
-                | AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled),
+                | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled),
         )
     }
 }
@@ -1237,29 +1157,16 @@ impl From<String> for AgentOutputText {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum AgentOutputTableRendering {
-    Legacy { content: String },
-    Structured { table: FormattedTable },
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AgentOutputTable {
     pub markdown_source: String,
-    pub rendering: AgentOutputTableRendering,
+    table: FormattedTable,
 }
 
 impl AgentOutputTable {
-    pub fn legacy(content: String) -> Self {
-        Self {
-            markdown_source: content.clone(),
-            rendering: AgentOutputTableRendering::Legacy { content },
-        }
-    }
-
     pub fn structured(markdown_source: String, table: FormattedTable) -> Self {
         Self {
             markdown_source,
-            rendering: AgentOutputTableRendering::Structured { table },
+            table,
         }
     }
 
@@ -1276,24 +1183,19 @@ impl AgentOutputTable {
     }
 
     pub fn rendered_lines(&self) -> Vec<String> {
-        match &self.rendering {
-            AgentOutputTableRendering::Legacy { content } => {
-                content.lines().map(str::to_owned).collect()
-            }
-            AgentOutputTableRendering::Structured { table } => {
-                let mut lines = Vec::with_capacity(1 + table.rows.len());
-                lines.push(Self::plain_text_for_row(&table.headers));
-                lines.extend(table.rows.iter().map(|row| Self::plain_text_for_row(row)));
-                lines
-            }
-        }
+        let mut lines = Vec::with_capacity(1 + self.table.rows.len());
+        lines.push(Self::plain_text_for_row(&self.table.headers));
+        lines.extend(
+            self.table
+                .rows
+                .iter()
+                .map(|row| Self::plain_text_for_row(row)),
+        );
+        lines
     }
 
-    pub fn structured_table(&self) -> Option<&FormattedTable> {
-        match &self.rendering {
-            AgentOutputTableRendering::Legacy { .. } => None,
-            AgentOutputTableRendering::Structured { table } => Some(table),
-        }
+    pub fn table(&self) -> &FormattedTable {
+        &self.table
     }
 }
 
@@ -1447,17 +1349,6 @@ impl Display for SubagentCall {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct InvokedSkill {
-    pub name: String,
-}
-
-impl Display for InvokedSkill {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InvokedSkill: {}", self.name)
-    }
-}
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum AIAgentOutputMessageType {
@@ -1496,7 +1387,6 @@ pub enum AIAgentOutputMessageType {
     },
     /// Notification that an artifact was created (e.g. a PR).
     ArtifactCreated(ArtifactCreatedData),
-    SkillInvoked(InvokedSkill),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -1692,9 +1582,6 @@ impl Display for AIAgentOutputMessage {
                     "File artifact uploaded: {filepath} (artifact: {artifact_uid})"
                 )?,
             },
-            AIAgentOutputMessageType::SkillInvoked(invoked_skill) => {
-                write!(f, "Skill Invoked: {}", invoked_skill.name)?
-            }
         }
 
         if !self.citations.is_empty() {
@@ -1838,14 +1725,6 @@ impl AIAgentOutputMessage {
     pub fn with_citations(self, citations: Vec<AIAgentCitation>) -> Self {
         Self { citations, ..self }
     }
-
-    pub fn skill_invoked(id: MessageId, invoked_skill: InvokedSkill) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::SkillInvoked(invoked_skill),
-            citations: vec![],
-        }
-    }
 }
 
 /// Contains context that may be attached to a user query.
@@ -1891,12 +1770,6 @@ pub enum AIAgentContext {
     Git {
         head: String,
         branch: Option<String>,
-    },
-
-    /// List of available skills is provided to the agent during initialization
-    /// or when updated.
-    Skills {
-        skills: Vec<SkillDescriptor>,
     },
 
     #[serde(untagged)]
@@ -1964,8 +1837,7 @@ pub enum AIAgentAttachment {
         current: Option<CurrentHead>,
         base: DiffBase,
     },
-    /// Reference to a file on the VM filesystem (e.g., downloaded attachments from cloud mode).
-    /// The server uses this to provide the file as an inline reference to the LLM.
+    /// Reference to a local file attachment.
     FilePathReference {
         file_id: String,
         /// The original filename.
@@ -2020,74 +1892,6 @@ pub enum StaticQueryType {
     EvaluationSuite,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[allow(clippy::enum_variant_names)]
-pub enum EntrypointType {
-    PromptSuggestion {
-        is_static: bool,
-        is_coding: bool,
-    },
-    ZeroStateAgentModePromptSuggestion,
-    InitProjectRules,
-    TriggerPassiveSuggestion {
-        trigger: Option<PassiveSuggestionTriggerType>,
-    },
-    UserInitiated,
-    AgentInitiated,
-    CloneRepository,
-    ResumeConversation,
-}
-
-impl EntrypointType {
-    pub fn entrypoint(&self) -> String {
-        match self {
-            Self::PromptSuggestion {
-                is_static,
-                is_coding,
-            } => match (is_static, is_coding) {
-                (true, true) => "PROMPT_SUGGESTION.CODING_STATIC".to_string(),
-                (true, false) => "PROMPT_SUGGESTION.STATIC".to_string(),
-                (false, true) => "PROMPT_SUGGESTION.CODING".to_string(),
-                (false, false) => "PROMPT_SUGGESTION.SIMPLE".to_string(),
-            },
-            Self::ZeroStateAgentModePromptSuggestion => {
-                "ZERO_STATE_AGENT_MODE_PROMPT_SUGGESTION".to_string()
-            }
-            Self::InitProjectRules => "INIT_PROJECT_RULES".to_string(),
-            Self::UserInitiated => "USER_INITIATED".to_string(),
-            Self::AgentInitiated => "AGENT_INITIATED".to_string(),
-            Self::TriggerPassiveSuggestion { trigger } => {
-                let trigger_name = match trigger {
-                    Some(PassiveSuggestionTriggerType::FilesChanged) => "FILES_CHANGED",
-                    Some(PassiveSuggestionTriggerType::CommandRun) => "COMMAND_RUN",
-                    Some(PassiveSuggestionTriggerType::ShellCommandCompleted) => {
-                        "SHELL_COMMAND_COMPLETED"
-                    }
-                    Some(PassiveSuggestionTriggerType::AgentResponseCompleted) => {
-                        "AGENT_RESPONSE_COMPLETED"
-                    }
-                    None => "NONE",
-                };
-                format!("TRIGGER_SUGGEST_PROMPT.{trigger_name}")
-            }
-            Self::CloneRepository => "CLONE_REPOSITORY".to_string(),
-            Self::ResumeConversation => "RESUME_CONVERSATION".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[allow(clippy::enum_variant_names)]
-pub enum PassiveSuggestionTriggerType {
-    /// Used for unit test generation.
-    FilesChanged,
-    /// Used for unit test generation.
-    CommandRun,
-
-    ShellCommandCompleted,
-    AgentResponseCompleted,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ShellCommandCompletedTrigger {
     // We heap-allocate this because it's large and bloats the size of the
@@ -2099,25 +1903,7 @@ pub struct ShellCommandCompletedTrigger {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum PassiveSuggestionTrigger {
-    FilesChanged,
-    CommandRun,
     ShellCommandCompleted(ShellCommandCompletedTrigger),
-    AgentResponseCompleted { exchange_id: AIAgentExchangeId },
-}
-
-impl From<&PassiveSuggestionTrigger> for PassiveSuggestionTriggerType {
-    fn from(value: &PassiveSuggestionTrigger) -> Self {
-        match value {
-            PassiveSuggestionTrigger::FilesChanged => PassiveSuggestionTriggerType::FilesChanged,
-            PassiveSuggestionTrigger::CommandRun => PassiveSuggestionTriggerType::CommandRun,
-            PassiveSuggestionTrigger::ShellCommandCompleted(_) => {
-                PassiveSuggestionTriggerType::ShellCommandCompleted
-            }
-            PassiveSuggestionTrigger::AgentResponseCompleted { .. } => {
-                PassiveSuggestionTriggerType::AgentResponseCompleted
-            }
-        }
-    }
 }
 
 impl PassiveSuggestionTrigger {
@@ -2126,16 +1912,6 @@ impl PassiveSuggestionTrigger {
     pub fn block_id(&self) -> Option<BlockId> {
         match self {
             Self::ShellCommandCompleted(c) => Some(c.executed_shell_command.id.clone()),
-            _ => None,
-        }
-    }
-
-    /// Returns the exchange ID that triggered this passive suggestion
-    /// iff the trigger type was [Self::AgentResponseCompleted].
-    pub fn exchange_id(&self) -> Option<AIAgentExchangeId> {
-        match self {
-            Self::AgentResponseCompleted { exchange_id } => Some(*exchange_id),
-            _ => None,
         }
     }
 }
@@ -2181,27 +1957,6 @@ pub struct RunningCommand {
     pub is_alt_screen_active: bool,
 }
 
-/// A single search/replace diff entry for a passive code suggestion.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PassiveCodeDiffEntry {
-    pub file_path: String,
-    pub search: String,
-    pub replace: String,
-}
-
-/// The outcome of a passive suggestion that the user interacted with.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PassiveSuggestionResultType {
-    Prompt {
-        prompt: String,
-    },
-    CodeDiff {
-        diffs: Vec<PassiveCodeDiffEntry>,
-        summary: String,
-        accepted: bool,
-    },
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum AIAgentInput {
     /// A user's query to the AI.
@@ -2228,12 +1983,6 @@ pub enum AIAgentInput {
         display_query: Option<String>,
     },
 
-    TriggerPassiveSuggestion {
-        context: Arc<[AIAgentContext]>,
-        attachments: Vec<AIAgentAttachment>,
-        trigger: PassiveSuggestionTrigger,
-    },
-
     CreateNewProject {
         query: String,
         context: Arc<[AIAgentContext]>,
@@ -2255,29 +2004,10 @@ pub enum AIAgentInput {
         context: Arc<[AIAgentContext]>,
     },
 
-    SummarizeConversation {
-        prompt: Option<String>,
-    },
-
-    /// Invoke a skill. The skill content is passed as instructions to the agent.
-    InvokeSkill {
-        context: Arc<[AIAgentContext]>,
-        skill: ParsedSkill,
-        user_query: Option<InvokeSkillUserQuery>,
-    },
-
     /// The result of an `AIAgentAction`, relayed back to the LLM for it to continue answering a
     /// user query.
     ActionResult {
         result: AIAgentActionResult,
-        context: Arc<[AIAgentContext]>,
-    },
-
-    /// The result of a passive suggestion that should be
-    /// handled in the active conversation.
-    PassiveSuggestionResult {
-        trigger: Option<PassiveSuggestionTrigger>,
-        suggestion: PassiveSuggestionResultType,
         context: Arc<[AIAgentContext]>,
     },
 }
@@ -2335,26 +2065,10 @@ impl Display for AIAgentInput {
             Self::ActionResult { result, .. } => write!(f, "ActionResult: {result}"),
             Self::ResumeConversation { .. } => write!(f, "ResumeConversation"),
             Self::InitProjectRules { .. } => write!(f, "InitProjectRules"),
-            Self::TriggerPassiveSuggestion { .. } => write!(f, "TriggerSuggestPrompt"),
             Self::CreateNewProject { .. } => write!(f, "CreateNewProject"),
             Self::CloneRepository { .. } => write!(f, "CloneRepository"),
             Self::CodeReview { .. } => write!(f, "CodeReview"),
             Self::FetchReviewComments { .. } => write!(f, "FetchReviewComments"),
-            Self::SummarizeConversation { .. } => write!(f, "SummarizeConversation"),
-            Self::InvokeSkill {
-                skill, user_query, ..
-            } => {
-                if let Some(user_query) = user_query {
-                    if user_query.query.is_empty() {
-                        write!(f, "InvokeSkill: {}", skill.name)
-                    } else {
-                        write!(f, "InvokeSkill: {} {}", skill.name, user_query.query)
-                    }
-                } else {
-                    write!(f, "InvokeSkill: {}", skill.name)
-                }
-            }
-            Self::PassiveSuggestionResult { .. } => write!(f, "PassiveSuggestionResult"),
         }
     }
 }
@@ -2375,40 +2089,9 @@ impl AIAgentInput {
             Self::InitProjectRules { display_query, .. } => display_query.clone(),
             Self::CodeReview { .. } => Some("Address these comments".to_string()),
             Self::FetchReviewComments { .. } => Some(commands::PR_COMMENTS.name.to_string()),
-            Self::InvokeSkill {
-                skill, user_query, ..
-            } => {
-                if let Some(user_query) = user_query {
-                    if user_query.query.is_empty() {
-                        Some(format!("/{}", skill.name))
-                    } else {
-                        Some(format!("/{} {}", skill.name, user_query.query))
-                    }
-                } else {
-                    Some(format!("/{}", skill.name))
-                }
-            }
-            Self::ActionResult {
-                result:
-                    AIAgentActionResult {
-                        result:
-                            AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Accepted {
-                                query,
-                            }),
-                        ..
-                    },
-                ..
-            } => Some(query.clone()),
-            Self::PassiveSuggestionResult {
-                suggestion: PassiveSuggestionResultType::Prompt { prompt },
-                ..
-            } => Some(prompt.clone()),
             Self::AutoCodeDiffQuery { .. }
             | Self::ActionResult { .. }
-            | Self::TriggerPassiveSuggestion { .. }
-            | Self::ResumeConversation { .. }
-            | Self::SummarizeConversation { .. }
-            | Self::PassiveSuggestionResult { .. } => None,
+            | Self::ResumeConversation { .. } => None,
         }
     }
 
@@ -2453,38 +2136,12 @@ impl AIAgentInput {
         Some(query.as_str())
     }
 
-    pub fn passive_suggestion_trigger(&self) -> Option<&PassiveSuggestionTrigger> {
-        match self {
-            AIAgentInput::TriggerPassiveSuggestion { trigger, .. } => Some(trigger),
-            _ => None,
-        }
-    }
-
-    pub fn is_passive_suggestion_trigger(&self) -> bool {
-        matches!(self, AIAgentInput::TriggerPassiveSuggestion { .. })
-    }
-
     pub fn is_user_query(&self) -> bool {
         matches!(self, AIAgentInput::UserQuery { .. })
     }
 
-    pub fn prompt_suggestion_result(&self) -> Option<&String> {
-        if let Some(AIAgentActionResult {
-            result: AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Accepted { query }),
-            ..
-        }) = self.action_result()
-        {
-            Some(query)
-        } else {
-            None
-        }
-    }
-
     pub fn is_passive_request(&self) -> bool {
-        matches!(
-            self,
-            AIAgentInput::AutoCodeDiffQuery { .. } | AIAgentInput::TriggerPassiveSuggestion { .. }
-        )
+        matches!(self, AIAgentInput::AutoCodeDiffQuery { .. })
     }
 
     pub fn context(&self) -> Option<&[AIAgentContext]> {
@@ -2494,14 +2151,10 @@ impl AIAgentInput {
             | Self::AutoCodeDiffQuery { context, .. }
             | Self::ResumeConversation { context, .. }
             | Self::InitProjectRules { context, .. }
-            | Self::TriggerPassiveSuggestion { context, .. }
             | Self::CreateNewProject { context, .. }
             | Self::CloneRepository { context, .. }
             | Self::CodeReview { context, .. }
-            | Self::FetchReviewComments { context, .. }
-            | Self::InvokeSkill { context, .. }
-            | Self::PassiveSuggestionResult { context, .. } => Some(context),
-            Self::SummarizeConversation { .. } => None,
+            | Self::FetchReviewComments { context, .. } => Some(context),
         }
     }
 
@@ -2517,7 +2170,6 @@ impl AIAgentInput {
                     referenced_attachments.values().cloned().collect();
                 Some(res)
             }
-            Self::TriggerPassiveSuggestion { attachments, .. } => Some(attachments.clone()),
             Self::ActionResult { .. }
             | Self::AutoCodeDiffQuery { .. }
             | Self::ResumeConversation { .. }
@@ -2525,10 +2177,7 @@ impl AIAgentInput {
             | Self::CreateNewProject { .. }
             | Self::CloneRepository { .. }
             | Self::CodeReview { .. }
-            | Self::FetchReviewComments { .. }
-            | Self::SummarizeConversation { .. }
-            | Self::InvokeSkill { .. }
-            | Self::PassiveSuggestionResult { .. } => None,
+            | Self::FetchReviewComments { .. } => None,
         }
     }
 
@@ -2541,9 +2190,7 @@ impl AIAgentInput {
     pub fn has_custom_display_query(&self) -> bool {
         matches!(
             self,
-            AIAgentInput::InitProjectRules { .. }
-                | AIAgentInput::FetchReviewComments { .. }
-                | AIAgentInput::InvokeSkill { .. }
+            AIAgentInput::InitProjectRules { .. } | AIAgentInput::FetchReviewComments { .. }
         )
     }
 }
@@ -2704,91 +2351,8 @@ impl AIAgentExchange {
             .any(|input| input.auto_code_diff_query().is_some())
     }
 
-    pub fn passive_suggestion_trigger(&self) -> Option<&PassiveSuggestionTrigger> {
-        self.input
-            .iter()
-            .find_map(|input| input.passive_suggestion_trigger())
-    }
-
     pub fn duration(&self) -> Option<TimeDelta> {
         self.finish_time
             .map(|finish_time| finish_time.signed_duration_since(self.start_time))
-    }
-}
-
-/// Request-level metadata propagated to the `AIAgentApi` that may be used for logging.
-#[derive(Clone, Debug, Serialize)]
-pub struct RequestMetadata {
-    /// `true` if the user query was autodetected as AI input.
-    ///
-    /// This only applies to `AIAgentInput::UserQuery`.
-    pub is_autodetected_user_query: bool,
-
-    pub entrypoint: EntrypointType,
-
-    /// Whether this request is an automatic resume triggered by a previous error.
-    pub is_auto_resume_after_error: bool,
-}
-
-/// A globally unique ID for a suggested objects.
-///
-/// This is used to track and connect both:
-/// - Suggested objects generated by the AI agent
-/// - The corresponding objects stored in the cloud (if the suggestion was accepted)
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SuggestedLoggingId(String);
-
-impl Display for SuggestedLoggingId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for SuggestedLoggingId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SuggestedRule {
-    pub name: String,
-    pub content: String,
-    pub logging_id: SuggestedLoggingId,
-}
-
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
-pub struct Suggestions {
-    pub rules: Vec<SuggestedRule>,
-    pub agent_mode_workflows: Vec<SuggestedAgentModeWorkflow>,
-}
-
-impl Suggestions {
-    /// Extend the suggestions, ensuring that we don't add duplicates by checking the logging_id
-    pub fn extend(&mut self, other: &Suggestions) {
-        let existing_logging_ids: Vec<_> = self
-            .rules
-            .iter()
-            .map(|rule| rule.logging_id.clone())
-            .collect();
-        let new_rules = other
-            .rules
-            .iter()
-            .filter(|rule| !existing_logging_ids.contains(&rule.logging_id))
-            .cloned();
-        self.rules.extend(new_rules);
-
-        // Add new agent mode workflows, ensuring no duplicates by logging_id
-        let existing_workflow_ids: Vec<_> = self
-            .agent_mode_workflows
-            .iter()
-            .map(|workflow| workflow.logging_id.clone())
-            .collect();
-        let new_workflows = other
-            .agent_mode_workflows
-            .iter()
-            .filter(|workflow| !existing_workflow_ids.contains(&workflow.logging_id))
-            .cloned();
-        self.agent_mode_workflows.extend(new_workflows);
     }
 }

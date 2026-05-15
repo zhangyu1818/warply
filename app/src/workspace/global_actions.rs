@@ -1,5 +1,4 @@
 use crate::app_state::get_app_state;
-use crate::network::NetworkStatus;
 use crate::persistence::ModelEvent;
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::general_settings::GeneralSettings;
@@ -53,8 +52,6 @@ pub struct ForkFromExchange {
 pub struct ForkAIConversationParams {
     pub conversation_id: AIConversationId,
     pub fork_from_exchange: Option<ForkFromExchange>,
-    pub summarize_after_fork: bool,
-    pub summarization_prompt: Option<String>,
     pub initial_prompt: Option<String>,
     pub destination: ForkedConversationDestination,
 }
@@ -67,14 +64,6 @@ pub fn init_global_actions(app: &mut AppContext) {
     app.add_global_action("workspace:toggle_focus_reporting", toggle_focus_reporting);
     app.add_global_action("workspace:save_app", save_app);
     app.add_global_action("workspace:fork_ai_conversation", fork_ai_conversation);
-    app.add_global_action(
-        "workspace:summarize_ai_conversation",
-        summarize_ai_conversation,
-    );
-    app.add_global_action(
-        "workspace:toggle_debug_network_status",
-        toggle_debug_network_status,
-    );
     app.add_global_action("workspace:open_repository", open_repository);
     app.add_global_action("app:undo_close", undo_close);
 }
@@ -144,19 +133,6 @@ fn save_app(_: &(), ctx: &mut AppContext) {
     }
 }
 
-fn toggle_debug_network_status(_: &(), ctx: &mut AppContext) {
-    NetworkStatus::handle(ctx).update(ctx, move |me, ctx| {
-        let is_reachable = me.is_online();
-        let new_is_reachable = !is_reachable;
-        if new_is_reachable {
-            log::info!("Manually toggled network status to be reachable");
-        } else {
-            log::info!("Manually toggled network status to be not reachable");
-        }
-        me.reachability_changed(new_is_reachable, ctx)
-    });
-}
-
 /// Reopens the last closed item (window or tab).
 fn undo_close(_: &(), ctx: &mut AppContext) {
     UndoCloseStack::handle(ctx).update(ctx, |stack, ctx| {
@@ -199,20 +175,8 @@ fn fork_ai_conversation(params: &ForkAIConversationParams, ctx: &mut AppContext)
         WorkspaceAction::ForkAIConversation {
             conversation_id: params.conversation_id,
             fork_from_exchange: params.fork_from_exchange,
-            summarize_after_fork: params.summarize_after_fork,
-            summarization_prompt: params.summarization_prompt.clone(),
             initial_prompt: params.initial_prompt.clone(),
             destination: params.destination,
-        },
-    );
-}
-
-fn summarize_ai_conversation(prompt: &Option<String>, ctx: &mut AppContext) {
-    dispatch_to_active_workspace(
-        ctx,
-        WorkspaceAction::SummarizeAIConversation {
-            prompt: prompt.clone(),
-            initial_prompt: None,
         },
     );
 }

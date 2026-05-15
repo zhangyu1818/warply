@@ -34,11 +34,11 @@ use crate::{
         block::keyboard_navigable_buttons::{rich_navigation_button, KeyboardNavigableButtons},
         inline_action::inline_action_header::{HeaderConfig, INLINE_ACTION_HORIZONTAL_PADDING},
     },
-    terminal::model::session::SessionId,
     terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings},
     ui_components::blended_colors,
     Appearance,
 };
+use warp_core::SessionId;
 
 const PROMPT_BORDER_RADIUS: f32 = 8.;
 

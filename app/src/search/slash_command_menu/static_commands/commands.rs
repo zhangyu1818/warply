@@ -18,15 +18,6 @@ pub static AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: Some(Argument::optional().with_execute_on_selection()),
 });
 
-pub const ADD_MCP: StaticCommand = StaticCommand {
-    name: "/add-mcp",
-    description: "Add a new MCP server via the MCP settings page",
-    icon_path: "bundled/svg/dataflow.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const PR_COMMENTS: StaticCommand = StaticCommand {
     name: "/pr-comments",
     description: "Pull GitHub PR review comments",
@@ -52,24 +43,6 @@ pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| Static
     availability: Availability::LOCAL | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
     argument: Some(Argument::required().with_hint_text("<describe what you want to build>")),
-});
-
-pub static EDIT_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/open-skill",
-    description: "Open a skill's markdown file in Warp's built-in editor",
-    icon_path: "bundled/svg/file-code-02.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
-pub static INVOKE_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/skills",
-    description: "Invoke a skill",
-    icon_path: "bundled/svg/stars-01.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
 });
 
 pub static ADD_PROMPT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -177,15 +150,6 @@ pub const OPEN_PROJECT_RULES: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const OPEN_MCP_SERVERS: StaticCommand = StaticCommand {
-    name: "/open-mcp-servers",
-    description: "Open MCP servers",
-    icon_path: "bundled/svg/dataflow.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const OPEN_SETTINGS_FILE: StaticCommand = StaticCommand {
     name: "/open-settings-file",
     description: "Open settings file (TOML)",
@@ -242,32 +206,6 @@ pub fn strip_command_prefix(query: &str, name: &str) -> Option<String> {
         .map(|rest| rest.to_string())
 }
 
-pub static COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/compact",
-    description: "Free up context by summarizing convo history",
-    icon_path: "bundled/svg/collapse_content.svg",
-    availability: Availability::AGENT_VIEW
-        | Availability::ACTIVE_CONVERSATION
-        | Availability::NO_LRC_CONTROL
-        | Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: Some(
-        Argument::optional().with_hint_text("<optional custom summarization instructions>"),
-    ),
-});
-
-pub static COMPACT_AND: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/compact-and",
-    description: "Compact conversation and then send a follow-up prompt",
-    icon_path: "bundled/svg/collapse_content.svg",
-    availability: Availability::AGENT_VIEW
-        | Availability::ACTIVE_CONVERSATION
-        | Availability::NO_LRC_CONTROL
-        | Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<prompt to send after compaction>")),
-});
-
 pub static QUEUE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/queue",
     description: "Queue a prompt to send after the agent finishes responding",
@@ -278,21 +216,6 @@ pub static QUEUE: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
         | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
     argument: Some(Argument::required().with_hint_text("<prompt to send when agent is done>")),
-});
-
-pub static FORK_AND_COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| {
-    let hint_text = "<optional prompt to send after compaction>";
-    StaticCommand {
-        name: "/fork-and-compact",
-        description: "Fork current conversation and compact it in the forked copy",
-        icon_path: "bundled/svg/fork_and_compact.svg",
-        availability: Availability::AGENT_VIEW
-            | Availability::ACTIVE_CONVERSATION
-            | Availability::NO_LRC_CONTROL
-            | Availability::AI_ENABLED,
-        auto_enter_ai_mode: true,
-        argument: Some(Argument::optional().with_hint_text(hint_text)),
-    }
 });
 
 pub const FORK_FROM: StaticCommand = StaticCommand {
@@ -422,12 +345,10 @@ impl Registry {
 
 fn all_commands() -> Vec<StaticCommand> {
     let mut commands = vec![
-        ADD_MCP,
         ADD_PROMPT.clone(),
         ADD_RULE,
         INIT,
         OPEN_PROJECT_RULES,
-        OPEN_MCP_SERVERS,
         OPEN_RULES,
         AGENT.clone(),
         NEW.clone(),
@@ -452,44 +373,23 @@ fn all_commands() -> Vec<StaticCommand> {
         commands.push(CREATE_NEW_PROJECT.clone());
     }
 
-    if FeatureFlag::SummarizationConversationCommand.is_enabled() {
-        commands.push(COMPACT.clone());
-        commands.push(COMPACT_AND.clone());
+    commands.push(QUEUE.clone());
+
+    commands.push(FORK.clone());
+
+    if FeatureFlag::ForkFromCommand.is_enabled() {
+        commands.push(FORK_FROM);
     }
 
-    if FeatureFlag::QueueSlashCommand.is_enabled() {
-        commands.push(QUEUE.clone());
-    }
+    commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
 
-    if !cfg!(target_family = "wasm") {
-        commands.extend([FORK.clone(), FORK_AND_COMPACT.clone()]);
-
-        if FeatureFlag::ForkFromCommand.is_enabled() {
-            commands.push(FORK_FROM);
-        }
-    }
-
-    if !cfg!(target_family = "wasm") {
-        commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
-    }
-
-    if FeatureFlag::ListSkills.is_enabled() && !cfg!(target_family = "wasm") {
-        commands.push(EDIT_SKILL.clone());
-        commands.push(INVOKE_SKILL.clone());
-    }
-
-    if FeatureFlag::PRCommentsSlashCommand.is_enabled()
-        && !FeatureFlag::PRCommentsSkill.is_enabled()
-    {
+    if FeatureFlag::PRCommentsSlashCommand.is_enabled() {
         commands.push(PR_COMMENTS);
     }
 
-    if FeatureFlag::RevertToCheckpoints.is_enabled() && FeatureFlag::RewindSlashCommand.is_enabled()
-    {
-        commands.push(REWIND);
-    }
+    commands.push(REWIND);
 
-    if FeatureFlag::InlineRepoMenu.is_enabled() && !cfg!(target_family = "wasm") {
+    if FeatureFlag::InlineRepoMenu.is_enabled() {
         commands.push(OPEN_REPO);
     }
 

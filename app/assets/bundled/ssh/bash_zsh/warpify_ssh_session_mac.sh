@@ -1,34 +1,34 @@
-_find() {
+_f() {
     command -v "$1" >/dev/null 2>&1
 }
 
-_log() {
+_l() {
     _msg=$(printf "{\"hook\": \"$1\", \"value\": $2}" | command -p od -An -v -tx1 | command -p tr -d " \n")
     printf '\033\120\044\144%s\234' "$_msg"
 }
 
 _err() {
-    _log RemoteWarpificationIsUnavailable "$1"
+    _l RemoteWarpificationIsUnavailable "$1"
 }
 
 _sd() {
-    if _find brew; then
+    if _f brew; then
         PKG="homebrew"
     fi
 
     WH=$( [ -w ~ ] && echo true || echo false )
 
-    printf '{"os": "Darwin", "pkg": "%s", "shell": "%s", "root_access": "no_root_access", "writable_home": %s}' "$PKG" "$(basename $SHELL)" $WH
+    printf '{"operating_system": "Darwin", "package_manager": "%s", "shell": "%s", "root_access": "no_root_access", "writable_home": %s}' "$PKG" "$(basename $SHELL)" $WH
 }
 
   # _check_tmux is used in tmux install script post install!
 _check_tmux() {
     TMUX="$HOME/.warp/tmux/execute_tmux.sh"
-    if _find "$TMUX"; then
-        _log SshTmuxInstaller "\"warp\""
-    elif _find tmux; then
+    if _f "$TMUX"; then
+        _l SshTmuxInstaller "\"warp\""
+    elif _f tmux; then
         TMUX="tmux"
-        _log SshTmuxInstaller "\"user\""
+        _l SshTmuxInstaller "\"user\""
     fi
 
     if [ $TMUX ]; then

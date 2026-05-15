@@ -175,7 +175,6 @@ impl AppCallbackDispatcher {
         }
     }
 
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn open_new_window(&mut self) {
         if let Some(callback) = &mut self.callbacks.on_new_window_requested {
             self.ui_app.update(|ctx| callback(ctx));
@@ -205,7 +204,6 @@ impl AppCallbackDispatcher {
         }
     }
 
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn screen_changed(&mut self) {
         if let Some(callback) = &mut self.callbacks.on_screen_changed {
             self.ui_app.update(|ctx| callback(ctx));
@@ -219,14 +217,12 @@ impl AppCallbackDispatcher {
         });
     }
 
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn open_files(&mut self, file_paths: Vec<PathBuf>) {
         if let Some(callback) = &mut self.callbacks.on_open_files {
             self.ui_app.update(|ctx| callback(file_paths, ctx));
         }
     }
 
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn open_urls(&mut self, urls: Vec<String>) {
         if let Some(callback) = &mut self.callbacks.on_open_urls {
             self.ui_app.update(|ctx| callback(urls, ctx));
@@ -256,7 +252,6 @@ impl AppCallbackDispatcher {
             .update(|ctx| ctx.on_global_shortcut_triggered(shortcut))
     }
 
-    #[cfg_attr(not(target_os = "macos"), allow(unused))]
     pub fn can_borrow_mut(&self) -> bool {
         self.ui_app.can_borrow_mut()
     }

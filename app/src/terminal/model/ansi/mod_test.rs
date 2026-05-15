@@ -1,10 +1,9 @@
 use hex;
-use warp_core::command::ExitCode;
+use warp_core::{command::ExitCode, SessionId};
 use warpui::color::ColorU;
 
 use super::*;
 use crate::terminal::model::index::VisibleRow;
-use crate::terminal::model::session::SessionId;
 use crate::terminal::model::{ansi::InputBufferValue, selection::ScrollDelta};
 use std::{collections::HashSet, io, io::Write, path::PathBuf};
 
@@ -600,6 +599,7 @@ fn parse_dcs_bootstrapped() {
                 shell: "bash".to_string(),
                 home_dir: Some("/Users/andy".to_string()),
                 path: Some("/usr/sbin:/usr/bin".to_string()),
+                cdpath: None,
                 editor: Some("vim".to_string()),
                 aliases: Some("vi=nvim\nvim=nvim".to_string()),
                 abbreviations: Some("abbr -a -- vi nvim\nabbr -a -- gc 'git checkout'".to_string()),

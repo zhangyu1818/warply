@@ -1,23 +1,11 @@
-// We can use `std::process:Command` here because this is invoked within a build script,
-// _not_ within the Warply binary (where it could cause a terminal to temporarily flash on
-// Windows).
 #![allow(clippy::disallowed_types)]
 
 use std::{env, path::PathBuf, process::Command};
 
-use cfg_aliases::cfg_aliases;
-
 fn main() {
-    cfg_aliases! {
-        macos: { target_os = "macos" },
-        native: { not(target_family = "wasm") },
-    }
-
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
-        bindgen_shader_types();
-        compile_metal_shaders();
-        compile_objc_lib();
-    }
+    bindgen_shader_types();
+    compile_metal_shaders();
+    compile_objc_lib();
 }
 
 fn bindgen_shader_types() {

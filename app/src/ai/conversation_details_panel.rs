@@ -36,7 +36,6 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
 use crate::util::time_format::{format_approx_duration_from_now, human_readable_precise_duration};
-#[cfg(not(target_family = "wasm"))]
 use crate::view_components::copyable_text_field::{
     render_copyable_text_field, CopyableTextFieldConfig, COPY_FEEDBACK_DURATION,
 };
@@ -320,8 +319,6 @@ impl ConversationDetailsPanel {
                 ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
                     conversation_id: *conversation_id,
                     fork_from_exchange: None,
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
                     initial_prompt: None,
                     destination: ForkedConversationDestination::NewTab,
                 });
@@ -792,14 +789,6 @@ impl View for ConversationDetailsPanel {
                 .finish(),
             )
             .finish();
-
-        // On mobile, add background and skip Resizable
-        #[cfg(target_family = "wasm")]
-        if warpui::platform::wasm::is_mobile_device() {
-            return Container::new(panel_content)
-                .with_background(theme.surface_1())
-                .finish();
-        }
 
         Resizable::new(self.resizable_state_handle.clone(), panel_content)
             .with_dragbar_side(DragBarSide::Left)

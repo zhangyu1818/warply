@@ -2,11 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
+use settings::macros::define_settings_group;
 use settings_value::SettingsValue;
-use warp_core::{
-    define_settings_group,
-    settings::{Setting, SupportedPlatforms},
-};
+use warp_core::settings::{Setting, SupportedPlatforms};
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::{
@@ -114,23 +112,6 @@ impl WorkflowAliases {
         let mut aliases = self.aliases.clone();
         let to_exclude = aliases_to_exclude.into_iter().collect::<HashSet<_>>();
         aliases.retain(|a| !to_exclude.contains(&a.alias));
-        self.aliases.set_value(aliases, ctx)
-    }
-
-    /// Migrate all aliases from one workflow id to another.
-    /// Useful when a workflow id changes, like on initial save.
-    pub fn update_workflow_id(
-        &mut self,
-        old_workflow_id: SyncId,
-        new_workflow_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), Error> {
-        let mut aliases = self.aliases.clone();
-        for alias in aliases.iter_mut() {
-            if alias.workflow_id == old_workflow_id {
-                alias.workflow_id = new_workflow_id;
-            }
-        }
         self.aliases.set_value(aliases, ctx)
     }
 

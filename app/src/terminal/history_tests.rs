@@ -5,7 +5,7 @@ use crate::{
             block::{AgentInteractionMetadata, SerializedAIMetadata, SerializedBlock},
             bootstrap::BootstrapStage,
             session::command_executor::testing::TestCommandExecutor,
-            session::{BootstrapSessionType, Session, SessionId, SessionInfo},
+            session::{BootstrapSessionType, Session, SessionInfo},
             test_utils::TestBlockBuilder,
         },
         shell::ShellType,
@@ -18,7 +18,7 @@ use futures::future::join_all;
 use futures::Future;
 use futures_lite::StreamExt;
 use itertools::Itertools;
-use warp_core::command::ExitCode;
+use warp_core::{command::ExitCode, SessionId};
 use warpui::{App, ModelHandle};
 
 use std::path::PathBuf;

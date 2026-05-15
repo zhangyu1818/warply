@@ -45,7 +45,7 @@ function _system_details
 
     set -l WH $( [ -w ~ ] && echo true || echo false )
 
-    printf '%s' "{\"os\": \"$OS\", \"pkg\": \"$PK\", \"shell\": \"fish\", \"root_access\": \"$RA\", \"writable_home\": $WH}"
+    printf '%s' "{\"operating_system\": \"$OS\", \"package_manager\": \"$PK\", \"shell\": \"fish\", \"root_access\": \"$RA\", \"writable_home\": $WH}"
 end
 
   # _check_tmux is used in the install script post install!

@@ -86,7 +86,7 @@ pub enum WorkflowsViewAction {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum WorkflowViewType {
     All,
-    LocalPersonal, // represents both local + personal cloud
+    LocalPersonal,
     Project,
     Category { category_index: usize },
 }
@@ -478,7 +478,7 @@ impl CategoriesView {
         );
     }
 
-    pub fn load_cloud_workflows(&mut self, ctx: &mut ViewContext<Self>) {
+    pub fn load_saved_workflows(&mut self, ctx: &mut ViewContext<Self>) {
         let user_workspaces = UserWorkspaces::as_ref(ctx);
         let cloud_model = CloudModel::as_ref(ctx);
 
@@ -489,7 +489,7 @@ impl CategoriesView {
                 workflows_in_space
                     .into_iter()
                     .filter(|workflow| !workflow.model().data.is_agent_mode_workflow())
-                    .map(|w| Arc::new(WorkflowType::Cloud(Box::new(w.clone())))),
+                    .map(|w| Arc::new(WorkflowType::Saved(Box::new(w.clone())))),
             );
             self.workflows_by_source
                 .insert(space.into(), new_workflows_in_space);
@@ -563,18 +563,17 @@ impl CategoriesView {
                         )
                     },
                 );
-                let personal_cloud = self
-                    .workflows_by_source
-                    .get(&WorkflowSource::PersonalCloud)
-                    .map(|categorized_workflows| {
+                let saved = self.workflows_by_source.get(&WorkflowSource::Saved).map(
+                    |categorized_workflows| {
                         Self::create_workflow_source_pair(
                             categorized_workflows.values(),
-                            WorkflowSource::PersonalCloud,
+                            WorkflowSource::Saved,
                         )
-                    });
+                    },
+                );
                 // Append the two options of vectors
                 let result = local.and_then(|v1| {
-                    personal_cloud.map(|v2| {
+                    saved.map(|v2| {
                         let mut joined_vec = v1;
                         joined_vec.extend(v2);
                         joined_vec
@@ -1204,7 +1203,7 @@ impl VoltronFeatureViewMeta for CategoriesView {
             self.load_project_workflows(active_path, ctx);
         }
 
-        self.load_cloud_workflows(ctx);
+        self.load_saved_workflows(ctx);
 
         self.search_term = String::new();
         ctx.notify();

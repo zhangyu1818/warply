@@ -4,7 +4,7 @@ use warp_workflows;
 
 use crate::object_ids::SyncId;
 
-/// Workflow model to be used inside of `warp-internal`
+/// Local workflow model.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
@@ -249,7 +249,7 @@ impl Workflow {
     }
 }
 
-/// Create a warp-internal Workflow model from a public-facing workflow
+/// Create a local workflow model from a public-facing workflow.
 /// https://github.com/warpdotdev/workflows/blob/main/workflow-types/src/lib.rs
 impl From<warp_workflows::Workflow> for Workflow {
     fn from(workflow: warp_workflows::Workflow) -> Self {
@@ -268,7 +268,7 @@ impl From<warp_workflows::Workflow> for Workflow {
     }
 }
 
-/// Argument model to be used in `warp-internal`
+/// Local workflow argument model.
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
 pub struct Argument {
     pub name: String,
@@ -351,9 +351,13 @@ where
 {
     let value: Value = Deserialize::deserialize(deserializer)?;
 
-    let arg_type = match value.get("arg_type").and_then(|value| value.as_str()) {
-        Some("Text") => ArgumentType::Text,
-        Some("Enum") => {
+    let arg_type = match value
+        .get("arg_type")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| serde::de::Error::missing_field("arg_type"))?
+    {
+        "Text" => ArgumentType::Text,
+        "Enum" => {
             let enum_id = value
                 .get("enum_id")
                 .ok_or(serde::de::Error::missing_field("enum_id"))?;
@@ -363,7 +367,9 @@ where
                 enum_id: deserialized_id,
             }
         }
-        _ => ArgumentType::default(),
+        other => {
+            return Err(serde::de::Error::unknown_variant(other, &["Text", "Enum"]));
+        }
     };
 
     Ok(arg_type)

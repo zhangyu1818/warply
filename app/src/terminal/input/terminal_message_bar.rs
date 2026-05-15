@@ -229,9 +229,7 @@ impl MessageProvider<TerminalMessageArgs<'_>> for PlanMessageProducer {
         Some(
             Message::new(vec![
                 MessageItem::keystroke(Keystroke {
-                    cmd: !is_input_ai_detected && cfg!(target_os = "macos"),
-                    ctrl: !is_input_ai_detected && !cfg!(target_os = "macos"),
-                    shift: !is_input_ai_detected && !cfg!(target_os = "macos"),
+                    cmd: !is_input_ai_detected,
                     key: "enter".to_owned(),
                     ..Default::default()
                 }),

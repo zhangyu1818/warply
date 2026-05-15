@@ -79,10 +79,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Option<Box<dyn Element>>
         }
     }
 
-    // When AgentViewBlockContext is enabled, blocks are auto-attached so we don't
-    // show the attached context chip for blocks.
-    let show_attached_blocks_chip =
-        props.num_attached_context_blocks > 0 && !FeatureFlag::AgentViewBlockContext.is_enabled();
+    let show_attached_blocks_chip = false;
 
     if show_attached_blocks_chip || props.has_attached_context_selected_text {
         let chip_display_text = match (
@@ -111,7 +108,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Option<Box<dyn Element>>
 
     let mut right_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
-    if FeatureFlag::RevertToCheckpoints.is_enabled() && !props.is_restored {
+    if !props.is_restored {
         right_row.add_child(
             Container::new(ChildView::new(props.rewind_button).finish())
                 .with_margin_right(4.)

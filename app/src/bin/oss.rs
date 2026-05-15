@@ -1,5 +1,3 @@
-// On Windows, we don't want to display a console window when the application is running in release
-// builds. See https://doc.rust-lang.org/reference/runtime.html#the-windows_subsystem-attribute.
 use anyhow::Result;
 use warp_core::{
     channel::{Channel, ChannelConfig, ChannelState},
@@ -23,7 +21,7 @@ fn main() -> Result<()> {
 }
 
 // If we're not using an external plist, embed the following as the Info.plist.
-#[cfg(all(not(feature = "extern_plist"), target_os = "macos"))]
+#[cfg(not(feature = "extern_plist"))]
 embed_plist::embed_info_plist_bytes!(r#"
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

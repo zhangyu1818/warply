@@ -50,8 +50,7 @@ pub enum ReadHistoryContentsError {
     AsyncFsError(std::io::Error),
 }
 
-// SessionId is defined in warp_core and re-exported here for backward compatibility.
-pub use warp_core::SessionId;
+use warp_core::SessionId;
 
 /// Information about the sessions within a given terminal pane/top-level
 /// shell.
@@ -537,6 +536,7 @@ pub struct SessionInfo {
     pub keywords: Vec<SmolStr>,
     pub is_legacy_ssh_session: IsLegacySSHSession,
     pub home_dir: Option<String>,
+    pub cdpath: Option<String>,
     pub editor: Option<String>,
     pub session_type: BootstrapSessionType,
     pub host_info: HostInfo,
@@ -600,6 +600,7 @@ impl SessionInfo {
             environment_variable_names: Default::default(),
             path: None,
             home_dir: None,
+            cdpath: None,
             editor: None,
             histfile: None,
             aliases: Default::default(),
@@ -732,6 +733,7 @@ impl SessionInfo {
             builtins: builtins.unwrap_or_default(),
             keywords: keywords.unwrap_or_default(),
             home_dir,
+            cdpath: bootstrapped_value.cdpath,
             editor: bootstrapped_value.editor,
             is_legacy_ssh_session: self.is_legacy_ssh_session,
             subshell_info: self.subshell_info.take(),
@@ -888,6 +890,10 @@ impl Session {
 
     pub fn editor(&self) -> Option<&str> {
         self.info.editor.as_deref()
+    }
+
+    pub fn cdpath(&self) -> Option<&str> {
+        self.info.cdpath.as_deref()
     }
 
     pub fn host_info(&self) -> HostInfo {
@@ -1280,19 +1286,11 @@ impl Display for Session {
 
 /// Returns the hostname for the local machine where Warp is running.
 pub fn get_local_hostname() -> Result<String> {
-    cfg_if::cfg_if! {
-        if #[cfg(not(target_family = "wasm"))] {
-            use gethostname::gethostname;
+    use gethostname::gethostname;
 
-            gethostname()
-                .into_string()
-                .map_err(|os_string| {
-                    anyhow::anyhow!("Failed to convert local hostname OsString {os_string:?} into String.")
-                })
-        } else {
-            anyhow::bail!("Cannot get machine hostname from wasm")
-        }
-    }
+    gethostname().into_string().map_err(|os_string| {
+        anyhow::anyhow!("Failed to convert local hostname OsString {os_string:?} into String.")
+    })
 }
 
 #[cfg(test)]
@@ -1325,6 +1323,7 @@ pub mod testing {
                 keywords: Vec::new(),
                 is_legacy_ssh_session: IsLegacySSHSession::No,
                 home_dir: None,
+                cdpath: None,
                 host_info: Default::default(),
                 tmux_control_mode: false,
                 spawning_session_id: None,
@@ -1373,6 +1372,11 @@ pub mod testing {
 
         pub fn with_home_dir(mut self, home_dir: String) -> Self {
             self.home_dir = Some(home_dir);
+            self
+        }
+
+        pub fn with_cdpath(mut self, cdpath: String) -> Self {
+            self.cdpath = Some(cdpath);
             self
         }
 

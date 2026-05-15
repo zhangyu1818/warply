@@ -19,9 +19,9 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
     ai::persisted_workspace::all_working_directories,
-    safe_info, safe_warn,
     settings::{AISettings, AISettingsChangedEvent, InputSettings, InputSettingsChangedEvent},
 };
+use warp_core::{safe_info, safe_warn};
 
 use super::OutlineStatus;
 

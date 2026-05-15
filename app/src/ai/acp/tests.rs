@@ -76,7 +76,7 @@ fn test_map_user_message_chunk() {
 
 #[test]
 fn test_map_tool_call() {
-    let update = SessionUpdate::ToolCall(ToolCall::new("tool-1", "Read SKILL.md"));
+    let update = SessionUpdate::ToolCall(ToolCall::new("tool-1", "Read README.md"));
 
     assert!(matches!(
         map_session_update(update),
@@ -161,7 +161,7 @@ fn test_acp_tool_call_update_merges_existing_call() {
     };
 
     let mut call = AcpToolCall::from_acp(
-        ToolCall::new("read-1", "Read SKILL.md")
+        ToolCall::new("read-1", "Read README.md")
             .kind(ToolKind::Read)
             .status(ToolCallStatus::InProgress),
     );
@@ -172,7 +172,7 @@ fn test_acp_tool_call_update_merges_existing_call() {
     ));
 
     assert_eq!(call.id.as_str(), "read-1");
-    assert_eq!(call.title, "Read SKILL.md");
+    assert_eq!(call.title, "Read README.md");
     assert_eq!(call.kind, ToolKind::Read);
     assert_eq!(call.status, ToolCallStatus::Completed);
 }

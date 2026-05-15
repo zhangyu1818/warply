@@ -22,22 +22,16 @@ impl LocalIdentity {
             user: RwLock::new(User::test()),
         }
     }
-
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn initialize(ctx: &AppContext) -> Self {
         Self::new(ctx)
     }
 
-    pub fn username_for_display(&self) -> Option<String> {
-        Some(self.user.read().username_for_display().to_owned())
+    pub fn username_for_display(&self) -> String {
+        self.user.read().username_for_display().to_owned()
     }
 
-    pub fn user_email(&self) -> Option<String> {
-        Some(self.user.read().metadata.email.clone())
-    }
-
-    pub fn user_id(&self) -> Option<UserUid> {
-        Some(self.user.read().local_id)
+    pub fn user_id(&self) -> UserUid {
+        self.user.read().local_id
     }
 }
 

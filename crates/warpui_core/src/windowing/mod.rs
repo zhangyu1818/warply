@@ -76,7 +76,7 @@ impl<'a> WindowCallbackDispatcher<'a> {
         (self.callbacks.frame_callback)(&mut self.ctx)
     }
 
-    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    #[allow(dead_code)]
     pub fn frame_failed_to_draw(&mut self) {
         (self.callbacks.draw_frame_error_callback)(&mut self.ctx)
     }

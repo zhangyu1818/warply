@@ -210,7 +210,6 @@ impl DataSourceStore {
                 // zero state yet.
                 None
             }
-            ItemSummary::CloudObject => None,
             ItemSummary::NewSession { id } => self
                 .new_session_data_source
                 .as_ref()

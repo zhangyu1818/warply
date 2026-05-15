@@ -65,7 +65,7 @@ dashmap.workspace = true
 deltae = "0.3.1"
 derivative.workspace = true
 dhat = { version = "0.3.2", optional = true }
-diesel.workspace = true
+diesel = { workspace = true, features = ["sqlite", "chrono"] }
 difflib = { git = "https://github.com/warpdotdev/difflib.git", rev = "114177e7d8e1f8017baca397f943e11644b14d63" }
 directories.workspace = true
 dirs.workspace = true
@@ -126,7 +126,10 @@ pathfinder_geometry.workspace = true
 persistence.workspace = true
 pin-project.workspace = true
 plist = "1"
-pprof = { workspace = true, optional = true, features = ["protobuf-codec"] }
+pprof = { workspace = true, optional = true, features = [
+    "protobuf-codec",
+    "frame-pointer",
+] }
 prost.workspace = true
 prost-types.workspace = true
 rand.workspace = true
@@ -211,10 +214,8 @@ mime_guess = "2.0"
 remote_server.workspace = true
 repo_metadata.workspace = true
 vim.workspace = true
-rmcp = { workspace = true, features = ["client"] }
 warp_ripgrep.workspace = true
 
-[target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
 cocoa.workspace = true
 core-foundation.workspace = true
@@ -222,7 +223,6 @@ mach2 = "0.5"
 objc.workspace = true
 objc2-foundation = { workspace = true, features = ["NSBundle"] }
 permissions = "0.4.1"
-pprof = { workspace = true, optional = true, features = ["frame-pointer"] }
 security-framework-sys = "2.0.0"
 cvt = "0.1.1"
 signal-hook = "0.3.17"
@@ -239,12 +239,10 @@ nix = { workspace = true, features = [
     "mman",
 ] }
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
 async-io.workspace = true
 axum.workspace = true
 comfy-table = "7.1.4"
 inquire = "0.9.1"
-diesel = { workspace = true, features = ["sqlite", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
 env_logger.workspace = true
 git2 = { version = "0.20.4", default-features = false, features = [
@@ -257,15 +255,6 @@ mio = { version = "1.1.1", features = ["os-poll", "os-ext"] }
 tokio.workspace = true
 tokio-util.workspace = true
 
-# AWS SDK (loading credentials for BYO LLM)
-aws-sdk-sts = "1"
-aws-types = "1"
-
-rmcp = { workspace = true, features = [
-    "transport-streamable-http-client-reqwest",
-    "transport-sse-client-reqwest",
-    "transport-child-process",
-] }
 notify-debouncer-full.workspace = true
 rquickjs = { workspace = true, optional = true }
 rustls.workspace = true
@@ -277,28 +266,6 @@ gethostname = "1.1.0"
 watcher.workspace = true
 warp_files.workspace = true
 tantivy = "0.26.0"
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-# We only have an indirect dependency on this crate; we depend on reqwest-eventsource@0.6.0 which depends on
-# futures-timer@3.0.2. For whatever unfortunate reason, this crate doesn't automatically enable its feature
-# required for wasm-compatibility when targeting wasm. So we need to explicitly specify this dependency when
-# targeting wasm and leverage the fact that cargo enables the superset of enabled features for a given crate.
-futures-timer = { version = "3.0.2", features = ["wasm-bindgen"] }
-# Make sure we embed the data into the wasm binary even when running in debug
-# mode, as it cannot be read directly from the filesystem.
-rust-embed = { workspace = true, features = ["debug-embed"] }
-syntect = { version = "5.0", default-features = false, features = [
-    "default-fancy",
-] }
-wasm-bindgen.workspace = true
-# We need to make sure that "js" is enabled as a feature when using wasm.
-getrandom = { version = "0.2", features = ["js"] }
-gloo.workspace = true
-serde-wasm-bindgen = "0.6.5"
-# For wasm, we don't use the feature "embed-signatures".
-warp-command-signatures = { workspace = true }
-web-sys.workspace = true
-warp_web_event_bus.workspace = true
 
 [dev-dependencies]
 ai = { workspace = true, features = ["test-util"] }
@@ -322,14 +289,11 @@ warpui = { workspace = true, features = ["test-util"] }
 warpui_extras = { workspace = true, features = ["test-util"] }
 warp_files = { workspace = true, features = ["test-util"] }
 repo_metadata = { workspace = true, features = ["test-util"] }
-
-[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "time"] }
 
 [build-dependencies]
 anyhow = "1.0"
 cc = "1.0"
-cfg_aliases.workspace = true
 prost-build.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
@@ -338,11 +302,8 @@ warp_util.workspace = true
 
 # Note that we support channel-specific enables for these features
 [features]
-ai_resume_button = []
-bundled_skills = []
 agent_mode = []
 agent_mode_debug = []
-ask_user_question = []
 changelog = []
 clear_autosuggestion_on_escape = []
 context_line_review_comments = []
@@ -354,10 +315,6 @@ completions_v2 = [
 default = [
     "agent_mode",
     "render_continuous_block_selections_with_single_border",
-    "settings_import",
-    "block_toolbelt_save_as_workflow",
-    "remove_alt_screen_padding",
-    "less_horizontal_terminal_padding",
     "shell_selector",
     "minimalist_ui",
     "full_screen_zen_mode",
@@ -365,25 +322,16 @@ default = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "warp_packs",
     "ai_rules",
-    "suggested_rules",
-    "am_workflows",
     "command_correction_key",
     "kitty_images",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",
-    "fast_forward_autoexecute_button",
     "image_as_context",
     "command_palette_file_search",
     "ai_context_menu",
-    "at_menu_outside_of_ai_mode",
     "tab_close_button_on_left",
-    "ai_resume_button",
     "code_find_replace",
-    "ai_context_menu_code",
-    "agent_decides_command_execution",
-    "search_codebase_ui",
     "tabbed_editor_view",
     "allow_opening_file_links_using_editor_env",
     "selection_as_context",
@@ -400,46 +348,30 @@ default = [
     "discard_per_file_and_all_changes",
     "auto_open_code_review_pane",
     "diff_set_as_context",
-    "summarize_conversation_command",
     "inline_code_review",
     "code_review_find",
-    "mcp_grouped_server_context",
     "fork_from_command",
     "classic_completions",
     "force_classic_completions",
-    "agent_tips",
     "pluggable_notifications",
     "global_search",
-    "list_skills",
-    "ask_user_question",
-    "bundled_skills",
-    "platform_skills",
     "agent_view",
-    "agent_view_block_context",
-    "agent_view_conversation_list_view",
     "inline_slash_commands",
     "inline_history_menu",
     "new_tab_styling",
     "richtext_multiselect",
-    "skill_arguments",
     "incremental_auto_reload",
     "active_conversation_requires_interaction",
-    "file_based_mcp",
     "inline_repo_menu",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
     "github_pr_prompt_chip",
-    "conversations_as_context",
     "markdown_tables",
     "markdown_mermaid",
     "blocklist_markdown_images",
     "pr_comments_slash_command",
     "pr_comments_v2",
-    "pr_comments_skill",
-    "revert_to_checkpoints",
-    "rewind_slash_command",
     "hoa_code_review",
-    "warpify_footer",
     "agent_toolbar_editor",
     "configurable_toolbar",
     "cli_agent_rich_input",
@@ -457,8 +389,6 @@ dynamic_workflow_enums = []
 editable_markdown_mermaid = []
 drag_tabs_to_windows = []
 embedded_code_review_comments = []
-suggested_agent_mode_workflows = []
-ssh_tmux_wrapper = []
 extern_plist = []
 fast_dev = []
 full_screen_zen_mode = []
@@ -468,7 +398,6 @@ full_screen_zen_mode = []
 # For the most part, including GUI code in headless builds is fine; the main use case is
 # for things that pull in external dependencies.
 gui = []
-msys2_shells = []
 welcome_tab = []
 github_pr_prompt_chip = []
 create_project_flow = []
@@ -491,12 +420,10 @@ kitty_keyboard_protocol = []
 ligatures = []
 trim_trailing_blank_lines = []
 cli_agent_rich_input = []
-list_skills = []
 # This feature is enabled in build.rs when compiling for platforms which
 # support having a local tty/shell session.  It can be used to conditionally
 # include dependencies that should only exist in such environments.
 local_tty = []
-local_computer_use = []
 # This feature is enabled in build.rs when compiling for platforms which
 # have APIs for interacting with a local filesystem.  It can be used to
 # conditionally include dependencies that should only exist in such
@@ -536,7 +463,6 @@ richtext_multiselect = []
 runtime_feature_flags = []
 selectable_prompt = []
 settings_file = []
-settings_import = []
 sequential_storage = []
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = []
@@ -555,50 +481,30 @@ workflow_aliases = []
 rect_selection = []
 alacritty_settings_import = []
 ai_rules = []
-am_workflows = []
-less_horizontal_terminal_padding = []
 shell_selector = []
-block_toolbelt_save_as_workflow = []
-blocklist_markdown_table_rendering = []
 blocklist_markdown_images = []
 minimalist_ui = []
-remove_alt_screen_padding = []
 ssh_drag_and_drop = []
-cycle_next_command_suggestion = []
 multi_workspace = []
 ime_marked_text = []
-partial_next_command_suggestions = []
 iterm_images = []
 validate_autosuggestions = []
-warp_packs = []
-suggested_rules = []
 command_correction_key = []
 use_tantivy_search = []
-nld_fasttext_model = ["input_classifier/fasttext"]
 nld_onnx_model = ["input_classifier/onnx_candle"]
-retry_truncated_code_responses = []
 ai_context_menu = []
-at_menu_outside_of_ai_mode = []
-agent_decides_command_execution = []
-fast_forward_autoexecute_button = []
 code_find_replace = []
 command_palette_file_search = []
-ai_context_menu_commands = []
 preview_channel = []
-ai_context_menu_code = []
 expand_edit_to_pane = []
-search_codebase_ui = []
 changed_lines_only_apply_diff_result = []
 tabbed_editor_view = []
 selection_as_context = []
 pr_comments_slash_command = []
 pr_comments_v2 = []
-pr_comments_skill = []
-conversations_as_context = []
 projects = []
 vim_code_editor = []
 allow_opening_file_links_using_editor_env = []
-nld_improvements = ["nld_onnx_model"]
 undo_closed_panes = []
 revert_diff_hunk = []
 code_review_save_changes = []
@@ -609,33 +515,18 @@ ui_zoom = []
 code_review_find = []
 auto_open_code_review_pane = []
 inline_code_review = []
-summarize_conversation_command = []
-mcp_grouped_server_context = []
 fork_from_command = []
 global_search = []
 file_and_diff_set_comments = []
-revert_to_checkpoints = []
-rewind_slash_command = []
 agent_view = []
-agent_view_block_context = ["agent_view"]
-agent_tips = []
 agent_toolbar_editor = ["agent_view"]
-agent_view_prompt_chip = ["agent_view"]
 classic_completions = []
 force_classic_completions = []
-agent_view_conversation_list_view = ["agent_view"]
 inline_history_menu = ["agent_view"]
 inline_repo_menu = ["agent_view"]
-summarization_via_message_replacement = []
-lsp_as_a_tool = []
-platform_skills = []
 new_tab_styling = []
-file_based_mcp = []
-skill_arguments = []
 active_conversation_requires_interaction = []
 incremental_auto_reload = []
-pending_user_query_indicator = []
-queue_slash_command = []
 inline_menu_headers = []
 directory_tab_colors = []
 open_warp_new_settings_modes = []
@@ -644,7 +535,6 @@ vertical_tabs = []
 vertical_tabs_summary_mode = []
 tab_configs = []
 configurable_toolbar = []
-warpify_footer = []
 git_operations_in_code_review = []
 
 [package.metadata.bundle.bin.warply]

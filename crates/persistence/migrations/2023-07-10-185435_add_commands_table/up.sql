@@ -10,5 +10,5 @@ CREATE TABLE commands (
     hostname TEXT,
     session_id BIGINTEGER,
     git_branch TEXT,
-    cloud_workflow_id TEXT
+    saved_workflow_id TEXT
 );

@@ -32,10 +32,6 @@ pub(super) struct AIQuery {
     pub(super) working_directory: Option<String>,
     pub(super) model_id: String,
     pub(super) coding_model_id: String,
-
-    // Planning model selection is deprecated and unused.
-    #[allow(unused)]
-    pub(super) planning_model_id: String,
 }
 
 impl TryFrom<AIQuery> for PersistedAIInput {
@@ -223,8 +219,7 @@ fn create_block<'a>(
         stylized_command: &block.stylized_command,
         stylized_output: &block.stylized_output,
         pwd: block.pwd.as_ref(),
-        // This sqlite column still uses the legacy `git_branch` name, but it now stores the
-        // block's git head for backwards compatibility with existing persisted data.
+        // This sqlite column stores the block's git head.
         git_branch: block.git_head.as_ref(),
         git_branch_name: block.git_branch_name.as_ref(),
         virtual_env: block.virtual_env.as_ref(),

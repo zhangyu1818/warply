@@ -382,13 +382,7 @@ impl CLISubagentController {
                     .collect()
             };
             self.controller.update(ctx, |controller, ctx| {
-                controller.resume_conversation(
-                    conversation_id,
-                    /*can_attempt_resume_on_error*/ true,
-                    /*is_auto_resume_after_error*/ false,
-                    resume_context,
-                    ctx,
-                );
+                controller.resume_conversation(conversation_id, resume_context, ctx);
             });
         }
 
@@ -466,9 +460,6 @@ impl CLISubagentController {
                 let agent_has_control = block.is_agent_in_control();
                 drop(terminal_model);
 
-                // When the CLI subagent is first created for a long running command,
-                // the agent now has control. Emit an UpdatedControl event so that
-                // shared-session state can reflect this initial control state.
                 ctx.emit(CLISubagentEvent::UpdatedControl {
                     block_id: block_id.clone(),
                     requested_command_action_id: action_id.clone(),

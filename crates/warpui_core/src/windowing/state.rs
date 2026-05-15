@@ -106,7 +106,6 @@ impl WindowManager {
         self.platform.cancel_synthetic_drag(window_id)
     }
 
-    #[cfg(target_os = "macos")]
     pub fn show_window_and_focus_app_without_ordering_front(&self, window_id: WindowId) {
         self.platform
             .show_window_and_focus_app(window_id, WindowFocusBehavior::RetainZIndex)

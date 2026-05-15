@@ -24,9 +24,6 @@ use crate::ai::blocklist::block::view_impl::common::{
 };
 use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
-use crate::ai::skills::{
-    icon_override_for_skill_name, render_skill_button, skill_path_from_file_path,
-};
 
 use crate::code::editor_management::CodeSource;
 use crate::view_components::compactible_action_button::{
@@ -34,16 +31,10 @@ use crate::view_components::compactible_action_button::{
 };
 use crate::AIAgentTodoList;
 
-#[allow(unused_imports)]
-use std::path::{Component, Path, PathBuf};
-
-use ai::agent::action::{RequestComputerUseRequest, SuggestPromptRequest, UseComputerRequest};
-use ai::skills::SkillReference;
+use ai::agent::action::{RequestComputerUseRequest, UseComputerRequest};
 use pathfinder_color::ColorU;
 use ui_components::{button, Component as _, Options as _};
 use warp_core::ui::theme::color::internal_colors;
-#[allow(unused_imports)]
-use warp_util::path::{common_path, CleanPathResult};
 use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::NewScrollable;
 use warpui::EntityId;
@@ -52,18 +43,18 @@ use crate::ai::blocklist::block::{
     CollapsibleElementState, CollapsibleExpansionState, FinishReason, ImportedCommentGroup,
 };
 use indexmap::IndexMap;
-use std::{cell::OnceCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
 use crate::{
     ai::{
         agent::{
-            icons::{self, gray_stop_icon, yellow_stop_icon},
+            icons::{self, gray_stop_icon},
             AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
             AIAgentActionType, AIAgentCitation, AIAgentOutputMessage, AIAgentOutputMessageType,
             AIAgentText, AIAgentTextSection, MessageId, ReadFilesRequest,
             RequestCommandOutputResult, SearchCodebaseFailureReason, SearchCodebaseResult,
-            SuggestNewConversationResult, SummarizationType,
+            SummarizationType,
         },
         blocklist::{
             action_model::AIActionStatus,
@@ -81,21 +72,15 @@ use crate::{
                     INLINE_ACTION_HORIZONTAL_PADDING,
                 },
                 inline_action_icons::{self, icon_size},
-                requested_action::{
-                    render_requested_action_body_text, render_requested_action_row_for_text,
-                    RenderableAction,
-                },
+                requested_action::{render_requested_action_body_text, RenderableAction},
                 requested_command::RequestedCommand,
                 search_codebase::SearchCodebaseView,
-                suggested_unit_tests::SuggestedUnitTestsView,
                 web_fetch::WebFetchView,
                 web_search::WebSearchView,
             },
-            keyboard_navigable_buttons::KeyboardNavigableButtons,
-            AIBlockResponseRating, BlocklistAIActionModel, SuggestionChipView,
+            BlocklistAIActionModel,
         },
         paths::shell_native_absolute_path,
-        skills::SkillManager,
     },
     appearance::Appearance,
     code::diff_viewer::DisplayMode,
@@ -111,10 +96,9 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::channel::ChannelState;
 
 use super::common::{
-    format_elapsed_seconds, render_debug_footer, render_failed_output, render_output_status_text,
-    render_scrollable_collapsible_content, render_text_sections, DebugFooterProps,
-    FailedOutputProps, FindContext, TextSectionsProps, STATUS_FOOTER_VERTICAL_PADDING,
-    STATUS_ICON_SIZE_DELTA,
+    format_elapsed_seconds, render_failed_output, render_output_status_text,
+    render_scrollable_collapsible_content, render_text_sections, FailedOutputProps, FindContext,
+    TextSectionsProps, STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
 };
 use super::imported_comments::render_imported_comments;
 use super::todos::render_todos;
@@ -153,11 +137,8 @@ pub(crate) struct Props<'a> {
     pub(crate) detected_links_state: &'a DetectedLinksState,
     pub(crate) secret_redaction_state: &'a SecretRedactionState,
     pub(super) requested_commands: &'a HashMap<AIAgentActionId, RequestedCommand>,
-    pub(super) requested_mcp_tools: &'a HashMap<AIAgentActionId, RequestedCommand>,
     pub(super) requested_edits: &'a IndexMap<AIAgentActionId, RequestedEdit>,
     pub(super) acp_diff_views: &'a HashMap<String, RequestedEdit>,
-    pub(super) unit_test_suggestions:
-        &'a HashMap<AIAgentActionId, ViewHandle<SuggestedUnitTestsView>>,
     pub(super) todo_list_states: &'a HashMap<MessageId, TodoListElementState>,
     pub(super) collapsible_block_states: &'a HashMap<MessageId, CollapsibleElementState>,
     pub(crate) is_selecting_text: bool,
@@ -165,18 +146,11 @@ pub(crate) struct Props<'a> {
     pub(crate) find_context: Option<FindContext<'a>>,
     pub(super) is_references_section_open: bool,
     pub(super) autonomy_setting_speedbump: &'a AutonomySettingSpeedbump,
-    pub(super) suggested_rules: &'a Vec<ViewHandle<SuggestionChipView>>,
-    pub(super) suggested_agent_mode_workflow: &'a Option<ViewHandle<SuggestionChipView>>,
-    pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
-    pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
-    pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
     pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
     pub(super) web_fetch_views: &'a HashMap<MessageId, ViewHandle<WebFetchView>>,
     pub(super) review_changes_button: &'a ViewHandle<ActionButton>,
     pub(super) open_all_comments_button: &'a ViewHandle<ActionButton>,
-    pub(super) dismiss_suggestion_button: &'a ViewHandle<ActionButton>,
-    pub(super) disable_rule_suggestions_button: &'a ViewHandle<ActionButton>,
     pub(super) current_todo_list: Option<&'a AIAgentTodoList>,
     pub(super) has_accepted_edits: bool,
     pub(super) finish_reason: Option<&'a FinishReason>,
@@ -217,14 +191,8 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 let is_output_for_static_prompt_suggestions =
                     props.model.contains_static_prompt_suggestion_input(app);
 
-                // We only want to render the references section, thumbs up/down ratings, and suggestions
-                // when the entire response is complete to avoid intermediate states.
+                // We only want to render the references section when the entire response is complete to avoid intermediate states.
                 let mut should_render_references_section = is_complete && request_type.is_active();
-                let mut should_render_suggestions = is_complete
-                    && props.model.is_latest_non_passive_exchange_in_root_task(app)
-                    && !is_conversation_in_progress
-                    && !is_output_for_static_prompt_suggestions
-                    && request_type.is_active();
 
                 // Passive code diffs footer, after acceptance, is different from the usual footer.
                 let requires_special_footer =
@@ -236,10 +204,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         && !is_output_for_static_prompt_suggestions
                         && !is_conversation_in_progress
                         && request_type.is_active()
-                        && !status
-                            .error()
-                            .map(|e| e.is_invalid_api_key())
-                            .unwrap_or_default();
+                        && status.error().is_none();
 
                 let mut has_rendered_first_text_section = false;
 
@@ -371,9 +336,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 .as_ref()
                                 .is_some_and(|status| status.is_done());
                             if !is_action_done {
-                                // Ratings & suggestions should not be rendered for requested command actions that are not complete.
                                 should_render_footer = false;
-                                should_render_suggestions = false;
                             }
 
                             if let Some(rendered_command) = props
@@ -389,9 +352,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             id,
                             ..
                         }) => {
-                            // Neither ratings nor suggestions should be rendered for relevant file queries.
                             should_render_footer = false;
-                            should_render_suggestions = false;
                             if let Some(rendered_message) = render_search_codebase(props, id, app) {
                                 output_items.add_child(rendered_message);
                             }
@@ -464,18 +425,11 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                         .collect_vec(),
                                 };
 
-                                let file_paths: Vec<_> = files.iter().map(|f| &f.name).collect();
-                                let skill = common_path(&file_paths)
-                                    .and_then(|common| skill_path_from_file_path(&common))
-                                    .and_then(|skill_path| {
-                                        SkillManager::as_ref(app).skill_by_path(&skill_path)
-                                    });
                                 output_items.add_child(render_read_files(
                                     props,
                                     id,
                                     file_names.iter(),
                                     app,
-                                    skill,
                                     action_index,
                                 ));
                             }
@@ -512,7 +466,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ..
                         }) => {
                             should_render_footer = false;
-                            should_render_suggestions = false;
                             output_items.add_child(render_file_retrieval_tool(
                                 props,
                                 id,
@@ -535,7 +488,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ..
                         }) => {
                             should_render_footer = false;
-                            should_render_suggestions = false;
                             output_items.add_child(render_file_retrieval_tool(
                                 props,
                                 id,
@@ -550,76 +502,18 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::ReadMCPResource {
-                                    server_id: _,
-                                    name,
-                                    uri,
-                                },
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            let name = uri.as_ref().unwrap_or(name);
-                            output_items.add_child(render_read_mcp_resource(props, id, name, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::CallMCPTool { .. },
-                            id,
-                            ..
-                        }) => {
-                            // Since we're rendering an MCP tool call, it will
-                            // render the citations so don't render them again.
-                            should_render_references_section = false;
-
-                            let is_action_done = props
-                                .action_model
-                                .as_ref(app)
-                                .get_action_status(id)
-                                .as_ref()
-                                .is_some_and(|status| status.is_done());
-                            if !is_action_done {
-                                // Ratings & suggestions should not be rendered for MCP tool call actions that are not complete.
-                                should_render_footer = false;
-                                should_render_suggestions = false;
-                            }
-
-                            if let Some(rendered_mcp_tool) = props
-                                .requested_mcp_tools
-                                .get(id)
-                                .map(|requested_mcp_tool| requested_mcp_tool.render())
-                            {
-                                output_items.add_child(rendered_mcp_tool);
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::AskUserQuestion { .. },
                             id,
                             ..
-                        }) if FeatureFlag::AskUserQuestion.is_enabled() => {
+                        }) => {
                             should_render_footer = false;
-                            should_render_suggestions = false;
                             if let Some(rendered_ask_user_question) =
                                 render_ask_user_question(id, props, app)
                             {
                                 output_items.add_child(rendered_ask_user_question);
                             }
                         }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::SuggestNewConversation { .. },
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            if let Some(rendered_conversation) =
-                                render_suggest_new_conversation(id, props, appearance, app)
-                            {
-                                output_items.add_child(rendered_conversation);
-                            }
-                        }
                         AIAgentOutputMessageType::CommentsAddressed { comments } => {
-                            should_render_suggestions = false;
                             for comment in comments {
                                 output_items
                                     .add_child(render_comment_addressed_header(comment, app));
@@ -653,25 +547,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             _ => (),
                         },
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::SuggestPrompt(
-                                    SuggestPromptRequest::UnitTestsSuggestion { .. },
-                                ),
-                            id,
-                            ..
-                        }) => {
-                            if let Some(unit_test_suggestion_view) =
-                                props.unit_test_suggestions.get(id)
-                            {
-                                if !unit_test_suggestion_view.as_ref(app).is_hidden() {
-                                    output_items.add_child(render_unit_test_suggestion(
-                                        unit_test_suggestion_view,
-                                        app,
-                                    ));
-                                }
-                            }
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::CreateDocuments { .. },
                             id,
                             ..
@@ -701,19 +576,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         }) => {
                             should_render_footer = false;
                             output_items.add_child(render_use_computer(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::ReadSkill(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_read_skill(
-                                props,
-                                id,
-                                &request.skill,
-                                app,
-                            ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::RequestComputerUse(request),
@@ -831,7 +693,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             task_id: subagent_task_id,
                         }) => {
                             should_render_footer = false;
-                            should_render_suggestions = false;
                             let conversation = props.model.conversation(app);
                             let is_finished = conversation
                                 .and_then(|c| {
@@ -948,14 +809,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                     }
                 }
 
-                // Only render suggested rules and prompts if the response is complete.
-                if should_render_suggestions && FeatureFlag::SuggestedRules.is_enabled() {
-                    if let Some(suggestions) = render_suggested_rules_and_prompts_footer(props, app)
-                    {
-                        output_items.add_child(suggestions);
-                    }
-                }
-
                 if should_render_references_section {
                     if let Some(references) =
                         render_references_footer(&output.citations, props, app)
@@ -981,9 +834,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                     FailedOutputProps {
                         error,
                         is_ai_input_enabled: props.is_ai_input_enabled,
-                        invalid_api_key_button_handle: &props
-                            .state_handles
-                            .invalid_api_key_button_handle,
                         icon_right_margin: 16.,
                     },
                     app,
@@ -991,29 +841,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 .with_content_item_spacing()
                 .finish(),
             );
-
-            if props.model.is_latest_non_passive_exchange_in_root_task(app)
-                && !props.model.is_restored()
-                && !error.is_invalid_api_key()
-            {
-                output_items.add_child(
-                    render_debug_footer(
-                        DebugFooterProps {
-                            model: props.model,
-                            debug_copy_button_handle: props
-                                .state_handles
-                                .debug_copy_button_handle
-                                .clone(),
-                        },
-                        |debug_id, ctx| {
-                            ctx.dispatch_typed_action(AIBlockAction::CopyDebugId(debug_id))
-                        },
-                        app,
-                    )
-                    .with_agent_output_item_spacing(app)
-                    .finish(),
-                );
-            }
         }
     }
 
@@ -1220,9 +1047,7 @@ fn render_search_codebase(
     let requested_action = match status.as_ref() {
         Some(status) => match status {
             AIActionStatus::Queued => match props.search_codebase_view.get(id) {
-                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                    ChildView::new(search_codebase_view).finish()
-                }
+                Some(search_codebase_view) => ChildView::new(search_codebase_view).finish(),
                 _ => {
                     let root_repo_path = root_repo_path?;
                     renderable_action(
@@ -1269,9 +1094,7 @@ fn render_search_codebase(
                 .finish()
             }
             AIActionStatus::RunningAsync => match props.search_codebase_view.get(id) {
-                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                    ChildView::new(search_codebase_view).finish()
-                }
+                Some(search_codebase_view) => ChildView::new(search_codebase_view).finish(),
                 _ => {
                     let root_repo_path = root_repo_path?;
                     renderable_action(
@@ -1288,9 +1111,7 @@ fn render_search_codebase(
                 }
             },
             AIActionStatus::Finished(result) => match props.search_codebase_view.get(id) {
-                Some(search_codebase_view) if FeatureFlag::SearchCodebaseUI.is_enabled() => {
-                    ChildView::new(search_codebase_view).finish()
-                }
+                Some(search_codebase_view) => ChildView::new(search_codebase_view).finish(),
                 _ => {
                     let AIAgentActionResultType::SearchCodebase(search_codebase_result) =
                         &result.result
@@ -1312,22 +1133,8 @@ fn render_search_codebase(
                                 .render(app)
                                 .finish()
                             } else {
-                                let file_paths: Vec<_> =
-                                    files.iter().map(|f| &f.file_name).collect();
-                                let skill = common_path(&file_paths)
-                                    .and_then(|common| skill_path_from_file_path(&common))
-                                    .and_then(|skill_path| {
-                                        SkillManager::as_ref(app).skill_by_path(&skill_path)
-                                    });
                                 let grouped = group_file_contexts_for_display(files, None, None);
-                                return Some(render_read_files(
-                                    props,
-                                    id,
-                                    grouped.iter(),
-                                    app,
-                                    skill,
-                                    0,
-                                ));
+                                return Some(render_read_files(props, id, grouped.iter(), app, 0));
                             }
                         }
                         SearchCodebaseResult::Failed { reason, .. } => {
@@ -1532,72 +1339,6 @@ pub fn render_read_files_text<A: Action>(
     formatted_files
 }
 
-fn render_read_skill(
-    props: Props,
-    id: &AIAgentActionId,
-    skill_reference: &SkillReference,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    render_read_skill_action(
-        props,
-        skill_reference,
-        action_icon(id, props.action_model, props.model, app).finish(),
-        app,
-    )
-    .render(app)
-    .finish()
-}
-
-fn render_read_skill_action(
-    props: Props,
-    skill_reference: &SkillReference,
-    icon: Box<dyn Element>,
-    app: &AppContext,
-) -> RenderableAction {
-    let appearance = Appearance::as_ref(app);
-    let skill = SkillManager::as_ref(app).skill_by_reference(skill_reference);
-
-    let display_name = skill
-        .map(|skill| skill.name.clone())
-        .unwrap_or_else(|| skill_reference.to_string());
-
-    let formatted_text = render_requested_action_body_text(
-        format!("/{display_name}").into(),
-        appearance.monospace_font_family(),
-        app,
-    );
-
-    let mut renderable_action = RenderableAction::new_with_formatted_text(formatted_text, app);
-    renderable_action = renderable_action.with_icon(icon);
-
-    if let Some(skill) = skill {
-        if !skill.is_bundled() {
-            let source = CodeSource::Skill {
-                reference: skill_reference.clone(),
-                path: skill.path.clone(),
-            };
-
-            let skill_icon_override = icon_override_for_skill_name(&skill.name);
-            let open_button = render_skill_button(
-                "Open skill",
-                props.state_handles.open_skill_button_handle.clone(),
-                appearance,
-                skill.provider,
-                skill_icon_override,
-                move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenCodeInWarp {
-                        source: source.clone(),
-                    });
-                },
-            );
-
-            renderable_action = renderable_action.with_action_button(open_button);
-        }
-    }
-
-    renderable_action
-}
-
 fn render_acp_tool_call(
     tool_call: &AcpToolCall,
     diff_view: Option<&RequestedEdit>,
@@ -1661,7 +1402,6 @@ struct AcpContentSectionIndices<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AcpToolCallRenderKind {
     FileDiff,
-    ReadSkill,
     ReadLocations,
     Read,
     EditLocations,
@@ -1688,8 +1428,7 @@ enum AcpToolCallSurfaceKind {
 impl From<AcpToolCallRenderKind> for AcpToolCallSurfaceKind {
     fn from(render_kind: AcpToolCallRenderKind) -> Self {
         match render_kind {
-            AcpToolCallRenderKind::ReadSkill
-            | AcpToolCallRenderKind::ReadLocations
+            AcpToolCallRenderKind::ReadLocations
             | AcpToolCallRenderKind::EditLocations
             | AcpToolCallRenderKind::DeleteLocations
             | AcpToolCallRenderKind::MoveLocations
@@ -1718,9 +1457,6 @@ fn acp_tool_call_render_kind(
     }
 
     match tool_call.kind {
-        ToolKind::Read if acp_tool_call_skill_path(tool_call).is_some() => {
-            AcpToolCallRenderKind::ReadSkill
-        }
         ToolKind::Read if !tool_call.locations.is_empty() => AcpToolCallRenderKind::ReadLocations,
         ToolKind::Read => AcpToolCallRenderKind::Read,
         ToolKind::Edit if !tool_call.locations.is_empty() => AcpToolCallRenderKind::EditLocations,
@@ -1752,16 +1488,6 @@ fn render_acp_tool_call_action(
     app: &AppContext,
 ) -> RenderableAction {
     match render_kind {
-        AcpToolCallRenderKind::ReadSkill => {
-            let skill_reference = acp_tool_call_skill_reference(tool_call, app)
-                .expect("read skill render kind requires a skill reference");
-            render_read_skill_action(
-                props,
-                &skill_reference,
-                acp_tool_call_icon(tool_call.status, app).finish(),
-                app,
-            )
-        }
         AcpToolCallRenderKind::ReadLocations
         | AcpToolCallRenderKind::EditLocations
         | AcpToolCallRenderKind::DeleteLocations
@@ -1887,38 +1613,6 @@ fn acp_tool_call_location_display_strings(
             locations.to_user_message(shell_launch_data, current_working_directory, None)
         })
         .collect()
-}
-
-fn acp_tool_call_skill_reference(
-    tool_call: &AcpToolCall,
-    app: &AppContext,
-) -> Option<SkillReference> {
-    let skill_path = acp_tool_call_skill_path(tool_call)?;
-    let skill_manager = SkillManager::as_ref(app);
-    Some(skill_manager.reference_for_skill_path(&skill_path))
-}
-
-fn acp_tool_call_skill_path(tool_call: &AcpToolCall) -> Option<PathBuf> {
-    if !matches!(tool_call.kind, ToolKind::Read) {
-        return None;
-    }
-
-    let mut skill_path = None;
-    for location in &tool_call.locations {
-        let candidate = skill_path_from_file_path(&location.path)?;
-        if location.path != candidate {
-            return None;
-        }
-        if skill_path
-            .as_ref()
-            .is_some_and(|existing| existing != &candidate)
-        {
-            return None;
-        }
-        skill_path = Some(candidate);
-    }
-
-    skill_path
 }
 
 fn render_acp_tool_call_footer(
@@ -2307,7 +2001,6 @@ fn render_read_files(
     id: &AIAgentActionId,
     file_names: impl IntoIterator<Item = impl AsRef<str>>,
     app: &AppContext,
-    parsed_skill: Option<&ai::skills::ParsedSkill>,
     action_index: usize,
 ) -> Box<dyn Element> {
     let status = props.action_model.as_ref(app).get_action_status(id);
@@ -2374,31 +2067,6 @@ fn render_read_files(
         }
         _ => (),
     };
-
-    // Renders the 'open skill' button if all files belong to the same skill directory.
-    if let Some(skill) = parsed_skill {
-        let reference = SkillManager::handle(app)
-            .as_ref(app)
-            .reference_for_skill_path(&skill.path);
-        let source = CodeSource::Skill {
-            reference,
-            path: skill.path.clone(),
-        };
-        let skill_icon_override = icon_override_for_skill_name(&skill.name);
-        let open_button = render_skill_button(
-            &format!("/{}", skill.name),
-            props.state_handles.read_from_skill_button_handle.clone(),
-            appearance,
-            skill.provider,
-            skill_icon_override,
-            move |ctx| {
-                ctx.dispatch_typed_action(AIBlockAction::OpenCodeInWarp {
-                    source: source.clone(),
-                });
-            },
-        );
-        renderable_action = renderable_action.with_action_button(open_button);
-    }
 
     renderable_action.render(app).finish()
 }
@@ -2539,7 +2207,6 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
     if props
         .model
         .is_latest_exchange_in_terminal_pane(props.terminal_view_id, app)
-        && FeatureFlag::AIResumeButton.is_enabled()
     {
         let ui_builder = appearance.ui_builder().clone();
 
@@ -2720,21 +2387,6 @@ fn render_requested_edits_output_message(
     }
 }
 
-fn render_unit_test_suggestion(
-    suggested_prompt: &ViewHandle<SuggestedUnitTestsView>,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    Container::new(ChildView::new(suggested_prompt).finish())
-        .with_border(Border::all(1.).with_border_fill(theme.surface_2()))
-        .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-        .with_background_color(blended_colors::fg_overlay_2(theme).into())
-        .with_vertical_padding(CONTENT_ITEM_VERTICAL_MARGIN)
-        .finish()
-}
-
 fn render_ask_user_question(
     action_id: &AIAgentActionId,
     props: Props,
@@ -2747,98 +2399,6 @@ fn render_ask_user_question(
             && ask_user_question_view.should_render_inline(app)
     };
     should_render_inline.then(|| ChildView::new(view).finish())
-}
-
-fn render_suggest_new_conversation(
-    action_id: &AIAgentActionId,
-    props: Props,
-    appearance: &Appearance,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let status = props
-        .action_model
-        .as_ref(app)
-        .get_action_status(action_id)
-        .unwrap_or(AIActionStatus::Finished(Arc::new(AIAgentActionResult {
-            result: AIAgentActionResultType::SuggestNewConversation(
-                SuggestNewConversationResult::Cancelled,
-            ),
-            task_id: TaskId::new("fake-id".to_owned()),
-            id: action_id.clone(),
-        })));
-
-    let theme = appearance.theme();
-    if let AIActionStatus::Finished(result) = status {
-        let AIAgentActionResultType::SuggestNewConversation(result) = &result.result else {
-            log::error!(
-                "Unexpected action result type for suggest new conversation action: {:?}",
-                result.result
-            );
-            return None;
-        };
-        let (label, status_icon) = match result {
-            SuggestNewConversationResult::Accepted { .. } => (
-                "New conversation started",
-                inline_action_icons::green_check_icon(appearance).finish(),
-            ),
-            SuggestNewConversationResult::Rejected => (
-                "Continuing current conversation",
-                warpui::elements::Icon::new(
-                    Icon::FlipForward.into(),
-                    internal_colors::neutral_6(theme),
-                )
-                .finish(),
-            ),
-            SuggestNewConversationResult::Cancelled => (
-                "New conversation suggestion cancelled",
-                inline_action_icons::cancelled_icon(appearance).finish(),
-            ),
-        };
-        return Some(
-            render_requested_action_row_for_text(
-                label.into(),
-                appearance.ui_font_family(),
-                Some(status_icon),
-                None,
-                false,
-                false,
-                app,
-            )
-            .with_agent_output_item_spacing(app)
-            .with_background_color(blended_colors::neutral_2(theme))
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-            .finish(),
-        );
-    }
-
-    let mut content = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
-
-    let new_conversation_header_text =
-        "It seems like the topic changed. Would you like to make a new conversation?";
-    let new_conversation_header_element = HeaderConfig::new(new_conversation_header_text, app)
-        .with_icon(yellow_stop_icon(appearance))
-        .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-        .render(app);
-    content.add_child(new_conversation_header_element);
-
-    if let Some(menu) = props.keyboard_navigable_buttons {
-        let keyboard_navigable_buttons_container = Container::new(ChildView::new(menu).finish())
-            .with_horizontal_margin(INLINE_ACTION_HORIZONTAL_PADDING)
-            .with_vertical_margin(16.);
-        content.add_child(keyboard_navigable_buttons_container.finish());
-    }
-
-    let border_color = blended_colors::neutral_4(theme);
-
-    Some(
-        content
-            .finish()
-            .with_content_item_spacing()
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
-            .with_background_color(theme.background().into_solid())
-            .with_border(Border::all(1.).with_border_fill(border_color))
-            .finish(),
-    )
 }
 
 /// Creates a FormattedText object with inline code formatting for grep queries
@@ -3155,52 +2715,6 @@ fn render_comment_addressed_header(comment: &ReviewComment, app: &AppContext) ->
     renderable_action.render(app).finish()
 }
 
-fn render_read_mcp_resource(
-    props: Props,
-    action_id: &AIAgentActionId,
-    name: &str,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let status = props.action_model.as_ref(app).get_action_status(action_id);
-
-    let mut renderable_action = RenderableAction::new(name, app);
-
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        let buttons = props
-            .action_buttons
-            .get(action_id)
-            .expect("Button states must exist for each requested action.");
-
-        renderable_action = renderable_action
-            .with_header(blocked_action_header(
-                action_id.clone(),
-                "OK if I read this MCP resource?",
-                buttons.run_button.clone(),
-                buttons.cancel_button.clone(),
-                props.action_model,
-                props.model,
-                app,
-            ))
-            .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(action_id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            renderable_action = renderable_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        renderable_action = renderable_action
-            .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-    }
-
-    renderable_action.render(app).finish()
-}
-
 fn render_use_computer(
     props: Props,
     action_id: &AIAgentActionId,
@@ -3371,104 +2885,6 @@ fn render_references_footer(
     Some(column.finish().with_agent_output_item_spacing(app).finish())
 }
 
-/// Renders the suggested rules footer at the bottom of the block.
-fn render_suggested_rules_and_prompts_footer(
-    props: Props,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    // Filter out dismissed suggestions
-    let dismissed_ids = props
-        .model
-        .conversation(app)
-        .map(|c| c.dismissed_suggestion_ids().clone())
-        .unwrap_or_default();
-
-    let suggested_rules = props
-        .suggested_rules
-        .iter()
-        .filter(|chip| {
-            let logging_id = chip.as_ref(app).logging_id();
-            !dismissed_ids.contains(&logging_id)
-        })
-        .collect_vec();
-
-    let suggested_prompt = props.suggested_agent_mode_workflow.as_ref().filter(|chip| {
-        let logging_id = chip.as_ref(app).logging_id();
-        !dismissed_ids.contains(&logging_id)
-    });
-
-    // If no visible suggestions, don't render the footer
-    if suggested_rules.is_empty() && suggested_prompt.is_none() {
-        return None;
-    }
-
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let title_row_color = theme.sub_text_color(theme.background());
-    let title_text = Text::new_inline(
-        "Suggestions:",
-        appearance.ui_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(title_row_color.into())
-    .with_selectable(false)
-    .finish();
-
-    let has_suggested_rules = !suggested_rules.is_empty();
-
-    let right_buttons = {
-        let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-        if has_suggested_rules {
-            row.add_child(
-                Container::new(ChildView::new(props.disable_rule_suggestions_button).finish())
-                    .with_margin_right(4.)
-                    .finish(),
-            );
-        }
-        row.add_child(ChildView::new(props.dismiss_suggestion_button).finish());
-        row.finish()
-    };
-
-    let title = Container::new(
-        Flex::row()
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(Expanded::new(1.0, title_text).finish())
-            .with_child(right_buttons)
-            .finish(),
-    )
-    .with_margin_bottom(8.)
-    .finish();
-
-    let suggested_rules = suggested_rules
-        .iter()
-        .map(|rule| ChildView::new(rule).finish())
-        .collect_vec();
-
-    let suggested_agent_mode_workflows = suggested_prompt
-        .iter()
-        .map(|workflow| ChildView::new(workflow).finish())
-        .collect_vec();
-    let has_suggested_agent_mode_workflow = !suggested_agent_mode_workflows.is_empty();
-
-    let mut prompts_row = Wrap::row()
-        .with_children(suggested_rules)
-        .with_children(suggested_agent_mode_workflows);
-
-    if has_suggested_rules && !has_suggested_agent_mode_workflow {
-        prompts_row.add_child(ChildView::new(props.manage_rules_button).finish());
-    }
-
-    Some(
-        Flex::column()
-            .with_child(title)
-            .with_child(prompts_row.finish())
-            .finish()
-            .with_agent_output_item_spacing(app)
-            .finish(),
-    )
-}
-
 fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Element>> {
     if props.model.status(app).is_streaming() {
         return None;
@@ -3476,7 +2892,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
 
     let appearance = Appearance::as_ref(app);
     let mut flex = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-    let is_passive_code_diff = props.model.request_type(app).is_passive_code_diff();
 
     // Show footer for any terminal state (complete, cancelled, or failed)
     let style_override = UiComponentStyles {
@@ -3494,105 +2909,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         background: Some(blended_colors::neutral_4(appearance.theme()).into()),
         ..style_override
     };
-
-    let ui_builder = appearance.ui_builder().clone();
-
-    // Thumbs up/down buttons.
-    // (we hide these when you're in view-only mode).
-    if !is_passive_code_diff && !props.is_conversation_transcript_viewer {
-        let thumbs_up_button = icon_button(
-            appearance,
-            Icon::ThumbsUp,
-            matches!(
-                props.response_rating.get(),
-                Some(AIBlockResponseRating::Positive)
-            ),
-            props.state_handles.thumbs_up_handle.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Good response".to_string())
-                .build()
-                .finish()
-        })
-        .with_style(style_override)
-        .with_hovered_styles(style_override_with_background)
-        .with_active_styles(style_override_with_background);
-
-        let ui_builder = appearance.ui_builder().clone();
-        let thumbs_down_button = icon_button(
-            appearance,
-            Icon::ThumbsDown,
-            matches!(
-                props.response_rating.get(),
-                Some(AIBlockResponseRating::Negative)
-            ),
-            props.state_handles.thumbs_down_handle.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .clone()
-                .tool_tip("Bad response".to_string())
-                .build()
-                .finish()
-        })
-        .with_style(style_override)
-        .with_hovered_styles(style_override_with_background)
-        .with_active_styles(style_override_with_background);
-
-        let (thumbs_up_button_element, thumbs_down_button_element) =
-            match props.response_rating.get() {
-                Some(rating) => {
-                    // Mark the button that wasn't selected as disabled.
-                    // (The button that _was_ selected will not be clickable since it's marked active).
-                    match rating {
-                        AIBlockResponseRating::Positive => (
-                            thumbs_up_button.build().with_cursor(Cursor::Arrow).finish(),
-                            thumbs_down_button
-                                .disabled()
-                                .with_disabled_styles(Default::default())
-                                .build()
-                                .finish(),
-                        ),
-                        AIBlockResponseRating::Negative => (
-                            thumbs_up_button
-                                .disabled()
-                                .with_disabled_styles(Default::default())
-                                .build()
-                                .finish(),
-                            thumbs_down_button
-                                .build()
-                                .with_cursor(Cursor::Arrow)
-                                .finish(),
-                        ),
-                    }
-                }
-                None => (
-                    thumbs_up_button
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(AIBlockAction::Rated { is_positive: true })
-                        })
-                        .finish(),
-                    thumbs_down_button
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(AIBlockAction::Rated { is_positive: false })
-                        })
-                        .finish(),
-                ),
-            };
-        flex.add_child(
-            Container::new(thumbs_up_button_element)
-                .with_margin_right(2.)
-                .finish(),
-        );
-        flex.add_child(
-            Container::new(thumbs_down_button_element)
-                .with_margin_right(2.)
-                .finish(),
-        );
-    }
 
     if !FeatureFlag::AgentView.is_enabled() {
         let ui_builder = appearance.ui_builder().clone();
@@ -3618,7 +2934,7 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         flex.add_child(continue_button);
     }
 
-    if !props.is_conversation_transcript_viewer && !cfg!(target_family = "wasm") {
+    if !props.is_conversation_transcript_viewer {
         let ui_builder = appearance.ui_builder().clone();
         let fork_button = icon_button(
             appearance,

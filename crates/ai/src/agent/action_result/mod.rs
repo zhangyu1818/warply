@@ -36,21 +36,6 @@ pub enum AIAgentActionResultType {
     /// The output of a file glob V2 action.
     FileGlobV2(FileGlobV2Result),
 
-    /// The output of reading an MCP resource.
-    ReadMCPResource(ReadMCPResourceResult),
-
-    /// The output of calling an MCP tool.
-    CallMCPTool(CallMCPToolResult),
-
-    /// The output of reading a skill.
-    ReadSkill(ReadSkillResult),
-
-    /// The output of suggesting a new conversation.
-    SuggestNewConversation(SuggestNewConversationResult),
-
-    /// The result of suggesting a prompt.
-    SuggestPrompt(SuggestPromptResult),
-
     OpenCodeReview,
 
     InitProject,
@@ -117,11 +102,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::Grep(result) => result.fmt(f),
             AIAgentActionResultType::FileGlob(result) => result.fmt(f),
             AIAgentActionResultType::FileGlobV2(result) => result.fmt(f),
-            AIAgentActionResultType::ReadMCPResource(result) => result.fmt(f),
-            AIAgentActionResultType::CallMCPTool(result) => result.fmt(f),
-            AIAgentActionResultType::ReadSkill(result) => result.fmt(f),
-            AIAgentActionResultType::SuggestNewConversation(result) => result.fmt(f),
-            AIAgentActionResultType::SuggestPrompt(result) => result.fmt(f),
             AIAgentActionResultType::ReadDocuments(result) => result.fmt(f),
             AIAgentActionResultType::EditDocuments(result) => result.fmt(f),
             AIAgentActionResultType::CreateDocuments(result) => result.fmt(f),
@@ -246,30 +226,6 @@ impl Display for WriteToLongRunningShellCommandResult {
             ),
             Self::Cancelled => write!(f, "Writing to long-running shell command cancelled"),
             Self::Error(e) => write!(f, "Write to long-running shell command failed: {e:?}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SuggestNewConversationResult {
-    Accepted { message_id: String },
-    Rejected,
-    Cancelled,
-}
-
-impl Display for SuggestNewConversationResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Accepted { message_id } => {
-                write!(
-                    f,
-                    "Suggest new conversation accepted for message {message_id}"
-                )
-            }
-            Self::Rejected => {
-                write!(f, "Suggest new conversation rejected for message")
-            }
-            Self::Cancelled => write!(f, "Suggest new conversation cancelled"),
         }
     }
 }
@@ -614,23 +570,6 @@ impl Display for RequestFileEditsResult {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SuggestPromptResult {
-    Accepted { query: String },
-    Cancelled,
-}
-
-impl Display for SuggestPromptResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SuggestPromptResult::Accepted { query } => {
-                write!(f, "Suggest prompt accepted: {query}")
-            }
-            SuggestPromptResult::Cancelled => write!(f, "Suggest prompt cancelled"),
-        }
-    }
-}
-
 impl AIAgentActionResultType {
     /// A user visible description of what the result contains.
     /// Used to display error messages when the content is too large for
@@ -651,13 +590,6 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::Grep(_) => "The results of the grep operation",
             AIAgentActionResultType::FileGlob(_) => "The results of the file glob operation",
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
-            AIAgentActionResultType::CallMCPTool(_) => "The MCP tool call",
-            AIAgentActionResultType::ReadSkill(_) => "The results of reading a skill from file",
-            AIAgentActionResultType::ReadMCPResource(_) => "The MCP resource",
-            AIAgentActionResultType::SuggestNewConversation(_) => {
-                "Your decision on whether to start a new conversation"
-            }
-            AIAgentActionResultType::SuggestPrompt(_) => "The suggested prompt",
             AIAgentActionResultType::OpenCodeReview => "Open code review",
             AIAgentActionResultType::InsertReviewComments(_) => "Insert code review comments",
             AIAgentActionResultType::InitProject => "Initialize project",
@@ -685,10 +617,6 @@ impl AIAgentActionResultType {
             | Self::Grep(GrepResult::Success { .. })
             | Self::FileGlob(FileGlobResult::Success { .. })
             | Self::FileGlobV2(FileGlobV2Result::Success { .. })
-            | Self::ReadMCPResource(ReadMCPResourceResult::Success { .. })
-            | Self::CallMCPTool(CallMCPToolResult::Success { .. })
-            | Self::SuggestNewConversation(SuggestNewConversationResult::Accepted { .. })
-            | Self::SuggestPrompt(SuggestPromptResult::Accepted { .. })
             | Self::ReadDocuments(ReadDocumentsResult::Success { .. })
             | Self::EditDocuments(EditDocumentsResult::Success { .. })
             | Self::CreateDocuments(CreateDocumentsResult::Success { .. })
@@ -700,7 +628,6 @@ impl AIAgentActionResultType {
             | Self::InsertReviewComments(InsertReviewCommentsResult::Success { .. })
             | Self::RequestComputerUse(RequestComputerUseResult::Approved { .. })
             | Self::OpenCodeReview
-            | Self::ReadSkill(ReadSkillResult::Success { .. })
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Snapshot { .. }
                 | TransferShellCommandControlToUserResult::CommandFinished { .. },
@@ -719,8 +646,6 @@ impl AIAgentActionResultType {
             | Self::Grep(GrepResult::Error(_))
             | Self::FileGlob(FileGlobResult::Error(_))
             | Self::FileGlobV2(FileGlobV2Result::Error(_))
-            | Self::ReadMCPResource(ReadMCPResourceResult::Error(_))
-            | Self::CallMCPTool(CallMCPToolResult::Error(_))
             | Self::ReadDocuments(ReadDocumentsResult::Error(_))
             | Self::EditDocuments(EditDocumentsResult::Error(_))
             | Self::CreateDocuments(CreateDocumentsResult::Error(_))
@@ -749,10 +674,6 @@ impl AIAgentActionResultType {
             | Self::Grep(GrepResult::Cancelled)
             | Self::FileGlob(FileGlobResult::Cancelled)
             | Self::FileGlobV2(FileGlobV2Result::Cancelled)
-            | Self::ReadMCPResource(ReadMCPResourceResult::Cancelled)
-            | Self::CallMCPTool(CallMCPToolResult::Cancelled)
-            | Self::SuggestNewConversation(SuggestNewConversationResult::Cancelled)
-            | Self::SuggestPrompt(SuggestPromptResult::Cancelled)
             | Self::ReadDocuments(ReadDocumentsResult::Cancelled)
             | Self::EditDocuments(EditDocumentsResult::Cancelled)
             | Self::CreateDocuments(CreateDocumentsResult::Cancelled)
@@ -766,7 +687,6 @@ impl AIAgentActionResultType {
             | Self::WriteToLongRunningShellCommand(
                 WriteToLongRunningShellCommandResult::Cancelled,
             )
-            | Self::ReadSkill(ReadSkillResult::Cancelled)
             | Self::AskUserQuestion(AskUserQuestionResult::Cancelled) => true,
             _ => false,
         }
@@ -785,28 +705,6 @@ impl AIAgentActionResultType {
 
     pub fn is_requested_command(&self) -> bool {
         matches!(self, AIAgentActionResultType::RequestCommandOutput(_))
-    }
-
-    pub fn is_call_mcp_tool(&self) -> bool {
-        matches!(self, AIAgentActionResultType::CallMCPTool(_))
-    }
-
-    /// Returns `true` if this result will cause the server to route the next
-    /// turn to a subagent (e.g. the CLI subagent) rather than the orchestrator.
-    /// LRC snapshot variants are the current indicators of this.
-    pub fn triggers_server_subagent(&self) -> bool {
-        matches!(
-            self,
-            Self::RequestCommandOutput(
-                RequestCommandOutputResult::LongRunningCommandSnapshot { .. }
-            ) | Self::WriteToLongRunningShellCommand(
-                WriteToLongRunningShellCommandResult::Snapshot { .. }
-            ) | Self::ReadShellCommandOutput(
-                ReadShellCommandOutputResult::LongRunningCommandSnapshot { .. }
-            ) | Self::TransferShellCommandControlToUser(
-                TransferShellCommandControlToUserResult::Snapshot { .. }
-            )
-        )
     }
 }
 
@@ -930,68 +828,6 @@ impl Display for FileGlobV2Match {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CallMCPToolResult {
-    Success { result: rmcp::model::CallToolResult },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for CallMCPToolResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CallMCPToolResult::Success { result } => {
-                write!(
-                    f,
-                    "MCP tool call completed: [{result:?}]",
-                    // results.iter().format(", ")
-                )
-            }
-            CallMCPToolResult::Error(error) => write!(f, "MCP tool call error: {error}"),
-            CallMCPToolResult::Cancelled => write!(f, "MCP tool call cancelled"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReadMCPResourceResult {
-    Success {
-        resource_contents: Vec<rmcp::model::ResourceContents>,
-    },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for ReadMCPResourceResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReadMCPResourceResult::Success { resource_contents } => {
-                write!(f, "MCP resource read completed: [{resource_contents:?}]",)
-            }
-            ReadMCPResourceResult::Error(error) => write!(f, "MCP resource error: {error}"),
-            ReadMCPResourceResult::Cancelled => write!(f, "MCP resource read cancelled"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReadSkillResult {
-    Success { content: FileContext },
-    Error(String),
-    Cancelled,
-}
-
-impl Display for ReadSkillResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ReadSkillResult::Success { content } => {
-                write!(f, "Skill read successfully: {}", content.file_name)
-            }
-            ReadSkillResult::Error(error) => write!(f, "Skill read error: {error}"),
-            ReadSkillResult::Cancelled => write!(f, "Skill read cancelled"),
-        }
-    }
-}
 #[derive(Debug, Clone, PartialEq)]
 pub enum UseComputerResult {
     /// Computer use succeeded, with one result per requested action.
@@ -1192,12 +1028,6 @@ impl From<EditDocumentsResult> for AIAgentActionResultType {
 impl From<ReadDocumentsResult> for AIAgentActionResultType {
     fn from(result: ReadDocumentsResult) -> Self {
         AIAgentActionResultType::ReadDocuments(result)
-    }
-}
-
-impl From<ReadSkillResult> for AIAgentActionResultType {
-    fn from(result: ReadSkillResult) -> Self {
-        AIAgentActionResultType::ReadSkill(result)
     }
 }
 

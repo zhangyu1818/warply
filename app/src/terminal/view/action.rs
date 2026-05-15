@@ -3,7 +3,6 @@ use std::fmt;
 use std::ops::Range;
 use std::path::PathBuf;
 
-use ai::skills::SkillReference;
 use command_corrections::Correction;
 use pathfinder_geometry::vector::Vector2F;
 use warp_util::user_input::UserInput;
@@ -255,7 +254,7 @@ pub enum TerminalAction {
     OpenWorkflowModal,
     OpenWorkflowModalForAIWorkflow(Workflow),
     OpenWorkflowModalForBlock(BlockIndex),
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
+    OpenWorkflowModalWithSavedWorkflow(SyncId),
     AttachBlockAsAgentContext {
         block_index: BlockIndex,
     },
@@ -263,12 +262,6 @@ pub enum TerminalAction {
     TriggerSubshellBootstrap,
     /// If the user says "no" to Warpification, possibly requesting not to be asked again
     DismissWarpifyBanner(RememberForWarpification),
-    /// Triggers the banner asking to turn the running block into a subshell. The String is the
-    /// command that the user entered.
-    ShowSubshellBanner(String),
-    /// Triggers the banner asking to Warpify the active ssh session. The String is the
-    /// command that the user entered.
-    ShowWarpifySshBanner(String, Option<String>),
     InsertMostRecentCommandCorrection,
     AliasExpansionBanner(AliasExpansionBannerAction),
     OpenInWarpBanner(OpenInWarpBannerAction),
@@ -313,16 +306,10 @@ pub enum TerminalAction {
         entrypoint: CodeReviewPaneEntrypoint,
     },
     InitProject,
-    SummarizeConversation,
     AddProjectAtCurrentDirectory,
     OpenProjectRulesPane,
-    OpenViewMCPPane,
-    OpenAddMCPPane,
     OpenAddRulePane,
     OpenRulesPane,
-    OpenEditSkillPane {
-        skill_reference: SkillReference,
-    },
     OpenAddPromptPane,
     OpenConversationsPalette,
     PickRepoToOpen,
@@ -481,15 +468,13 @@ impl fmt::Debug for TerminalAction {
             OpenWorkflowModalForBlock(block_index) => {
                 write!(f, "OpenWorkflowModalForBlock({block_index:?})")
             }
-            OpenWorkflowModalWithCloudWorkflow(_) => {
-                f.write_str("OpenWorkflowModalWithCloudWorkflow")
+            OpenWorkflowModalWithSavedWorkflow(_) => {
+                f.write_str("OpenWorkflowModalWithSavedWorkflow")
             }
             OpenBlockListContextMenu => f.write_str("OpenBlockListContextMenu"),
             AttachBlockAsAgentContext { block_index } => write!(f, "AttachBlockAsAgentContext({block_index:?})"),
             TriggerSubshellBootstrap => f.write_str("TriggerSubshellBootstrap"),
             DismissWarpifyBanner(remember) => write!(f, "DismissWarpifyBanner({remember:?})"),
-            ShowSubshellBanner(_) => f.write_str("ShowSubshellBanner"),
-            ShowWarpifySshBanner(_, _) => f.write_str("ShowWarpifySshBanner"),
             InsertMostRecentCommandCorrection => f.write_str("InsertMostRecentCommandCorrection"),
             AliasExpansionBanner(action) => write!(f, "AliasExpansionBanner({action:?}"),
             OpenInWarpBanner(action) => write!(f, "OpenInWarpBanner({action:?})"),
@@ -546,17 +531,13 @@ impl fmt::Debug for TerminalAction {
             InitProject => write!(f, "InitProject"),
             AddProjectAtCurrentDirectory => write!(f, "AddProjectAtCurrentDirectory"),
             OpenProjectRulesPane => write!(f, "OpenProjectRulesPane"),
-            OpenViewMCPPane => write!(f, "OpenViewMCPPane"),
-            OpenAddMCPPane => write!(f, "OpenAddMCPPane"),
             OpenAddRulePane => write!(f, "OpenAddRulePane"),
             OpenRulesPane => write!(f, "OpenRulesPane"),
-            OpenEditSkillPane { .. } => write!(f, "OpenEditSkillPane"),
             OpenAddPromptPane => write!(f, "OpenAddPromptPane"),
             OpenConversationsPalette => write!(f, "OpenConversationsPalette"),
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
             OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),
             StartLspServer => write!(f, "StartLspServer"),
-            SummarizeConversation => write!(f, "SummarizeConversation"),
             ToggleLongRunningCommandControl => {
                 write!(f, "TakeOverLongRunningCommandControlForUser")
             }

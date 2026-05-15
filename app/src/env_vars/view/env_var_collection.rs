@@ -31,8 +31,8 @@ use crate::{
             ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
             SavingStatus, TrashStatus,
         },
-        CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
-        EnvVarCollectionType, EnvVarValue,
+        EnvVar, EnvVarCollection, EnvVarCollectionType, EnvVarValue, SavedEnvVarCollection,
+        SavedEnvVarCollectionModel,
     },
     external_secrets::SecretManager,
     menu::MenuItem,
@@ -606,7 +606,7 @@ impl EnvVarCollectionView {
         });
     }
 
-    pub fn load(&mut self, env_var_collection: CloudEnvVarCollection, ctx: &mut ViewContext<Self>) {
+    pub fn load(&mut self, env_var_collection: SavedEnvVarCollection, ctx: &mut ViewContext<Self>) {
         self.active_env_var_collection_data
             .update(ctx, |data, ctx| {
                 data.open_existing(env_var_collection.id, ctx);
@@ -684,9 +684,9 @@ impl EnvVarCollectionView {
         {
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
                 let cloud_model = CloudModel::as_ref(ctx);
-                if let Some(cloud_env_var) = cloud_model.get_env_var_collection(id) {
-                    ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Cloud(
-                        Box::new(cloud_env_var.clone()),
+                if let Some(saved_env_var) = cloud_model.get_env_var_collection(id) {
+                    ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Saved(
+                        Box::new(saved_env_var.clone()),
                     )));
                 } else {
                     log::error!("Env var not found and could not be invoked");
@@ -703,7 +703,7 @@ impl EnvVarCollectionView {
                 }
             }
             ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Cloud(
+                ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Saved(
                     Box::new(env_var_collection.as_ref().clone()),
                 )))
             }
@@ -776,8 +776,7 @@ impl EnvVarCollectionView {
             .active_env_var_collection();
 
         match active_env_var_collection {
-            // If the EVC has already been committed, then update the local
-            // memory and server data via update manager
+            // If the EVC has already been committed, update the local object model via update manager.
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => UpdateManager::handle(ctx)
                 .update(ctx, |update_manager, ctx| {
                     update_manager.update_env_var_collection(
@@ -797,7 +796,7 @@ impl EnvVarCollectionView {
                             client_id,
                             env_var_collection.permissions.owner,
                             env_var_collection.metadata.folder_id,
-                            CloudEnvVarCollectionModel::new(new_env_var_collection),
+                            SavedEnvVarCollectionModel::new(new_env_var_collection),
                             CloudObjectEventEntrypoint::Unknown,
                             true,
                             ctx,

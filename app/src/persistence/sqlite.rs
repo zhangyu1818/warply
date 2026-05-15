@@ -14,7 +14,6 @@ use std::{
 
 use ai::project_context::model::ProjectRulePath;
 use anyhow::{anyhow, bail, Context, Result};
-use chrono::Utc;
 use diesel::{
     connection::{DefaultLoadingMode, SimpleConnection},
     result::Error,
@@ -27,9 +26,9 @@ use itertools::Itertools;
 use libsqlite3_sys as sqlite3;
 use num_traits::FromPrimitive;
 use pathfinder_geometry::{rect::RectF, vector::Vector2F};
-use uuid::Uuid;
+use warp_core::safe_info;
 use warpui::platform::FullscreenState;
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
 use super::agent::{delete_agent_conversations, upsert_agent_conversation};
 use super::block_list::{
@@ -37,11 +36,10 @@ use super::block_list::{
     upsert_ai_query,
 };
 use super::model::{
-    self, MCPEnvironmentVariables, NewApp, NewCommand, NewFolder, NewTab, NewWindow,
-    NewWorkspaceMetadata, ObjectMetadata, ObjectPermissions, Project, Tab, Window,
-    WorkspaceMetadata as WorkspaceMetadataModel, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND,
-    CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND, EXECUTION_PROFILE_EDITOR_PANE_KIND,
-    MCP_SERVER_PANE_KIND, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, WELCOME_PANE_KIND,
+    self, NewApp, NewCommand, NewFolder, NewTab, NewWindow, NewWorkspaceMetadata, ObjectMetadata,
+    ObjectPermissions, Project, Tab, Window, WorkspaceMetadata as WorkspaceMetadataModel,
+    AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND,
+    EXECUTION_PROFILE_EDITOR_PANE_KIND, SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, WELCOME_PANE_KIND,
     WORKFLOW_PANE_KIND,
 };
 use super::schema;
@@ -51,11 +49,6 @@ use super::{
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::facts::{CloudAIFact, CloudAIFactModel};
-use crate::ai::mcp::templatable::{CloudTemplatableMCPServer, CloudTemplatableMCPServerModel};
-use crate::ai::mcp::templatable_installation::VariableValue;
-use crate::ai::mcp::{
-    CloudMCPServer, CloudMCPServerModel, TemplatableMCPServer, TemplatableMCPServerInstallation,
-};
 use crate::ai::persisted_workspace::EnablementState;
 use crate::app_state::{
     AIFactPaneSnapshot, CodeReviewPaneSnapshot, EnvVarCollectionPaneSnapshot, LeftPanelSnapshot,
@@ -68,33 +61,29 @@ use crate::app_state::{
 use crate::cloud_object::model::actions::{ObjectAction, ObjectActionSubtype};
 use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
 use crate::cloud_object::{
-    CloudObject, JsonObjectType, ObjectIdType, ObjectType, Owner, RevisionAndLastEditor,
-    GENERIC_STRING_OBJECT_PREFIX, JSON_OBJECT_PREFIX,
+    CloudObject, JsonObjectType, ObjectIdType, ObjectType, Owner, GENERIC_STRING_OBJECT_PREFIX,
+    JSON_OBJECT_PREFIX,
 };
 use crate::cloud_object::{CloudObjectMetadata, NumInFlightRequests, Revision, ServerTimestamp};
 use crate::code::editor_management::CodeSource;
 use crate::drive::folders::{CloudFolder, CloudFolderModel, FolderId};
-use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel};
-use crate::identity::local_identity::LocalIdentityProvider;
-use crate::identity::UserUid;
+use crate::env_vars::{SavedEnvVarCollection, SavedEnvVarCollectionModel};
 use crate::object_ids::{ClientId, HashableId, SyncId, ToServerId};
 use crate::persistence::agent::read_agent_conversations;
 use crate::persistence::block_list::{get_all_restored_blocks, read_ai_queries};
 use crate::persistence::model::{
     NewGenericStringObject, NewPersistedObjectAction, ProjectRules, CODE_REVIEW_PANE_KIND,
 };
-use crate::safe_info;
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
 use crate::tab::SelectedTabColor;
 use crate::terminal::history::PersistedCommand;
 use crate::terminal::ShellLaunchData;
-use crate::themes::theme::AnsiColorIdentifier;
-use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel};
-use crate::workflows::{CloudWorkflow, WorkflowId};
+use crate::workflows::workflow_enum::{SavedWorkflowEnum, SavedWorkflowEnumModel};
+use crate::workflows::{SavedWorkflow, WorkflowId};
 use crate::{
     cloud_object::{CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus},
-    workflows::CloudWorkflowModel,
+    workflows::SavedWorkflowModel,
 };
 use lsp::supported_servers::LSPServerType;
 
@@ -111,8 +100,8 @@ use local_object_model::persistence::{upsert_cloud_object, CloudObjectId};
 
 const WARPLY_SQLITE_FILE_NAME: &str = "warply.sqlite";
 
-/// When delete a cloud object, this callback is used to delete the cloud
-/// object. It takes the id of the cloud object to delete as a parameter.
+/// When deleting a local persisted object, this callback deletes the object row.
+/// It takes the sqlite id of the object to delete as a parameter.
 /// The supplied conn has already started a transaction.
 type DeleteCloudObjectFn =
     Box<dyn FnOnce(&mut SqliteConnection, CloudObjectId) -> Result<(), Error>>;
@@ -120,7 +109,7 @@ type DeleteCloudObjectFn =
 /// Runs any migrations and creates the Sqlite database if it doesn't exist.
 /// Reads from the sqlite database to get the app state for session restoration.
 /// Starts a writer thread that listens for ModelEvents and processes them.
-pub fn initialize(ctx: &mut AppContext) -> (Option<PersistedData>, Option<WriterHandles>) {
+pub fn initialize(_ctx: &mut AppContext) -> (Option<PersistedData>, Option<WriterHandles>) {
     unsafe {
         // Set up logging before any SQLite calls.
         init_logging();
@@ -128,8 +117,7 @@ pub fn initialize(ctx: &mut AppContext) -> (Option<PersistedData>, Option<Writer
     let database_path = database_file_path();
     match init_db() {
         Ok(mut conn) => {
-            let user_uid = LocalIdentityProvider::as_ref(ctx).get().user_id();
-            let app_state = read_sqlite_data(&mut conn, user_uid).ok();
+            let app_state = read_sqlite_data(&mut conn).ok();
 
             let writer_handles = match start_writer(conn, database_path) {
                 Ok(writer_handles) => Some(writer_handles),
@@ -376,20 +364,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         ModelEvent::UpsertFolder { folder } => {
             upsert_folders(connection, vec![folder]).context("error upserting folder")
         }
-        ModelEvent::MarkObjectAsSynced {
-            revision_and_editor,
-            metadata_ts,
-            hashed_sqlite_id,
-        } => mark_object_as_synced(
-            connection,
-            hashed_sqlite_id,
-            revision_and_editor,
-            metadata_ts,
-        )
-        .context("error marking object as synced"),
-        ModelEvent::IncrementRetryCount(id) => {
-            increment_retry_count(connection, id).context("error incrementing retry count")
-        }
         ModelEvent::DeleteObjects { ids } => {
             delete_objects(connection, ids).context("error deleting objects")
         }
@@ -441,15 +415,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
                 .map_err(anyhow::Error::from)
                 .context("error deleting agent conversation")
         }
-        ModelEvent::UpsertMCPServerEnvironmentVariables {
-            mcp_server_uuid,
-            environment_variables,
-        } => upsert_mcp_server_environment_variables(
-            connection,
-            mcp_server_uuid,
-            environment_variables,
-        )
-        .context("error upserting mcp server mcp_environment variables"),
         ModelEvent::UpsertProjectRules { project_rule_paths } => {
             upsert_project_rules(connection, project_rule_paths)
                 .context("error upserting project rules")
@@ -467,20 +432,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             suggestion_type,
         } => remove_ignored_suggestion(connection, suggestion, suggestion_type)
             .context("error removing ignored suggestion"),
-        ModelEvent::UpsertMCPServerInstallation {
-            mcp_server_installation,
-        } => upsert_mcp_server_installation(connection, mcp_server_installation),
-        ModelEvent::DeleteMCPServerInstallations { installation_uuids } => {
-            delete_mcp_server_installations(connection, installation_uuids)
-        }
-        ModelEvent::DeleteMCPServerInstallationsByTemplateUuid { template_uuid } => {
-            delete_mcp_server_installations_by_template_uuid(connection, template_uuid)
-        }
-        ModelEvent::UpdateMCPInstallationRunning {
-            installation_uuid,
-            running,
-        } => update_mcp_server_running(connection, installation_uuid, running)
-            .context("Error updating running field for MCP installation"),
         ModelEvent::UpsertWorkspaceLanguageServer {
             workspace_path,
             lsp_type,
@@ -570,7 +521,6 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
         diesel::delete(schema::settings_panes::dsl::settings_panes).execute(conn)?;
         diesel::delete(schema::ai_memory_panes::dsl::ai_memory_panes).execute(conn)?;
         diesel::delete(schema::ai_document_panes::dsl::ai_document_panes).execute(conn)?;
-        diesel::delete(schema::mcp_server_panes::dsl::mcp_server_panes).execute(conn)?;
         diesel::delete(schema::code_review_panes::dsl::code_review_panes).execute(conn)?;
         diesel::delete(schema::welcome_panes::dsl::welcome_panes).execute(conn)?;
         diesel::delete(schema::pane_leaves::dsl::pane_leaves).execute(conn)?;
@@ -867,7 +817,7 @@ fn save_pane_state(
         }
         LeafContents::EnvVarCollection(env_var_collection_snapshot) => {
             let env_var_collection_id = match env_var_collection_snapshot {
-                EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+                EnvVarCollectionPaneSnapshot::SavedEnvVarCollection {
                     env_var_collection_id,
                 } => env_var_collection_id
                     .map(|id| id.sqlite_uid_hash(ObjectIdType::GenericStringObject)),
@@ -884,7 +834,7 @@ fn save_pane_state(
         }
         LeafContents::Workflow(workflow_pane_snapshot) => {
             let workflow_id = match workflow_pane_snapshot {
-                WorkflowPaneSnapshot::CloudWorkflow { workflow_id } => {
+                WorkflowPaneSnapshot::SavedWorkflow { workflow_id } => {
                     workflow_id.map(|id| id.sqlite_uid_hash(ObjectIdType::Workflow))
                 }
             };
@@ -1232,138 +1182,6 @@ fn get_all_ignored_suggestions(
         .collect())
 }
 
-fn get_all_mcp_server_installations(
-    conn: &mut SqliteConnection,
-) -> Result<HashMap<Uuid, TemplatableMCPServerInstallation>, diesel::result::Error> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let rows: Vec<(String, String, String)> = mcp_server_installations
-        .select((id, templatable_mcp_server, variable_values))
-        .load::<(String, String, String)>(conn)?;
-    let rows_len = rows.len();
-
-    let result: HashMap<Uuid, TemplatableMCPServerInstallation> = rows
-        .into_iter()
-        .filter_map(|(id_str, templ_mcp, vars_json)| {
-            let uuid = uuid::Uuid::parse_str(&id_str).ok()?;
-
-            // Parse variable_values JSON into a flat HashMap<String, String>
-            let vars: HashMap<String, VariableValue> =
-                match serde_json::from_str::<HashMap<String, VariableValue>>(&vars_json) {
-                    Ok(map) => map,
-                    Err(_) => return None,
-                };
-
-            let mcp_server = match serde_json::from_str::<TemplatableMCPServer>(&templ_mcp) {
-                Ok(map) => map,
-                Err(_) => return None,
-            };
-
-            Some((
-                uuid,
-                TemplatableMCPServerInstallation::new(uuid, mcp_server, vars),
-            ))
-        })
-        .collect();
-
-    let improper_rows = rows_len - result.len();
-    if improper_rows > 0 {
-        log::warn!("Skipping {improper_rows} rows from mcp_server_installations table due to malformation.");
-    }
-
-    Ok(result)
-}
-
-fn upsert_mcp_server_installation(
-    conn: &mut SqliteConnection,
-    mcp_server_installation: TemplatableMCPServerInstallation,
-) -> Result<()> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let new_installation = model::NewMCPServerInstallation {
-        id: mcp_server_installation.uuid().to_string(),
-        templatable_mcp_server: serde_json::to_string(
-            mcp_server_installation.templatable_mcp_server(),
-        )?,
-        // TODO(pei): Change this to be the timestamp of the Cloud object
-        template_version_ts: Utc::now().naive_utc(),
-        variable_values: serde_json::to_string(mcp_server_installation.variable_values())?,
-        restore_running: false,
-        last_modified_at: Utc::now().naive_utc(),
-    };
-
-    conn.transaction::<_, Error, _>(|conn| {
-        diesel::insert_into(mcp_server_installations)
-            .values(&new_installation)
-            .on_conflict(id)
-            .do_update()
-            .set(&new_installation)
-            .execute(conn)?;
-
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-fn delete_mcp_server_installations(conn: &mut SqliteConnection, uuids: Vec<Uuid>) -> Result<()> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let id_strings: Vec<String> = uuids.iter().map(|uuid| uuid.to_string()).collect();
-    diesel::delete(mcp_server_installations.filter(id.eq_any(id_strings))).execute(conn)?;
-
-    Ok(())
-}
-
-fn delete_mcp_server_installations_by_template_uuid(
-    conn: &mut SqliteConnection,
-    target_template_uuid: Uuid,
-) -> Result<()> {
-    use schema::mcp_server_installations::dsl::*;
-
-    diesel::delete(mcp_server_installations.filter(
-        json_extract(templatable_mcp_server, "$.uuid").eq(target_template_uuid.to_string()),
-    ))
-    .execute(conn)?;
-
-    Ok(())
-}
-
-fn get_mcp_servers_to_restore(
-    conn: &mut SqliteConnection,
-) -> Result<Vec<Uuid>, diesel::result::Error> {
-    use schema::mcp_server_installations::dsl::*;
-
-    let rows = mcp_server_installations
-        .filter(restore_running.eq(true))
-        .select(id)
-        .load::<String>(conn)?;
-
-    let installation_uuid = rows
-        .iter()
-        .filter_map(|uuid| uuid::Uuid::parse_str(uuid).ok())
-        .collect();
-
-    Ok(installation_uuid)
-}
-
-fn update_mcp_server_running(
-    conn: &mut SqliteConnection,
-    installation_uuid: Uuid,
-    running: bool,
-) -> Result<(), diesel::result::Error> {
-    use schema::mcp_server_installations::dsl::*;
-
-    diesel::update(mcp_server_installations.find(installation_uuid.to_string()))
-        .set((
-            restore_running.eq(running),
-            last_modified_at.eq(Utc::now().naive_utc()),
-        ))
-        .execute(conn)?;
-
-    Ok(())
-}
-
 fn add_ignored_suggestion(
     conn: &mut SqliteConnection,
     suggestion_text: String,
@@ -1404,48 +1222,7 @@ fn remove_ignored_suggestion(
     Ok(())
 }
 
-/// Mark a shareable object as no longer having pending changes.
-fn mark_object_as_synced(
-    conn: &mut SqliteConnection,
-    hashed_sqlite_id: String,
-    new_revision_and_editor: RevisionAndLastEditor,
-    new_metadata_ts: Option<ServerTimestamp>,
-) -> Result<(), Error> {
-    use schema::object_metadata::dsl::*;
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id.as_str()))))
-            .set(is_pending.eq(false))
-            .execute(conn)?;
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id.clone()))))
-            .set((
-                revision_ts.eq(new_revision_and_editor.revision.timestamp_micros()),
-                last_editor_uid.eq(new_revision_and_editor.last_editor_uid),
-            ))
-            .execute(conn)?;
-
-        if let Some(metadata_ts) = new_metadata_ts {
-            diesel::update(object_metadata.filter(server_id.eq(Some(hashed_sqlite_id))))
-                .set((metadata_last_updated_ts.eq(metadata_ts.timestamp_micros()),))
-                .execute(conn)?;
-        }
-        Ok(())
-    })
-}
-
-fn increment_retry_count(
-    conn: &mut SqliteConnection,
-    server_id_string: String,
-) -> Result<(), Error> {
-    use schema::object_metadata::dsl::*;
-    conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(server_id_string))))
-            .set(retry_count.eq(retry_count + 1))
-            .execute(conn)?;
-        Ok(())
-    })
-}
-
-/// Helper function to delete a cloud object identified by `sync_id`. If a valid object metadata row
+/// Helper function to delete a local persisted object identified by `sync_id`. If a valid object metadata row
 /// for the object is found, `delete_object_fn` is called to delete the actual object.
 fn delete_cloud_object(
     conn: &mut SqliteConnection,
@@ -1481,7 +1258,7 @@ fn delete_cloud_object(
     Ok(())
 }
 
-/// SQLite endpoint for the ObjectMetadataUpdated RTC message that updates the object's metadata.
+/// Updates the local SQLite metadata row for a retained object.
 fn update_object_metadata(
     conn: &mut SqliteConnection,
     hashed_id: String,
@@ -1498,14 +1275,18 @@ fn update_object_metadata(
         .map(|folder_sync_id| folder_sync_id.sqlite_uid_hash(ObjectIdType::Folder));
 
     conn.transaction::<(), Error, _>(|conn| {
-        diesel::update(object_metadata.filter(server_id.eq(Some(hashed_id.as_str()))))
-            .set((
-                metadata_last_updated_ts.eq(metadata_last_updated_at),
-                trashed_ts.eq(trashed_timestamp),
-                folder_id.eq(folder_id_str),
-                current_editor.eq(metadata.current_editor_uid),
-            ))
-            .execute(conn)?;
+        diesel::update(
+            object_metadata
+                .filter(client_id.eq(Some(hashed_id.as_str())))
+                .or_filter(server_id.eq(Some(hashed_id.as_str()))),
+        )
+        .set((
+            metadata_last_updated_ts.eq(metadata_last_updated_at),
+            trashed_ts.eq(trashed_timestamp),
+            folder_id.eq(folder_id_str),
+            current_editor.eq(metadata.current_editor_uid),
+        ))
+        .execute(conn)?;
 
         Ok(())
     })
@@ -1559,21 +1340,21 @@ fn upsert_generic_string_objects(
 
 fn upsert_workflows(
     conn: &mut SqliteConnection,
-    cloud_workflows: Vec<CloudWorkflow>,
+    saved_workflows: Vec<SavedWorkflow>,
 ) -> Result<(), Error> {
     use schema::workflows::dsl::*;
     conn.transaction::<(), Error, _>(|conn| {
         // todo: wrap in an arc to avoid unnecessary cloning.
-        for cloud_workflow in cloud_workflows {
-            let workflow_id = cloud_workflow.id;
-            if let Ok(serialized_workflow) = serde_json::to_string(&cloud_workflow.model().data) {
+        for saved_workflow in saved_workflows {
+            let workflow_id = saved_workflow.id;
+            if let Ok(serialized_workflow) = serde_json::to_string(&saved_workflow.model().data) {
                 let serialized_workflow_clone = serialized_workflow.clone();
                 upsert_cloud_object(
                     conn,
                     ObjectType::Workflow,
                     workflow_id,
-                    cloud_workflow.metadata,
-                    cloud_workflow.permissions,
+                    saved_workflow.metadata,
+                    saved_workflow.permissions,
                     Box::new(move |conn| {
                         let workflow = model::NewWorkflow {
                             data: serialized_workflow.clone(),
@@ -1612,7 +1393,6 @@ fn upsert_folders(
             let folder_clone = cloud_folder.clone();
             let folder_name = cloud_folder.model().name.clone();
             let folder_is_open = cloud_folder.model().is_open;
-            let folder_is_warp_pack = cloud_folder.model().is_warp_pack;
             upsert_cloud_object(
                 conn,
                 ObjectType::Folder,
@@ -1623,7 +1403,6 @@ fn upsert_folders(
                     let new_folder = NewFolder {
                         name: folder_name,
                         is_open: folder_is_open,
-                        is_warp_pack: folder_is_warp_pack,
                     };
                     diesel::insert_into(schema::folders::dsl::folders)
                         .values(new_folder)
@@ -1639,7 +1418,6 @@ fn upsert_folders(
                         .set((
                             name.eq(folder_clone.model().name.clone()),
                             is_open.eq(folder_clone.model().is_open),
-                            is_warp_pack.eq(folder_clone.model().is_warp_pack),
                         ))
                         .execute(conn)?;
                     Ok(())
@@ -1732,13 +1510,11 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .select(model::WorkflowPane::as_select())
                         .first(conn)?;
 
-                    let workflow_id = workflow_pane.workflow_id.and_then(|id| {
-                        ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                            WorkflowId::from_hash(&id).map(|id| SyncId::ServerId(id.into()))
-                        })
-                    });
+                    let workflow_id = workflow_pane
+                        .workflow_id
+                        .and_then(|id| ClientId::from_hash(&id).map(SyncId::ClientId));
 
-                    LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow { workflow_id })
+                    LeafContents::Workflow(WorkflowPaneSnapshot::SavedWorkflow { workflow_id })
                 }
                 CODE_PANE_KIND => {
                     let code_pane = schema::code_panes::dsl::code_panes
@@ -1782,15 +1558,10 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
 
                     let env_var_collection_id = env_var_collection_pane
                         .env_var_collection_id
-                        .and_then(|id| {
-                            ClientId::from_hash(&id).map(SyncId::ClientId).or_else(|| {
-                                GenericStringObjectId::from_hash(&id)
-                                    .map(|id| SyncId::ServerId(id.into()))
-                            })
-                        });
+                        .and_then(|id| ClientId::from_hash(&id).map(SyncId::ClientId));
 
                     LeafContents::EnvVarCollection(
-                        EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+                        EnvVarCollectionPaneSnapshot::SavedEnvVarCollection {
                             env_var_collection_id,
                         },
                     )
@@ -1810,10 +1581,6 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                     })
                 }
                 AI_FACT_PANE_KIND => LeafContents::AIFact(AIFactPaneSnapshot::Personal),
-                MCP_SERVER_PANE_KIND => {
-                    // Legacy MCP server panes are no longer supported.
-                    bail!("Legacy MCP server panes are no longer supported")
-                }
                 CODE_REVIEW_PANE_KIND => {
                     let code_review_pane = schema::code_review_panes::dsl::code_review_panes
                         .find(node.id)
@@ -1905,10 +1672,7 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
 /// happen is the user won't have session restoration.
 ///
 /// In the future, the awkwardness of the transaction interface is resolved in diesel 2.0.0.
-fn read_sqlite_data(
-    conn: &mut SqliteConnection,
-    current_user_id: Option<UserUid>,
-) -> Result<PersistedData, Error> {
+fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error> {
     use schema::windows::dsl::*;
 
     let active_window_id = schema::app::dsl::app
@@ -1957,16 +1721,7 @@ fn read_sqlite_data(
                         selected_color: tab
                             .color
                             .as_deref()
-                            .and_then(|s| {
-                                serde_yaml::from_str::<SelectedTabColor>(s)
-                                    .ok()
-                                    .or_else(|| {
-                                        // Fall back to the old format which stored a bare AnsiColorIdentifier
-                                        serde_yaml::from_str::<AnsiColorIdentifier>(s)
-                                            .ok()
-                                            .map(SelectedTabColor::Color)
-                                    })
-                            })
+                            .and_then(|s| serde_yaml::from_str::<SelectedTabColor>(s).ok())
                             .unwrap_or_default(),
                         left_panel,
                         right_panel,
@@ -1994,24 +1749,10 @@ fn read_sqlite_data(
                 window.origin_x,
                 window.origin_y,
             ) {
-                (Some(mut width), Some(mut height), Some(x), Some(y)) => {
-                    // When fullscreen or maximized, the `inner_size` we snapshotted will be the
-                    // size of the full screen. This will cause problems with the window backend. When you set
-                    // maximized/fullscreen, setting the inner_size will by the size the window
-                    // takes _after_ the user toggles _out_ of fullscreen/maximized. Therefore, we
-                    // don't want to set the size to take the full screen because the window will
-                    // appear to remain in maximized/fullscreen. We multiply each dimension by 0.8
-                    // to prevent taking the full screen while choosing a reasonable size.
-                    if !cfg!(target_os = "macos") && fullscreen_state_val != FullscreenState::Normal
-                    {
-                        width *= 0.8;
-                        height *= 0.8;
-                    }
-                    Some(RectF::new(
-                        Vector2F::new(x, y),
-                        Vector2F::new(width, height),
-                    ))
-                }
+                (Some(width), Some(height), Some(x), Some(y)) => Some(RectF::new(
+                    Vector2F::new(x, y),
+                    Vector2F::new(width, height),
+                )),
                 _ => None,
             };
 
@@ -2098,14 +1839,13 @@ fn read_sqlite_data(
                         let workflow_content = serde_json::from_str(workflow.data.as_str()).ok();
                         let workflow_id = id_from_metadata::<WorkflowId>(metadata);
                         let permissions = permissions_by_id.get(&metadata.id)?;
-                        let cloud_object_permissions =
-                            to_cloud_object_permissions(permissions, current_user_id)?;
+                        let cloud_object_permissions = to_cloud_object_permissions(permissions)?;
                         workflow_content
                             .zip(workflow_id)
                             .map(|(content, workflow_id)| {
-                                let boxed: Box<dyn CloudObject> = Box::new(CloudWorkflow::new(
+                                let boxed: Box<dyn CloudObject> = Box::new(SavedWorkflow::new(
                                     workflow_id,
-                                    CloudWorkflowModel::new(content),
+                                    SavedWorkflowModel::new(content),
                                     to_cloud_object_metadata(metadata),
                                     cloud_object_permissions,
                                 ));
@@ -2129,15 +1869,13 @@ fn read_sqlite_data(
                     .and_then(|metadata| {
                         let folder_id = id_from_metadata::<FolderId>(metadata);
                         let permissions = permissions_by_id.get(&metadata.id)?;
-                        let cloud_object_permissions =
-                            to_cloud_object_permissions(permissions, current_user_id)?;
+                        let cloud_object_permissions = to_cloud_object_permissions(permissions)?;
                         folder_id.map(|server_id| {
                             let boxed: Box<dyn CloudObject> = Box::new(CloudFolder::new(
                                 server_id,
                                 CloudFolderModel {
                                     name: folder.name.clone(),
                                     is_open: folder.is_open,
-                                    is_warp_pack: folder.is_warp_pack,
                                 },
                                 to_cloud_object_metadata(metadata),
                                 cloud_object_permissions,
@@ -2159,8 +1897,7 @@ fn read_sqlite_data(
                     .and_then(|metadata| {
                         let object_id = id_from_metadata::<GenericStringObjectId>(metadata);
                         let permissions = permissions_by_id.get(&metadata.id)?;
-                        let cloud_object_permissions =
-                            to_cloud_object_permissions(permissions, current_user_id)?;
+                        let cloud_object_permissions = to_cloud_object_permissions(permissions)?;
                         let json_object_type: JsonObjectType = metadata
                             .object_type
                             .strip_prefix(&format!(
@@ -2171,10 +1908,10 @@ fn read_sqlite_data(
                         object_id.and_then(|server_id| match json_object_type {
                             JsonObjectType::EnvVarCollection => {
                                 let model =
-                                    CloudEnvVarCollectionModel::deserialize_owned(&object.data);
+                                    SavedEnvVarCollectionModel::deserialize_owned(&object.data);
                                 model.ok().map(|model| {
                                     let boxed: Box<dyn CloudObject> =
-                                        Box::new(CloudEnvVarCollection::new(
+                                        Box::new(SavedEnvVarCollection::new(
                                             server_id,
                                             model,
                                             to_cloud_object_metadata(metadata),
@@ -2184,10 +1921,10 @@ fn read_sqlite_data(
                                 })
                             }
                             JsonObjectType::WorkflowEnum => {
-                                let model = CloudWorkflowEnumModel::deserialize_owned(&object.data);
+                                let model = SavedWorkflowEnumModel::deserialize_owned(&object.data);
                                 model.ok().map(|model| {
                                     let boxed: Box<dyn CloudObject> =
-                                        Box::new(CloudWorkflowEnum::new(
+                                        Box::new(SavedWorkflowEnum::new(
                                             server_id,
                                             model,
                                             to_cloud_object_metadata(metadata),
@@ -2205,33 +1942,6 @@ fn read_sqlite_data(
                                         to_cloud_object_metadata(metadata),
                                         cloud_object_permissions,
                                     ));
-                                    boxed
-                                })
-                            }
-                            JsonObjectType::MCPServer => {
-                                let model = CloudMCPServerModel::deserialize_owned(&object.data);
-                                model.ok().map(|model| {
-                                    let boxed: Box<dyn CloudObject> =
-                                        Box::new(CloudMCPServer::new(
-                                            server_id,
-                                            model,
-                                            to_cloud_object_metadata(metadata),
-                                            cloud_object_permissions,
-                                        ));
-                                    boxed
-                                })
-                            }
-                            JsonObjectType::TemplatableMCPServer => {
-                                let model =
-                                    CloudTemplatableMCPServerModel::deserialize_owned(&object.data);
-                                model.ok().map(|model| {
-                                    let boxed: Box<dyn CloudObject> =
-                                        Box::new(CloudTemplatableMCPServer::new(
-                                            server_id,
-                                            model,
-                                            to_cloud_object_metadata(metadata),
-                                            cloud_object_permissions,
-                                        ));
                                     boxed
                                 })
                             }
@@ -2271,9 +1981,6 @@ fn read_sqlite_data(
     let projects = get_all_projects(conn)?;
     let project_rules = get_all_project_rules(conn)?;
     let ignored_suggestions = get_all_ignored_suggestions(conn)?;
-    let mcp_server_installations = get_all_mcp_server_installations(conn)?;
-    let mcp_servers_to_restore = get_mcp_servers_to_restore(conn)?;
-
     Ok(PersistedData {
         app_state,
         cloud_objects,
@@ -2286,8 +1993,6 @@ fn read_sqlite_data(
         projects,
         project_rules,
         ignored_suggestions,
-        mcp_server_installations,
-        mcp_servers_to_restore,
     })
 }
 
@@ -2311,29 +2016,20 @@ fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadata {
             .revision_ts
             .and_then(|epoch| Revision::from_unix_timestamp_micros(epoch).ok()),
         pending_changes_statuses: CloudObjectStatuses {
-            pending_delete: false,
             content_sync_status: if metadata.is_pending {
                 CloudObjectSyncStatus::InFlight(NumInFlightRequests(1))
             } else {
                 CloudObjectSyncStatus::NoLocalChanges
             },
-            has_pending_metadata_change: false,
-            has_pending_permissions_change: false,
-            pending_untrash: false,
         },
         trashed_ts: metadata
             .trashed_ts
             .and_then(|epoch| ServerTimestamp::from_unix_timestamp_micros(epoch).ok()),
         folder_id: metadata.folder_id.as_ref().and_then(|folder_id_str| {
-            // First, attempt to convert the string into a server id.
-            let as_server_id =
-                FolderId::from_hash(folder_id_str).map(|id| SyncId::ServerId(id.into()));
-
-            // If the string cannot be converted to server id, it may be a client id.
-            if as_server_id.is_none() {
+            if folder_id_str.starts_with("Client-") {
                 ClientId::from_hash(folder_id_str).map(SyncId::ClientId)
             } else {
-                as_server_id
+                FolderId::from_hash(folder_id_str).map(|id| SyncId::ServerId(id.into()))
             }
         }),
         is_welcome_object: metadata.is_welcome_object,
@@ -2343,26 +2039,19 @@ fn to_cloud_object_metadata(metadata: &ObjectMetadata) -> CloudObjectMetadata {
     }
 }
 
-fn to_cloud_object_permissions(
-    permissions: &ObjectPermissions,
-    default_user_id: Option<UserUid>,
-) -> Option<CloudObjectPermissions> {
-    let owner = owner_for_permissions(permissions, default_user_id)?;
+fn to_cloud_object_permissions(permissions: &ObjectPermissions) -> Option<CloudObjectPermissions> {
+    let owner = owner_for_permissions(permissions)?;
 
     Some(CloudObjectPermissions { owner })
 }
 
-fn owner_for_permissions(
-    permissions: &ObjectPermissions,
-    default_user_id: Option<UserUid>,
-) -> Option<Owner> {
+fn owner_for_permissions(permissions: &ObjectPermissions) -> Option<Owner> {
     match permissions.subject_type.as_str() {
         "USER" => {
             let user_uid = permissions
                 .subject_id
                 .as_deref()
-                .map(UserUid::new)
-                .or(default_user_id)?;
+                .map(crate::identity::UserUid::new)?;
             Some(Owner::User { user_uid })
         }
         _ => None,
@@ -2392,8 +2081,8 @@ impl From<StartedCommandMetadata> for model::NewCommand {
                 id.try_into().ok()
             }),
             git_branch: metadata.git_branch,
-            cloud_workflow_id: metadata
-                .cloud_workflow_id
+            saved_workflow_id: metadata
+                .saved_workflow_id
                 .map(|id| id.sqlite_uid_hash(ObjectIdType::Workflow)),
             workflow_command: metadata.workflow_command,
             is_agent_executed: Some(metadata.is_agent_executed),
@@ -2440,26 +2129,6 @@ fn update_finished_command(
                 exit_code.eq(completed_command.exit_code.value()),
                 completed_ts.eq(completed_command.completed_ts.naive_utc()),
             ))
-            .execute(conn)?;
-        Ok(())
-    })
-}
-
-fn upsert_mcp_server_environment_variables(
-    conn: &mut SqliteConnection,
-    mcp_server_uuid: Vec<u8>,
-    environment_variables: String,
-) -> Result<(), Error> {
-    conn.transaction::<(), Error, _>(|conn| {
-        let env_vars = MCPEnvironmentVariables {
-            mcp_server_uuid,
-            environment_variables,
-        };
-        diesel::insert_into(schema::mcp_environment_variables::dsl::mcp_environment_variables)
-            .values(&env_vars)
-            .on_conflict(schema::mcp_environment_variables::dsl::mcp_server_uuid)
-            .do_update()
-            .set(&env_vars)
             .execute(conn)?;
         Ok(())
     })

@@ -7,8 +7,7 @@ use warpui::r#async::FutureExt as AsyncFutureExt;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent::{
-    conversation::AIConversationId, AIAgentAction, AIAgentActionType, FileGlobResult,
-    FileGlobV2Match, FileGlobV2Result,
+    AIAgentAction, AIAgentActionType, FileGlobResult, FileGlobV2Match, FileGlobV2Result,
 };
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::paths::{host_native_absolute_path, join_paths, shell_native_absolute_path};
@@ -24,18 +23,11 @@ use warp_core::features::FeatureFlag;
 
 const FILE_GLOB_TIMEOUT: Duration = Duration::from_secs(10);
 
-use super::{
-    get_server_output_id, is_git_repository, ActionExecution, AnyActionExecution,
-    ExecuteActionInput,
-};
+use super::{is_git_repository, ActionExecution, AnyActionExecution, ExecuteActionInput};
 
 pub struct FileGlobExecutor {
     active_session: ModelHandle<ActiveSession>,
     terminal_view_id: EntityId,
-}
-
-fn log_file_glob_error(conversation_id: AIConversationId, ctx: &mut AppContext) {
-    let _server_output_id = get_server_output_id(conversation_id, ctx);
 }
 
 impl FileGlobExecutor {
@@ -125,7 +117,6 @@ impl FileGlobExecutor {
         let session = self.active_session.as_ref(ctx).session(ctx);
 
         let patterns_clone = patterns.clone();
-        let conversation_id_clone = input.conversation_id;
         let is_file_glob_v2 = is_file_glob_v2(&input);
         ActionExecution::new_async(
             async move {
@@ -137,12 +128,11 @@ impl FileGlobExecutor {
                     Err(_) => Err(anyhow::anyhow!("File glob operation timed out")),
                 }
             },
-            move |result, ctx| match result {
+            move |result, _ctx| match result {
                 Ok(file_glob_result) => {
                     match file_glob_result {
                         FileGlobV2Result::Error(ref e) => {
                             log::warn!("Executing file_glob resulted in error: {e:?}");
-                            log_file_glob_error(conversation_id_clone, ctx);
                         }
                         FileGlobV2Result::Success { .. } => {}
                         _ => {}
@@ -156,7 +146,6 @@ impl FileGlobExecutor {
                 }
                 Err(e) => {
                     log::warn!("Failed to execute file_glob: {e:?}");
-                    log_file_glob_error(conversation_id_clone, ctx);
                     if is_file_glob_v2 {
                         AIAgentActionResultType::FileGlobV2(FileGlobV2Result::Error(e.to_string()))
                     } else {

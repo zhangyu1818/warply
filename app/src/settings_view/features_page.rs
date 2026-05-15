@@ -26,7 +26,7 @@ use crate::settings::{AISettingsChangedEvent, ScrollSettingsChangedEvent};
 use crate::settings::{
     AliasExpansionSettings, AppEditorSettings, CodeSettings, CtrlTabBehavior, DefaultSessionMode,
     ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
-    QuakeModeSettings, ScrollSettings, SelectionSettings, SshSettings, TabBehavior,
+    QuakeModeSettings, ScrollSettings, SelectionSettings, TabBehavior,
     DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, QUAKE_WINDOW_AUTOHIDE_SUPPORTED,
 };
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
@@ -73,15 +73,8 @@ use warpui::{
     TypedActionView, View, ViewContext, ViewHandle,
 };
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "macos")] {
-        static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Option key is Meta";
-        static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Option key is Meta";
-    } else {
-        static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Alt key is Meta";
-        static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Alt key is Meta";
-    }
-}
+static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Option key is Meta";
+static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Option key is Meta";
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
     app: &mut AppContext,
@@ -242,19 +235,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             flags::AUTOSUGGESTION_KEYBINDING_HINT_FLAG,
         ),
     ];
-
-    if !FeatureFlag::SSHTmuxWrapper.is_enabled() {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "Warp SSH wrapper",
-            builder(SettingsAction::FeaturesPageToggle(
-                #[allow(deprecated)]
-                FeaturesPageAction::ToggleSshWrapper,
-            )),
-            context,
-            #[allow(deprecated)]
-            flags::LEGACY_SSH_WRAPPER_CONTEXT_FLAG,
-        ))
-    }
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
         "show tooltip on click on links",
@@ -494,8 +474,6 @@ pub enum FeaturesPageAction {
     ToggleNotifications,
     ToggleRestoreSession,
     ToggleAutocompleteSymbols,
-    #[deprecated]
-    ToggleSshWrapper,
     ToggleSnackbar,
     ToggleLinkTooltip,
     ToggleCompletionsOpenWhileTyping,
@@ -637,7 +615,6 @@ struct MouseStateHandles {
     long_running_notifications_checkbox: MouseStateHandle,
     agent_task_completed_notifications_checkbox: MouseStateHandle,
     agent_needs_attention_notifications_checkbox: MouseStateHandle,
-    #[cfg(target_os = "macos")]
     notification_sound_checkbox: MouseStateHandle,
     change_keybinding: MouseStateHandle,
 }
@@ -681,10 +658,6 @@ pub struct FeaturesPageView {
 
     mouse_scroll_input_editor: ViewHandle<EditorView>,
     valid_mouse_scroll_multiplier: bool,
-
-    // Whether or not the SSH wrapper value was changed while the page has been
-    // open.
-    ssh_wrapper_toggled: bool,
 
     #[cfg(feature = "local_fs")]
     external_editor_view: ViewHandle<features::ExternalEditorView>,
@@ -739,11 +712,6 @@ impl TypedActionView for FeaturesPageView {
             }
             ToggleAutocompleteSymbols => {
                 AppEditorSettings::handle(ctx).update(ctx, |_editor_settings, _ctx| {})
-            }
-            #[allow(deprecated)]
-            ToggleSshWrapper => {
-                self.ssh_wrapper_toggled = true;
-                SshSettings::handle(ctx).update(ctx, |_ssh_settings, _ctx| {});
             }
             OpenUrl(url) => {
                 ctx.open_url(url.as_str());
@@ -1187,8 +1155,6 @@ impl FeaturesPageView {
 
         ctx.subscribe_to_model(&SelectionSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
 
-        // TODO(CORE-3029): Remove when we launch the new SSH Warpification.
-        ctx.subscribe_to_model(&SshSettings::handle(ctx), |_, _, _, ctx| ctx.notify());
         ctx.subscribe_to_model(&AltScreenReporting::handle(ctx), |_, _, _, ctx| {
             ctx.notify()
         });
@@ -1607,8 +1573,6 @@ impl FeaturesPageView {
             max_block_size_input_editor: block_size_editor,
             valid_max_block_size: true,
 
-            ssh_wrapper_toggled: false,
-
             #[cfg(feature = "local_fs")]
             external_editor_view,
             word_boundary_editor,
@@ -1707,14 +1671,6 @@ impl FeaturesPageView {
         let mut session_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
 
         session_widgets.push(Box::new(BlockLimitWidget::default()));
-
-        if !FeatureFlag::SSHTmuxWrapper.is_enabled()
-            && SshSettings::as_ref(ctx)
-                .enable_legacy_ssh_wrapper
-                .is_supported_on_current_platform()
-        {
-            session_widgets.push(Box::new(SSHWrapperWidget::default()));
-        }
 
         let session_settings = SessionSettings::as_ref(ctx);
 
@@ -1843,7 +1799,6 @@ impl FeaturesPageView {
         if input_settings
             .outline_codebase_symbols_for_at_context_menu
             .is_supported_on_current_platform()
-            && FeatureFlag::AIContextMenuCode.is_enabled()
         {
             editor_widgets.push(Box::new(
                 OutlineCodebaseSymbolsForAtContextMenuWidget::default(),
@@ -3159,10 +3114,6 @@ impl SettingsPageMeta for FeaturesPageView {
     }
 
     fn on_page_selected(&mut self, _: bool, ctx: &mut ViewContext<Self>) {
-        // Make sure we're not already showing the hint text for the SSH wrapper
-        // toggle when the user switches to the page.
-        self.ssh_wrapper_toggled = false;
-
         // Fetch the latest tab behavior state in case the user changed their keybindings
         // since we last loaded this page.
         self.refresh_tab_behavior_state(ctx);
@@ -3489,10 +3440,7 @@ impl SettingsWidget for LoginItemWidget {
     ) -> Box<dyn Element> {
         let general_settings = GeneralSettings::as_ref(app);
         let ui_builder = appearance.ui_builder();
-        #[cfg(target_os = "macos")]
         let label = "Start Warp at login (requires macOS 13+)";
-        #[cfg(not(target_os = "macos"))]
-        let label = "Start Warp at login";
         render_body_item::<FeaturesPageAction>(
             label.into(),
             None,
@@ -3761,56 +3709,6 @@ impl SettingsWidget for BlockLimitWidget {
 }
 
 #[derive(Default)]
-struct SSHWrapperWidget {
-    additional_info_link: MouseStateHandle,
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for SSHWrapperWidget {
-    type View = FeaturesPageView;
-
-    fn search_terms(&self) -> &str {
-        "ssh wrapper"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let ui_builder = appearance.ui_builder();
-        render_body_item::<FeaturesPageAction>(
-            "Warp SSH Wrapper".into(),
-            Some(AdditionalInfo {
-                mouse_state: self.additional_info_link.clone(),
-                on_click_action: Some(FeaturesPageAction::OpenUrl(
-                    "https://docs.warply.local/terminal/warpify/ssh-legacy#implementation".into(),
-                )),
-                secondary_text: if view.ssh_wrapper_toggled {
-                    Some("This change will take effect in new sessions".to_string())
-                } else {
-                    None
-                },
-                tooltip_override_text: None,
-            }),
-            ToggleState::Enabled,
-            appearance,
-            ui_builder
-                .switch(self.switch_state.clone())
-                .check(*SshSettings::as_ref(app).enable_legacy_ssh_wrapper.value())
-                .build()
-                .on_click(move |ctx, _, _| {
-                    #[allow(deprecated)]
-                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleSshWrapper);
-                })
-                .finish(),
-            None,
-        )
-    }
-}
-
-#[derive(Default)]
 struct DesktopNotificationsWidget {
     additional_info_link: MouseStateHandle,
     switch_state: SwitchStateHandle,
@@ -3885,8 +3783,6 @@ impl SettingsWidget for DesktopNotificationsWidget {
                         .clone(),
                     appearance,
                 ),
-                // Add notification sound toggle only on macOS
-                #[cfg(target_os = "macos")]
                 {
                     view.render_notification_toggle(
                         session_settings.notifications.play_notification_sound,

@@ -38,7 +38,7 @@ use crate::{
     drive::{cloud_object_styling::local_object_icon_color, DriveObjectType},
     object_ids::{HashableId, ToServerId},
     ui_components::icons::Icon,
-    workflows::{workflow::Workflow, CloudWorkflow, WorkflowId},
+    workflows::{workflow::Workflow, SavedWorkflow, WorkflowId},
 };
 
 // Spacing for the embedded workflow card.
@@ -210,8 +210,8 @@ impl EmbeddedWorkflow {
         text_frames
     }
 
-    /// Get the backing [`CloudWorkflow`] for this embed.
-    fn get_workflow<'a>(&self, app: &'a AppContext) -> Option<&'a CloudWorkflow> {
+    /// Get the backing [`SavedWorkflow`] for this embed.
+    fn get_workflow<'a>(&self, app: &'a AppContext) -> Option<&'a SavedWorkflow> {
         // TODO: @ianhodge - replace the `from_hash` when we create a new API for going from
         // sqlite hash id -> uid
         let uid = WorkflowId::from_hash(&self.hashed_id).map(|id| id.to_server_id().uid())?;
@@ -224,12 +224,12 @@ impl EmbeddedWorkflow {
 impl EmbeddedItem for EmbeddedWorkflow {
     fn layout(&self, text_layout: &TextLayout, app: &AppContext) -> Box<dyn LaidOutEmbeddedItem> {
         let cloud_model = CloudModel::as_ref(app);
-        let cloud_workflow = self.get_workflow(app);
+        let saved_workflow = self.get_workflow(app);
 
         let base_text_style = &text_layout.rich_text_styles().base_text;
         let width = text_layout.max_width() - EMBED_WORKFLOW_TEXT_SPACING.x_axis_offset();
 
-        let Some(workflow) = cloud_workflow.and_then(|workflow| {
+        let Some(workflow) = saved_workflow.and_then(|workflow| {
             if !workflow.is_trashed(cloud_model) {
                 Some(Into::<Workflow>::into(workflow))
             } else {
@@ -272,7 +272,7 @@ impl EmbeddedItem for EmbeddedWorkflow {
         );
 
         let is_agent_mode_prompt =
-            cloud_workflow.is_some_and(|w| w.model().data.is_agent_mode_workflow());
+            saved_workflow.is_some_and(|w| w.model().data.is_agent_mode_workflow());
 
         Box::new(LaidOutEmbeddedWorkflow::new(
             title_frame,

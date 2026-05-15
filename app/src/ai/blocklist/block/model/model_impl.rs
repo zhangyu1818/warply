@@ -8,7 +8,7 @@ use warpui::{AppContext, SingletonEntity, View, ViewContext};
 use crate::ai::{
     agent::{
         conversation::AIConversationId, AIAgentExchange, AIAgentExchangeId, AIAgentInput,
-        AIAgentOutputStatus, FinishedAIAgentOutput, ServerOutputId, Shared,
+        AIAgentOutputStatus, FinishedAIAgentOutput, Shared,
     },
     blocklist::{
         history_model,
@@ -174,13 +174,6 @@ where
         Some(self.exchange_id)
     }
 
-    fn server_output_id(&self, app: &AppContext) -> Option<ServerOutputId> {
-        let history_model = BlocklistAIHistoryModel::as_ref(app);
-        let conversation = history_model.conversation(&self.conversation_id)?;
-        let exchange = conversation.exchange_with_id(self.exchange_id)?;
-        exchange.output_status.server_output_id()
-    }
-
     fn model_id(&self, app: &AppContext) -> Option<LLMId> {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
         let conversation = history_model.conversation(&self.conversation_id)?;
@@ -220,12 +213,6 @@ where
             .unwrap_or(false)
         {
             AIRequestType::Passive(PassiveRequestType::CodeDiff)
-        } else if let Some(trigger) = self
-            .exchange(app)
-            .ok()
-            .and_then(|exchange| exchange.passive_suggestion_trigger())
-        {
-            AIRequestType::from_passive_trigger(trigger)
         } else {
             AIRequestType::Active
         }

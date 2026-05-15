@@ -4,14 +4,12 @@ use super::*;
 use crate::ai::acp::model::{AcpAgentModel, AcpAgentState};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
+use crate::ai::agent_tips::{AITipModel, AgentTip};
 use crate::ai::blocklist::{AIQueryHistory, AcpResponseStreamTarget, BlocklistAIPermissions};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use crate::ai::llms::LLMPreferences;
-use crate::ai::mcp::templatable_manager::TemplatableMCPServerManager;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::restored_conversations::RestoredAgentConversations;
-use crate::ai::skills::SkillManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::identity::LocalIdentityProvider;
 use crate::search::files::model::FileSearchModel;
@@ -28,7 +26,6 @@ use crate::cloud_object::update_manager::UpdateManager;
 use crate::editor::{EditorAction, TextStyleOperation};
 use crate::http_api::HttpApiProvider;
 use crate::input_suggestions::{HistoryOrder, Item};
-use crate::network::NetworkStatus;
 
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::{AliasExpansionSettings, AppEditorSettings, InputBoxType};
@@ -91,7 +88,6 @@ pub fn initialize_app(app: &mut App) {
 
     // Initialize any global models required by the Input view.
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(CloudModel::mock);
@@ -103,6 +99,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ResizableData::default());
     app.add_singleton_model(|_| History::default());
     app.add_singleton_model(LocalWorkflows::new);
+    app.add_singleton_model(|ctx| AITipModel::<AgentTip>::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
@@ -112,7 +109,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(BlocklistAIPermissions::new);
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(|_| crate::code_review::git_status_update::GitStatusUpdateModel::new());
@@ -121,7 +117,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(RepoOutlines::new_for_test);
 
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
-    app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
@@ -130,8 +125,6 @@ pub fn initialize_app(app: &mut App) {
     });
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-    app.add_singleton_model(SkillManager::new);
-
     // Add GlobalResourceHandlesProvider for persistence
     let tips_handle = app.add_model(|_| TipsCompleted::default());
     let user_default_shell_unsupported_banner_model_handle =
@@ -151,10 +144,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ToastStack);
     app.add_singleton_model(AgentConversationsModel::new);
     app.add_singleton_model(PersistedWorkspace::new_for_test);
-    // `LocalShellState` captures the user's interactive login-shell PATH (used
-    // for MCP/sbx executable resolution). Tests don't exercise that capture, so
-    // register the singleton in its `NotLoaded` state to satisfy callers that
-    // look it up via `LocalShellState::handle(ctx)`.
     app.add_singleton_model(|_| LocalShellState::NotLoaded);
 }
 
@@ -5193,11 +5182,7 @@ fn test_input_mode_setting_methods() {
     });
 }
 
-fn run_input_mode_prefix_test(
-    nld_improvements_enabled: bool,
-    udi_enabled: bool,
-    input_type: InputType,
-) {
+fn run_input_mode_prefix_test(udi_enabled: bool, input_type: InputType) {
     let input_prefix = match input_type {
         InputType::Shell => super::TERMINAL_INPUT_PREFIX,
         InputType::AI => super::AI_INPUT_PREFIX,
@@ -5205,7 +5190,6 @@ fn run_input_mode_prefix_test(
 
     App::test((), |mut app| async move {
         let _am_flag = FeatureFlag::AgentMode.override_enabled(true);
-        let _nld_flag = FeatureFlag::NldImprovements.override_enabled(nld_improvements_enabled);
 
         initialize_app(&mut app);
 
@@ -5254,25 +5238,21 @@ fn run_input_mode_prefix_test(
 }
 
 macro_rules! input_mode_prefix_tests {
-    ($($name:ident: ($nld_improvements_enabled:literal, $udi_enabled:literal, $input_mode:expr),)*) => {
+    ($($name:ident: ($udi_enabled:literal, $input_mode:expr),)*) => {
         $(
             #[test]
             fn $name() {
-                run_input_mode_prefix_test($nld_improvements_enabled, $udi_enabled, $input_mode);
+                run_input_mode_prefix_test($udi_enabled, $input_mode);
             }
         )*
     };
 }
 
 input_mode_prefix_tests! {
-    test_ai_input_prefix_with_nld_improvements_and_udi: (true, true, InputType::AI),
-    test_ai_input_prefix_with_nld_improvements_and_no_udi: (true, false, InputType::AI),
-    test_ai_input_prefix_with_no_nld_improvements_and_udi: (false, true, InputType::AI),
-    test_ai_input_prefix_with_no_nld_improvements_and_no_udi: (false, false, InputType::AI),
-    test_shell_input_prefix_with_nld_improvements_and_udi: (true, true, InputType::Shell),
-    test_shell_input_prefix_with_nld_improvements_and_no_udi: (true, false, InputType::Shell),
-    test_shell_input_prefix_with_no_nld_improvements_and_udi: (false, true, InputType::Shell),
-    test_shell_input_prefix_with_no_nld_improvements_and_no_udi: (false, false, InputType::Shell),
+    test_ai_input_prefix_with_udi: (true, InputType::AI),
+    test_ai_input_prefix_without_udi: (false, InputType::AI),
+    test_shell_input_prefix_with_udi: (true, InputType::Shell),
+    test_shell_input_prefix_without_udi: (false, InputType::Shell),
 }
 
 #[test]
@@ -5869,7 +5849,7 @@ fn test_acp_history_updates_render_in_terminal_ai_block() {
             history.upsert_acp_tool_call_to_response_stream(
                 &acp_target,
                 crate::ai::acp::AcpToolCall::from_acp(
-                    agent_client_protocol::schema::ToolCall::new("read-1", "Read SKILL.md")
+                    agent_client_protocol::schema::ToolCall::new("read-1", "Read README.md")
                         .status(agent_client_protocol::schema::ToolCallStatus::InProgress),
                 ),
                 ctx,
@@ -5911,7 +5891,7 @@ fn test_acp_history_updates_render_in_terminal_ai_block() {
             };
             assert!(output_text.contains("你好，"));
             assert!(output_text.contains("我在。"));
-            assert!(output_text.contains("ACP Tool Call: Read SKILL.md"));
+            assert!(output_text.contains("ACP Tool Call: Read README.md"));
         });
     });
 }

@@ -8,7 +8,6 @@ use crate::terminal::model::block::{
     has_block_failed, AgentViewVisibility, Block, BlockState, PromptInfo,
     MAX_SERIALIZED_STYLIZED_OUTPUT_LINES,
 };
-use crate::terminal::model::session::SessionId;
 use crate::terminal::model::BlockId;
 use crate::terminal::ShellHost;
 use crate::util::extensions::TrimStringExt;
@@ -16,6 +15,7 @@ use chrono::{DateTime, Local, TimeZone as _};
 use serde::{Deserialize, Serialize};
 use serde_bytes_repr::{ByteFmtDeserializer, ByteFmtSerializer};
 use warp_core::command::ExitCode;
+use warp_core::SessionId;
 
 use super::AgentInteractionMetadata;
 
@@ -31,7 +31,6 @@ pub enum SerializedAgentViewVisibility {
         conversation_ids: HashSet<AIConversationId>,
     },
     Agent {
-        #[serde(alias = "conversation_id")]
         origin_conversation_id: AIConversationId,
         #[serde(default)]
         pending_other_conversation_ids: HashSet<AIConversationId>,
@@ -95,7 +94,6 @@ fn default_as_true() -> bool {
 pub struct SerializedAIMetadata {
     /// The ID of the `AIAgentAction` associated with this block's requested command execution.
     /// This is optional because not all AI-related blocks are associated with a requested command.
-    #[serde(alias = "action_id")]
     requested_command_action_id: Option<AIAgentActionId>,
 
     /// The ID of the conversation to which this action belongs.
@@ -158,7 +156,6 @@ pub struct SerializedBlock {
     /// The current working directory of the block.
     pub pwd: Option<String>,
 
-    #[serde(alias = "git_branch")]
     pub git_head: Option<String>,
 
     #[serde(default)]

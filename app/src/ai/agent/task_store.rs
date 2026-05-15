@@ -1,10 +1,5 @@
 use std::collections::HashMap;
 
-use crate::ai::{
-    agent::{AIAgentContext, AIAgentInput},
-    skills::SkillDescriptor,
-};
-
 use super::{
     task::{Task, TaskId},
     AIAgentExchange, AIAgentExchangeId, AIAgentOutputMessageType,
@@ -190,38 +185,6 @@ impl TaskStore {
         }
 
         result
-    }
-
-    pub fn latest_skills(&self) -> Option<Vec<SkillDescriptor>> {
-        self.linearized_refs.iter().rev().find_map(|exchange_ref| {
-            let exchange = self.lookup_exchange(exchange_ref);
-
-            if let Some(exchange) = exchange {
-                let skills = exchange.input.iter().find_map(|input| {
-                    let context = match input {
-                        AIAgentInput::UserQuery { context, .. } => Some(context),
-                        AIAgentInput::ResumeConversation { context, .. } => Some(context),
-                        AIAgentInput::ActionResult { context, .. } => Some(context),
-                        AIAgentInput::TriggerPassiveSuggestion { context, .. } => Some(context),
-                        _ => None,
-                    };
-
-                    context.and_then(|ctx| {
-                        ctx.iter().find_map(|context| {
-                            if let AIAgentContext::Skills { skills } = context {
-                                Some(skills)
-                            } else {
-                                None
-                            }
-                        })
-                    })
-                });
-
-                skills.cloned()
-            } else {
-                None
-            }
-        })
     }
 
     pub fn insert(&mut self, task: Task) {

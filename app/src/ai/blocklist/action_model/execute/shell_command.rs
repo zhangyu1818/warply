@@ -369,24 +369,20 @@ impl ShellCommandExecutor {
                 let block_id = active_block.id().clone();
                 drop(model);
 
-                // Emit event to transfer control to user.
                 ctx.emit(ShellCommandExecutorEvent::TransferControlToUser {
                     action_id: action_id.clone(),
                     reason: reason.clone(),
                 });
 
-                // Create a channel to wait for control handback.
                 let (handback_tx, handback_rx) = oneshot::channel();
                 self.control_handback_sender = Some(handback_tx);
 
                 let block_selector = BlockSelector::Id(block_id.clone());
 
-                // Set up a future to also wait for block completion.
                 let (block_finished_tx, block_finished_rx) = oneshot::channel();
                 self.block_finished_senders
                     .insert(block_selector.clone(), block_finished_tx);
 
-                // Build the future that captures terminal model and block data.
                 let transfer_future = {
                     let terminal_model = self.terminal_model.clone();
                     let block_id = block_id.clone();
@@ -394,7 +390,6 @@ impl ShellCommandExecutor {
                         pin!(handback_rx);
                         pin!(block_finished_rx);
 
-                        // Wait for either control handback or block completion.
                         let transfer_result = select! {
                             val = handback_rx => match val {
                                 Ok(_) => TransferControlResult::ControlHandedBack,
@@ -406,7 +401,6 @@ impl ShellCommandExecutor {
                             },
                         };
 
-                        // Convert to ActionResult
                         let model = terminal_model.lock();
                         match transfer_result {
                             TransferControlResult::ControlHandedBack
@@ -451,7 +445,6 @@ impl ShellCommandExecutor {
                 };
 
                 ActionExecution::new_async(transfer_future, move |result, ctx| {
-                    // Clean up.
                     if let Some(handle) = handle.upgrade(ctx) {
                         handle.update(ctx, |me, _| {
                             me.block_finished_senders.remove(&block_selector);
@@ -466,7 +459,6 @@ impl ShellCommandExecutor {
         }
     }
 
-    /// Called when user hands control back to agent after TransferShellCommandControlToUser.
     pub fn notify_control_handed_back(&mut self) {
         if let Some(sender) = self.control_handback_sender.take() {
             let _ = sender.send(());
@@ -499,7 +491,7 @@ impl ShellCommandExecutor {
             BlockFinished,
             Timeout,
             /// User clicked `Check now` in the warping indicator, short-circuiting  
-            /// the agent-set poll timer. Treated as a preemption so the server does  
+            /// the agent-set poll timer. Treated as a preemption so the agent does
             /// not interpret the early snapshot as a completion.  
             ForceRefresh,
         }
@@ -542,7 +534,7 @@ impl ShellCommandExecutor {
                 _ = timeout => WakeReason::Timeout,
             };
 
-            // Mark the snapshot as preempted if woken early, allowing the server to distinguish
+            // Mark the snapshot as preempted if woken early, allowing the agent to distinguish
             // true completion from a forced client poll (`ForceRefresh`) or a timeout during `on_completion`.
             let is_preempted = matches!(wake_reason, WakeReason::ForceRefresh)
                 || matches!(

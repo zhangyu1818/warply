@@ -5,131 +5,61 @@ use serde_with::SerializeDisplay;
 use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
 
-#[cfg(target_family = "wasm")]
-use warpui::platform::wasm;
-#[cfg(target_family = "wasm")]
-use warpui::platform::OperatingSystem;
-
 static OS_INFO: OnceLock<Result<OperatingSystemInfo, OperatingSystemInfoError>> = OnceLock::new();
 
-/// Information of the operating system of the client.
 #[derive(Serialize)]
 pub struct OperatingSystemInfo {
-    /// The name of the operating system.
     name: String,
-    /// The version of the operating system. `None` if the version could not be computed.
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
-    /// The category of the operating system.
     category: OperatingSystemCategory,
-    /// The name of the browser parsed from the user agent, if running on Web. If not on Web,
-    /// this is always `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    browser_name: Option<String>,
-    /// The version of the browser parsed from the user agent, if running on Web. If not on
-    /// Web, this is always `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    browser_version: Option<String>,
 }
 
 impl OperatingSystemInfo {
-    #[cfg(not(target_family = "wasm"))]
     fn new() -> Result<Self, OperatingSystemInfoError> {
-        let os_category =
-            OperatingSystemCategory::new().ok_or(OperatingSystemInfoError::Unknown)?;
+        let os_category = OperatingSystemCategory::Mac;
 
         Ok(Self {
             name: os_category.to_string(),
             version: sysinfo::System::os_version(),
             category: os_category,
-            browser_name: None,
-            browser_version: None,
         })
     }
 
-    #[cfg(target_family = "wasm")]
-    fn new() -> Result<Self, OperatingSystemInfoError> {
-        // To make sure the operating system names are consistent between native
-        // and web platforms, we try to use the display names encoded by the
-        // `OperatingSystemCategory` enum.
-        let os = match OperatingSystem::get() {
-            OperatingSystem::Mac => OperatingSystemCategory::Mac.to_string(),
-            OperatingSystem::Other(Some(os)) => os.to_string(),
-            _ => "Unknown".to_string(),
-        };
-
-        Ok(Self {
-            name: os,
-            version: wasm::current_os_version().map(str::to_string),
-            category: OperatingSystemCategory::Web,
-            browser_name: wasm::current_browser().map(str::to_string),
-            browser_version: wasm::current_browser_version().map(str::to_string),
-        })
-    }
-
-    /// Returns the current [`OperatingSystemInfo`]. If the system information was unable to be
-    /// computed, an `Err` is returned.
     pub fn get() -> Result<&'static Self, OperatingSystemInfoError> {
         let inner = OS_INFO.get_or_init(Self::new);
         inner.as_ref().map_err(|error| *error)
     }
 
-    /// Returns the name of the operating system.
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Returns the version of the operating system.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
     }
 
-    /// Returns the category of the operating system.
     pub fn category(&self) -> &OperatingSystemCategory {
         &self.category
-    }
-
-    pub fn linux_kernel_version(&self) -> Option<&str> {
-        None
     }
 }
 
 #[derive(SerializeDisplay, PartialEq)]
 pub enum OperatingSystemCategory {
     Mac,
-    Web,
-}
-
-impl OperatingSystemCategory {
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    fn new() -> Option<Self> {
-        if cfg!(target_os = "macos") {
-            Some(OperatingSystemCategory::Mac)
-        } else if cfg!(target_family = "wasm") {
-            Some(OperatingSystemCategory::Web)
-        } else {
-            None
-        }
-    }
 }
 
 impl Display for OperatingSystemCategory {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             OperatingSystemCategory::Mac => "macOS",
-            OperatingSystemCategory::Web => "Web",
         };
         write!(f, "{str}")
     }
 }
 
-/// Error type returned when trying to compute the [`OperatingSystemInfo`].
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum OperatingSystemInfoError {
-    #[error("computing the operating system information is unsupported on this platform")]
-    #[allow(dead_code)]
-    UnsupportedPlatform,
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     #[error("unable to compute the operating system information")]
     Unknown,
 }

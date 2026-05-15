@@ -51,7 +51,7 @@ use crate::{
     view_components::{DismissibleToast, ToastType},
     workflows::{
         workflow::{Argument, Workflow},
-        CloudWorkflow,
+        SavedWorkflow,
     },
     workspace::ToastStack,
     FeatureFlag,
@@ -81,8 +81,8 @@ use warpui::{
 };
 
 use super::{
-    aliases::WorkflowAliases, command_parser::WorkflowCommandDisplayData, CloudWorkflowModel,
-    WorkflowSource, WorkflowType, WorkflowViewMode,
+    command_parser::WorkflowCommandDisplayData, SavedWorkflowModel, WorkflowSource, WorkflowType,
+    WorkflowViewMode,
 };
 
 mod alias_argument_selector;
@@ -282,7 +282,6 @@ pub struct WorkflowView {
 
     /// `true` if this workflow view is for viewing/editing an AI workflow.
     ///
-    /// This is currently internal-only, gated with the `am_workflows` feature flag.
     is_for_agent_mode: bool,
 }
 
@@ -506,18 +505,7 @@ impl WorkflowView {
         let result = &event.result;
 
         if matches!(&result.operation, ObjectOperation::Create { .. }) {
-            if self.workflow_id.into_client() == result.client_id {
-                if let Some(server_id) = result.server_id {
-                    WorkflowAliases::handle(ctx).update(ctx, |aliases, ctx| {
-                        if let Result::Err(e) =
-                            aliases.update_workflow_id(self.workflow_id, server_id.into(), ctx)
-                        {
-                            log::error!("Failed to update aliases after workflow creation: {e:?}");
-                        }
-                    });
-                    self.set_workflow_id(SyncId::ServerId(server_id), ctx);
-                }
-
+            if self.workflow_id == result.sync_id {
                 if let Some(workflow) = CloudModel::as_ref(ctx)
                     .get_workflow(&self.workflow_id)
                     .cloned()
@@ -529,10 +517,8 @@ impl WorkflowView {
         }
 
         if result.operation == ObjectOperation::Update {
-            if let Some(workflow) = self.get_cloud_workflow(ctx) {
-                if self.workflow_id.into_client() == result.client_id
-                    || self.workflow_id.uid() == result.server_id.unwrap_or_default().uid()
-                {
+            if let Some(workflow) = self.get_saved_workflow(ctx) {
+                if self.workflow_id == result.sync_id {
                     self.load(workflow, self.workflow_view_mode, ctx);
                 }
             }
@@ -544,8 +530,8 @@ impl WorkflowView {
     }
 
     fn reset(&mut self, ctx: &mut ViewContext<Self>) {
-        let cloud_workflow = self.get_cloud_workflow(ctx);
-        if let Some(workflow) = cloud_workflow {
+        let saved_workflow = self.get_saved_workflow(ctx);
+        if let Some(workflow) = saved_workflow {
             self.load(workflow, self.workflow_view_mode, ctx);
         }
     }
@@ -577,7 +563,7 @@ impl WorkflowView {
 
     pub fn load(
         &mut self,
-        workflow: CloudWorkflow,
+        workflow: SavedWorkflow,
         mode: WorkflowViewMode,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -1073,7 +1059,7 @@ impl WorkflowView {
             .collect()
     }
 
-    /// Iterates through the argument rows and creates/updates any relevant argument objects on the server.
+    /// Iterates through the argument rows and creates/updates any relevant local argument objects.
     /// Returns a mapping of argument row indices to the ID of relevant objects, to be used by `arguments_with_metadata`
     /// when creating or updating a `Workflow` object.
     fn save_argument_objects(&self, ctx: &mut ViewContext<Self>) {
@@ -1266,7 +1252,7 @@ impl WorkflowView {
             WorkflowViewMode::Create => WorkflowViewMode::Create,
         };
 
-        // Always reset the view with cloud model when we transition to the view or edit mode.
+        // Always reset the view from the local object model when transitioning to view or edit mode.
         // This reset is necessary when transitioning to edit mode so that we can reset the `revision_ts`.
         // Without this, any updates after a first update will get rejected, due to a perceived conflict.
         if matches!(self.workflow_view_mode, WorkflowViewMode::View)
@@ -1287,17 +1273,17 @@ impl WorkflowView {
     fn copy_to_command_line(&mut self, ctx: &mut ViewContext<Self>) {
         // If we are in a context where we can run workflows AND the content is dirty (e.g. not
         // saved). Copy the current workflow to the command line buffer.
-        // Otherwise use the workflow that exists in cloud model cache.
+        // Otherwise use the workflow that exists in the local object cache.
         // This is because we want to use the version of the edited command that a user has in the
         // buffer if they click to execute a command from the workflow in pane.
         if self.is_workflow_dirty(ctx) {
             let new_workflow = self.create_workflow_object_from_input(ctx);
-            if let Some(cloud_workflow) = self.get_cloud_workflow(ctx) {
-                let mut cloned_cloud_workflow = cloud_workflow.clone();
-                cloned_cloud_workflow.set_model(CloudWorkflowModel::new(new_workflow));
+            if let Some(saved_workflow) = self.get_saved_workflow(ctx) {
+                let mut cloned_saved_workflow = saved_workflow.clone();
+                cloned_saved_workflow.set_model(SavedWorkflowModel::new(new_workflow));
                 if let Some(owner) = self.owner {
                     ctx.emit(WorkflowViewEvent::RunWorkflow {
-                        workflow: Arc::new(WorkflowType::Cloud(Box::new(cloned_cloud_workflow))),
+                        workflow: Arc::new(WorkflowType::Saved(Box::new(cloned_saved_workflow))),
                         source: owner.into(),
                         argument_override: None,
                     });
@@ -1309,10 +1295,10 @@ impl WorkflowView {
                     argument_override: None,
                 })
             }
-        } else if let Some(workflow) = self.get_cloud_workflow(ctx) {
+        } else if let Some(workflow) = self.get_saved_workflow(ctx) {
             if let Some(owner) = self.owner {
                 ctx.emit(WorkflowViewEvent::RunWorkflow {
-                    workflow: Arc::new(WorkflowType::Cloud(Box::new(workflow))),
+                    workflow: Arc::new(WorkflowType::Saved(Box::new(workflow))),
                     source: owner.into(),
                     argument_override: Some(self.command_display_data.get_argument_values()),
                 });
@@ -1608,7 +1594,7 @@ impl WorkflowView {
     }
 
     fn update_breadcrumb(&mut self, ctx: &mut ViewContext<Self>) {
-        let workflow = self.get_cloud_workflow(ctx);
+        let workflow = self.get_saved_workflow(ctx);
 
         if let Some(the_workflow) = workflow {
             self.breadcrumbs = the_workflow
@@ -1797,7 +1783,7 @@ impl WorkflowView {
         });
     }
 
-    fn get_cloud_workflow(&mut self, ctx: &mut ViewContext<Self>) -> Option<CloudWorkflow> {
+    fn get_saved_workflow(&mut self, ctx: &mut ViewContext<Self>) -> Option<SavedWorkflow> {
         if let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&self.workflow_id.clone()) {
             return Some(workflow.clone());
         } else {
@@ -2658,7 +2644,12 @@ impl BackingView for WorkflowView {
         _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
-        view::HeaderContent::simple(self.pane_configuration().as_ref(app).title())
+        let mut content =
+            view::HeaderContent::simple(self.pane_configuration().as_ref(app).title());
+        if let view::HeaderContent::Standard(header) = &mut content {
+            header.options.always_show_icons = true;
+        }
+        content
     }
 
     fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle, _ctx: &mut ViewContext<Self>) {

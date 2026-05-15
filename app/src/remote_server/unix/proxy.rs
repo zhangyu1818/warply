@@ -7,7 +7,7 @@
 //! 2. Check whether the daemon is already running (`kill -0`).
 //! 3. If not: spawn the daemon subcommand in a new session and wait for its
 //!    socket to appear.
-//! 4. Connect to `server.sock` and bridge stdin/stdout to the socket using
+//! 4. Connect to the daemon socket and bridge stdin/stdout using
 //!    the existing 4-byte length-prefixed frame format.
 
 use std::fs::Permissions;
@@ -23,14 +23,51 @@ use super::super::setup;
 pub(super) fn socket_path(identity_key: &str) -> PathBuf {
     let dir = setup::remote_server_daemon_dir(identity_key);
     let expanded = shellexpand::tilde(&dir).into_owned();
-    PathBuf::from(expanded).join("server.sock")
+    PathBuf::from(expanded).join(setup::daemon_socket_name())
 }
 
 /// Path to the daemon's PID file (also used as the flock target).
 pub(super) fn pid_path(identity_key: &str) -> PathBuf {
     let dir = setup::remote_server_daemon_dir(identity_key);
     let expanded = shellexpand::tilde(&dir).into_owned();
-    PathBuf::from(expanded).join("server.pid")
+    PathBuf::from(expanded).join(setup::daemon_pid_name())
+}
+
+fn daemon_dir(identity_key: &str) -> PathBuf {
+    let dir = setup::remote_server_daemon_dir(identity_key);
+    let expanded = shellexpand::tilde(&dir).into_owned();
+    PathBuf::from(expanded)
+}
+
+fn cleanup_old_versions(identity_key: &str) {
+    let dir = daemon_dir(identity_key);
+    let current_socket = setup::daemon_socket_name();
+    let current_pid = setup::daemon_pid_name();
+
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            continue;
+        };
+
+        if name_str.ends_with(".pid") && name_str.starts_with("server") && name_str != current_pid {
+            log::info!("Proxy: removing old PID file {name_str}");
+            let _ = std::fs::remove_file(entry.path());
+        }
+
+        if name_str.ends_with(".sock")
+            && name_str.starts_with("server")
+            && name_str != current_socket
+        {
+            log::info!("Proxy: removing old socket file {name_str}");
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }
 
 /// Ensures the daemon directory exists with owner-only permissions.
@@ -52,6 +89,8 @@ pub fn run(identity_key: &str) -> anyhow::Result<()> {
     if let Some(parent) = socket_path.parent() {
         ensure_private_daemon_dir(parent)?;
     }
+
+    cleanup_old_versions(identity_key);
 
     // ---- Acquire exclusive flock on the PID file --------------------------------
     //

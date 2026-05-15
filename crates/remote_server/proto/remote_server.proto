@@ -47,8 +47,6 @@ message ServerMessage {
 
 // Sent by the client immediately after connecting to negotiate the protocol.
 message Initialize {
-  string user_id = 1;
-  string user_email = 2;
 }
 
 // Sent by the client to cancel an in-progress request.

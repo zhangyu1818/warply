@@ -5,10 +5,7 @@ use warpui::{App, AppContext, SingletonEntity, ViewContext};
 
 use crate::{
     ai::{
-        agent::{
-            conversation::AIConversationId, task::TaskId, AIAgentInput, ServerOutputId,
-            UserQueryMode,
-        },
+        agent::{conversation::AIConversationId, task::TaskId, AIAgentInput, UserQueryMode},
         blocklist::{
             agent_view::AgentViewEntryOrigin,
             block::cli_controller::UserTakeOverReason,
@@ -47,10 +44,6 @@ impl AIBlockModel for PendingAIBlockModel {
 
     fn status(&self, _app: &AppContext) -> AIBlockOutputStatus {
         AIBlockOutputStatus::Pending
-    }
-
-    fn server_output_id(&self, _app: &AppContext) -> Option<ServerOutputId> {
-        None
     }
 
     fn model_id(&self, _app: &AppContext) -> Option<LLMId> {

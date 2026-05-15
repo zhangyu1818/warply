@@ -12,8 +12,6 @@ license = "MIT"
 # binary. The shaders are written to the temp directory during initialization of
 # a renderer to enable this, which could slow opening of the first window.
 enable-metal-frame-capture = []
-# Enables the font-kit rasterizer on Windows.
-fontkit-rasterizer = []
 traces = ["warpui_core/traces"]
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = ["warpui_core/integration_tests"]
@@ -25,7 +23,6 @@ test-util = ["warpui_core/test-util"]
 [dependencies]
 async-task.workspace = true
 anyhow.workspace = true
-cfg-if.workspace = true
 dashmap.workspace = true
 derive_more.workspace = true
 futures.workspace = true
@@ -46,24 +43,13 @@ thiserror.workspace = true
 vec1.workspace = true
 warpui_core.workspace = true
 async-io.workspace = true
-ctrlc.workspace = true
-
-[dev-dependencies]
-asset_cache.workspace = true
-env_logger.workspace = true
-futures-timer = "3.0.2"
-image = { workspace = true, default-features = false, features = ["png"] }
-rust-embed.workspace = true
-warpui = { workspace = true, features = ["test-util"] }
-warpui_core = { workspace = true, features = ["test-util"] }
-
-[target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
 chrono.workspace = true
 cocoa.workspace = true
 core-foundation.workspace = true
 core-graphics = "0.25.0"
 core-text = "21.0.0"
+ctrlc.workspace = true
 dispatch = "0.2.0"
 font-kit.workspace = true
 foreign-types = "0.5.0"
@@ -71,10 +57,16 @@ libc.workspace = true
 metal = "0.33.0"
 objc.workspace = true
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[dev-dependencies]
+asset_cache.workspace = true
+env_logger.workspace = true
+futures-timer = "3.0.2"
+image = { workspace = true, default-features = false, features = ["png"] }
+rust-embed.workspace = true
 rand.workspace = true
+warpui = { workspace = true, features = ["test-util"] }
+warpui_core = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
 bindgen = "0.70.1"
 cc = { version = "1.0", features = ["parallel"] }
-cfg_aliases.workspace = true

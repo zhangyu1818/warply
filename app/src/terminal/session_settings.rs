@@ -54,16 +54,6 @@ pub enum NotificationsMode {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, settings_value::SettingsValue)]
-/**
- * Added [serde(default)] to ensure that new notification settings are backwards compatible with old clients.
- * Otherwise, clients will fail to deserialize existing settings after updating.
- *
- * @see https://github.com/warpdotdev/warp-internal/pull/14596/files#diff-90221c7ecae01c6faf8f170158dea3e49d34d40225a306da42ccc76489d1f84cR43-R44
- *
- * Alternative considered: Using Option<bool> fields would have required more
- * complex defaulting logic to set the default value to true.
- *
- */
 #[serde(default)]
 #[derive(schemars::JsonSchema)]
 #[schemars(description = "Notification preferences for terminal events.")]
@@ -81,7 +71,6 @@ pub struct NotificationsSettings {
     )]
     pub long_running_threshold: Duration,
 
-    /// Legacy. To be combined with `is_needs_attention_enabled` when desktop notifs are unflagged.
     #[schemars(description = "Whether to notify when a password prompt is detected.")]
     pub is_password_prompt_enabled: bool,
 
@@ -321,16 +310,6 @@ define_settings_group!(SessionSettings, settings: [
         max_table_depth: 1,
         description: "Notification preferences for terminal events.",
     }
-    // This is a legacy setting that we no longer allow users to toggle after
-    // context chips were introduced. We keep it only to respect users who
-    // had previously disabled the dirty files chip via this setting.
-    git_prompt_dirty_indicator: LegacyGitPromptDirtyIndicator {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: true,
-        storage_key: "GitPromptDirtyIndicator",
-    },
     agent_footer_chip_selection: AgentToolbarChipSelectionSetting {
         type: AgentToolbarChipSelection,
         default: AgentToolbarChipSelection::default(),

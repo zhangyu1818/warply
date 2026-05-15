@@ -1747,7 +1747,7 @@ Add only:
 LocalAIWidget
 ```
 
-Keep MCP server UI only if it is required by ACP adapter configuration in a later task. For this plan, do not render MCP server cloud settings on the Local AI page.
+MCP server UI is no longer retained in the Warp app. ACP adapter configuration belongs to the ACP agent process.
 
 - [ ] **Step 4: Run UI compile check**
 
@@ -1810,7 +1810,7 @@ Referrals
 SharedBlocks
 ```
 
-Keep local terminal, appearance, keyboard, AI, MCP file config, and developer settings pages.
+Keep local terminal, appearance, keyboard, AI, and developer settings pages. MCP file config is no longer retained in the Warp app.
 
 - [ ] **Step 4: Run compile check**
 

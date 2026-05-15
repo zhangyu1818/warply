@@ -20,10 +20,10 @@ use crate::{
         model::{AgentConversation, AgentConversationRecord, PersistedAutoexecuteMode},
         ModelEvent,
     },
-    terminal::model::session::SessionId,
     test_util::settings::initialize_settings_for_tests,
     GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
+use warp_core::SessionId;
 
 use super::{
     AIQueryHistoryOutputStatus, BlocklistAIHistoryModel, PersistedAIInput, PersistedAIInputType,
@@ -394,12 +394,65 @@ fn test_toggle_autoexecute_override_persists_updated_conversation_state() {
         global_resource_handles.model_event_sender = Some(sender);
         app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
 
+        let now = Local::now();
         let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
         let terminal_view_id = EntityId::new();
+        let stream_id = ResponseStreamId::new_for_test();
 
         let conversation_id = history_model.update(&mut app, |history_model, ctx| {
             history_model.start_new_conversation(terminal_view_id, false, ctx)
         });
+
+        history_model.update(&mut app, |history_model, ctx| {
+            let exchange = create_exchange_with_query("persist autoexecute", now, None);
+            let task_id = history_model
+                .conversation(&conversation_id)
+                .unwrap()
+                .get_root_task_id()
+                .clone();
+            let request_input = RequestInput {
+                conversation_id,
+                input_messages: HashMap::from([(task_id, exchange.input)]),
+                working_directory: exchange.working_directory,
+                model_id: exchange.model_id,
+                coding_model_id: exchange.coding_model_id,
+                cli_agent_model_id: exchange.cli_agent_model_id,
+                computer_use_model_id: exchange.computer_use_model_id,
+                request_start_ts: exchange.start_time,
+            };
+            history_model
+                .update_conversation_for_new_request_input(
+                    request_input,
+                    stream_id.clone(),
+                    terminal_view_id,
+                    ctx,
+                )
+                .unwrap();
+            history_model.initialize_local_output_for_response_stream(
+                &stream_id,
+                conversation_id,
+                terminal_view_id,
+                LLMId::from("gpt-5.5"),
+                "Codex".to_string(),
+                ctx,
+            );
+            let acp_target = AcpResponseStreamTarget {
+                stream_id: stream_id.clone(),
+                conversation_id,
+                terminal_view_id,
+                model_id: LLMId::from("gpt-5.5"),
+                display_name: "Codex".to_string(),
+            };
+            history_model.append_local_text_delta_to_response_stream(&acp_target, "done", ctx);
+            history_model.mark_response_stream_completed_successfully(
+                &stream_id,
+                conversation_id,
+                terminal_view_id,
+                ctx,
+            );
+        });
+
+        let _ = receiver.recv_timeout(Duration::from_secs(1)).unwrap();
 
         history_model.update(&mut app, |history_model, ctx| {
             history_model.toggle_autoexecute_override(&conversation_id, terminal_view_id, ctx);

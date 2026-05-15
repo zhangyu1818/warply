@@ -19,10 +19,8 @@ pub mod update_manager;
 
 pub use local_object_model::cloud_object::*;
 
-/// A CloudObject represents
-/// therefore shareable and editable (i.e. Notebooks and Workflows). In order
-/// to support collaborative editing of these objects, they must each store local
-/// revision numbers to ensure a stable way of accepting and rejecting edits.
+/// A CloudObject represents a retained local object such as a workflow, folder, or notebook.
+/// Local revision metadata is kept only for persisted object bookkeeping.
 ///
 /// Note that this trait must be object-safe and non-generic.  The reason for this
 /// is that (a) we need to be able to store instances of it as trait objects in
@@ -33,7 +31,7 @@ pub use local_object_model::cloud_object::*;
 /// 1) GenericCloudObject: This is the concrete generic implementation of CloudObject that
 ///    holds onto a model of type CloudModelType and an id of type SyncId.
 /// 2) CloudModelType: This is a trait that defines the model type for a CloudObject -
-///    this is what implementors of new cloud types typically have to implement.
+///    this is what implementors of new local object types typically have to implement.
 ///
 /// These types are tightly coupled.  In an ideal world, rust would allow a mechanism
 /// for us having a single interface that new model types could implement that could
@@ -78,7 +76,6 @@ pub trait CloudObject: Debug {
     /// Returns the CloudObjectTypeAndId for this object.
     fn cloud_object_type_and_id(&self) -> CloudObjectTypeAndId;
 
-    /// Sets the server id on this object.
     /// Returns whether this object can be moved to the given space.
     fn can_move_to_space(&self, _space: Space, _app: &AppContext) -> bool {
         true
@@ -214,7 +211,7 @@ pub trait CloudObject: Debug {
         }
     }
 
-    /// Sets the content sync status of this object to `InFlight` (if it wasn't already) and
+    /// Sets the content pending status of this object to `InFlight` (if it wasn't already) and
     /// increments the number of in flight requests tracked in the `InFlight` enum.
     fn increment_in_flight_request_count(&mut self) {
         let new_reqs = match &self.metadata().pending_changes_statuses.content_sync_status {
@@ -247,7 +244,7 @@ pub trait CloudObject: Debug {
                 }
             }
             _ => log::error!(
-                "called decrement_in_flight_request_count with a non-`InFlight` cloud status"
+                "called decrement_in_flight_request_count with a non-`InFlight` content status"
             ),
         }
 
@@ -301,17 +298,17 @@ pub trait CloudObject: Debug {
             .downcast_mut::<GenericCloudObject<K, M>>()
     }
 
-    /// Returns a cloned boxed version of this cloud object.
+    /// Returns a cloned boxed version of this local object.
     /// Note that we can't force the CloudObject trait to derive from Cloned
     /// directly because that would make the trait not object safe.  This
     /// is a workaround.
     fn clone_box(&self) -> Box<dyn CloudObject>;
 }
 
-/// Defines a common trait for cloud models to implement.
-/// The "model" is the domain specific piece of data for a cloud object,
+/// Defines a common trait for local object models to implement.
+/// The "model" is the domain-specific piece of data for a retained local object,
 /// e.g. it contains the notebook, workflow, or folder specific data, but has
-/// no logic around metadata, permissions, or sync status.
+/// no logic around metadata, permissions, or pending content status.
 ///
 /// See the comments for CloudObject to understand the relationship between
 /// this trait, CloudObject and GenericCloudObject.  They are tightly coupled.
@@ -389,7 +386,7 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     }
 }
 
-/// A generic implementation of cloud objects that can be used for any model and id types.
+/// A generic implementation of retained local objects that can be used for any model and id types.
 ///
 /// For instance, rather than directly implementing the CloudObject trait, CloudObjects can
 /// implement GenericCloudObject<K, M> where K is their id type and M is their model type.
@@ -569,10 +566,6 @@ where
             metadata: CloudObjectMetadata {
                 pending_changes_statuses: CloudObjectStatuses {
                     content_sync_status: CloudObjectSyncStatus::InFlight(NumInFlightRequests(1)),
-                    has_pending_metadata_change: false,
-                    has_pending_permissions_change: false,
-                    pending_untrash: false,
-                    pending_delete: false,
                 },
                 folder_id: initial_folder_id,
                 revision: Default::default(),
@@ -719,7 +712,7 @@ impl From<String> for SerializedModel {
 impl From<Space> for WorkflowSource {
     fn from(space: Space) -> Self {
         match space {
-            Space::Personal => WorkflowSource::PersonalCloud,
+            Space::Personal => WorkflowSource::Saved,
         }
     }
 }
@@ -727,7 +720,7 @@ impl From<Space> for WorkflowSource {
 impl From<Owner> for WorkflowSource {
     fn from(owner: Owner) -> WorkflowSource {
         match owner {
-            Owner::User { .. } => Self::PersonalCloud,
+            Owner::User { .. } => Self::Saved,
         }
     }
 }

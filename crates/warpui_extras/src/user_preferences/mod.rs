@@ -2,8 +2,6 @@
 
 pub mod file_backed;
 pub mod in_memory;
-#[cfg(target_family = "wasm")]
-pub mod local_storage;
 #[cfg(feature = "user_preferences-toml")]
 pub mod toml_backed;
 pub mod user_defaults;

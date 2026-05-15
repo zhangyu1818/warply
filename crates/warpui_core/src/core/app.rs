@@ -1336,7 +1336,6 @@ impl AppContext {
 
     /// Returns the [`AccessibilityData`] of the focused view, or a parent of that view in its
     /// responder chain.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn focused_view_accessibility_data(
         &mut self,
         window_id: WindowId,

@@ -24,12 +24,13 @@ use crate::view_components::{Dropdown, DropdownItem};
 use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 use crate::workspace::WorkspaceAction;
 use crate::{
-    appearance::Appearance,
+    appearance::{Appearance, AppearanceEvent},
     terminal::resizable_data::{ModalType, ResizableData},
 };
 use crate::{code_review::diff_state::DiffStateModel, terminal::view::TerminalView};
 use dunce::canonicalize;
 use itertools::Itertools;
+use pathfinder_color::ColorU;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -135,16 +136,24 @@ struct CodeReviewSessionEnv {
     is_remote: bool,
 }
 
+fn repo_dropdown_font_color(appearance: &Appearance) -> ColorU {
+    appearance
+        .theme()
+        .sub_text_color(appearance.theme().background())
+        .into_solid()
+}
+
 impl CodeReviewState {
     pub fn new(ctx: &mut ViewContext<RightPanelView>) -> Self {
         CodeReviewState {
             dropdown: ctx.add_typed_action_view(|ctx| {
-                let appearance = Appearance::as_ref(ctx);
-                let font_color = appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into_solid();
-                let ui_font_size = appearance.ui_font_size();
+                let (font_color, ui_font_size) = {
+                    let appearance = Appearance::as_ref(ctx);
+                    (
+                        repo_dropdown_font_color(appearance),
+                        appearance.ui_font_size(),
+                    )
+                };
                 let mut dropdown = Dropdown::new(ctx);
                 dropdown.set_menu_position(
                     PositionedElementAnchor::BottomRight,
@@ -157,6 +166,12 @@ impl CodeReviewState {
                 dropdown.set_vertical_margin(0., ctx);
                 dropdown.set_top_bar_height(warp_core::ui::icons::ICON_DIMENSIONS, ctx);
                 dropdown.set_padding(HEADER_BUTTON_PADDING, ctx);
+                ctx.subscribe_to_model(&Appearance::handle(ctx), |dropdown, _, event, ctx| {
+                    if matches!(event, AppearanceEvent::ThemeChanged) {
+                        let font_color = repo_dropdown_font_color(Appearance::as_ref(ctx));
+                        dropdown.set_font_color(font_color, ctx);
+                    }
+                });
                 dropdown
             }),
             available_repos: vec![],
@@ -319,7 +334,6 @@ pub enum RightPanelEvent {
         path: PathBuf,
         line_and_column: Option<LineAndColumnArg>,
     },
-    #[cfg(not(target_family = "wasm"))]
     OpenLspLogs {
         log_path: PathBuf,
     },
@@ -557,12 +571,18 @@ impl RightPanelView {
         self.active_pane_group = Some(pane_group);
 
         if let Some(state) = &mut self.code_review_state {
-            let active_repositories = working_directories_model.read(ctx, |model, _| {
-                model
-                    .most_recent_repositories_for_pane_group(pane_group_id)
-                    .map(|repos| repos.collect())
-                    .unwrap_or_default()
-            });
+            let (active_repositories, saved_selection) =
+                working_directories_model.read(ctx, |model, _| {
+                    let repos = model
+                        .most_recent_repositories_for_pane_group(pane_group_id)
+                        .map(|repos| repos.collect())
+                        .unwrap_or_default();
+                    let saved = model
+                        .get_selected_review_repo(pane_group_id)
+                        .map(Path::to_path_buf);
+                    (repos, saved)
+                });
+            state.selected_repo_path = saved_selection;
             state.set_available_repos(active_repositories, ctx);
         }
 
@@ -1162,7 +1182,6 @@ impl RightPanelView {
                         line_and_column: *line_and_column,
                     });
                 }
-                #[cfg(not(target_family = "wasm"))]
                 CodeReviewViewEvent::OpenLspLogs { log_path } => {
                     ctx.emit(RightPanelEvent::OpenLspLogs {
                         log_path: log_path.clone(),
@@ -1662,6 +1681,13 @@ impl TypedActionView for RightPanelView {
                         ctx,
                     );
                     self.ensure_code_review_view_exists(repo_path, ctx);
+                    if let Some(pane_group) = &self.active_pane_group {
+                        let pane_group_id = pane_group.id();
+                        let repo_path = repo_path.clone();
+                        self.working_directories_model.update(ctx, |model, _| {
+                            model.set_selected_review_repo(pane_group_id, repo_path);
+                        });
+                    }
                     ctx.notify();
                 }
             }

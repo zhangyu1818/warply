@@ -15,19 +15,13 @@
 mod execute;
 
 use crate::ai::agent::conversation::ConversationStatus;
+use crate::ai::agent::AIAgentInput;
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentActionType, AIAgentExchange, CancellationReason,
-    CreateDocumentsResult, EditDocumentsResult, RequestCommandOutputResult,
+    RequestCommandOutputResult,
 };
-use crate::ai::{
-    agent::AIAgentInput,
-    blocklist::action_model::execute::suggest_new_conversation::SuggestNewConversationExecutor,
-};
-use chrono::Local;
-pub(crate) use execute::coerce_integer_args;
 pub use execute::{
-    read_local_file_context, NewConversationDecision, PromptSuggestionExecutor,
-    ReadFileContextResult, RequestFileEditsExecutor, ShellCommandExecutor,
+    read_local_file_context, ReadFileContextResult, RequestFileEditsExecutor, ShellCommandExecutor,
     ShellCommandExecutorEvent,
 };
 
@@ -60,8 +54,6 @@ use self::execute::{
 };
 
 use super::BlocklistAIHistoryModel;
-use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
-use crate::ai::document::ai_document_model::AIDocumentModel;
 
 /// The status of an action from an AI output.
 #[derive(Clone, Debug)]
@@ -226,10 +218,6 @@ pub struct BlocklistAIActionModel {
 
     /// The ID of the terminal view this controller is associated with.
     terminal_view_id: EntityId,
-
-    /// In view-only mode, we never block on user acceptance and avoid any interactive controls.
-    /// This is used for agent session sharing to avoid any tools blocking on the viewer's acceptance.
-    is_view_only: bool,
 }
 
 impl BlocklistAIActionModel {
@@ -291,60 +279,11 @@ impl BlocklistAIActionModel {
             running_actions: Default::default(),
             action_order: Default::default(),
             terminal_view_id,
-            is_view_only: false,
         }
-    }
-
-    /// Enable or disable view-only mode (for use in agent session sharing).
-    pub fn set_view_only(&mut self, is_view_only: bool) {
-        self.is_view_only = is_view_only;
-    }
-
-    /// Marks an action as remotely executing on the viewer side.
-    /// This is called when a viewer receives a CommandExecutionStarted event from the sharer,
-    /// allowing the viewer's UI to show the action as running even though it's not executing locally.
-    pub fn mark_action_as_remotely_executing(
-        &mut self,
-        action_id: &AIAgentActionId,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // Only applicable for viewers
-        if !self.is_view_only {
-            return;
-        }
-
-        // Remove the action from pending_actions for the specific conversation
-        // so that we can correctly show the command as running.
-        if let Some(pending_actions) = self.pending_actions.get_mut(&conversation_id) {
-            pending_actions.retain(|a| &a.id != action_id);
-        }
-
-        self.add_running_action(
-            conversation_id,
-            action_id.clone(),
-            RunningActionPhase::Serial,
-        );
-        ctx.emit(BlocklistAIActionEvent::ExecutingAction(action_id.clone()));
-    }
-
-    /// Returns true if the action model is operating in view-only mode (used for shared-session viewers).
-    pub fn is_view_only(&self) -> bool {
-        self.is_view_only
     }
 
     pub fn shell_command_executor(&self, app: &AppContext) -> ModelHandle<ShellCommandExecutor> {
         self.executor.as_ref(app).shell_command_executor().clone()
-    }
-
-    pub fn suggest_new_conversation_executor(
-        &self,
-        app: &AppContext,
-    ) -> ModelHandle<SuggestNewConversationExecutor> {
-        self.executor
-            .as_ref(app)
-            .suggest_new_conversation_executor()
-            .clone()
     }
 
     pub fn request_file_edits_executor(
@@ -362,13 +301,6 @@ impl BlocklistAIActionModel {
         app: &'a AppContext,
     ) -> &'a ModelHandle<SearchCodebaseExecutor> {
         self.executor.as_ref(app).search_codebase_executor()
-    }
-
-    pub fn suggest_prompt_executor(
-        &self,
-        app: &AppContext,
-    ) -> ModelHandle<PromptSuggestionExecutor> {
-        self.executor.as_ref(app).suggest_prompt_executor().clone()
     }
 
     pub fn ask_user_question_executor(
@@ -576,10 +508,7 @@ impl BlocklistAIActionModel {
                     continue;
                 }
 
-                if index == 0
-                    && !self.is_view_only
-                    && !self.running_actions.contains_key(conversation_id)
-                {
+                if index == 0 && !self.running_actions.contains_key(conversation_id) {
                     return Some(AIActionStatus::Blocked);
                 }
 
@@ -788,34 +717,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Apply a finished action result to the conversation.
-    /// This is used in agent session sharing to apply finished action results
-    /// received from the action stream.
-    pub fn apply_finished_action_result(
-        &mut self,
-        conversation_id: AIConversationId,
-        mut action_result: AIAgentActionResult,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let action_id = action_result.id.clone();
-        if let Some(queue) = self.pending_actions.get_mut(&conversation_id) {
-            if let Some(idx) = queue.iter().position(|a| a.id == action_id) {
-                queue.remove(idx);
-            }
-        }
-
-        // For shared session viewers, take in any document action results
-        // and apply the associated actions to the local document version
-        // (or create a new document if the given doc does not exist).
-        self.maybe_sync_view_only_documents_with_local_model(
-            conversation_id,
-            &mut action_result,
-            ctx,
-        );
-
-        self.handle_action_result(conversation_id, Arc::new(action_result), None, ctx);
-    }
-
     pub(super) fn cancel_action_with_id(
         &mut self,
         conversation_id: AIConversationId,
@@ -995,10 +896,10 @@ impl BlocklistAIActionModel {
         let action_id = action_result.id.clone();
 
         // If a command action entered long-running mode (returned a snapshot), cancel all other
-        // pending RequestCommandOutput actions. Only one command can be active at a time, and the
-        // server can only spawn one CLI subagent. We don't cancel other actions because those
-        // actions will complete before we send any response to the server. NOTE: this does allow
-        // the long-running command to execute in parallel with the other actions.
+        // pending RequestCommandOutput actions. Only one command can be active at a time for a CLI
+        // subagent. We don't cancel other actions because those actions will complete before the
+        // agent receives this result. NOTE: this does allow the long-running command to execute in
+        // parallel with the other actions.
         if matches!(
             &action_result.result,
             AIAgentActionResultType::RequestCommandOutput(
@@ -1062,86 +963,6 @@ impl BlocklistAIActionModel {
             }
         } else {
             self.try_to_execute_available_actions(conversation_id, ctx);
-        }
-    }
-
-    /// In shared-session viewer (view-only) mode, ensure document-related action results
-    /// are backed by documents in the local `AIDocumentModel` and that their
-    /// `DocumentContext` versions match. For CreateDocuments, restore missing documents
-    /// (using titles from the original action); for EditDocuments, apply edits to local
-    /// documents and align versions, so headers and "View" buttons stay accurate.
-    fn maybe_sync_view_only_documents_with_local_model(
-        &self,
-        conversation_id: AIConversationId,
-        result: &mut AIAgentActionResult,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if !self.is_view_only {
-            return;
-        }
-
-        match &mut result.result {
-            AIAgentActionResultType::CreateDocuments(CreateDocumentsResult::Success {
-                created_documents,
-            }) => {
-                let history = BlocklistAIHistoryModel::handle(ctx);
-                let Some(conversation) = history.as_ref(ctx).conversation(&conversation_id) else {
-                    return;
-                };
-                let titles = conversation.get_document_titles_for_action(&result.id);
-
-                let doc_model = AIDocumentModel::handle(ctx);
-                doc_model.update(ctx, |doc_model, doc_ctx| {
-                    for (index, doc_context) in created_documents.iter_mut().enumerate() {
-                        // If a user is re-opening a shared session that they previously closed in the current warp session,
-                        // we should delete the previously created document so that the verseion history doesn't get messed up.
-                        doc_model.delete_document(&doc_context.document_id);
-
-                        let title = titles
-                            .as_ref()
-                            .and_then(|t| t.get(index))
-                            .cloned()
-                            .unwrap_or_else(|| DEFAULT_PLANNING_DOCUMENT_TITLE.to_string());
-
-                        doc_model.restore_document(
-                            doc_context.document_id,
-                            conversation_id,
-                            &title,
-                            doc_context.content.clone(),
-                            Local::now(),
-                            doc_ctx,
-                        );
-                    }
-                });
-            }
-            AIAgentActionResultType::EditDocuments(EditDocumentsResult::Success {
-                updated_documents,
-            }) => {
-                let doc_model = AIDocumentModel::handle(ctx);
-                doc_model.update(ctx, |doc_model, doc_ctx| {
-                    for doc_context in updated_documents.iter_mut() {
-                        if doc_model
-                            .get_current_document(&doc_context.document_id)
-                            .is_none()
-                        {
-                            // You can't make edits to a doc that does not exist.
-                            continue;
-                        }
-
-                        if let Some(new_version) = doc_model.restore_document_edit(
-                            &doc_context.document_id,
-                            doc_context.content.clone(),
-                            Local::now(),
-                            doc_ctx,
-                        ) {
-                            // Align the header's version with the locally restored doc
-                            // so the viewer sees the correct bumped version.
-                            doc_context.document_version = new_version;
-                        }
-                    }
-                });
-            }
-            _ => {}
         }
     }
 }

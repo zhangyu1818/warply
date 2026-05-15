@@ -1,5 +1,4 @@
-//! This module implements IPC transport on top of the `interprocess` crate, which uses Unix Domain
-//! Sockets on Unix platforms and named pipes on Windows under the hood.
+//! This module implements IPC transport on top of the `interprocess` crate.
 use async_compat::CompatExt as _;
 use futures::{AsyncRead, AsyncWrite};
 
@@ -10,8 +9,7 @@ pub(crate) mod client {
     use crate::client::{ClientError, InitializationError, Result};
     use interprocess::local_socket::tokio::LocalSocketStream;
 
-    /// Returns a tuple containing structs for reading and writing to a local socket, which is the
-    /// underlying IPC transport for native (non-wasm) platforms.
+    /// Returns a tuple containing structs for reading and writing to a local socket.
     pub async fn connect_client(
         connection_address: ConnectionAddress,
     ) -> Result<(impl AsyncRead + Unpin, impl AsyncWrite + Unpin)> {

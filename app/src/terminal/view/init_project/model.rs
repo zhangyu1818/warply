@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use ai::project_context::model::ProjectContextModel;
 use enum_iterator::Sequence;
 use lsp::supported_servers::LSPServerType;
-#[cfg(not(target_family = "wasm"))]
 use repo_metadata::repositories::DetectedRepositories;
 use warpui::{Entity, ModelContext, SingletonEntity as _};
 
@@ -334,12 +333,9 @@ impl InitProjectModel {
         );
 
         let pwd_path = pwd_path.to_path_buf();
-        #[cfg(not(target_family = "wasm"))]
         let repo_root = DetectedRepositories::as_ref(ctx)
             .get_root_for_path(&pwd_path)
             .unwrap_or_else(|| pwd_path.clone());
-        #[cfg(target_family = "wasm")]
-        let repo_root = pwd_path.clone();
         let repo_root_for_callback = repo_root.clone();
         let executor = lsp::CommandBuilder::new(self.path_env_var.clone());
         let http_client = crate::http_api::HttpApiProvider::as_ref(ctx).get_http_client();

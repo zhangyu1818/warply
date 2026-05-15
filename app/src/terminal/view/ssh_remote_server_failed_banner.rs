@@ -4,6 +4,7 @@
 use remote_server::transport::UserFacingError;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_core::SessionId;
 use warpui::{
     elements::{
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
@@ -13,7 +14,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
-use crate::{terminal::model::session::SessionId, ui_components::icons::Icon, Appearance};
+use crate::{ui_components::icons::Icon, Appearance};
 
 const BANNER_TITLE: &str = "Couldn't connect to the Warp SSH extension";
 

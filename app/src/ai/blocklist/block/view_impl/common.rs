@@ -24,12 +24,12 @@ use warpui::{
     assets::asset_cache::{AssetCache, AssetSource, AssetState},
     elements::{
         new_scrollable::{ScrollableAppearance, SingleAxisConfig},
-        Align, Axis, Border, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Expanded, Fill,
-        Flex, FormattedTextElement, HeadingFontSizeMultipliers, Image as WarpImage,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, ParentElement, Radius,
-        SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Table,
-        TableColumnWidth, TableConfig, TableHeader, TableVerticalSizing, Text, Wrap,
+        Align, Axis, Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+        DispatchEventResult, Empty, EventHandler, Expanded, Fill, Flex, FormattedTextElement,
+        HeadingFontSizeMultipliers, Image as WarpImage, MainAxisSize, MouseStateHandle,
+        NewScrollable, ParentElement, Radius, SavePosition, ScrollTarget, ScrollToPositionMode,
+        ScrollbarWidth, Shrinkable, Table, TableColumnWidth, TableConfig, TableHeader,
+        TableVerticalSizing, Text, Wrap,
     },
     fonts::{Properties, Weight},
     image_cache::{CacheOption, ImageType},
@@ -53,9 +53,8 @@ use crate::{
         agent::{
             icons::red_stop_icon, AIAgentAction, AIAgentActionType, AIAgentInput,
             AIAgentOutputMessageType, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
-            AgentOutputMermaidDiagram, AgentOutputTable, AgentOutputTableRendering,
-            ProgrammingLanguage, RenderableAIError, SummarizationType, UserQueryMode,
-            WebSearchStatus,
+            AgentOutputMermaidDiagram, AgentOutputTable, ProgrammingLanguage, RenderableAIError,
+            SummarizationType, UserQueryMode, WebSearchStatus,
         },
         blocklist::{
             block::{
@@ -67,13 +66,7 @@ use crate::{
                 render_code_block_plain, render_code_block_with_warp_text, CodeBlockOptions,
                 CodeSnippetButtonHandles,
             },
-            inline_action::{
-                inline_action_header::{
-                    INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
-                },
-                inline_action_icons::{self, icon_size},
-                requested_action::RenderableAction,
-            },
+            inline_action::inline_action_icons::icon_size,
             model::{AIBlockModel, AIBlockModelHelper},
             secret_redaction::{redact_secrets_in_element, SecretRedactionState},
             view_util::error_color,
@@ -82,7 +75,6 @@ use crate::{
     },
     code::{editor::view::CodeEditorView, editor_management::CodeSource},
     notebooks::editor::{markdown_table_appearance, rich_text_styles},
-    settings_view::SettingsSection,
     terminal::{
         find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode,
         view::TerminalAction, ShellLaunchData,
@@ -90,7 +82,6 @@ use crate::{
     ui_components::{
         avatar::{Avatar, AvatarContent},
         blended_colors,
-        buttons::icon_button,
         icons::Icon,
     },
     workspace::WorkspaceAction,
@@ -124,7 +115,6 @@ pub const WAITING_FOR_USER_INPUT_MESSAGE: &str = "Agent waiting for instructions
 const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
 
 const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
-const INTERNAL_WARP_ERROR: &str = "Internal Warp error.";
 
 pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
@@ -331,12 +321,6 @@ pub fn render_warping_indicator<V: View>(
                 LOAD_OUTPUT_MESSAGE_FOR_SEARCH_CODEBASE.to_owned()
             }
             Some(AIAgentActionType::Grep { .. }) => LOAD_OUTPUT_MESSAGE_FOR_GREP.to_owned(),
-            Some(AIAgentActionType::CallMCPTool { name, .. }) => {
-                format!("Calling \"{name}\" MCP tool...")
-            }
-            Some(AIAgentActionType::ReadMCPResource { name, .. }) => {
-                format!("Reading \"{name}\" MCP resource...")
-            }
             Some(AIAgentActionType::FileGlob { .. })
             | Some(AIAgentActionType::FileGlobV2 { .. }) => {
                 LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB.to_owned()
@@ -544,7 +528,7 @@ pub fn render_warping_indicator_base(
         text_col = text_col
             .with_child(text_content)
             .with_child(Container::new(sub_element).with_margin_top(1.).finish());
-    } else if FeatureFlag::AgentTips.is_enabled() && *InputSettings::as_ref(app).show_agent_tips {
+    } else if *InputSettings::as_ref(app).show_agent_tips {
         text_col = text_col.with_child(text_content);
     } else {
         text_col = text_col.with_child(
@@ -2094,7 +2078,6 @@ fn visual_section_height(app: &AppContext) -> f32 {
         * BLOCKLIST_VISUAL_SECTION_HEIGHT_LINE_MULTIPLIER
 }
 
-const TABLE_BLOCK_CORNER_RADIUS: f32 = 8.0;
 fn render_table_section(
     table: &AgentOutputTable,
     table_handles: TableSectionHandles,
@@ -2104,14 +2087,6 @@ fn render_table_section(
     find_context: Option<FindContext<'_>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    if let AgentOutputTableRendering::Legacy { content } = &table.rendering {
-        return render_legacy_table_section(
-            content,
-            table_handles.scroll_handle,
-            is_ai_input_enabled,
-            app,
-        );
-    }
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
     let table_appearance = markdown_table_appearance(appearance);
@@ -2130,9 +2105,7 @@ fn render_table_section(
     };
     let inline_code_text_color = notebook_styles.inline_code_style.font_color;
     let inline_code_bg_color = notebook_styles.inline_code_style.background;
-    let Some(structured_table) = table.structured_table() else {
-        return Empty::new().finish();
-    };
+    let structured_table = table.table();
     let column_count = structured_table.headers.len();
     let alignments = structured_table.alignments.clone();
     let body_rows = structured_table.rows.clone();
@@ -2236,54 +2209,6 @@ fn render_table_section(
     .with_horizontal_scrollbar(ScrollableAppearance::new(ScrollbarWidth::Auto, true))
     .with_propagate_mousewheel_if_not_handled(true)
     .finish()
-}
-
-fn render_legacy_table_section(
-    content: &str,
-    scroll_handle: ClippedScrollStateHandle,
-    is_ai_input_enabled: bool,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let text_element = Text::new(
-        content.to_owned(),
-        appearance.monospace_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(blended_colors::text_main(theme, theme.surface_2()))
-    .with_selection_color(if is_ai_input_enabled {
-        theme.text_selection_as_context_color().into_solid()
-    } else {
-        theme.text_selection_color().into_solid()
-    })
-    .finish();
-
-    let inner_content = Container::new(text_element)
-        .with_vertical_padding(INLINE_ACTION_HEADER_VERTICAL_PADDING)
-        .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-        .finish();
-
-    let scrollable_content = NewScrollable::horizontal(
-        SingleAxisConfig::Clipped {
-            handle: scroll_handle,
-            child: inner_content,
-        },
-        theme.nonactive_ui_detail().into(),
-        theme.active_ui_detail().into(),
-        Fill::None,
-    )
-    .with_horizontal_scrollbar(ScrollableAppearance::new(ScrollbarWidth::Auto, true))
-    .with_propagate_mousewheel_if_not_handled(true)
-    .finish();
-
-    Container::new(scrollable_content)
-        .with_background(theme.surface_2())
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
-            TABLE_BLOCK_CORNER_RADIUS,
-        )))
-        .finish()
 }
 
 fn render_table_cell(props: TableCellProps, app: &AppContext) -> Box<dyn Element> {
@@ -2709,7 +2634,6 @@ pub(crate) fn resolve_absolute_file_path(
 
 pub struct FailedOutputProps<'a> {
     pub error: &'a RenderableAIError,
-    pub invalid_api_key_button_handle: &'a MouseStateHandle,
     pub is_ai_input_enabled: bool,
     pub icon_right_margin: f32,
 }
@@ -2718,11 +2642,8 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
     let appearance = Appearance::as_ref(app);
 
     let error_text = match props.error {
-        RenderableAIError::ServerOverloaded => {
+        RenderableAIError::ProviderOverloaded => {
             "AI provider is currently overloaded. Please try again later.".to_string()
-        }
-        RenderableAIError::InternalWarpError => {
-            format!("{ERROR_APOLOGY_TEXT}\n\n{INTERNAL_WARP_ERROR}")
         }
         RenderableAIError::Other {
             error_message,
@@ -2740,24 +2661,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
             } else {
                 format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}")
             }
-        }
-        RenderableAIError::InvalidApiKey {
-            provider,
-            model_name,
-        } => {
-            return render_invalid_api_key_error(
-                provider,
-                model_name,
-                props.invalid_api_key_button_handle,
-                app,
-            );
-        }
-        RenderableAIError::ContextWindowExceeded(error) => {
-            // This is rendered in a different way, like a failed action.
-            return RenderableAction::new(error.as_str(), app)
-                .with_icon(inline_action_icons::cancelled_icon(appearance).finish())
-                .render(app)
-                .finish();
         }
     };
 
@@ -2803,189 +2706,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
             .finish(),
         )
         .finish()
-}
-
-fn render_invalid_api_key_error(
-    provider: &str,
-    model_name: &str,
-    state_handle: &MouseStateHandle,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let alert_icon = ConstrainedBox::new(
-        Icon::AlertTriangle
-            .to_warpui_icon(error_color(appearance.theme()).into())
-            .finish(),
-    )
-    .with_width(icon_size(app))
-    .with_height(icon_size(app))
-    .finish();
-
-    let alert_text = Text::new(
-        "Provided API key is not valid",
-        appearance.ui_font_family(),
-        14.,
-    )
-    .with_color(error_color(appearance.theme()))
-    .with_selectable(false)
-    .finish();
-
-    let detail_text = Text::new(
-        format!(
-            "Failed to authenticate with {provider} when using {model_name}. \
-                     Double-check that your API key is correct."
-        ),
-        appearance.ui_font_family(),
-        14.,
-    )
-    .with_color(blended_colors::text_sub(
-        appearance.theme(),
-        appearance.theme().surface_1(),
-    ))
-    .with_selectable(false)
-    .finish();
-
-    let settings_button = appearance
-        .ui_builder()
-        .button(
-            warpui::ui_components::button::ButtonVariant::Outlined,
-            state_handle.clone(),
-        )
-        .with_style(UiComponentStyles {
-            border_color: Some(internal_colors::neutral_4(theme).into()),
-            ..Default::default()
-        })
-        .with_hovered_styles(UiComponentStyles {
-            background: Some(internal_colors::fg_overlay_2(theme).into()),
-            ..Default::default()
-        })
-        .with_clicked_styles(UiComponentStyles {
-            background: Some(internal_colors::fg_overlay_3(theme).into()),
-            ..Default::default()
-        })
-        .with_text_label("Edit API Keys".to_string())
-        .with_cursor(Some(Cursor::PointingHand))
-        .build()
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
-                search_query: "api keys".to_string(),
-                section: Some(SettingsSection::AI),
-            });
-        })
-        .finish();
-
-    Flex::column()
-        .with_spacing(16.)
-        .with_child(
-            Flex::row()
-                .with_spacing(8.)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(alert_icon)
-                .with_child(alert_text)
-                .finish(),
-        )
-        .with_child(
-            Flex::row()
-                .with_spacing(8.)
-                .with_main_axis_size(MainAxisSize::Max)
-                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(Shrinkable::new(1., detail_text).finish())
-                .with_child(settings_button)
-                .finish(),
-        )
-        .finish()
-}
-
-pub(crate) struct DebugFooterProps<'a, V: View> {
-    pub model: &'a dyn AIBlockModel<View = V>,
-    pub debug_copy_button_handle: MouseStateHandle,
-}
-
-pub(crate) fn render_debug_footer<V: View>(
-    props: DebugFooterProps<'_, V>,
-    on_copy_debug_id: impl Fn(String, &mut EventContext) + 'static,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-
-    let server_output_id = props.model.server_output_id(app);
-    let Some(request_id) = server_output_id else {
-        return Empty::new().finish();
-    };
-    let debug_info = serde_json::json!({
-        "request_id": request_id
-    })
-    .to_string();
-
-    let debug_text = Text::new(
-        format!("Debug information: {debug_info}"),
-        appearance.ui_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(
-        appearance
-            .theme()
-            .disabled_text_color(appearance.theme().background())
-            .into(),
-    )
-    .finish();
-
-    let copy_button_style = UiComponentStyles {
-        font_color: Some(
-            appearance
-                .theme()
-                .sub_text_color(appearance.theme().background())
-                .into(),
-        ),
-        width: Some(icon_size(app) + 4.),
-        height: Some(icon_size(app) + 4.),
-        ..Default::default()
-    };
-    let copy_button_hover_style = UiComponentStyles {
-        background: Some(blended_colors::neutral_4(appearance.theme()).into()),
-        ..copy_button_style
-    };
-    let debug_info_for_copy = debug_info.clone();
-    let copy_button = icon_button(
-        appearance,
-        Icon::Copy,
-        false,
-        props.debug_copy_button_handle.clone(),
-    )
-    .with_style(copy_button_style)
-    .with_hovered_styles(copy_button_hover_style)
-    .with_clicked_styles(copy_button_hover_style)
-    .build()
-    .on_click(move |ctx, _, _| {
-        on_copy_debug_id(debug_info_for_copy.clone(), ctx);
-    })
-    .finish();
-    let copy_button_with_tooltip = appearance.ui_builder().tool_tip_on_element(
-        "Copy debug ID".to_string(),
-        props.debug_copy_button_handle,
-        copy_button,
-        warpui::elements::ParentAnchor::TopRight,
-        warpui::elements::ChildAnchor::BottomRight,
-        vec2f(0., -8.),
-    );
-
-    let mut debug_row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_main_axis_size(MainAxisSize::Max);
-
-    debug_row.add_child(
-        Shrinkable::new(
-            1.0,
-            Container::new(debug_text).with_margin_right(8.).finish(),
-        )
-        .finish(),
-    );
-    debug_row.add_child(copy_button_with_tooltip);
-
-    Container::new(Expanded::new(1.0, debug_row.finish()).finish()).finish()
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -3062,19 +2782,15 @@ pub(super) fn query_prefix_highlight_len(
         Some(commands::NEW.name.len())
     } else {
         match input {
-            AIAgentInput::InvokeSkill { skill, .. } => Some(1 + skill.name.len()),
             AIAgentInput::UserQuery { .. }
             | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::FetchReviewComments { .. }
-            | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::ActionResult { .. }
-            | AIAgentInput::PassiveSuggestionResult { .. } => None,
+            | AIAgentInput::ActionResult { .. } => None,
         }
     }
 }

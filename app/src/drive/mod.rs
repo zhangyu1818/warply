@@ -19,8 +19,6 @@ pub enum DriveObjectType {
     AIFactCollection,
     Folder,
     EnvVarCollection,
-    MCPServer,
-    MCPServerCollection,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -38,8 +36,6 @@ impl From<DriveObjectType> for Icon {
             DriveObjectType::AIFactCollection => Icon::BookOpen,
             DriveObjectType::Folder => Icon::Folder,
             DriveObjectType::EnvVarCollection => Icon::EnvVarCollection,
-            DriveObjectType::MCPServer => Icon::Dataflow,
-            DriveObjectType::MCPServerCollection => Icon::Dataflow,
         }
     }
 }
@@ -53,8 +49,6 @@ impl fmt::Display for DriveObjectType {
             DriveObjectType::AgentModeWorkflow => write!(f, "prompt"),
             DriveObjectType::AIFact => write!(f, "ai fact"),
             DriveObjectType::AIFactCollection => write!(f, "ai fact collection"),
-            DriveObjectType::MCPServer => write!(f, "mcp server"),
-            DriveObjectType::MCPServerCollection => write!(f, "mcp server collection"),
         }
     }
 }

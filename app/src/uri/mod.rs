@@ -14,12 +14,13 @@ use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
 use crate::settings_view::SettingsSection;
 use crate::user_config::load_launch_configs;
-use crate::{quake_mode_window_id, quake_mode_window_is_open, safe_info, ChannelState, OpenPath};
+use crate::{quake_mode_window_id, quake_mode_window_is_open, ChannelState, OpenPath};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use url::Url;
+use warp_core::safe_info;
 use warpui::{SingletonEntity as _, TypedActionView};
 
 use warpui::{AppContext, WindowId};

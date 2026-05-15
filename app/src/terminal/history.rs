@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use warp_core::command::ExitCode;
+use warp_core::{command::ExitCode, SessionId};
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::{
@@ -16,11 +16,10 @@ use super::{
 use crate::{
     cloud_object::model::persistence::CloudModel,
     object_ids::{ClientId, HashableId as _, SyncId},
-    terminal::model::session::{Session, SessionId},
+    terminal::model::session::Session,
     util::dedupe_from_last,
     workflows::{
-        local_workflows::LocalWorkflows, workflow::Workflow, WorkflowId, WorkflowSource,
-        WorkflowType,
+        local_workflows::LocalWorkflows, workflow::Workflow, WorkflowSource, WorkflowType,
     },
 };
 
@@ -76,13 +75,8 @@ impl From<crate::persistence::model::Command> for PersistedCommand {
                     .map(SessionId::from)
             }),
             git_branch: command.git_branch,
-            workflow_id: command.cloud_workflow_id.and_then(|workflow_id| {
-                if let Some(client_id) = ClientId::from_hash(workflow_id.as_str()) {
-                    Some(SyncId::ClientId(client_id))
-                } else {
-                    WorkflowId::from_hash(workflow_id.as_str())
-                        .map(|id| SyncId::ServerId(id.into()))
-                }
+            workflow_id: command.saved_workflow_id.and_then(|workflow_id| {
+                ClientId::from_hash(workflow_id.as_str()).map(SyncId::ClientId)
             }),
             workflow_command: command.workflow_command,
             is_agent_executed: command.is_agent_executed.unwrap_or(false),
@@ -92,9 +86,6 @@ impl From<crate::persistence::model::Command> for PersistedCommand {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ShellHost {
-    // This field was originally named `shell` so mark it as an alias for
-    // backwards compatibility.
-    #[serde(alias = "shell")]
     pub shell_type: ShellType,
     pub user: String,
     pub hostname: String,
@@ -212,7 +203,7 @@ pub struct History {
 
 #[derive(Clone, Debug)]
 pub enum LinkedWorkflowData {
-    /// The history entry is linked to a `CloudWorkflow` by its ID.
+    /// The history entry is linked to a `SavedWorkflow` by its ID.
     Id(SyncId),
 
     /// The history entry is linked to a local `Workflow` by its command.
@@ -229,10 +220,10 @@ impl LinkedWorkflowData {
             LinkedWorkflowData::Id(id) => {
                 let cloud_model = CloudModel::as_ref(ctx);
                 let workflow = cloud_model.get_workflow(id);
-                let workflow_source = WorkflowSource::PersonalCloud;
+                let workflow_source = WorkflowSource::Saved;
                 workflow.map(|workflow| {
                     (
-                        WorkflowType::Cloud(Box::new(workflow.clone())),
+                        WorkflowType::Saved(Box::new(workflow.clone())),
                         workflow_source,
                     )
                 })
@@ -262,7 +253,7 @@ pub struct HistoryEntry {
     pub git_head: Option<String>,
     pub shell_host: Option<ShellHost>,
 
-    /// The ID of the `CloudWorkflow` used to construct this command.
+    /// The ID of the `SavedWorkflow` used to construct this command.
     workflow_id: Option<SyncId>,
 
     /// The templated command contained in the `Workflow` used to construct the executed

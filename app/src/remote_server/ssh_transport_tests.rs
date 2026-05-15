@@ -1,11 +1,9 @@
 use super::*;
 
 fn static_identity_context() -> Arc<RemoteServerIdentityContext> {
-    Arc::new(RemoteServerIdentityContext::new(
-        || "user id/with spaces".to_string(),
-        String::new(),
-        String::new(),
-    ))
+    Arc::new(RemoteServerIdentityContext::new(|| {
+        "user id/with spaces".to_string()
+    }))
 }
 
 #[test]

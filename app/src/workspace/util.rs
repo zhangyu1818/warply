@@ -26,13 +26,10 @@ pub(super) struct WorkspaceMouseStates {
     pub(super) more_info_banner_button: MouseStateHandle,
     pub(super) left_panel_icon: MouseStateHandle,
     pub(super) dismiss_banner_button: MouseStateHandle,
-    pub(super) offline_icon: MouseStateHandle,
     pub(super) header_dimming: MouseStateHandle,
     pub(super) right_panel_icon: MouseStateHandle,
     pub(super) tools_panel_icon: MouseStateHandle,
     pub(super) title_bar_search_bar: MouseStateHandle,
-    #[cfg(target_family = "wasm")]
-    pub(super) warp_logo: MouseStateHandle,
 }
 
 #[derive(Debug)]
@@ -92,14 +89,10 @@ pub struct WorkspaceState {
     pub is_rewind_confirmation_dialog_open: bool,
     pub is_delete_conversation_confirmation_dialog_open: bool,
     pub is_native_quit_modal_open: bool,
-    pub is_suggested_agent_mode_workflow_modal_open: bool,
-    pub is_suggested_rule_modal_open: bool,
     pub is_tab_config_params_modal_open: bool,
     pub is_session_config_modal_open: bool,
     pub is_new_worktree_modal_open: bool,
     pub is_remove_tab_config_dialog_open: bool,
-    /// Whether the transcript details panel is open (WASM only, for conversation transcript viewing).
-    pub is_transcript_details_panel_open: bool,
     tab_being_renamed: Option<usize>, // The index of the tab being renamed
     pane_being_renamed: Option<PaneViewLocator>,
 }
@@ -119,8 +112,6 @@ impl WorkspaceState {
             || self.is_prompt_editor_open
             || self.is_agent_toolbar_editor_open
             || self.is_header_toolbar_editor_open
-            || self.is_suggested_rule_modal_open
-            || self.is_suggested_agent_mode_workflow_modal_open
             || self.is_tab_config_params_modal_open
             || self.is_session_config_modal_open
             || self.is_new_worktree_modal_open
@@ -147,8 +138,6 @@ impl WorkspaceState {
         self.is_prompt_editor_open = false;
         self.is_agent_toolbar_editor_open = false;
         self.is_header_toolbar_editor_open = false;
-        self.is_suggested_rule_modal_open = false;
-        self.is_suggested_agent_mode_workflow_modal_open = false;
         self.is_tab_config_params_modal_open = false;
         self.is_session_config_modal_open = false;
         self.is_new_worktree_modal_open = false;

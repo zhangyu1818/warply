@@ -1,6 +1,5 @@
 pub mod event;
 pub mod listener;
-#[cfg(not(target_family = "wasm"))]
 use std::collections::HashMap;
 
 use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -70,7 +69,7 @@ pub enum CLIAgentRichInputCloseReason {
     AutoToggle,
     /// Auto-dismissed after submitting a prompt.
     Submit,
-    /// Closed for another reason (chip removed, session ended, shared session sync).
+    /// Closed for another reason.
     Other,
 }
 

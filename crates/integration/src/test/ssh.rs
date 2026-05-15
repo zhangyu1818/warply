@@ -4,7 +4,6 @@ use crate::Builder;
 use regex::Regex;
 use settings::Setting as _;
 use warp::{
-    features::FeatureFlag,
     integration_testing::{
         step::new_step_with_default_assertions,
         subshell::{
@@ -157,41 +156,6 @@ fn verify_login_shell(shell: &str) -> TestStep {
 
 /// A macro to generate a test function to validate that we are able to
 /// bootstrap a given remote shell when using ssh.
-macro_rules! generate_can_bootstrap_legacy_ssh_test_for_shell {
-    ($fn_name:ident, $shell:literal) => {
-        /// Ensure we can successfully ssh into a $shell remote shell and bootstrap it
-        /// successfully.
-        pub fn $fn_name() -> Builder {
-            new_builder()
-                // TODO(CORE-2333) PowerShell has no SSH wrapper.
-                .set_should_run_test(|| {
-                    if FeatureFlag::SSHTmuxWrapper.is_enabled() {
-                        return false;
-                    }
-                    let (starter, _) = current_shell_starter_and_version();
-                    starter.shell_type() != ShellType::PowerShell
-                })
-                .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-                .with_step(setup_gcloud_sdk())
-                .with_step(enter_ssh_command($shell))
-                .with_step(wait_for_password_prompt(0 /*tab_idx*/, $shell))
-                .with_step(
-                    enter_ssh_password().set_post_step_pause(std::time::Duration::from_millis(250)),
-                )
-                .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-                .with_step(
-                    new_step_with_default_assertions(
-                        "Assert active block is part of a remote session",
-                    )
-                    .add_assertion(assert_active_block_is_remote($shell, "ubuntu-14-04")),
-                )
-                .with_step(verify_login_shell($shell))
-        }
-    };
-}
-
-/// A macro to generate a test function to validate that we are able to
-/// bootstrap a given remote shell when using ssh.
 macro_rules! generate_can_bootstrap_tmux_ssh_test_for_shell {
     ($fn_name:ident, $shell:literal, $install_tmux:literal) => {
         /// Ensure we can successfully ssh into a $shell remote shell and bootstrap it
@@ -225,9 +189,6 @@ macro_rules! generate_can_bootstrap_tmux_ssh_test_for_shell {
             let builder = new_builder()
                 // TODO(CORE-2333) PowerShell has no SSH wrapper.
                 .set_should_run_test(|| {
-                    if !FeatureFlag::SSHTmuxWrapper.is_enabled() {
-                        return false;
-                    }
                     let (starter, _) = current_shell_starter_and_version();
                     starter.shell_type() != ShellType::PowerShell
                 })
@@ -289,8 +250,6 @@ macro_rules! generate_long_running_block_ssh_test_for_shell {
 
 // Generate test methods to validate expected ssh behavior for a variety of
 // remote shells.
-generate_can_bootstrap_legacy_ssh_test_for_shell!(test_legacy_ssh_into_bash, "bash");
-generate_can_bootstrap_legacy_ssh_test_for_shell!(test_legacy_ssh_into_zsh, "zsh");
 generate_can_bootstrap_tmux_ssh_test_for_shell!(test_tmux_ssh_into_bash, "bash", false);
 generate_can_bootstrap_tmux_ssh_test_for_shell!(test_tmux_ssh_into_zsh, "zsh", false);
 generate_can_bootstrap_tmux_ssh_test_for_shell!(test_install_tmux_ssh_into_bash, "bash", true);

@@ -239,14 +239,11 @@ fn test_keymap_bindings_list() {
 
 #[test]
 fn test_binding_description_preserves_case() {
-    let desc = BindingDescription::new_preserve_case("/add-mcp");
-    assert_eq!(desc.in_context(DescriptionContext::Default), "/add-mcp");
+    let desc = BindingDescription::new_preserve_case("/add-rule");
+    assert_eq!(desc.in_context(DescriptionContext::Default), "/add-rule");
 
-    let desc = BindingDescription::new_preserve_case("Add new MCP server");
-    assert_eq!(
-        desc.in_context(DescriptionContext::Default),
-        "Add new MCP server"
-    );
+    let desc = BindingDescription::new_preserve_case("Add new rule");
+    assert_eq!(desc.in_context(DescriptionContext::Default), "Add new rule");
 }
 
 #[test]

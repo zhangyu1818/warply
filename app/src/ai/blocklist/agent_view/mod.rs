@@ -26,24 +26,12 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::view_components::action_button::ActionButtonTheme;
 
-pub static ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE: LazyLock<Keystroke> = LazyLock::new(|| {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            Keystroke {
-                cmd: true,
-                key: "enter".to_owned(),
-                ..Default::default()
-            }
-        } else {
-            Keystroke {
-                ctrl: true,
-                shift: true,
-                key: "enter".to_owned(),
-                ..Default::default()
-            }
-        }
-    }
-});
+pub static ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE: LazyLock<Keystroke> =
+    LazyLock::new(|| Keystroke {
+        cmd: true,
+        key: "enter".to_owned(),
+        ..Default::default()
+    });
 
 pub fn agent_view_bg_fill(app: &AppContext) -> Fill {
     let appearance = Appearance::as_ref(app);

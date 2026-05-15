@@ -22,7 +22,7 @@ use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
+use crate::workflows::{SavedWorkflow, SavedWorkflowModel};
 use crate::workspace::ActiveSession;
 use crate::UserWorkspaces;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
@@ -1644,16 +1644,12 @@ Second command
 
 fn mock_workflow(id: i64, app: &mut App) {
     let sync_id = SyncId::ServerId(id.into());
-    let workflow = CloudWorkflow::new(
+    let workflow = SavedWorkflow::new(
         sync_id,
-        CloudWorkflowModel::new(Workflow::new(format!("w{id}"), format!("c{id}"))),
+        SavedWorkflowModel::new(Workflow::new(format!("w{id}"), format!("c{id}"))),
         CloudObjectMetadata {
             pending_changes_statuses: CloudObjectStatuses {
                 content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-                has_pending_metadata_change: false,
-                has_pending_permissions_change: false,
-                pending_untrash: false,
-                pending_delete: false,
             },
             folder_id: None,
             revision: Default::default(),

@@ -1,5 +1,3 @@
-#![cfg_attr(target_family = "wasm", allow(dead_code))]
-
 use std::{env, path::Path};
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -8,13 +6,10 @@ use url::Url;
 use crate::agent::OutputFormat;
 use warp_core::channel::ChannelState;
 
-pub mod skill;
-
 pub mod agent;
 pub mod completions;
 pub mod config_file;
 pub mod json_filter;
-pub mod mcp;
 pub mod model;
 
 /// Options related to the parent process that spawned this Warply instance.
@@ -93,22 +88,14 @@ impl Args {
     /// Parses command-line arguments from the operating environment. May exit early if arguments
     /// are incorrectly specified.
     pub fn from_env() -> Self {
-        cfg_if::cfg_if! {
-            // wasm doesn't have any concept of an environment, so skip parsing and return defaults
-            if #[cfg(target_family = "wasm")] {
-                Args::default()
-            } else {
-                use clap::FromArgMatches as _;
+        use clap::FromArgMatches as _;
 
-                let command = Self::clap_command();
+        let command = Self::clap_command();
 
-                command.try_get_matches()
-                    .and_then(|matches| Self::from_arg_matches(&matches))
-                    .unwrap_or_else(|err| {
-                        err.exit()
-                    })
-            }
-        }
+        command
+            .try_get_matches()
+            .and_then(|matches| Self::from_arg_matches(&matches))
+            .unwrap_or_else(|err| err.exit())
     }
 
     /// Construct the [`clap::Command`] that backs `Args`.
@@ -125,7 +112,7 @@ impl Args {
         command = command.after_help(color_print::cformat!(
             r#"<bold><underline>Examples:</underline></bold>
 
-  <dim>$</dim> <bold>{bin_name} mcp list</bold>
+  <dim>$</dim> <bold>{bin_name} model list</bold>
 
 <bold><underline>Learn more:</underline></bold>
 * Use <bold>{bin_name} help</bold> to learn more about each command
@@ -174,7 +161,6 @@ impl Args {
 pub enum WorkerCommand {
     /// Run the terminal server.
     #[clap(hide = true)]
-    #[cfg(target_os = "macos")]
     TerminalServer(TerminalServerArgs),
 
     /// Run this process as the plugin host rather than the main app.
@@ -188,19 +174,16 @@ pub enum WorkerCommand {
     /// Run the remote development server proxy over SSH stdio.
     /// Ensures the daemon is running, then bridges its stdin/stdout
     /// to the daemon via a Unix domain socket.
-    #[cfg(not(target_family = "wasm"))]
     #[clap(hide = true)]
     RemoteServerProxy(RemoteServerIdentityArgs),
 
     /// Run the long-lived remote development server daemon.
     /// Listens on a Unix domain socket and accepts multiple concurrent
     /// connections from proxy processes.
-    #[cfg(not(target_family = "wasm"))]
     #[clap(hide = true)]
     RemoteServerDaemon(RemoteServerIdentityArgs),
 
     /// Run a headless ripgrep search worker.
-    #[cfg(not(target_family = "wasm"))]
     #[clap(hide = true)]
     RipgrepSearch {
         #[clap(flatten)]
@@ -220,10 +203,6 @@ pub enum WorkerCommand {
 /// but it allows scripting some Warply functionality.
 #[derive(Debug, Clone, Subcommand)]
 pub enum CliCommand {
-    /// Manage MCP servers.
-    #[command(subcommand)]
-    MCP(crate::mcp::MCPCommand),
-
     /// Manage available models.
     #[command(subcommand)]
     Model(crate::model::ModelCommand),
@@ -290,17 +269,7 @@ pub fn terminal_server_subcommand() -> String {
         .to_string()
 }
 
-/// Returns the subcommand name to use for starting the installation detection server.
-pub fn installation_detection_server_subcommand() -> String {
-    <Args as CommandFactory>::command()
-        .find_subcommand("installation-detection-server")
-        .expect("installation-detection-server subcommand not found")
-        .get_name()
-        .to_string()
-}
-
 /// Returns the subcommand name to use for starting the ripgrep search worker.
-#[cfg(not(target_family = "wasm"))]
 pub fn ripgrep_search_subcommand() -> String {
     <Args as CommandFactory>::command()
         .find_subcommand("ripgrep-search")

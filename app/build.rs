@@ -1,9 +1,4 @@
-// We can use `std::process:Command` here because this is invoked within a build script,
-// _not_ within the Warply binary (where it could cause a terminal to temporarily flash on
-// Windows).
 #![allow(clippy::disallowed_types)]
-
-use cfg_aliases::cfg_aliases;
 
 use anyhow::Result;
 use std::path::Path;
@@ -12,11 +7,6 @@ use walkdir::WalkDir;
 use warp_util::path::app_target_dir;
 
 fn main() -> Result<()> {
-    cfg_aliases! {
-        linux_or_windows: { any(target_os = "linux", windows) },
-        enable_crash_recovery: { linux_or_windows },
-    }
-
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FAMILY");
@@ -24,7 +14,7 @@ fn main() -> Result<()> {
     let target_os = env::var("CARGO_CFG_TARGET_OS")?;
     let target_family = env::var("CARGO_CFG_TARGET_FAMILY")?;
 
-    add_features(&target_family, &target_os);
+    add_features(&target_family);
 
     if target_os == "macos" && target_family != "wasm" {
         println!("cargo:rustc-link-lib=framework=MetalKit");
@@ -122,13 +112,10 @@ fn get_build_profile_name() -> String {
         .to_string()
 }
 
-fn add_features(target_family: &str, target_os: &str) {
+fn add_features(target_family: &str) {
     if target_family != "wasm" {
         println!("cargo:rustc-cfg=feature=\"local_fs\"");
         println!("cargo:rustc-cfg=feature=\"local_tty\"");
-    }
-
-    if target_os != "windows" {
         println!("cargo:rustc-cfg=feature=\"iterm_images\"");
     }
 

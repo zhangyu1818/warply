@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use uuid::Uuid;
-
 use warp_util::path::EscapeChar;
 use warpui::{App, EntityId, ModelHandle};
 
@@ -19,12 +17,10 @@ use crate::{
         execution_profiles::{
             profiles::AIExecutionProfilesModel, ActionPermission, WriteToPtyPermission,
         },
-        mcp::templatable_manager::TemplatableMCPServerManager,
     },
     cloud_object::model::persistence::CloudModel,
     cloud_object::update_manager::UpdateManager,
     identity::LocalIdentityProvider,
-    network::NetworkStatus,
     settings::AgentModeCommandExecutionPredicate,
     test_util::settings::initialize_settings_for_tests,
     GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
@@ -50,10 +46,8 @@ fn initialize_permissions_test(app: &mut App) -> PermissionsTestState {
     let permissions = app.add_singleton_model(BlocklistAIPermissions::new);
     let terminal_view_id = EntityId::new();
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     let profile_model = app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
     });
@@ -220,56 +214,6 @@ fn test_can_write_files() {
                 FileWritePermission::Denied(FileWritePermissionDeniedReason::AlwaysAskEnabled)
             ));
         });
-    })
-}
-
-#[test]
-fn test_can_write_files_mcp_config_always_denied() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            terminal_view_id,
-            convo_id,
-            permissions,
-            profile_model,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        // Even with AlwaysAllow, writing to an MCP config must be denied.
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_apply_code_diffs(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAllow,
-                ctx,
-            );
-        });
-
-        let mcp_config_paths = vec![
-            PathBuf::from("/project/.mcp.json"),
-            PathBuf::from("/project/.warp/.mcp.json"),
-            PathBuf::from("/project/.codex/config.toml"),
-        ];
-
-        for path in mcp_config_paths {
-            permissions.read(&app, |model, ctx| {
-                let result = model.can_write_files(
-                    &convo_id,
-                    std::slice::from_ref(&path),
-                    Some(terminal_view_id),
-                    ctx,
-                );
-                assert!(
-                    !result.is_allowed(),
-                    "expected MCP config path {path:?} to be denied"
-                );
-                assert!(
-                    matches!(
-                        result,
-                        FileWritePermission::Denied(FileWritePermissionDeniedReason::ProtectedPath)
-                    ),
-                    "expected ProtectedPath denial for {path:?}, got {result:?}"
-                );
-            });
-        }
     })
 }
 
@@ -445,6 +389,46 @@ fn test_can_autoexecute_command_run_to_completion_allows_non_denylisted() {
 }
 
 #[test]
+fn test_can_autoexecute_command_agent_decides_allows_not_risky() {
+    App::test((), |mut app| async move {
+        let PermissionsTestState {
+            convo_id,
+            permissions,
+            profile_model,
+            terminal_view_id,
+            ..
+        } = initialize_permissions_test(&mut app);
+
+        profile_model.update(&mut app, |model, ctx| {
+            model.set_execute_commands(
+                *model.active_profile(Some(terminal_view_id), ctx).id(),
+                &ActionPermission::AgentDecides,
+                ctx,
+            );
+        });
+
+        permissions.read(&app, |model, ctx| {
+            let result = model.can_autoexecute_command(
+                &convo_id,
+                "make test",
+                EscapeChar::Backslash,
+                false,
+                Some(false),
+                Some(terminal_view_id),
+                ctx,
+            );
+            assert!(result.is_allowed());
+            assert!(matches!(
+                result,
+                CommandExecutionPermission::Allowed(
+                    CommandExecutionPermissionAllowedReason::AgentDecided
+                )
+            ));
+        });
+    })
+}
+
+#[test]
 fn test_can_write_to_pty() {
     App::test((), |mut app| async move {
         let PermissionsTestState {
@@ -466,267 +450,6 @@ fn test_can_write_to_pty() {
         permissions.read(&app, |model, ctx| {
             let result = model.can_write_to_pty(&convo_id, Some(terminal_view_id), ctx);
             assert_eq!(result, WriteToPtyPermission::AlwaysAllow);
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_always_allow_no_denylist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAllow,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Any server should be allowed when AlwaysAllow and not denylisted.
-            assert!(model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-            // None UUID should also be allowed (no denylist match possible).
-            assert!(model.can_use_mcp_server(&convo_id, None, Some(terminal_view_id), ctx));
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_always_allow_with_denylist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-        let other_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAllow,
-                ctx,
-            );
-            model.add_to_mcp_denylist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Denylisted server should be denied.
-            assert!(!model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-            // Non-denylisted server should be allowed.
-            assert!(model.can_use_mcp_server(
-                &convo_id,
-                Some(other_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_always_ask_with_allowlist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-        let other_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAsk,
-                ctx,
-            );
-            model.add_to_mcp_allowlist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Allowlisted server should be allowed.
-            assert!(model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-            // Non-allowlisted server should be denied.
-            assert!(!model.can_use_mcp_server(
-                &convo_id,
-                Some(other_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-            // None UUID should be denied.
-            assert!(!model.can_use_mcp_server(&convo_id, None, Some(terminal_view_id), ctx));
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_always_ask_denylist_overrides_allowlist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AlwaysAsk,
-                ctx,
-            );
-            model.add_to_mcp_allowlist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-            model.add_to_mcp_denylist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Both allowlisted and denylisted: denylist wins.
-            assert!(!model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_agent_decides() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-        let other_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AgentDecides,
-                ctx,
-            );
-            model.add_to_mcp_allowlist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Allowlisted and not denylisted should be allowed.
-            assert!(model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-            // Not allowlisted should be denied.
-            assert!(!model.can_use_mcp_server(
-                &convo_id,
-                Some(other_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
-        });
-    })
-}
-
-#[test]
-fn test_can_use_mcp_server_agent_decides_denylist_overrides_allowlist() {
-    App::test((), |mut app| async move {
-        let PermissionsTestState {
-            convo_id,
-            permissions,
-            profile_model,
-            terminal_view_id,
-            ..
-        } = initialize_permissions_test(&mut app);
-
-        let server_uuid = Uuid::new_v4();
-
-        profile_model.update(&mut app, |model, ctx| {
-            model.set_mcp_permissions(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &ActionPermission::AgentDecides,
-                ctx,
-            );
-            model.add_to_mcp_allowlist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-            model.add_to_mcp_denylist(
-                *model.active_profile(Some(terminal_view_id), ctx).id(),
-                &server_uuid,
-                ctx,
-            );
-        });
-
-        permissions.read(&app, |model, ctx| {
-            // Both allowlisted and denylisted: denylist wins.
-            assert!(!model.can_use_mcp_server(
-                &convo_id,
-                Some(server_uuid),
-                Some(terminal_view_id),
-                ctx
-            ));
         });
     })
 }

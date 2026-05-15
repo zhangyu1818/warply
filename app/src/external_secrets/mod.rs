@@ -1,7 +1,3 @@
-// Most of this module is dead code on web as it is not possible to retrieve
-// external secrets from the browser.
-#![cfg_attr(target_family = "wasm", allow(dead_code, unused_variables))]
-
 use anyhow::anyhow;
 use core::fmt;
 use itertools::Itertools;
@@ -11,7 +7,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use warp_util::path::ShellFamily;
 
-#[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+#[cfg(feature = "local_tty")]
 use crate::terminal::local_shell::execute_command;
 
 use crate::{terminal::shell::ShellType, ui_components::icons::Icon};
@@ -95,7 +91,6 @@ pub enum SecretManager {
 pub enum SecretErrorType {
     NotInstalled,
     FetchFailed,
-    InvalidPlatform,
 }
 
 pub struct ErrorMessageAndCommand {
@@ -111,7 +106,7 @@ impl SecretManager {
         shell_path: PathBuf,
         path_env_var: Option<String>,
     ) -> bool {
-        #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+        #[cfg(feature = "local_tty")]
         {
             match self {
                 SecretManager::OnePassword => {
@@ -146,7 +141,7 @@ impl SecretManager {
         shell_path: PathBuf,
         path_env_var: Option<String>,
     ) -> Option<Vec<ExternalSecret>> {
-        #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
+        #[cfg(feature = "local_tty")]
         {
             match self {
                 SecretManager::OnePassword => {
@@ -187,28 +182,23 @@ impl SecretManager {
         shell_path: PathBuf,
         path_env_var: Option<String>,
     ) -> Result<Vec<ExternalSecret>, SecretErrorType> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let is_installed = self
-                .is_installed(shell_type, shell_path.clone(), path_env_var.clone())
-                .await;
+        let is_installed = self
+            .is_installed(shell_type, shell_path.clone(), path_env_var.clone())
+            .await;
 
-            if !is_installed {
-                return Err(SecretErrorType::NotInstalled);
-            }
-
-            let secrets = self
-                .fetch_secrets(shell_type, shell_path, path_env_var)
-                .await;
-
-            if let Some(secrets) = secrets {
-                return Ok(secrets);
-            } else {
-                return Err(SecretErrorType::FetchFailed);
-            }
+        if !is_installed {
+            return Err(SecretErrorType::NotInstalled);
         }
-        #[allow(unreachable_code)]
-        Err(SecretErrorType::InvalidPlatform)
+
+        let secrets = self
+            .fetch_secrets(shell_type, shell_path, path_env_var)
+            .await;
+
+        if let Some(secrets) = secrets {
+            Ok(secrets)
+        } else {
+            Err(SecretErrorType::FetchFailed)
+        }
     }
 
     pub fn get_toast_message_and_link(
@@ -250,11 +240,6 @@ impl SecretManager {
                     link_message,
                 }
             }
-            SecretErrorType::InvalidPlatform => ErrorMessageAndCommand {
-                message: "Platform not supported".to_owned(),
-                link: None,
-                link_message: None,
-            },
         }
     }
 }

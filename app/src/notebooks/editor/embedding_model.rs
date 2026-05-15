@@ -31,7 +31,7 @@ use crate::{
     themes::theme::AnsiColorIdentifier,
     ui_components::icons::Icon,
     util::bindings::CustomAction,
-    workflows::{CloudWorkflow, WorkflowId},
+    workflows::{SavedWorkflow, WorkflowId},
 };
 
 use super::{
@@ -177,7 +177,7 @@ impl NotebookEmbed {
         self.highlight_syntax(ctx);
     }
 
-    fn maybe_get_workflow<'a>(&self, ctx: &'a AppContext) -> Option<&'a CloudWorkflow> {
+    fn maybe_get_workflow<'a>(&self, ctx: &'a AppContext) -> Option<&'a SavedWorkflow> {
         let cloud_model = CloudModel::as_ref(ctx);
 
         // Currently we are only supporting embedded workflows. We could support
@@ -185,7 +185,7 @@ impl NotebookEmbed {
         let id = WorkflowId::from_hash(&self.hashed_id)?;
         cloud_model
             .get_by_uid(&id.to_server_id().uid())
-            .and_then(|object| object.as_any().downcast_ref::<CloudWorkflow>())
+            .and_then(|object| object.as_any().downcast_ref::<SavedWorkflow>())
             .and_then(|workflow| {
                 if workflow.is_trashed(cloud_model) {
                     None
@@ -205,7 +205,7 @@ impl NotebookEmbed {
 
     fn render_footer_for_workflow(
         &self,
-        workflow: &CloudWorkflow,
+        workflow: &SavedWorkflow,
         appearance: &Appearance,
         ctx: &AppContext,
     ) -> Box<dyn Element> {
@@ -214,7 +214,7 @@ impl NotebookEmbed {
             .with_main_axis_alignment(MainAxisAlignment::End);
 
         let workflow_id = workflow.id;
-        let workflow_info = NotebookWorkflow::from_cloud_workflow(Box::new(workflow.clone()));
+        let workflow_info = NotebookWorkflow::from_saved_workflow(Box::new(workflow.clone()));
         let block_info = BlockInfo::EmbeddedWorkflow {
             workflow_id: workflow_id.into_server().map(Into::into),
         };
@@ -355,7 +355,7 @@ impl ChildModelHandle for ModelHandle<NotebookEmbed> {
         // more drive objects in the future.
         self.as_ref(app)
             .maybe_get_workflow(app)
-            .map(|workflow| NotebookWorkflow::from_cloud_workflow(Box::new(workflow.clone())))
+            .map(|workflow| NotebookWorkflow::from_saved_workflow(Box::new(workflow.clone())))
     }
 
     fn executable_command<'a>(&'a self, app: &'a AppContext) -> Option<Cow<'a, str>> {

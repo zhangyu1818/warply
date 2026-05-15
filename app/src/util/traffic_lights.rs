@@ -26,7 +26,6 @@ pub enum TrafficLightSide {
 }
 
 #[derive(Default)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct TrafficLightMouseStates {
     pub minimize_window_button: MouseStateHandle,
     pub maximize_window_button: MouseStateHandle,

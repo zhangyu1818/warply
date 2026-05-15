@@ -23,7 +23,7 @@ use super::{new_builder, TEST_ONLY_ASSETS};
 
 /// The `history_with_metadata.sqlite` table looks like the following:
 ///
-/// |id|command                 |exit_code|start_ts                  |completed_ts              |pwd        |shell|username      |hostname      |session_id     |git_branch|cloud_workflow_id|workflow_command   |
+/// |id|command                 |exit_code|start_ts                  |completed_ts              |pwd        |shell|username      |hostname      |session_id     |git_branch|saved_workflow_id|workflow_command   |
 /// |1 |echo "foo"              |0        |2023-07-11 16:29:32.092176|2023-07-11 16:29:33.124078|/Users/user|zsh  |local:user    |local:host    |168911816423351|NULL      |NULL             |NULL               |
 /// |2 |[[ -n "foo" ]]          |0        |2023-07-11 16:29:34.837961|2023-07-11 16:29:33.124078|/Users/user|zsh  |local:user    |local:host    |168911816423351|NULL      |NULL             |[[ -n {{string}} ]]|
 /// |3 |echo "bar"              |0        |2023-07-11 16:29:42.000000|2023-07-11 16:29:43.000000|/Users/user|zsh  |local:user    |local:host    |168911816423351|NULL      |NULL             |NULL               |

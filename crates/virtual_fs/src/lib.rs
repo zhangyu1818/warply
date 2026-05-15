@@ -30,7 +30,6 @@ pub enum Stub<'a> {
     FileWithContent(&'a str, &'a str),
     FileWithContentToBeTrimmed(&'a str, &'a str),
     EmptyFile(&'a str),
-    #[cfg(unix)]
     MockExecutable(&'a str),
 }
 
@@ -80,7 +79,6 @@ impl VirtualFS {
         self
     }
 
-    #[cfg(unix)]
     pub fn ln<T, U>(&mut self, target: T, link: U) -> &mut Self
     where
         T: AsRef<std::path::Path>,
@@ -106,7 +104,6 @@ impl VirtualFS {
 
                 let (file_name, contents) = match *f {
                     Stub::EmptyFile(name) => (name, "fake data".to_string()),
-                    #[cfg(unix)]
                     Stub::MockExecutable(name) => (name, "fake data".to_string()),
                     Stub::FileWithContent(name, content) => (name, content.to_string()),
                     Stub::FileWithContentToBeTrimmed(name, content) => (
@@ -124,7 +121,6 @@ impl VirtualFS {
 
                 std::fs::write(&path, contents.as_bytes()).expect("can not create file");
 
-                #[cfg(unix)]
                 {
                     if matches!(f, Stub::MockExecutable(_)) {
                         use std::os::unix::fs::PermissionsExt;

@@ -17,7 +17,6 @@ pub mod manager;
 mod pane;
 mod scroll;
 mod select;
-mod ssh;
 mod theme;
 mod vim_banner;
 
@@ -40,7 +39,6 @@ pub use input_mode::*;
 pub use pane::*;
 pub use scroll::*;
 pub use select::*;
-pub use ssh::*;
 pub use theme::*;
 pub use vim_banner::*;
 /// Describes errors encountered when loading settings from `settings.toml`.

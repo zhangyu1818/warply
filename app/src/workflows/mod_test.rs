@@ -5,7 +5,7 @@ use crate::object_ids::SyncId;
 use super::workflow::{Argument, Workflow};
 
 #[test]
-fn test_serialize_cloud_workflow() {
+fn test_serialize_saved_workflow() {
     App::test((), |_app| async move {
         let sample_workflow = Workflow::new("Test name", "Command name");
         assert_eq!(

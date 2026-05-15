@@ -1,5 +1,4 @@
-use warp_core::features::FeatureFlag;
-use warpui::{elements::MouseStateHandle, AppContext, Element};
+use warpui::{AppContext, Element};
 
 use crate::{
     appearance::Appearance,
@@ -46,13 +45,11 @@ impl LocalObjectItem for LocalObjectFolder {
     fn icon(&self, appearance: &Appearance, color: Option<Fill>) -> Option<Box<dyn Element>> {
         let icon_fill =
             color.unwrap_or(local_object_icon_color(appearance, DriveObjectType::Folder).into());
-        let icon = if FeatureFlag::WarpPacks.is_enabled() && self.folder.model().is_warp_pack {
-            Icon::PackageCheck
-        } else {
+        Some(
             Icon::from(DriveObjectType::Folder)
-        };
-
-        Some(icon.to_warpui_icon(icon_fill).finish())
+                .to_warpui_icon(icon_fill)
+                .finish(),
+        )
     }
 
     fn secondary_icon(&self, _color: Option<Fill>) -> Option<Box<dyn Element>> {
@@ -69,17 +66,6 @@ impl LocalObjectItem for LocalObjectFolder {
 
     fn local_object_id(&self) -> LocalObjectItemId {
         LocalObjectItemId::Object(self.id)
-    }
-
-    fn sync_status_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        self.folder
-            .metadata
-            .pending_changes_statuses
-            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, _app: &AppContext) -> Option<String> {

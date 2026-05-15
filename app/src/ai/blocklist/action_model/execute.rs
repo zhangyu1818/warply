@@ -1,25 +1,18 @@
 pub(super) mod ask_user_question;
-pub(super) mod call_mcp_tool;
 pub(super) mod create_documents;
 pub(super) mod edit_documents;
 pub(super) mod file_glob;
 pub(super) mod grep;
 pub(super) mod read_documents;
 pub(super) mod read_files;
-pub(super) mod read_mcp_resource;
-pub(super) mod read_skill;
 pub(super) mod request_computer_use;
 pub(super) mod request_file_edits;
 pub(super) mod search_codebase;
 pub(super) mod shell_command;
-pub(super) mod suggest_new_conversation;
-pub(super) mod suggest_prompt;
 pub(super) mod use_computer;
 
 use ai::agent::action_result::{InsertReviewCommentsResult, RequestCommandOutputResult};
 pub use ask_user_question::AskUserQuestionExecutor;
-pub(crate) use call_mcp_tool::coerce_integer_args;
-use call_mcp_tool::CallMCPToolExecutor;
 use create_documents::CreateDocumentsExecutor;
 use edit_documents::EditDocumentsExecutor;
 use file_glob::FileGlobExecutor;
@@ -27,15 +20,10 @@ use grep::GrepExecutor;
 use parking_lot::FairMutex;
 use read_documents::ReadDocumentsExecutor;
 pub(super) use read_files::ReadFilesExecutor;
-use read_mcp_resource::ReadMCPResourceExecutor;
-use read_skill::ReadSkillExecutor;
 use request_computer_use::RequestComputerUseExecutor;
 pub use request_file_edits::RequestFileEditsExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
-pub use suggest_new_conversation::NewConversationDecision;
-use suggest_new_conversation::SuggestNewConversationExecutor;
-pub use suggest_prompt::PromptSuggestionExecutor;
 use use_computer::UseComputerExecutor;
 use warp_core::{execution_mode::AppExecutionMode, features::FeatureFlag};
 
@@ -70,7 +58,7 @@ use crate::{
         agent::{
             conversation::AIConversationId, AIAgentAction, AIAgentActionId, AIAgentActionResult,
             AIAgentActionResultType, AIAgentActionType, CancellationReason, FileContext,
-            FileLocations, ServerOutputId,
+            FileLocations,
         },
         get_relevant_files::controller::GetRelevantFilesController,
     },
@@ -80,7 +68,6 @@ use crate::{
         shell::ShellType,
         ShellLaunchData, TerminalModel,
     },
-    BlocklistAIHistoryModel,
 };
 
 /// Types of actions that can be executed in parallel.
@@ -96,7 +83,7 @@ pub(super) enum ParallelExecutionPolicy {
 pub(super) enum RunningActionPhase {
     /// A barrier action that must run by itself.
     Serial,
-    /// A phase where several actions from the same compatibility group may be in flight together.
+    /// A phase where several actions using the same parallel policy may be in flight together.
     Parallel(ParallelExecutionPolicy),
 }
 
@@ -222,16 +209,11 @@ pub struct BlocklistAIActionExecutor {
     request_file_edits_executor: ModelHandle<RequestFileEditsExecutor>,
     grep_executor: ModelHandle<GrepExecutor>,
     file_glob_executor: ModelHandle<FileGlobExecutor>,
-    read_mcp_resource_executor: ModelHandle<ReadMCPResourceExecutor>,
-    call_mcp_tool_executor: ModelHandle<CallMCPToolExecutor>,
-    suggest_new_conversation_executor: ModelHandle<SuggestNewConversationExecutor>,
-    suggest_prompt_executor: ModelHandle<PromptSuggestionExecutor>,
     read_documents_executor: ModelHandle<ReadDocumentsExecutor>,
     edit_documents_executor: ModelHandle<EditDocumentsExecutor>,
     create_documents_executor: ModelHandle<CreateDocumentsExecutor>,
     use_computer_executor: ModelHandle<UseComputerExecutor>,
     request_computer_use_executor: ModelHandle<RequestComputerUseExecutor>,
-    read_skill_executor: ModelHandle<ReadSkillExecutor>,
     ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
@@ -273,13 +255,6 @@ impl BlocklistAIActionExecutor {
             ctx.add_model(|_| GrepExecutor::new(active_session.clone(), terminal_view_id));
         let file_glob_executor =
             ctx.add_model(|_| FileGlobExecutor::new(active_session.clone(), terminal_view_id));
-        let read_mcp_resource_executor = ctx
-            .add_model(|_| ReadMCPResourceExecutor::new(active_session.clone(), terminal_view_id));
-        let call_mcp_tool_executor =
-            ctx.add_model(|_| CallMCPToolExecutor::new(active_session.clone(), terminal_view_id));
-        let suggest_new_conversation_executor =
-            ctx.add_model(|_| SuggestNewConversationExecutor::new());
-        let suggest_prompt_executor = ctx.add_model(|_| PromptSuggestionExecutor::new());
         let read_documents_executor = ctx.add_model(|_| ReadDocumentsExecutor::new());
         let edit_documents_executor = ctx.add_model(|_| EditDocumentsExecutor::new());
         let create_documents_executor = ctx
@@ -287,7 +262,6 @@ impl BlocklistAIActionExecutor {
         let use_computer_executor = ctx.add_model(|_| UseComputerExecutor::new());
         let request_computer_use_executor =
             ctx.add_model(|_| RequestComputerUseExecutor::new(terminal_view_id));
-        let read_skill_executor = ctx.add_model(|_| ReadSkillExecutor::new());
         let ask_user_question_executor =
             ctx.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         Self {
@@ -297,17 +271,12 @@ impl BlocklistAIActionExecutor {
             request_file_edits_executor,
             grep_executor,
             file_glob_executor,
-            read_mcp_resource_executor,
-            call_mcp_tool_executor,
-            suggest_new_conversation_executor,
-            suggest_prompt_executor,
             read_documents_executor,
             edit_documents_executor,
             create_documents_executor,
             use_computer_executor,
             request_computer_use_executor,
             async_executing_actions: Default::default(),
-            read_skill_executor,
             ask_user_question_executor,
         }
     }
@@ -330,21 +299,9 @@ impl BlocklistAIActionExecutor {
         &self.search_codebase_executor
     }
 
-    pub fn suggest_new_conversation_executor(
-        &self,
-    ) -> &ModelHandle<SuggestNewConversationExecutor> {
-        &self.suggest_new_conversation_executor
-    }
-
-    pub fn suggest_prompt_executor(&self) -> &ModelHandle<PromptSuggestionExecutor> {
-        &self.suggest_prompt_executor
-    }
-
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
         match &action.action {
-            AIAgentActionType::ReadFiles(..)
-            | AIAgentActionType::SearchCodebase(..)
-            | AIAgentActionType::ReadSkill(_) => {
+            AIAgentActionType::ReadFiles(..) | AIAgentActionType::SearchCodebase(..) => {
                 RunningActionPhase::Parallel(ParallelExecutionPolicy::ReadOnlyLocalContext)
             }
             AIAgentActionType::Grep { .. }
@@ -476,26 +433,10 @@ impl BlocklistAIActionExecutor {
                 .file_glob_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::CallMCPTool { .. } => self
-                .call_mcp_tool_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::ReadMCPResource { .. } => self
-                .read_mcp_resource_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
             // Normally, requested file edits are not handled by the executor. However, when performing a task autonomously,
             // the executor is responsible for auto-approving diffs.
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SuggestNewConversation { .. } => self
-                .suggest_new_conversation_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SuggestPrompt { .. } => self
-                .suggest_prompt_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
             AIAgentActionType::ReadDocuments(_) => self
@@ -518,10 +459,6 @@ impl BlocklistAIActionExecutor {
                 .into(),
             AIAgentActionType::RequestComputerUse(_) => self
                 .request_computer_use_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::ReadSkill(_) => self
-                .read_skill_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
             AIAgentActionType::AskUserQuestion { .. } => self
@@ -676,21 +613,9 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::FileGlob { .. } | AIAgentActionType::FileGlobV2 { .. } => self
                 .file_glob_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::CallMCPTool { .. } => self
-                .call_mcp_tool_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::ReadMCPResource { .. } => self
-                .read_mcp_resource_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::InitProject => true,
             AIAgentActionType::OpenCodeReview => true,
             AIAgentActionType::InsertCodeReviewComments { .. } => true,
-            AIAgentActionType::SuggestNewConversation { .. } => self
-                .suggest_new_conversation_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SuggestPrompt { .. } => self
-                .suggest_prompt_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::ReadDocuments(_) => self
                 .read_documents_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
@@ -705,9 +630,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::RequestComputerUse(_) => self
                 .request_computer_use_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::ReadSkill(_) => self
-                .read_skill_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
@@ -1019,17 +941,6 @@ async fn is_git_repository(absolute_path: &str, session: &Session) -> anyhow::Re
         )
         .await?;
     Ok(command_output.success())
-}
-
-fn get_server_output_id(
-    conversation_id: AIConversationId,
-    ctx: &mut AppContext,
-) -> Option<ServerOutputId> {
-    BlocklistAIHistoryModel::as_ref(ctx)
-        .conversation(&conversation_id)?
-        .latest_exchange()?
-        .output_status
-        .server_output_id()
 }
 
 #[cfg(feature = "local_fs")]

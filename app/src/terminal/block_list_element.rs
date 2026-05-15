@@ -25,6 +25,7 @@ use vec1::Vec1;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::builder::UiBuilder;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_core::SessionId;
 use warp_util::user_input::UserInput;
 use warpui::platform::Cursor;
 use warpui::text::SelectionType;
@@ -68,7 +69,6 @@ use super::model::blocks::{RichContentItem, SelectionRange};
 use super::model::grid::grid_handler::{Link, TermMode};
 use super::model::image_map::StoredImageMetadata;
 use super::model::mouse::{MouseAction, MouseButton, MouseState};
-use super::model::session::SessionId;
 use super::model::terminal_model::{SelectedBlocks, WithinBlock, WithinModel};
 use super::model::SecretHandle;
 use super::view::{
@@ -137,7 +137,7 @@ const POLYNOMIAL_SCROLLING: ScrollingAcceleration =
 const LINEAR_SCROLLING: ScrollingAcceleration = ScrollingAcceleration::Polynomial(1.);
 
 /// Height for a block hover button element.
-/// Without making the vertical size fixed, for some reason some elements (bookmark, block filter, shared session avatar)
+/// Without making the vertical size fixed, for some reason some elements
 /// have a height that extends down to the bottom of the window when there's a horizontal scroll bar, which messes with the on-hover behavior.
 const BLOCK_HOVER_BUTTON_HEIGHT: f32 = 28.;
 
@@ -3676,27 +3676,15 @@ impl Element for BlockListElement {
                             );
                         }
 
-                        if FeatureFlag::BlockToolbeltSaveAsWorkflow.is_enabled() {
-                            if let Some(save_as_workflow_button) =
-                                self.save_as_workflow_button.as_mut()
-                            {
-                                save_as_workflow_button.paint(bookmark_button_origin, ctx, app);
-                            }
+                        if let Some(save_as_workflow_button) = self.save_as_workflow_button.as_mut()
+                        {
+                            save_as_workflow_button.paint(bookmark_button_origin, ctx, app);
                         }
                     }
 
                     // When a block has an active filter on it, we want the filter icon to show even when the block is not hovered over.
                     if let Some(filter_element) = self.filter_elements.get_mut(block_index) {
                         filter_element.paint(filter_button_origin, ctx, app);
-                    }
-
-                    if !FeatureFlag::BlockToolbeltSaveAsWorkflow.is_enabled() {
-                        // When a block is bookmarked, we want the bookmark icon to show even when the block is not hovered over.
-                        if let Some(bookmark_element) = self.bookmark_elements.get_mut(block_index)
-                        {
-                            // Paint the bookmark icon to the left of the overflow button.
-                            bookmark_element.paint(bookmark_button_origin, ctx, app);
-                        }
                     }
 
                     // Paint the CLI subagent view on top of everything else for this block

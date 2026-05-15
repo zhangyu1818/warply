@@ -31,7 +31,7 @@ use crate::{
     terminal::{
         model::{
             block::BlockMetadata,
-            session::{CommandExecutor, ExecuteCommandOptions, SessionId, SessionInfo, Sessions},
+            session::{CommandExecutor, ExecuteCommandOptions, SessionInfo, Sessions},
         },
         session_settings::{GithubPrPromptChipDefaultValidation, SessionSettings},
         shell::Shell,
@@ -42,6 +42,7 @@ use crate::{
 #[cfg(feature = "local_fs")]
 use repo_metadata::DirectoryWatcher;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
+use warp_core::SessionId;
 
 use super::{ChipUpdateStatus, CurrentPrompt, PromptContext};
 

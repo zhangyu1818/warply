@@ -37,7 +37,6 @@ use crate::terminal::model::tmux::{
 };
 
 use crate::terminal::model::tmux::ControlModeEvent;
-use crate::{safe_debug, safe_error};
 use byte_unit::{Byte, Unit as ByteUnit};
 use hex;
 use lazy_static::lazy_static;
@@ -49,6 +48,7 @@ use std::str::FromStr as _;
 use std::time::Duration;
 use std::{io, str};
 use vte::{Params, Parser as VteParser, Perform as VtePerform};
+use warp_core::{safe_debug, safe_error};
 use warpui::color::ColorU;
 
 use super::kitty::parse_kitty_chunk;
@@ -768,11 +768,7 @@ where
 
     #[inline]
     fn hook(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, c: char) {
-        if FeatureFlag::SSHTmuxWrapper.is_enabled()
-            && c == 'p'
-            && params.len() == 1
-            && params.iter().next() == Some(&[1000])
-        {
+        if c == 'p' && params.len() == 1 && params.iter().next() == Some(&[1000]) {
             debug!("Entering tmux control mode, pending pane information.");
             self.state.tmux_control_mode = Some(TmuxControlMode::new());
         }

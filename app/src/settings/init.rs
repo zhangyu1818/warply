@@ -30,7 +30,7 @@ use super::{
     app_icon::AppIconSettings, AISettings, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings, FontSettings,
     FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
-    PaneSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
+    PaneSettings, ScrollSettings, SelectionSettings, ThemeSettings, VimBannerSettings,
 };
 
 pub struct UserDefaultsOnStartup {
@@ -75,7 +75,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     WarpifySettings::register(ctx);
     AltScreenReporting::register(ctx);
     UndoCloseSettings::register(ctx);
-    SshSettings::register(ctx);
     VimBannerSettings::register(ctx);
     WorkflowAliases::register(ctx);
     SemanticSelection::register(ctx);
@@ -230,12 +229,10 @@ fn init_platform_native_preferences() -> user_preferences::Model {
                     Box::<user_preferences::in_memory::InMemoryPreferences>::default()
                 }
             }
-        } else if #[cfg(target_os = "macos")] {
+        } else {
             Box::new(user_preferences::user_defaults::UserDefaultsPreferencesStorage::new(
                 warp_core::channel::ChannelState::data_domain_if_not_default()
             ))
-        } else {
-            unreachable!("Unspecified user preferences implementation for current platform!");
         }
     }
 }

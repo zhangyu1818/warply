@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use warpui::{
-    elements::{Clipped, Container, Flex, MouseStateHandle, ParentElement},
+    elements::{Clipped, Container, Flex, ParentElement},
     fonts::Weight,
     ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element, SingletonEntity,
@@ -13,7 +13,7 @@ use crate::{
         CloudObjectMetadata,
     },
     drive::{CloudObjectTypeAndId, DriveObjectType},
-    env_vars::{CloudEnvVarCollection, EnvVarValue},
+    env_vars::{EnvVarValue, SavedEnvVarCollection},
     themes::theme::Fill,
 };
 
@@ -22,11 +22,11 @@ use super::{LocalObjectItem, LocalObjectItemId};
 #[derive(Clone)]
 pub struct LocalObjectEnvVarCollection {
     id: CloudObjectTypeAndId,
-    env_var_collection: CloudEnvVarCollection,
+    env_var_collection: SavedEnvVarCollection,
 }
 
 impl LocalObjectEnvVarCollection {
-    pub fn new(id: CloudObjectTypeAndId, env_var_collection: CloudEnvVarCollection) -> Self {
+    pub fn new(id: CloudObjectTypeAndId, env_var_collection: SavedEnvVarCollection) -> Self {
         Self {
             id,
             env_var_collection,
@@ -146,17 +146,6 @@ impl LocalObjectItem for LocalObjectEnvVarCollection {
 
     fn local_object_id(&self) -> LocalObjectItemId {
         LocalObjectItemId::Object(self.id)
-    }
-
-    fn sync_status_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        self.env_var_collection
-            .metadata
-            .pending_changes_statuses
-            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, app: &AppContext) -> Option<String> {

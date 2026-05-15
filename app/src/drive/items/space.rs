@@ -1,4 +1,4 @@
-use warpui::{elements::MouseStateHandle, Element};
+use warpui::Element;
 
 use crate::{
     appearance::Appearance,
@@ -44,14 +44,6 @@ impl LocalObjectItem for LocalObjectSpace {
 
     fn local_object_id(&self) -> LocalObjectItemId {
         LocalObjectItemId::Space(self.space)
-    }
-
-    fn sync_status_icon(
-        &self,
-        _hover_state: MouseStateHandle,
-        _appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        None
     }
 
     fn clone_box(&self) -> Box<dyn LocalObjectItem> {

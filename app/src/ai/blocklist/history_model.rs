@@ -32,7 +32,7 @@ use crate::{
     ai::agent::{
         conversation::{AIConversation, AIConversationId},
         AIAgentActionId, AIAgentExchange, AIAgentInput, AIAgentOutputStatus, FinishedAIAgentOutput,
-        RenderableAIError, Suggestions,
+        RenderableAIError,
     },
     persistence::model::AgentConversation,
     ui_components::icons::Icon,
@@ -347,15 +347,6 @@ impl BlocklistAIHistoryModel {
                     .is_some_and(|conversation| conversation.contains_action(action_id))
             })
             .copied()
-    }
-
-    pub fn existing_suggestions_for_conversation(
-        &self,
-        conversation_id: AIConversationId,
-    ) -> Option<&Suggestions> {
-        self.conversations_by_id
-            .get(&conversation_id)
-            .and_then(|c| c.existing_suggestions())
     }
 
     /// The active conversation is the one we're currently or have most recently streamed outputs for.
@@ -1366,7 +1357,6 @@ impl BlocklistAIHistoryModel {
     /// Returns `Some` with the [`AIConversationId`] of the last conversation created for a given
     /// [`crate::terminal::TerminalView`] with the given [`EntityId`] if there is one. Returns
     /// `None` otherwise.
-    #[cfg_attr(target_family = "wasm", allow(unused))]
     pub(crate) fn last_conversation_id(
         &self,
         terminal_view_id: EntityId,
@@ -1481,7 +1471,7 @@ impl BlocklistAIHistoryModel {
     }
 
     /// Mark conversations as historical
-    /// Historical conversations consist of non-live conversations that were read from the disk or server on startup,
+    /// Historical conversations consist of non-live conversations that were read from disk on startup,
     /// and conversations (recorded here) that were live this session but have now been cleared.
     pub fn mark_conversations_historical_for_terminal_view(&mut self, terminal_view_id: EntityId) {
         if self.is_terminal_view_conversation_transcript_viewer(terminal_view_id) {

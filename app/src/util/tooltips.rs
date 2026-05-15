@@ -136,7 +136,7 @@ where
             ) {
                 "This wasn't included in the AI conversation."
             } else {
-                "This won't be included in any AI conversations or shared blocks."
+                "This won't be included in any AI conversations."
             };
 
             // Generate the appropriate message based on secret level

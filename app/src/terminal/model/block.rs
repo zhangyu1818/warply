@@ -3,7 +3,7 @@ mod serialized_block;
 
 pub use interaction_mode::*;
 pub use serialized_block::*;
-use warp_core::features::FeatureFlag;
+use warp_core::{features::FeatureFlag, SessionId};
 
 use super::grid::grid_handler::{GridHandler, PerformResetGridChecks};
 use super::grid::{Cursor, RespectDisplayedOutput};
@@ -40,7 +40,6 @@ use crate::{
             index::{Point, VisibleRow},
             iterm_image::ITermImage,
             secrets::ObfuscateSecrets,
-            session::SessionId,
             terminal_model::{BlockIndex, WithinBlock},
             GridStorage,
         },
@@ -371,12 +370,12 @@ pub struct Block {
 
     filter_query: Option<BlockFilterQuery>,
 
-    /// If the command is a cloud workflow, this is set to its id. If the block was not a workflow,
+    /// If the command is a saved workflow, this is set to its id. If the block was not a workflow,
     /// this is None.
-    cloud_workflow_id: Option<SyncId>,
+    saved_workflow_id: Option<SyncId>,
 
     /// If the command included an env var invocation. If not this will be None.
-    cloud_env_var_collection_id: Option<SyncId>,
+    env_var_collection_id: Option<SyncId>,
 
     /// The last time this block was painted (i.e.: visible in the window),
     /// if ever.
@@ -977,8 +976,8 @@ impl Block {
             prompt_snapshot: None,
             home_dir: None,
             filter_query: None,
-            cloud_workflow_id: None,
-            cloud_env_var_collection_id: None,
+            saved_workflow_id: None,
+            env_var_collection_id: None,
             last_painted_at: None.into(),
             has_received_user_input: false,
             hidden: false,
@@ -1500,7 +1499,6 @@ impl Block {
         self.honor_ps1()
     }
 
-    /// Used for determining the height of the block with `DisplaySettings` used when sharing a block.
     pub fn full_content_height_with_display_options(
         &self,
         display_setting: &DisplaySetting,
@@ -2412,7 +2410,13 @@ impl Block {
     }
 
     pub fn formatted_duration_string(&self) -> Option<String> {
-        self.duration().map(Self::format_duration)
+        self.duration()
+            .or_else(|| self.elapsed_duration_whole_secs())
+            .map(Self::format_duration)
+    }
+
+    pub fn is_duration_live(&self) -> bool {
+        self.elapsed_duration_whole_secs().is_some()
     }
 
     pub fn format_duration(duration: Duration) -> String {
@@ -2590,20 +2594,20 @@ impl Block {
         self.home_dir = home_dir;
     }
 
-    pub fn set_cloud_env_var_state(&mut self, env_var_collection_id: Option<SyncId>) {
-        self.cloud_env_var_collection_id = env_var_collection_id;
+    pub fn set_env_var_collection_state(&mut self, env_var_collection_id: Option<SyncId>) {
+        self.env_var_collection_id = env_var_collection_id;
     }
 
-    pub fn cloud_env_var_collection_state(&self) -> Option<SyncId> {
-        self.cloud_env_var_collection_id
+    pub fn env_var_collection_state(&self) -> Option<SyncId> {
+        self.env_var_collection_id
     }
 
-    pub fn set_cloud_workflow_state(&mut self, workflow_id: Option<SyncId>) {
-        self.cloud_workflow_id = workflow_id;
+    pub fn set_saved_workflow_state(&mut self, workflow_id: Option<SyncId>) {
+        self.saved_workflow_id = workflow_id;
     }
 
-    pub fn cloud_workflow_state(&self) -> Option<SyncId> {
-        self.cloud_workflow_id
+    pub fn saved_workflow_state(&self) -> Option<SyncId> {
+        self.saved_workflow_id
     }
 
     pub fn server_pwd(&self) -> Option<Cow<'_, str>> {
@@ -2631,6 +2635,21 @@ impl Block {
                 let duration = end.signed_duration_since(start);
                 (duration > Duration::zero()).then_some(duration)
             })
+    }
+
+    pub fn elapsed_duration_whole_secs(&self) -> Option<Duration> {
+        self.elapsed_duration_whole_secs_at(Local::now())
+    }
+
+    fn elapsed_duration_whole_secs_at(&self, now: DateTime<Local>) -> Option<Duration> {
+        if self.completed_ts.is_some() || !self.is_executing() {
+            return None;
+        }
+        self.start_ts.and_then(|start| {
+            let elapsed = now.signed_duration_since(start);
+            let whole_secs = elapsed.num_seconds();
+            (whole_secs > 0).then(|| Duration::seconds(whole_secs))
+        })
     }
 
     pub fn git_branch(&self) -> Option<&String> {

@@ -1,10 +1,7 @@
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
-#[cfg(not(target_family = "wasm"))]
 use crate::search::ai_context_menu::view::AIContextMenu;
-#[cfg(not(target_family = "wasm"))]
 use crate::settings::InputSettings;
 use pathfinder_color::ColorU;
-#[cfg(not(target_family = "wasm"))]
 use settings::Setting as _;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -40,7 +37,6 @@ use warp_core::ui::theme::color::internal_colors;
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::blocklist::BlocklistAIHistoryEvent;
 
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::model::session::SessionType;
 use crate::{
     ai::blocklist::{BlocklistAIInputModel, InputConfig, InputType},
@@ -54,53 +50,29 @@ use crate::{
     },
     BlocklistAIHistoryModel,
 };
-use warp_core::features::FeatureFlag;
-use warpui::ui_components::segmented_control::{LabelConfig, TooltipConfig};
+use warpui::ui_components::segmented_control::TooltipConfig;
 
 pub enum AtContextMenuDisabledReason {
-    #[cfg(target_family = "wasm")]
-    Wasm,
-    #[cfg(not(target_family = "wasm"))]
     NoObjectsAvailable,
-    #[cfg(not(target_family = "wasm"))]
     SshSession,
-    #[cfg(not(target_family = "wasm"))]
     Subshell,
-    #[cfg(not(target_family = "wasm"))]
     DisabledInTerminalMode,
 }
 
 impl AtContextMenuDisabledReason {
     fn tooltip_text(&self) -> String {
         match self {
-            #[cfg(not(target_family = "wasm"))]
             AtContextMenuDisabledReason::NoObjectsAvailable => {
                 "No available objects in the current context.".to_string()
             }
-            #[cfg(not(target_family = "wasm"))]
             AtContextMenuDisabledReason::SshSession => "Not supported in SSH sessions".to_string(),
-            #[cfg(not(target_family = "wasm"))]
             AtContextMenuDisabledReason::Subshell => "Not supported in subshells".to_string(),
-            #[cfg(target_family = "wasm")]
-            AtContextMenuDisabledReason::Wasm => "Requires a filesystem".to_string(),
-            #[cfg(not(target_family = "wasm"))]
             AtContextMenuDisabledReason::DisabledInTerminalMode => {
                 "Disabled in terminal mode, re-enable in settings".to_string()
             }
         }
     }
 
-    #[cfg(target_family = "wasm")]
-    pub fn get_disable_reason(
-        _active_block_metadata: Option<&BlockMetadata>,
-        _sessions: &Sessions,
-        _input_config: &InputConfig,
-        _ctx: &AppContext,
-    ) -> Option<AtContextMenuDisabledReason> {
-        Some(AtContextMenuDisabledReason::Wasm)
-    }
-
-    #[cfg(not(target_family = "wasm"))]
     pub fn get_disable_reason(
         active_block_metadata: Option<&BlockMetadata>,
         sessions: &Sessions,
@@ -603,11 +575,7 @@ fn segmented_control_styles(app: &AppContext) -> UiComponentStyles {
     let base_font_size = 10.0; // Start with smaller font
     let scaled_ui_font_size = base_font_size * appearance.monospace_ui_scalar();
 
-    let background = if FeatureFlag::NldImprovements.is_enabled() {
-        Some(internal_colors::fg_overlay_1(theme).into())
-    } else {
-        None
-    };
+    let background = Some(internal_colors::fg_overlay_1(theme).into());
 
     UiComponentStyles {
         width: Some(button_size), // Match InputPrompt button height for square buttons
@@ -629,110 +597,7 @@ fn build_renderable_option_config(
     ui_state: &CachedUIState,
     app: &AppContext,
 ) -> Option<RenderableOptionConfig> {
-    if FeatureFlag::NldImprovements.is_enabled() {
-        return build_new_renderable_option_config(option, is_selected, input_model, ui_state, app);
-    }
-
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let background = if is_selected {
-        theme.surface_overlay_2()
-    } else {
-        theme::Fill::Solid(ColorU::from_u32(0x00000000))
-    };
-    let terminal_keybindings = TerminalKeybindings::as_ref(app);
-    let mut config = match option {
-        InputToggleMode::Terminal => RenderableOptionConfig {
-            icon_path: Icon::Terminal.into(),
-            icon_color: if is_selected {
-                theme.terminal_colors().normal.blue.into()
-            } else {
-                theme.sub_text_color(theme.surface_1()).into_solid()
-            },
-            label: None,
-            tooltip: Some(tooltip_config(
-                "Terminal",
-                Some(terminal_mode_tooltip_subtext(terminal_keybindings)),
-                app,
-            )),
-            background: background.into(),
-        },
-        InputToggleMode::AgentMode => RenderableOptionConfig {
-            icon_path: Icon::AgentMode.into(),
-            icon_color: if is_selected {
-                theme.terminal_colors().normal.yellow.into()
-            } else {
-                theme.sub_text_color(theme.surface_1()).into_solid()
-            },
-            label: None,
-            tooltip: Some(tooltip_config(
-                "Agent Mode",
-                Some(agent_mode_tooltip_subtext(terminal_keybindings)),
-                app,
-            )),
-            background: background.into(),
-        },
-        InputToggleMode::AutoDetection => RenderableOptionConfig {
-            icon_path: if input_model.as_ref(app).is_input_type_locked() {
-                Icon::LightbulbFilled.into()
-            } else {
-                Icon::Lightbulb.into()
-            },
-            label: Some(LabelConfig {
-                label: if !input_model.as_ref(app).is_input_type_locked() && ui_state.is_input_empty
-                {
-                    "Auto".into()
-                } else if input_model.as_ref(app).is_ai_input_enabled() {
-                    "Agent".into()
-                } else {
-                    "Shell".into()
-                },
-                width_override: Some(30.),
-                color: if ui_state.is_input_empty {
-                    theme.main_text_color(theme.background()).into_solid()
-                } else if input_model.as_ref(app).is_ai_input_enabled() {
-                    theme.terminal_colors().normal.yellow.into()
-                } else {
-                    theme.terminal_colors().normal.blue.into()
-                },
-            }),
-            icon_color: if is_selected {
-                if !input_model.as_ref(app).is_input_type_locked() && ui_state.is_input_empty {
-                    theme.main_text_color(theme.surface_1()).into_solid()
-                } else if input_model.as_ref(app).is_ai_input_enabled() {
-                    theme.terminal_colors().normal.yellow.into()
-                } else {
-                    theme.terminal_colors().normal.blue.into()
-                }
-            } else {
-                theme.sub_text_color(theme.surface_1()).into_solid()
-            },
-            tooltip: Some(tooltip_config("Auto Detection", Some("ESC"), app)),
-            background: background.into(),
-        },
-    };
-
-    if ui_state.is_button_bar_blurred() {
-        config.background = Fill::Solid(coloru_with_opacity(
-            config.background.start_color(),
-            BLURRED_OPACITY,
-        ));
-        config.icon_color = coloru_with_opacity(config.icon_color, BLURRED_OPACITY);
-
-        if let Some(tooltip_config) = config.tooltip.as_mut() {
-            tooltip_config.background_color =
-                coloru_with_opacity(tooltip_config.background_color, BLURRED_OPACITY);
-            tooltip_config.text_color = foreground_color_with_minimum_contrast(
-                tooltip_config.text_color,
-                Rgb::from(tooltip_config.background_color),
-                MinimumAllowedContrast::Text,
-            );
-            tooltip_config.border_color =
-                coloru_with_opacity(tooltip_config.background_color, BLURRED_OPACITY);
-        }
-    }
-
-    Some(config)
+    build_new_renderable_option_config(option, is_selected, input_model, ui_state, app)
 }
 
 const AGENT_MODE_TOOLTIP_PREFIX: &str = "* + space";

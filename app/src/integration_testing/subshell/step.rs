@@ -15,7 +15,7 @@ use crate::{
         },
         view_getters::{single_terminal_view, terminal_view},
     },
-    terminal::{model::rich_content::RichContentType, view::WithinBlockBanner},
+    terminal::model::rich_content::RichContentType,
 };
 
 use super::util::{ssh_command, user_host};
@@ -77,19 +77,13 @@ pub fn enter_local_subshell_command(shell: &str) -> TestStep {
         .set_post_step_pause(Duration::from_millis(50))
 }
 
+#[cfg(feature = "integration_tests")]
 pub fn assert_subshell_banner_is_showing() -> TestStep {
-    TestStep::new("Assert the Warpify banner is visible")
+    TestStep::new("Assert the Warpify footer is visible")
         .add_assertion(move |app, window_id| {
             let terminal_view = single_terminal_view(app, window_id);
-            terminal_view.read(app, |view, _ctx| {
-                async_assert!(matches!(
-                    view.model
-                        .lock()
-                        .block_list_mut()
-                        .active_block()
-                        .block_banner(),
-                    Some(WithinBlockBanner::WarpifyBanner(..))
-                ))
+            terminal_view.read(app, |view, ctx| {
+                async_assert!(view.is_warpify_footer_showing_for_test(ctx))
             })
         })
         // Wait for outstanding model events to finish before moving to the next step

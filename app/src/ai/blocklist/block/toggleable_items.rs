@@ -158,11 +158,7 @@ impl<T: 'static> View for ToggleableItemsView<T> {
                 .finish();
 
             let row_inner: Box<dyn Element> = if is_focused {
-                let toggle_keystroke = if cfg!(target_os = "macos") {
-                    Keystroke::parse("cmd-enter").expect("can parse cmd-enter")
-                } else {
-                    Keystroke::parse("ctrl-enter").expect("can parse ctrl-enter")
-                };
+                let toggle_keystroke = Keystroke::parse("cmd-enter").expect("can parse cmd-enter");
 
                 let hint_styles = UiComponentStyles {
                     font_family_id: Some(appearance.ui_font_family()),

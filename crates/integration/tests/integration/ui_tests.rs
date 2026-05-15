@@ -47,7 +47,6 @@ integration_tests! {
     test_waterfall_input_after_command_execution,
     test_waterfall_input_alt_grid,
     test_undo_redo,
-    #[cfg(target_os="macos")]
     test_add_windows_correct_position_and_cascade,
     #[ignore = "Affected by agent_view feature flag UI changes"]
     test_find_within_block,
@@ -92,7 +91,6 @@ integration_tests! {
     test_accepting_completion_inserts_space,
     test_palette_opens_when_theme_chooser_is_open,
     test_launch_warp_with_theme_in_warp_config,
-    #[cfg(target_os="macos")]
     test_preview_config_dir_migration,
     #[ignore = "Flakes in CI"]
     test_add_launch_config_to_warp_config,
@@ -227,7 +225,6 @@ integration_tests! {
     test_block_filtering_active_block,
     test_block_filtering_clear_blocklist,
     test_autosuggestions_are_hidden_when_opening_tab_completions,
-    test_latest_buffer_operations,
 
     test_pass_control_sequences_to_long_running_block,
     test_settings_file_migration_from_native_store,

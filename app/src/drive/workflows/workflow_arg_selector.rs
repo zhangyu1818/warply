@@ -328,7 +328,7 @@ impl WorkflowArgSelector {
     }
 
     /// Remove the enum with `enum_id` from the menu.
-    /// Used when an enum created in another row is edited to be "unshared".
+    /// Used when an enum created in another row is hidden from other selectors.
     pub fn remove_enum_from_menu(&mut self, enum_id: &SyncId, ctx: &mut ViewContext<Self>) {
         // Don't remove the item if it's currently selected
         let selected_enum = self.get_selected_enum();

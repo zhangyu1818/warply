@@ -83,7 +83,6 @@ pub enum CustomAction {
     CopyBlock,
     CopyBlockCommand,
     CopyBlockOutput,
-    ViewSharedBlocks,
     CloseTab,
     CloseOtherTabs,
     CloseTabsRight,
@@ -106,7 +105,6 @@ pub enum CustomAction {
     NewAgentModePane,
     AttachSelectionAsAgentModeContext,
     OpenAIFactCollection,
-    OpenMCPServerCollection,
     ToggleProjectExplorer,
     OpenRepository,
     NewTerminalTab,
@@ -405,7 +403,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::CloseTab
         | CustomAction::CloseOtherTabs
         | CustomAction::CloseTabsRight
-        | CustomAction::ViewSharedBlocks
         | CustomAction::ShowAppearance
         | CustomAction::SaveCurrentConfig
         | CustomAction::TriggerWelcomeBlock
@@ -413,7 +410,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
         | CustomAction::OpenAIFactCollection
-        | CustomAction::OpenMCPServerCollection
         | CustomAction::NewAgentTab => None,
     }
 }

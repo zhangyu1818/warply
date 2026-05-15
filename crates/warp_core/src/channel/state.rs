@@ -166,7 +166,7 @@ fn app_id_from_bundle() -> Option<AppId> {
     //
     // We skip this for tests, as the call to `mainBundle` can take 30+ms,
     // which is a significant portion of the total test runtime.
-    #[cfg(all(target_os = "macos", not(feature = "test-util")))]
+    #[cfg(not(feature = "test-util"))]
     #[allow(deprecated)]
     unsafe {
         use cocoa::{

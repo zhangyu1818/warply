@@ -7,20 +7,17 @@ use futures::channel::oneshot;
 use itertools::Itertools;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity as _, ViewHandle};
 
-use crate::{
-    ai::{
-        agent::{
-            conversation::AIConversationId, AIAgentAction, AIAgentActionId,
-            AIAgentActionResultType, AIAgentActionType, AIAgentOutputMessage,
-            AIAgentOutputMessageType, AIIdentifiers, RequestFileEditsResult, UpdatedFileContext,
-        },
-        blocklist::{
-            inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
-            BlocklistAIPermissions,
-        },
+use crate::ai::{
+    agent::{
+        AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
+        RequestFileEditsResult, UpdatedFileContext,
     },
-    BlocklistAIHistoryModel,
+    blocklist::{
+        inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
+        BlocklistAIPermissions,
+    },
 };
+use crate::BlocklistAIHistoryModel;
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 
@@ -109,17 +106,10 @@ impl RequestFileEditsExecutor {
             return ActionExecution::NotReady;
         };
 
-        let _identifiers = self
-            .generate_ai_identifiers(&input.conversation_id, id, ctx)
-            .unwrap_or_else(|| AIIdentifiers {
-                client_conversation_id: Some(input.conversation_id),
-                ..Default::default()
-            });
-
         let (result_tx, result_rx) = oneshot::channel();
         let mut result_tx = Some(result_tx);
 
-        ctx.subscribe_to_view(diff_view, move |_me, event, ctx| match event {
+        ctx.subscribe_to_view(diff_view, move |_me, event, _ctx| match event {
             CodeDiffViewEvent::Rejected => {
                 let Some(result_tx) = result_tx.take() else {
                     return;
@@ -153,9 +143,6 @@ impl RequestFileEditsExecutor {
                     let _ = result_tx.send(RequestFileEditsResult::DiffApplicationFailed { error });
                     return;
                 }
-
-                let _passive_diff = BlocklistAIHistoryModel::as_ref(ctx)
-                    .is_entirely_passive_conversation(&input.conversation_id);
 
                 // Build a map of file path → content from the editor buffers.
                 // This avoids re-reading files from disk or the remote server.
@@ -206,35 +193,6 @@ impl RequestFileEditsExecutor {
             Err(oneshot::Canceled) => {
                 AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
             }
-        })
-    }
-
-    fn generate_ai_identifiers(
-        &self,
-        conversation_id: &AIConversationId,
-        action_id: &AIAgentActionId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<AIIdentifiers> {
-        let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        let conversation = history_model.conversation(conversation_id)?;
-
-        // Find the `AIAgentExchange` and its corresponding `AIAgentOutput` for this given action.
-        let (exchange, output) = conversation.all_exchanges().into_iter().find_map(|exchange| {
-            let output = exchange.output_status.output()?;
-            let contains_action = output.get().messages.iter().any(|step| {
-                matches!(step, AIAgentOutputMessage{ message: AIAgentOutputMessageType::Action(AIAgentAction { id, .. }), .. } if id == action_id)
-            });
-
-            contains_action.then_some((exchange, output))
-        })?;
-
-        let server_output_id = output.get().server_output_id.clone();
-        let model_id = output.get().model_info.as_ref().map(|m| m.model_id.clone());
-        Some(AIIdentifiers {
-            client_conversation_id: Some(*conversation_id),
-            client_exchange_id: Some(exchange.id),
-            server_output_id,
-            model_id,
         })
     }
 }

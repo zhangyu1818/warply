@@ -325,6 +325,20 @@ pub fn remote_server_daemon_dir(identity_key: &str) -> String {
     )
 }
 
+pub fn daemon_socket_name() -> String {
+    match ChannelState::app_version() {
+        Some(version) => format!("server-{version}.sock"),
+        None => "server.sock".to_string(),
+    }
+}
+
+pub fn daemon_pid_name() -> String {
+    match ChannelState::app_version() {
+        Some(version) => format!("server-{version}.pid"),
+        None => "server.pid".to_string(),
+    }
+}
+
 /// Returns the binary name, keyed by channel.
 ///
 /// Matches the CLI command names for each channel.
@@ -363,7 +377,7 @@ pub fn remote_server_binary() -> String {
 /// Returns the shell command to check if the remote server binary exists and
 /// is executable.
 pub fn binary_check_command() -> String {
-    format!("test -x {}", remote_server_binary())
+    format!("{} --version", remote_server_binary())
 }
 
 /// Returns the version string used to pin remote-server installs on

@@ -349,7 +349,7 @@ impl AvailableShells {
 #[cfg(feature = "local_tty")]
 impl AvailableShells {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
-        let fallback_shells_path = cfg!(unix).then_some(Path::new("/etc/shells"));
+        let fallback_shells_path = Some(Path::new("/etc/shells"));
 
         let env_path = std::env::var_os("PATH").unwrap_or_default();
         let mut paths_to_search = std::env::split_paths(&env_path).collect::<Vec<PathBuf>>();
@@ -357,13 +357,8 @@ impl AvailableShells {
         // The PATH here is limited since it doesn't include the locations added
         // by the user's login shell. We add the Homebrew installer locations to
         // the search paths so we can detect shells installed via Homebrew.
-        #[cfg(target_os = "macos")]
-        {
-            // Apple Silicon homebrew path
-            paths_to_search.push(PathBuf::from("/opt/homebrew/bin"));
-            // Intel homebrew path
-            paths_to_search.push(PathBuf::from("/usr/local/bin"));
-        }
+        paths_to_search.push(PathBuf::from("/opt/homebrew/bin"));
+        paths_to_search.push(PathBuf::from("/usr/local/bin"));
 
         let shells = Self::load_known_shells(&paths_to_search, fallback_shells_path);
 
@@ -620,46 +615,7 @@ impl AvailableShells {
             .new_session_shell_override
             .to_owned();
 
-        new_session_shell_override.unwrap_or_else(|| {
-            // Fallback logic in case the new_session_shell has not been set.
-            // We attempt to read the legacy setting startup_shell_override, and map it to a
-            // NewSessionShell. If that mapping fails at all, we set it to NewSessionShell::SystemDefault.
-            // We also write back to the new_session_shell_override setting so that we don't have to do this
-            // all the time.
-            self.get_user_preferred_shell_setting_fallback(ctx)
-        })
-    }
-
-    fn get_user_preferred_shell_setting_fallback(&self, ctx: &AppContext) -> NewSessionShell {
-        use super::session_settings::SessionSettings;
-
-        let startup_shell = SessionSettings::as_ref(ctx)
-            .startup_shell_override
-            .to_owned();
-        match startup_shell {
-            StartupShell::Default => NewSessionShell::SystemDefault,
-            StartupShell::Custom(path) => NewSessionShell::Custom(path),
-            _ => startup_shell
-                .shell_command()
-                .and_then(|command| {
-                    for shell in self.shells.iter() {
-                        if let Config::KnownLocal(LocalConfig {
-                            command: shell_command,
-                            executable_path,
-                            ..
-                        }) = shell.state.as_ref()
-                        {
-                            if shell_command == command {
-                                return Some(NewSessionShell::Executable(
-                                    executable_path.display().to_string(),
-                                ));
-                            }
-                        }
-                    }
-                    None
-                })
-                .unwrap_or(NewSessionShell::SystemDefault),
-        }
+        new_session_shell_override.unwrap_or(NewSessionShell::SystemDefault)
     }
 
     /// Finds the first shell that matches the given shell type.

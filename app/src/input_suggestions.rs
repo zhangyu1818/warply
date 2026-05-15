@@ -1,5 +1,4 @@
 use crate::ai::blocklist::{render_ai_agent_mode_icon, AIQueryHistory, AIQueryHistoryOutputStatus};
-use crate::terminal::model::session::SessionId;
 use crate::ui_components::icons::Icon as UIComponentsIcon;
 use async_channel::Sender;
 use chrono::{DateTime, Local};
@@ -15,6 +14,7 @@ use warp_completer::completer::{
 };
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::AnsiColorIdentifier;
+use warp_core::SessionId;
 use warpui::elements::{
     ChildAnchor, DispatchEventResult, Expanded, Hoverable, MouseStateHandle, ParentAnchor,
     ParentOffsetBounds, ScrollbarWidth,

@@ -101,7 +101,6 @@ pub(crate) fn starts_with_shebang(path: &Path) -> bool {
     }
 }
 
-#[cfg(target_os = "macos")]
 pub fn is_runnable_shell_script(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
 
@@ -118,14 +117,9 @@ pub fn is_runnable_shell_script(path: &Path) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase());
     if let Some(ext) = ext.as_deref() {
-        return matches!(ext, "sh" | "bash" | "zsh" | "fish" | "ksh");
+        return matches!(ext, "sh" | "bash" | "zsh" | "fish" | "ksh" | "command");
     }
     starts_with_shebang(path)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn is_runnable_shell_script(_path: &Path) -> bool {
-    false
 }
 
 /// Determines if a file can be opened in Warp and returns its type.
@@ -393,7 +387,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_executable_sh() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
@@ -406,7 +399,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_non_executable_sh() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
@@ -419,7 +411,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_group_only_executable_rejected() {
         // Mode 0o070: group-x and group-r/w only, no user-execute. Must NOT classify
         // as runnable — only the owner's execute bit drives the routing decision.
@@ -432,11 +423,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_other_shell_extensions() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
-        for name in ["run.bash", "run.zsh", "run.fish", "run.ksh"] {
+        for name in ["run.bash", "run.zsh", "run.fish", "run.ksh", "run.command"] {
             let p = dir.path().join(name);
             std::fs::write(&p, b"#!/bin/sh\n:\n").unwrap();
             std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -445,7 +435,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_shebang_no_extension() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
@@ -456,7 +445,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_shebang_no_extension_no_x_bit() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
@@ -467,7 +455,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_plain_text_rejected() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
@@ -478,7 +465,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_is_runnable_shell_script_symlink_to_executable() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();

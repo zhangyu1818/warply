@@ -3,8 +3,8 @@
 //! These tests deliberately bypass the production [`BlocklistAIContextModel::new`] constructor
 //! (which subscribes to several singletons) and instead use [`BlocklistAIContextModel::new_for_test`]
 //! together with [`super::agent_view::AgentViewController::new`]. That keeps the fixture small
-//! enough to focus on the lock logic without standing up `BlocklistAIHistoryModel`,
-//! `LLMPreferences`, `CloudModel`, `UpdateManager`, or `AppExecutionMode`.
+//! enough to focus on the lock logic without standing up `BlocklistAIHistoryModel`, `CloudModel`,
+//! `UpdateManager`, or `AppExecutionMode`.
 
 use std::sync::Arc;
 

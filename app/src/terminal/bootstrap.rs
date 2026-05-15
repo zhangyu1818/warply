@@ -262,9 +262,7 @@ fn init_subshell_script_for_unknown_shell(assets: &dyn AssetProvider) -> String 
 /// where the caller controls the eval context (e.g. Docker sandbox init).
 ///
 /// Gated on `unix` because the sole caller today is the Unix Docker
-/// sandbox spawn path (`local_tty::unix::prepare_docker_sandbox`); on
-/// Windows/wasm the function is dead code.
-#[cfg(unix)]
+/// sandbox spawn path (`local_tty::unix::prepare_docker_sandbox`).
 pub fn raw_init_shell_script_for_shell(
     shell_type: ShellType,
     assets: &dyn AssetProvider,

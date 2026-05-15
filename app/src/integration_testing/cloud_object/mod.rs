@@ -11,8 +11,8 @@ use crate::{
     cloud_object::{model::persistence::CloudModel, Space},
 };
 
-/// Clears the cloud model of all non-welcome objects in the user's personal space.
-/// Returns a future that resolves when the cloud model is cleared.
+/// Clears the local object model of all non-welcome objects in the user's personal space.
+/// Returns a future that resolves when the local object model is cleared.
 pub fn clear_cloud_model(app: &mut App) -> Pin<Box<dyn Future<Output = ()> + Send>> {
     let object_ids_to_delete = CloudModel::handle(app).read(app, |cloud_model, ctx| {
         cloud_model

@@ -3,17 +3,7 @@ use std::{borrow::Cow, fmt, str::FromStr};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use derivative::Derivative;
-use pathfinder_geometry::vector::vec2f;
 use serde::{Deserialize, Serialize};
-use warp_core::ui::{Icon, appearance::Appearance, theme::Fill};
-use warpui_core::{
-    Element,
-    elements::{
-        Align, ChildAnchor, ConstrainedBox, Hoverable, MouseStateHandle, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
-    },
-    ui_components::components::UiComponent,
-};
 
 use crate::{identity::UserUid, ids::SyncId};
 
@@ -38,7 +28,7 @@ impl ObjectIdType {
     }
 }
 
-/// A type for communicating the type of cloud object to/from the server, absent of the object itself.
+/// A type for identifying the model stored in a retained local object row.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum ObjectType {
     Workflow,
@@ -140,8 +130,6 @@ pub enum JsonObjectType {
     EnvVarCollection,
     WorkflowEnum,
     AIFact,
-    MCPServer,
-    TemplatableMCPServer,
 }
 
 impl JsonObjectType {
@@ -150,8 +138,6 @@ impl JsonObjectType {
             JsonObjectType::EnvVarCollection => "ENVVARCOLLECTION",
             JsonObjectType::WorkflowEnum => "WORKFLOWENUM",
             JsonObjectType::AIFact => "AIFACT",
-            JsonObjectType::MCPServer => "MCPSERVER",
-            JsonObjectType::TemplatableMCPServer => "TEMPLATABLEMCPSERVER",
         }
     }
 }
@@ -164,8 +150,6 @@ impl TryFrom<&str> for JsonObjectType {
             "ENVVARCOLLECTION" => Ok(JsonObjectType::EnvVarCollection),
             "WORKFLOWENUM" => Ok(JsonObjectType::WorkflowEnum),
             "AIFACT" => Ok(JsonObjectType::AIFact),
-            "MCPSERVER" => Ok(JsonObjectType::MCPServer),
-            "TEMPLATABLEMCPSERVER" => Ok(JsonObjectType::TemplatableMCPServer),
             _ => Err(anyhow!("could not convert unknown json object type")),
         }
     }
@@ -272,27 +256,17 @@ impl Owner {
 pub struct NumInFlightRequests(pub usize);
 
 #[derive(Clone, Debug)]
-/// An enum representing what state a local cloud object's content changes can be in,
-/// in relation to the server.
+/// An enum representing local content persistence state for a retained object.
 pub enum CloudObjectSyncStatus {
-    /// The object's content hasn't changed from what we believe the server's representation
-    /// to be.
+    /// The object's content has no pending local persistence changes.
     NoLocalChanges,
-    /// The object's content has been modified locally, and is currently in the sync queue
-    /// attempting to sync up with the server.
+    /// The object's content has been modified locally and is currently being persisted.
     InFlight(NumInFlightRequests),
-    /// The object's content has been modified locally but has unresolved conflict with the server
-    /// revision.
+    /// The object's content has been modified locally but has an unresolved revision conflict.
     InConflict,
-    /// The object's content has been modified locally, but persisting the change on the server
-    /// could not complete for some reason.
+    /// The object's content has been modified locally, but persistence could not complete.
     Errored,
 }
-
-const SYNC_ICON_DIMENSIONS: f32 = 16.;
-
-const SYNC_STATUS_TOOLTIP_INFLIGHT: &str = "Saving";
-const SYNC_STATUS_TOOLTIP_ERROR: &str = "Failed to save";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CloudObjectPermissions {
@@ -359,41 +333,15 @@ impl CloudObjectMetadata {
         )
     }
 
-    /// True iff there are unsynced online-only changes for the object.
-    pub fn has_pending_online_only_change(&self) -> bool {
-        self.pending_changes_statuses.has_pending_permissions_change
-            || self.pending_changes_statuses.has_pending_metadata_change
-            || self.pending_changes_statuses.pending_untrash
-            || self.pending_changes_statuses.pending_delete
-    }
-
     pub fn set_current_editor(&mut self, editor_uid: Option<String>) {
         self.current_editor_uid = editor_uid;
     }
 }
 
-/// A struct holding the different statuses of pending changes that a cloud object might have.
-/// Note that content is handled differently than permissions/metadata:
-///   * Content changes go through the sync queue, and thus can exist in more states
-///   * Metadata/permissions changes are synchronous operations, and thus are only either
-///     in flight or synced
+/// A struct holding the different pending local persistence statuses for an object.
 #[derive(Clone, Debug)]
 pub struct CloudObjectStatuses {
     pub content_sync_status: CloudObjectSyncStatus,
-    /// True iff there are unsynced permission changes for the object.
-    /// We intentionally don't persist this value in sqlite. And if true,
-    /// we don't upsert any in-memory permission changes to sqlite.
-    pub has_pending_permissions_change: bool,
-    /// True iff there are unsynced metadata changes for the object.
-    /// We intentionally don't persist this value in sqlite. And if true,
-    /// we don't upsert trashed and folder changes to sqlite.
-    pub has_pending_metadata_change: bool,
-
-    /// True iff there is an unsynced untrash operation on the object.
-    pub pending_untrash: bool,
-
-    /// True iff there is an unsynced delete operation on the object.
-    pub pending_delete: bool,
 }
 
 impl CloudObjectStatuses {
@@ -402,85 +350,7 @@ impl CloudObjectStatuses {
     pub fn mock() -> Self {
         Self {
             content_sync_status: CloudObjectSyncStatus::NoLocalChanges,
-            has_pending_permissions_change: false,
-            has_pending_metadata_change: false,
-            pending_untrash: false,
-            pending_delete: false,
         }
-    }
-
-    pub fn render_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        let theme = appearance.theme();
-        let has_in_flight_requests = match &self.content_sync_status {
-            CloudObjectSyncStatus::InFlight(reqs) => reqs.0 > 0,
-            _ => false,
-        };
-
-        let should_show_syncing_indicator = has_in_flight_requests
-            || self.has_pending_metadata_change
-            || self.has_pending_permissions_change
-            || self.pending_untrash;
-        let should_show_error_indicator = matches!(
-            self.content_sync_status,
-            CloudObjectSyncStatus::Errored | CloudObjectSyncStatus::InConflict
-        );
-
-        let icon_and_tooltip_text = if should_show_syncing_indicator {
-            Some((
-                Icon::Refresh.to_warpui_icon(theme.sub_text_color(theme.surface_2())),
-                SYNC_STATUS_TOOLTIP_INFLIGHT,
-            ))
-        } else if should_show_error_indicator {
-            Some((
-                Icon::AlertTriangle.to_warpui_icon(Fill::Solid(theme.ui_error_color())),
-                SYNC_STATUS_TOOLTIP_ERROR,
-            ))
-        } else {
-            None
-        };
-
-        if let Some((icon, tooltip_text)) = icon_and_tooltip_text {
-            return Some(
-                Align::new(
-                    Hoverable::new(hover_state, move |hover_state| {
-                        let mut stack = Stack::new().with_child(
-                            ConstrainedBox::new(icon.finish())
-                                .with_height(SYNC_ICON_DIMENSIONS)
-                                .with_width(SYNC_ICON_DIMENSIONS)
-                                .finish(),
-                        );
-
-                        if hover_state.is_hovered() {
-                            let tooltip = appearance
-                                .ui_builder()
-                                .tool_tip(tooltip_text.to_string())
-                                .build()
-                                .finish();
-
-                            stack.add_positioned_overlay_child(
-                                tooltip,
-                                OffsetPositioning::offset_from_parent(
-                                    vec2f(0., -24.),
-                                    ParentOffsetBounds::Unbounded,
-                                    ParentAnchor::Center,
-                                    ChildAnchor::Center,
-                                ),
-                            );
-                        }
-
-                        stack.finish()
-                    })
-                    .finish(),
-                )
-                .finish(),
-            );
-        }
-
-        None
     }
 }
 

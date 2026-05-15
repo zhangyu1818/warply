@@ -2,13 +2,9 @@ use crate::ai::execution_profiles::{AIExecutionProfile, ActionPermission};
 use crate::editor::EditorView;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
-use crate::view_components::FilterableDropdown;
 use crate::view_components::{Dropdown, SubmittableTextInput};
 use crate::Appearance;
-use crate::TemplatableMCPServerManager;
 use pathfinder_geometry::vector::vec2f;
-use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warpui::elements::Hoverable;
 use warpui::elements::MouseStateHandle;
 use warpui::elements::{
@@ -18,7 +14,7 @@ use warpui::elements::{
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::components::UiComponent;
-use warpui::{AppContext, Element, SingletonEntity, ViewHandle};
+use warpui::{Element, SingletonEntity, ViewHandle};
 
 use super::ExecutionProfileEditorView;
 use super::ExecutionProfileEditorViewAction;
@@ -240,7 +236,7 @@ pub fn render_permissions_section(
                 app,
             ));
         }
-        ActionPermission::AgentDecides | ActionPermission::Unknown => {
+        ActionPermission::AgentDecides => {
             column.add_children([
                 render_command_allowlist_section(view, profile_data, appearance, app),
                 render_command_denylist_section(view, profile_data, appearance, app),
@@ -260,19 +256,17 @@ pub fn render_permissions_section(
             .clone(),
     ));
 
-    if FeatureFlag::LocalComputerUse.is_enabled() {
-        column.add_child(render_permission_row(
-            appearance,
-            Icon::Laptop,
-            "Computer use",
-            &view.computer_use_dropdown,
-            profile_data.computer_use.description(),
-            !ai_settings.is_computer_use_permissions_editable(app),
-            view.tooltip_mouse_state_handles
-                .computer_use_tooltip_mouse_state
-                .clone(),
-        ));
-    }
+    column.add_child(render_permission_row(
+        appearance,
+        Icon::Laptop,
+        "Computer use",
+        &view.computer_use_dropdown,
+        profile_data.computer_use.description(),
+        !ai_settings.is_computer_use_permissions_editable(app),
+        view.tooltip_mouse_state_handles
+            .computer_use_tooltip_mouse_state
+            .clone(),
+    ));
 
     column.add_child(render_permission_row(
         appearance,
@@ -285,43 +279,6 @@ pub fn render_permissions_section(
             .ask_user_question_tooltip_mouse_state
             .clone(),
     ));
-
-    column.add_child(render_permission_row(
-        appearance,
-        Icon::Dataflow,
-        "Call MCP servers",
-        &view.call_mcp_servers_dropdown,
-        profile_data.mcp_permissions.description(),
-        !ai_settings.is_mcp_permission_editable(app), // Use MCP override for this permission
-        view.tooltip_mouse_state_handles
-            .call_mcp_servers_tooltip_mouse_state
-            .clone(),
-    ));
-
-    match profile_data.mcp_permissions {
-        ActionPermission::AlwaysAllow => {
-            column.add_child(render_mcp_denylist_section(
-                view,
-                profile_data,
-                app,
-                appearance,
-            ));
-        }
-        ActionPermission::AlwaysAsk => {
-            column.add_child(render_mcp_allowlist_section(
-                view,
-                profile_data,
-                app,
-                appearance,
-            ));
-        }
-        ActionPermission::AgentDecides | ActionPermission::Unknown => {
-            column.add_children([
-                render_mcp_allowlist_section(view, profile_data, app, appearance),
-                render_mcp_denylist_section(view, profile_data, app, appearance),
-            ]);
-        }
-    }
 
     column.add_child(
         Container::new(render_web_search_toggle(appearance, view, profile_data))
@@ -369,7 +326,6 @@ fn render_list_section<T, F, D>(
     items: &[T],
     mouse_handles: &[MouseStateHandle],
     editor: Option<&ViewHandle<SubmittableTextInput>>,
-    dropdown: Option<&ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>>,
     on_remove_action: F,
     display_fn: D,
     appearance: &Appearance,
@@ -402,16 +358,9 @@ where
         list
     };
 
-    let mut column =
-        Flex::column().with_child(create_section_header(label, description, appearance));
-
-    // Add dropdown if provided (for MCP lists)
-    if let Some(dropdown) = dropdown {
-        let dropdown_row = Container::new(ChildView::new(dropdown).finish()).finish();
-        column = column.with_child(dropdown_row);
-    }
-
-    column = column.with_child(list_element);
+    let column = Flex::column()
+        .with_child(create_section_header(label, description, appearance))
+        .with_child(list_element);
 
     Container::new(column.finish())
         .with_margin_bottom(16.)
@@ -433,7 +382,6 @@ fn render_directory_allowlist_section(
         &profile_data.directory_allowlist,
         &view.directory_allowlist_mouse_state_handles,
         Some(&view.directory_allowlist_editor),
-        None,
         |path| ExecutionProfileEditorViewAction::RemoveFromDirectoryAllowlist { path },
         |path| path.display().to_string(),
         appearance,
@@ -458,7 +406,6 @@ fn render_command_allowlist_section(
         &profile_data.command_allowlist,
         &view.command_allowlist_mouse_state_handles,
         Some(&view.command_allowlist_editor),
-        None,
         |predicate| ExecutionProfileEditorViewAction::RemoveFromCommandAllowlist { predicate },
         |item| item.to_string(),
         appearance,
@@ -513,64 +460,6 @@ fn render_command_denylist_section(
         .finish()
 }
 
-fn display_mcp_name(uuid: &Uuid, app: &AppContext) -> String {
-    TemplatableMCPServerManager::get_mcp_name(uuid, app).unwrap_or({
-        log::warn!("Expected a name for MCP server {uuid} but could not find one.");
-        format!("MCP Server {uuid}")
-    })
-}
-
-fn render_mcp_allowlist_section(
-    view: &ExecutionProfileEditorView,
-    profile_data: &AIExecutionProfile,
-    app: &warpui::AppContext,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_mcp_permission_editable(app);
-
-    render_list_section(
-        "MCP allowlist",
-        "MCP servers the agent can call.",
-        &profile_data.mcp_allowlist,
-        &view.mcp_allowlist_mouse_state_handles,
-        None,
-        Some(&view.mcp_allowlist_dropdown),
-        |id| ExecutionProfileEditorViewAction::RemoveFromMCPAllowlist { id },
-        |uuid| display_mcp_name(uuid, app),
-        appearance,
-        is_editable,
-        view.tooltip_mouse_state_handles
-            .mcp_allowlist_editor_tooltip_mouse_state
-            .clone(),
-    )
-}
-
-fn render_mcp_denylist_section(
-    view: &ExecutionProfileEditorView,
-    profile_data: &AIExecutionProfile,
-    app: &warpui::AppContext,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let ai_settings = AISettings::as_ref(app);
-    let is_editable = ai_settings.is_mcp_permission_editable(app);
-
-    render_list_section(
-        "MCP denylist",
-        "MCP servers the agent cannot call.",
-        &profile_data.mcp_denylist,
-        &view.mcp_denylist_mouse_state_handles,
-        None,
-        Some(&view.mcp_denylist_dropdown),
-        |id| ExecutionProfileEditorViewAction::RemoveFromMCPDenylist { id },
-        |uuid| display_mcp_name(uuid, app),
-        appearance,
-        is_editable,
-        view.tooltip_mouse_state_handles
-            .mcp_denylist_editor_tooltip_mouse_state
-            .clone(),
-    )
-}
 pub fn render_web_search_toggle(
     appearance: &Appearance,
     view: &ExecutionProfileEditorView,

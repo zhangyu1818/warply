@@ -105,8 +105,7 @@ use super::{
     model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
     view_impl::{
         common::{
-            render_debug_footer, render_failed_output, render_text_sections, DebugFooterProps,
-            FailedOutputProps, TextSectionsProps,
+            render_failed_output, render_text_sections, FailedOutputProps, TextSectionsProps,
         },
         output::are_all_text_sections_empty,
     },
@@ -185,8 +184,6 @@ pub fn init(app: &mut AppContext) {
 
 #[derive(Default)]
 struct StateHandles {
-    invalid_api_key_button_handle: MouseStateHandle,
-    debug_copy_button_handle: MouseStateHandle,
     query_selection_handle: SelectionHandle,
     output_selection_handle: SelectionHandle,
     action_selection_handle: SelectionHandle,
@@ -1155,34 +1152,10 @@ impl View for CLISubagentView {
                 FailedOutputProps {
                     error,
                     is_ai_input_enabled: false,
-                    invalid_api_key_button_handle: &self
-                        .state_handles
-                        .invalid_api_key_button_handle,
                     icon_right_margin: AVATAR_RIGHT_MARGIN,
                 },
                 app,
             ));
-
-            if !self.model.is_restored() && !error.is_invalid_api_key() {
-                output_items.add_child(
-                    Container::new(render_debug_footer(
-                        DebugFooterProps {
-                            model: self.model.as_ref(),
-                            debug_copy_button_handle: self
-                                .state_handles
-                                .debug_copy_button_handle
-                                .clone(),
-                        },
-                        |debug_id, ctx| {
-                            ctx.dispatch_typed_action(CLISubagentAction::CopyDebugId(debug_id))
-                        },
-                        app,
-                    ))
-                    .with_margin_top(8.)
-                    .with_margin_left(icon_size(app) + AVATAR_RIGHT_MARGIN)
-                    .finish(),
-                );
-            }
         }
 
         if !output_items.is_empty() && !should_hide_responses {
@@ -1370,7 +1343,6 @@ pub enum CLISubagentAction {
     ToggleAlwaysAllowReadFiles,
     DismissInput,
     SelectText,
-    CopyDebugId(String),
 }
 
 impl TypedActionView for CLISubagentView {
@@ -1445,10 +1417,6 @@ impl TypedActionView for CLISubagentView {
                 ctx.reset_cursor();
                 ctx.focus_self();
                 ctx.emit(CLISubagentViewEvent::TextSelected);
-            }
-            CLISubagentAction::CopyDebugId(debug_id) => {
-                ctx.clipboard()
-                    .write(ClipboardContent::plain_text(debug_id.clone()));
             }
         }
     }

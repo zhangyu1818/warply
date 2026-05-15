@@ -25,7 +25,6 @@ fn top_colors_jellyfish_test() {
 }
 
 #[test]
-#[cfg(not(target_family = "wasm"))]
 fn top_colors_invalid_image_test() {
     let invalid_image_path: PathBuf = [
         env!("CARGO_MANIFEST_DIR"),

@@ -17,13 +17,8 @@ pub struct LogConfig {
     pub log_destination: Option<LogDestination>,
 }
 
-#[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
-#[cfg_attr(target_family = "wasm", path = "wasm.rs")]
-mod imp;
+mod native;
 
-pub use imp::init;
-#[cfg(not(target_family = "wasm"))]
-pub use imp::{log_directory, log_file_path, rotate_log_files};
-
-#[cfg(not(target_family = "wasm"))]
-pub use imp::init_logging_for_unit_tests;
+pub use native::{
+    init, init_logging_for_unit_tests, log_directory, log_file_path, rotate_log_files,
+};

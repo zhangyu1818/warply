@@ -12,16 +12,10 @@ fn rect_from_points(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> RectF {
     RectF::from_points(vec2f(min_x, min_y), vec2f(max_x, max_y))
 }
 
-// TODO(CORE-2002): Make test non-Mac specific by switching to using bundled Roboto font.
 #[test]
-#[cfg_attr(
-    not(target_os = "macos"),
-    ignore = "Assumes existence of Arial font, which is only guaranteed on macOS"
-)]
 fn test_calculate_grid_baseline_position() {
     let font_db = warpui::platform::test::FontDB::new();
     let mut font_cache = FontCache::new(Box::new(font_db));
-    // Note we've restricted this unit test to Mac, so we expect Arial to exist.
     let arial = font_cache
         .load_system_font("Arial")
         .expect("Arial must exist");

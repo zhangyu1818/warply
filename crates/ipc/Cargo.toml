@@ -12,6 +12,7 @@ async-compat.workspace = true
 async-trait.workspace = true
 bincode.workspace = true
 futures.workspace = true
+interprocess = {version = "1.2.1", features = ["tokio_support"]}
 itertools.workspace = true
 log.workspace = true
 rand.workspace = true
@@ -22,6 +23,3 @@ warpui.workspace = true
 
 [dev-dependencies]
 parking_lot.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-interprocess = {version = "1.2.1", features = ["tokio_support"]}

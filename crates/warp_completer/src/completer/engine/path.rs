@@ -1,13 +1,17 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs::DirEntry;
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use itertools::{iproduct, Itertools};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use typed_path::{TypedPath, TypedPathBuf};
 use warp_command_signatures::{IconType, PathSuggestionType};
-use warp_util::path::HOME_DIR_ENV_VAR_PREFIX;
+use warp_util::path::{ShellFamily, HOME_DIR_ENV_VAR_PREFIX};
 
+use crate::completer::context::PathSeparators;
 use crate::completer::suggest::Priority;
 use crate::completer::{
     context::PathCompletionContext,
@@ -134,6 +138,128 @@ pub(crate) async fn sorted_directories_relative_to(
                 .cmp_by_display(&suggestion_b.suggestion)
         })
         .collect()
+}
+
+pub(crate) async fn sorted_cd_directories(
+    path: &ParsedToken,
+    matcher: MatchStrategy,
+    ctx: &dyn PathCompletionContext,
+) -> Vec<MatchedSuggestion> {
+    if !is_cdpath_eligible_token(path.as_str()) {
+        return sorted_directories_relative_to(path, matcher, ctx).await;
+    }
+
+    let Some(cdpath) = ctx.cdpath() else {
+        return sorted_directories_relative_to(path, matcher, ctx).await;
+    };
+
+    let mut results = Vec::new();
+    let mut seen = HashSet::new();
+    let mut pwd_searched = false;
+
+    for entry in cdpath.split(':') {
+        if entry.is_empty() || entry == "." {
+            if pwd_searched {
+                continue;
+            }
+            push_unique(
+                sorted_directories_relative_to(path, matcher, ctx).await,
+                &mut results,
+                &mut seen,
+            );
+            pwd_searched = true;
+        } else {
+            let override_ctx = CdpathOverrideContext {
+                inner: ctx,
+                cdpath_pwd: resolve_cdpath_entry(entry, ctx),
+            };
+            push_unique(
+                sorted_directories_relative_to(path, matcher, &override_ctx).await,
+                &mut results,
+                &mut seen,
+            );
+        }
+    }
+
+    if !pwd_searched {
+        push_unique(
+            sorted_directories_relative_to(path, matcher, ctx).await,
+            &mut results,
+            &mut seen,
+        );
+    }
+
+    results
+}
+
+fn push_unique(
+    suggestions: Vec<MatchedSuggestion>,
+    results: &mut Vec<MatchedSuggestion>,
+    seen: &mut HashSet<String>,
+) {
+    for suggestion in suggestions {
+        if seen.insert(suggestion.suggestion.display.to_string()) {
+            results.push(suggestion);
+        }
+    }
+}
+
+fn resolve_cdpath_entry(entry: &str, ctx: &dyn PathCompletionContext) -> TypedPathBuf {
+    let expanded = if entry == "~" {
+        ctx.home_directory().unwrap_or_default().to_owned()
+    } else if let Some(rest) = entry.strip_prefix("~/") {
+        format!("{}/{}", ctx.home_directory().unwrap_or_default(), rest)
+    } else {
+        entry.to_owned()
+    };
+
+    let resolved = TypedPathBuf::from(expanded.as_str());
+    if resolved.is_absolute() {
+        resolved
+    } else {
+        ctx.pwd().join(expanded)
+    }
+}
+
+fn is_cdpath_eligible_token(token: &str) -> bool {
+    !(token.starts_with('/')
+        || token.starts_with('~')
+        || token.starts_with("./")
+        || token.starts_with("../")
+        || token == "."
+        || token == "..")
+}
+
+struct CdpathOverrideContext<'a> {
+    inner: &'a dyn PathCompletionContext,
+    cdpath_pwd: TypedPathBuf,
+}
+
+#[async_trait]
+impl<'a> PathCompletionContext for CdpathOverrideContext<'a> {
+    async fn list_directory_entries(&self, directory: TypedPathBuf) -> Arc<Vec<EngineDirEntry>> {
+        self.inner.list_directory_entries(directory).await
+    }
+
+    fn home_directory(&self) -> Option<&str> {
+        self.inner.home_directory()
+    }
+
+    fn cdpath(&self) -> Option<&str> {
+        None
+    }
+
+    fn shell_family(&self) -> ShellFamily {
+        self.inner.shell_family()
+    }
+
+    fn pwd(&self) -> TypedPath<'_> {
+        self.cdpath_pwd.to_path()
+    }
+
+    fn path_separators(&self) -> PathSeparators {
+        self.inner.path_separators()
+    }
 }
 
 pub async fn sorted_paths_relative_to(

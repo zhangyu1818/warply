@@ -12,6 +12,7 @@ use crate::{
     },
     test_util::mock_blockgrid,
 };
+use chrono::TimeZone;
 use float_cmp::assert_approx_eq;
 use futures_lite::stream::StreamExt;
 
@@ -486,6 +487,57 @@ pub fn test_block_duration_formatting() {
 
     let d8 = chrono::Duration::milliseconds(3604114);
     assert_eq!(Block::format_duration(d8), " (1h 4s)");
+}
+
+#[test]
+pub fn test_elapsed_duration_rounds_down_to_whole_seconds() {
+    let mut block = TestBlockBuilder::new().build();
+    block.precmd(PrecmdValue::default());
+    block.preexec(Default::default());
+
+    let start = chrono::Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+    block.override_start_ts(start);
+
+    let now_sub_second = start + chrono::Duration::milliseconds(500);
+    assert_eq!(block.elapsed_duration_whole_secs_at(now_sub_second), None);
+
+    let now_1s = start + chrono::Duration::milliseconds(1_200);
+    assert_eq!(
+        block.elapsed_duration_whole_secs_at(now_1s),
+        Some(chrono::Duration::seconds(1))
+    );
+
+    let now_7s = start + chrono::Duration::milliseconds(7_950);
+    assert_eq!(
+        block.elapsed_duration_whole_secs_at(now_7s),
+        Some(chrono::Duration::seconds(7))
+    );
+}
+
+#[test]
+pub fn test_elapsed_duration_requires_executing_state() {
+    let mut block = TestBlockBuilder::new().build();
+    let start = chrono::Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+    let now = start + chrono::Duration::seconds(5);
+
+    assert_eq!(block.elapsed_duration_whole_secs_at(now), None);
+    assert!(!block.is_duration_live());
+
+    block.precmd(PrecmdValue::default());
+    block.override_start_ts(start);
+    assert_eq!(block.elapsed_duration_whole_secs_at(now), None);
+    assert!(!block.is_duration_live());
+
+    block.preexec(Default::default());
+    assert_eq!(
+        block.elapsed_duration_whole_secs_at(now),
+        Some(chrono::Duration::seconds(5))
+    );
+    assert!(block.is_duration_live());
+
+    block.finish(0);
+    assert_eq!(block.elapsed_duration_whole_secs_at(now), None);
+    assert!(!block.is_duration_live());
 }
 
 #[test]
@@ -1367,9 +1419,9 @@ fn test_restored_block_was_local() {
 }
 
 #[test]
-fn test_deserialize_legacy_agent_view_visibility_agent_variant() {
+fn test_deserialize_agent_view_visibility_agent_variant() {
     let origin_conversation_id = AIConversationId::new();
-    let json = format!("{{\"Agent\":{{\"conversation_id\":\"{origin_conversation_id}\"}}}}");
+    let json = format!("{{\"Agent\":{{\"origin_conversation_id\":\"{origin_conversation_id}\"}}}}");
 
     let visibility: SerializedAgentViewVisibility = serde_json::from_str(&json).unwrap();
     match visibility {

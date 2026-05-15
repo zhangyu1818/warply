@@ -1,4 +1,4 @@
-use crate::env_vars::CloudEnvVarCollection;
+use crate::env_vars::SavedEnvVarCollection;
 use crate::object_ids::SyncId;
 use crate::search::mixer::SearchMixer;
 use crate::terminal::history::LinkedWorkflowData;
@@ -16,14 +16,14 @@ pub struct AcceptedHistoryItem {
 
 /// Payload for `AcceptWorkflow`: identifies which workflow was selected.
 ///
-/// Cloud workflows carry only a `SyncId` so the handler can resolve the full
+/// Saved workflows carry only a `SyncId` so the handler can resolve the full
 /// object from `CloudModel` at accept time (produced by the async
-/// `cloud_workflows_data_source`). Local/AI-generated workflows are produced
+/// saved workflows data source). Local/AI-generated workflows are produced
 /// by separate sync data sources and carry owned data since they don't live
 /// in `CloudModel`.
 #[derive(Clone, Debug)]
 pub enum AcceptedWorkflow {
-    Cloud {
+    Saved {
         id: SyncId,
         source: WorkflowSource,
     },
@@ -49,7 +49,7 @@ pub enum CommandSearchItemAction {
     AcceptWorkflow(AcceptedWorkflow),
 
     /// The user accepted an EVC search item.
-    AcceptEnvVarCollection(Box<CloudEnvVarCollection>),
+    AcceptEnvVarCollection(Box<SavedEnvVarCollection>),
 
     /// The user accepted the AI query search item with this query text.
     AcceptAIQuery(String),

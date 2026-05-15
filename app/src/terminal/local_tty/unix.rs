@@ -47,6 +47,8 @@ use std::{
 use warp_core::channel::ChannelState;
 use warpui::{AppContext, SingletonEntity};
 
+const BASH_HISTORY_SIZE_SENTINEL: &str = "57265949261";
+
 /// Get raw fds for leader/follower ends of a new PTY.
 fn make_pty(size: winsize) -> Result<(RawFd, RawFd)> {
     let mut win_size = size;
@@ -327,13 +329,10 @@ fn build_host_shell_command(
     builder.env("WARP_PATH_APPEND", path_append);
 
     if matches!(shell_starter.shell_type(), ShellType::Bash) {
-        // Set an initial very large value for HISTFILESIZE so that it
-        // doesn't get truncated on startup.
-        let sentinel_value = "57265949261";
-        builder.env("HISTFILESIZE", sentinel_value);
-        // Set a second environment variable that we can use to know whether
-        // the user rcfiles set HISTFILESIZE or not.
-        builder.env("WARP_INITIAL_HISTFILESIZE", sentinel_value);
+        builder.env("HISTFILESIZE", BASH_HISTORY_SIZE_SENTINEL);
+        builder.env("HISTSIZE", BASH_HISTORY_SIZE_SENTINEL);
+        builder.env("WARP_INITIAL_HISTFILESIZE", BASH_HISTORY_SIZE_SENTINEL);
+        builder.env("WARP_INITIAL_HISTSIZE", BASH_HISTORY_SIZE_SENTINEL);
     }
 
     // Pass the desired initial working directory as an environment variable
@@ -750,9 +749,10 @@ fn build_docker_sandbox_command(
     builder.env("WARP_PATH_APPEND", path_append);
     // Sandbox shell is always bash (per the container image convention),
     // matching the host-shell path's behavior for bash shells.
-    let sentinel_value = "57265949261";
-    builder.env("HISTFILESIZE", sentinel_value);
-    builder.env("WARP_INITIAL_HISTFILESIZE", sentinel_value);
+    builder.env("HISTFILESIZE", BASH_HISTORY_SIZE_SENTINEL);
+    builder.env("HISTSIZE", BASH_HISTORY_SIZE_SENTINEL);
+    builder.env("WARP_INITIAL_HISTFILESIZE", BASH_HISTORY_SIZE_SENTINEL);
+    builder.env("WARP_INITIAL_HISTSIZE", BASH_HISTORY_SIZE_SENTINEL);
     // Intentionally do NOT set `WARP_INITIAL_WORKING_DIR` for sandboxes:
     // the container's init script cds into the sandbox home dir, not
     // the host's startup dir.

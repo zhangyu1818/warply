@@ -3,26 +3,22 @@ use std::{fmt::Display, ops::Range, path::PathBuf, time::Duration};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumDiscriminants;
-use uuid::Uuid;
 use warp_terminal::model::BlockId;
 
 use crate::{
     agent::{
         action_result::{
-            AIAgentActionResultType, AskUserQuestionResult, CallMCPToolResult,
-            CreateDocumentsResult, EditDocumentsResult, FileGlobResult, FileGlobV2Result,
-            GrepResult, InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult,
-            ReadMCPResourceResult, ReadShellCommandOutputResult, ReadSkillResult,
-            RequestCommandOutputResult, RequestComputerUseResult, RequestFileEditsResult,
-            SearchCodebaseResult, SuggestNewConversationResult, SuggestPromptResult,
-            TransferShellCommandControlToUserResult, UseComputerResult,
-            WriteToLongRunningShellCommandResult,
+            AIAgentActionResultType, AskUserQuestionResult, CreateDocumentsResult,
+            EditDocumentsResult, FileGlobResult, FileGlobV2Result, GrepResult,
+            InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult,
+            ReadShellCommandOutputResult, RequestCommandOutputResult, RequestComputerUseResult,
+            RequestFileEditsResult, SearchCodebaseResult, TransferShellCommandControlToUserResult,
+            UseComputerResult, WriteToLongRunningShellCommandResult,
         },
         AIAgentCitation, FileLocations,
     },
     diff_validation::ParsedDiff,
     document::AIDocumentId,
-    skills::SkillReference,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumDiscriminants)]
@@ -87,28 +83,6 @@ pub enum AIAgentActionType {
         // TODO(matthew): Maybe implement client side depth and result limits.
     },
 
-    ReadMCPResource {
-        server_id: Option<Uuid>,
-        name: String,
-        /// The unique URI for the resource. Prefer using this to identify
-        /// a resource over [`ReadMCPResource::name`], when available.
-        ///
-        /// We should phase out `name` eventually and make this non-optional.
-        uri: Option<String>,
-    },
-
-    CallMCPTool {
-        server_id: Option<Uuid>,
-        name: String,
-        input: serde_json::Value,
-    },
-
-    SuggestNewConversation {
-        message_id: String,
-    },
-
-    SuggestPrompt(SuggestPromptRequest),
-
     InitProject,
     OpenCodeReview,
 
@@ -130,9 +104,6 @@ pub enum AIAgentActionType {
     },
 
     RequestComputerUse(RequestComputerUseRequest),
-
-    // AI requested to read a skill.
-    ReadSkill(ReadSkillRequest),
 
     /// Transfer control of a running shell command to the user.
     TransferShellCommandControlToUser {
@@ -192,18 +163,6 @@ impl AIAgentActionType {
                     WriteToLongRunningShellCommandResult::Cancelled,
                 )
             }
-            Self::CallMCPTool { .. } => {
-                AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
-            }
-            Self::ReadMCPResource { .. } => {
-                AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
-            }
-            Self::SuggestNewConversation { .. } => AIAgentActionResultType::SuggestNewConversation(
-                SuggestNewConversationResult::Cancelled,
-            ),
-            Self::SuggestPrompt { .. } => {
-                AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled)
-            }
             Self::OpenCodeReview => AIAgentActionResultType::OpenCodeReview,
             Self::InitProject => AIAgentActionResultType::InitProject,
             Self::ReadDocuments(_) => {
@@ -227,7 +186,6 @@ impl AIAgentActionType {
             Self::RequestComputerUse(_) => {
                 AIAgentActionResultType::RequestComputerUse(RequestComputerUseResult::Cancelled)
             }
-            Self::ReadSkill(_) => AIAgentActionResultType::ReadSkill(ReadSkillResult::Cancelled),
             Self::TransferShellCommandControlToUser { .. } => {
                 AIAgentActionResultType::TransferShellCommandControlToUser(
                     TransferShellCommandControlToUserResult::Cancelled,
@@ -255,10 +213,6 @@ impl AIAgentActionType {
             }
             Self::Grep { .. } => "Grep".to_string(),
             Self::FileGlob { .. } | Self::FileGlobV2 { .. } => "File glob".to_string(),
-            Self::ReadMCPResource { .. } => "Read mcp resource".to_string(),
-            Self::CallMCPTool { .. } => "Call mcp tool".to_string(),
-            Self::SuggestNewConversation { .. } => "Suggest new conversation".to_string(),
-            Self::SuggestPrompt { .. } => "Suggest prompt".to_string(),
             Self::InitProject => "Init project".to_string(),
             Self::OpenCodeReview => "Open code review".to_string(),
             Self::ReadDocuments(_) => "Read documents".to_string(),
@@ -270,7 +224,6 @@ impl AIAgentActionType {
                 format!("Insert {} code review comments", comments.len())
             }
             Self::RequestComputerUse(_) => "Request computer use".to_string(),
-            Self::ReadSkill(_) => "Read skill".to_string(),
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
             }
@@ -337,30 +290,6 @@ impl Display for AIAgentActionType {
                 let path_str = search_dir.as_deref().unwrap_or(".");
                 write!(f, "FileGlobV2: [{}] in {}", patterns.join(", "), path_str)
             }
-            AIAgentActionType::ReadMCPResource {
-                server_id: _,
-                name,
-                uri,
-            } => {
-                if let Some(uri) = uri {
-                    write!(f, "ReadMCPResource: {name} ({uri})")
-                } else {
-                    write!(f, "ReadMCPResource: {name}")
-                }
-            }
-            AIAgentActionType::CallMCPTool {
-                server_id: _,
-                name,
-                input,
-            } => {
-                write!(f, "CallMCPTool: {name} with input {input:?}")
-            }
-            AIAgentActionType::SuggestNewConversation { message_id } => {
-                write!(f, "SuggestNewConversation: {message_id}")
-            }
-            AIAgentActionType::SuggestPrompt(request) => {
-                write!(f, "SuggestPrompt: {request:?}")
-            }
             AIAgentActionType::InitProject => {
                 write!(f, "InitProject")
             }
@@ -421,9 +350,6 @@ impl Display for AIAgentActionType {
             }
             AIAgentActionType::RequestComputerUse(req) => {
                 write!(f, "RequestComputerUse: {}", req.task_summary)
-            }
-            AIAgentActionType::ReadSkill(req) => {
-                write!(f, "ReadSkill: {}", req.skill)
             }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
@@ -564,11 +490,6 @@ pub struct RequestComputerUseRequest {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ReadSkillRequest {
-    pub skill: SkillReference,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ShellCommandDelay {
     Duration(Duration),
     OnCompletion,
@@ -662,19 +583,6 @@ pub struct InsertedCommentLine {
     pub diff_hunk_text: String,
     /// The side of the diff the comment is attached to.
     pub side: Option<CommentSide>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SuggestPromptRequest {
-    UnitTestsSuggestion {
-        query: String,
-        title: String,
-        description: String,
-    },
-    PromptSuggestion {
-        prompt: String,
-        label: Option<String>,
-    },
 }
 
 /// A file-editing request from the agent.

@@ -144,9 +144,9 @@ impl StandardizedPath {
 
     /// Whether this path ends with the given suffix (component-aware).
     ///
-    /// The suffix can be a relative path string (e.g. `.agents/skills`).
-    /// Matching is done at the component level, so `/repo/myskills` does
-    /// **not** match the suffix `skills`.
+    /// The suffix can be a relative path string (e.g. `.warply/config`).
+    /// Matching is done at the component level, so `/repo/mybin` does
+    /// **not** match the suffix `bin`.
     pub fn ends_with(&self, suffix: &str) -> bool {
         self.0.ends_with(suffix)
     }

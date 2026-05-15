@@ -169,8 +169,6 @@ pub enum ItemSummary {
     /// Dummy enum variant for launch configurations until we support showing them in recent section
     /// of the zero state
     LaunchConfiguration,
-    /// Dummy enum variant for cloud objects that aren't supported yet in command palette
-    CloudObject,
     File {
         path: String,
         project_directory: String,

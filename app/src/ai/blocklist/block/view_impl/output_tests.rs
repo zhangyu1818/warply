@@ -8,8 +8,8 @@ use crate::ai::agent::AIAgentTextSection;
 
 use super::{
     acp_tool_call_content_sections, acp_tool_call_location_display_strings,
-    acp_tool_call_render_kind, acp_tool_call_skill_path, format_acp_terminal_trace,
-    format_acp_tool_call_content, AcpToolCallRenderKind, AcpToolCallSurfaceKind,
+    acp_tool_call_render_kind, format_acp_terminal_trace, format_acp_tool_call_content,
+    AcpToolCallRenderKind, AcpToolCallSurfaceKind,
 };
 
 #[test]
@@ -145,32 +145,6 @@ fn acp_terminal_trace_sections_ignore_unreferenced_terminal_trace() {
     );
 
     assert!(acp_tool_call_content_sections(&call).is_empty());
-}
-
-#[test]
-fn acp_tool_call_skill_path_uses_structured_skill_location() {
-    let call = AcpToolCall::from_acp(
-        ToolCall::new("read-skill", "Read SKILL.md")
-            .kind(ToolKind::Read)
-            .locations(vec![agent_client_protocol::schema::ToolCallLocation::new(
-                "/tmp/.agents/skills/using-superpowers/SKILL.md",
-            )]),
-    );
-
-    assert_eq!(
-        acp_tool_call_skill_path(&call).as_deref(),
-        Some(std::path::Path::new(
-            "/tmp/.agents/skills/using-superpowers/SKILL.md"
-        ))
-    );
-}
-
-#[test]
-fn acp_tool_call_skill_path_does_not_infer_from_title() {
-    let call =
-        AcpToolCall::from_acp(ToolCall::new("read-skill", "Read SKILL.md").kind(ToolKind::Read));
-
-    assert_eq!(acp_tool_call_skill_path(&call), None);
 }
 
 #[test]

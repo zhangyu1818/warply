@@ -1,21 +1,16 @@
-//! A common websocket API that works for native and `wasm` targets.
+//! A native websocket API.
 
-#[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
-#[cfg_attr(target_family = "wasm", path = "wasm.rs")]
+#[path = "native.rs"]
 mod imp;
 mod sink_map_err;
 
 use anyhow::anyhow;
-#[cfg(not(target_family = "wasm"))]
 pub use async_tungstenite::tungstenite::client::IntoClientRequest;
-#[cfg(not(target_family = "wasm"))]
 use async_tungstenite::tungstenite::http::HeaderValue;
 use futures_util::{future, SinkExt, TryStreamExt};
-#[cfg(not(target_family = "wasm"))]
 use itertools::Itertools;
 use thiserror::Error;
 
-#[cfg(not(target_family = "wasm"))]
 pub use async_tungstenite::tungstenite;
 
 use crate::sink_map_err::map_err;
@@ -69,15 +64,8 @@ impl WebsocketMessage for Message {
     }
 }
 
-/// A [`WebSocket`] that works natively and on the web. To connect to a websocket
-/// with just a URL and an optional set of protocols, use [`Websocket::connect`].
+/// A [`WebSocket`] connection.
 ///
-/// To connect to a websocket with an enriched client request (e.g. with additional
-/// request headers), you can also use [`Websocket::connect`] with an [`http::Request`] but
-/// this support is only available for non-wasm targets; custom request headers are not supported
-/// for websockets on the web.
-///
-/// In either case, the caller will have a [`Websocket`] returned.
 /// To write or read from the resulting socket, use [`WebSocket::split`].  
 pub struct WebSocket(imp::WebSocket);
 
@@ -93,9 +81,6 @@ impl WebSocket {
     }
 
     /// Create the [`WebSocket`] by connecting using the provided `request`.
-    /// For non-wasm WebSockets, the request can be enriched with custom
-    /// request headers.
-    #[cfg(not(target_family = "wasm"))]
     pub async fn connect(
         request: impl IntoClientRequest,
         protocols: impl IntoIterator<Item = &str>,
@@ -108,16 +93,6 @@ impl WebSocket {
                 .insert("Sec-WebSocket-Protocol", HeaderValue::from_str(&protocols)?);
         }
         let socket = imp::connect(request).await?;
-        Ok(Self(socket))
-    }
-
-    /// Create the [`WebSocket`] by connecting against the provided `url`.
-    #[cfg(target_family = "wasm")]
-    pub async fn connect(
-        url: impl AsRef<str>,
-        protocols: impl IntoIterator<Item = &str>,
-    ) -> anyhow::Result<Self> {
-        let socket = imp::connect(url, protocols).await?;
         Ok(Self(socket))
     }
 }

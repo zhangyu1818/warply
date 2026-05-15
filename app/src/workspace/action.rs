@@ -241,13 +241,11 @@ pub enum WorkspaceAction {
     DumpHeapProfile,
     /// An action to open a new window with a view hierarchy debugger.
     OpenViewTreeDebugWindow,
-    /// An action to either upgrade syncing status from none or just in one tab
-    /// to syncing all tabs, or downgrade from syncing all tabs to no syncing
+    /// An action to either mirror terminal input across all tabs or stop mirroring it.
     ToggleSyncAllTerminalInputsInAllTabs,
-    /// An action to either cancel syncing
-    /// or switch from no syncing/syncing all tabs to syncing within one tab
+    /// An action to either mirror terminal input within one tab or cancel input mirroring.
     ToggleSyncTerminalInputsInTab,
-    /// An action to force terminal input syncing off
+    /// An action to force terminal input mirroring off
     DisableTerminalInputSync,
     HandleConflictingWorkflow(SyncId),
     HandleConflictingEnvVarCollection(SyncId),
@@ -285,7 +283,6 @@ pub enum WorkspaceAction {
     LogReviewCommentSendStatusForActiveTab,
     ToggleRecordingMode,
     ToggleInBandGenerators,
-    ToggleDebugNetworkStatus,
     ToggleShowMemoryStats,
     RunAISuggestedCommand(String),
     RunCommand(String),
@@ -315,7 +312,6 @@ pub enum WorkspaceAction {
         query: String,
     },
     OpenAIFactCollection,
-    OpenMCPServerCollection,
     ToggleAIDocumentPane {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
@@ -365,33 +361,21 @@ pub enum WorkspaceAction {
         restore_layout: Option<RestoreConversationLayout>,
     },
     /// Fork an existing AI conversation.
-    /// Optionally summarizes the conversation after forking and/or sends an initial prompt.
     ForkAIConversation {
         conversation_id: AIConversationId,
         fork_from_exchange: Option<ForkFromExchange>,
-        /// Whether to summarize the conversation after forking.
-        summarize_after_fork: bool,
-        /// Prompt to use for summarization when `summarize_after_fork` is true.
-        summarization_prompt: Option<String>,
-        /// Initial prompt to send in the forked conversation (sent after summarization if enabled).
+        /// Initial prompt to send in the forked conversation.
         initial_prompt: Option<String>,
         /// Where to open the forked conversation.
         destination: ForkedConversationDestination,
     },
     /// Fork an existing AI conversation into a new pane and prefill the input with a local
     /// continuation command (selecting all text).
-    #[cfg(not(target_family = "wasm"))]
     ContinueConversationLocally {
         conversation_id: AIConversationId,
     },
     /// Insert the /fork slash command into the active terminal's input.
     InsertForkSlashCommand,
-    /// Summarize the active AI conversation in the focused pane.
-    SummarizeAIConversation {
-        prompt: Option<String>,
-        /// Optional prompt to send after summarization completes successfully.
-        initial_prompt: Option<String>,
-    },
     /// Queue a prompt to be sent after the current conversation finishes.
     QueuePromptForConversation {
         prompt: String,
@@ -429,14 +413,7 @@ pub enum WorkspaceAction {
     ToggleGlobalSearch,
     OpenGlobalSearch,
     ToggleConversationListView,
-    /// Install the opencode-warp plugin from GitHub into the global opencode config.
-    #[cfg(debug_assertions)]
-    InstallOpenCodeWarpPlugin,
-    /// Use a local checkout of the opencode-warp plugin (for testing/development).
-    #[cfg(debug_assertions)]
-    UseLocalOpenCodeWarpPlugin,
     /// Take a process sample of the app (equivalent to Activity Monitor > Sample Process).
-    #[cfg(target_os = "macos")]
     SampleProcess,
     /// Show the rewind confirmation dialog before rewinding an AI conversation
     ShowRewindConfirmationDialog {
@@ -455,9 +432,6 @@ pub enum WorkspaceAction {
         conversation_id: AIConversationId,
         terminal_view_id: Option<EntityId>,
     },
-    /// Toggle the conversation transcript details panel (WASM-only).
-    #[cfg(target_family = "wasm")]
-    ToggleConversationTranscriptDetailsPanel,
     /// Open a full-window lightbox displaying the given images.
     OpenLightbox {
         images: Vec<lightbox::LightboxImage>,
@@ -515,7 +489,6 @@ impl WorkspaceAction {
     pub fn should_save_app_state_on_action(&self) -> bool {
         use WorkspaceAction::*;
         match self {
-            #[cfg(not(target_family = "wasm"))]
             ContinueConversationLocally { .. } => true,
             ActivateTab(_)
             | ActivateTabByNumber(_)
@@ -561,7 +534,6 @@ impl WorkspaceAction {
             | RestoreOrNavigateToConversation { .. }
             | NewCodeFile
             | ForkAIConversation { .. }
-            | SummarizeAIConversation { .. }
             | OpenRepository { .. }
             | SelectTabConfig(_)
             | ToggleVerticalTabsPanel => true, // actions that actually change a state of the state of user's
@@ -648,7 +620,6 @@ impl WorkspaceAction {
             | LogReviewCommentSendStatusForActiveTab
             | ToggleRecordingMode
             | ToggleInBandGenerators
-            | ToggleDebugNetworkStatus
             | ToggleShowMemoryStats
             | RunAISuggestedCommand { .. }
             | RunCommand { .. }
@@ -661,7 +632,6 @@ impl WorkspaceAction {
             | TabHoverWidthStart { .. }
             | TabHoverWidthEnd
             | OpenAIFactCollection
-            | OpenMCPServerCollection
             | FocusTerminalViewInWorkspace { .. }
             | FocusPane(..)
             | StartNewConversation { .. }
@@ -688,11 +658,6 @@ impl WorkspaceAction {
             | TabConfigSidecarEditConfig { .. }
             | TabConfigSidecarRemoveConfig { .. }
             | OpenSettingsFile => false,
-            #[cfg(target_family = "wasm")]
-            ToggleConversationTranscriptDetailsPanel => false,
-            #[cfg(debug_assertions)]
-            InstallOpenCodeWarpPlugin | UseLocalOpenCodeWarpPlugin => false,
-            #[cfg(target_os = "macos")]
             SampleProcess => false,
             #[cfg(feature = "local_fs")]
             FileRenamed { .. } => false, // File rename doesn't change workspace state

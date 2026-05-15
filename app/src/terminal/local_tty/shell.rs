@@ -21,24 +21,10 @@ pub const ZSH_SHELL_PATH: &str = "/bin/zsh";
 pub const BASH_SHELL_PATH: &str = "/bin/bash";
 pub const FISH_SHELL_PATH: &str = "/bin/fish";
 
-/// Returns an iterator of additional PATH entries to append to the shell's PATH.
-/// * On macOS, this includes `$APP_PATH/Contents/Resources/bin`, in which we put a wrapper around the Warp CLI.
-/// * On all other platforms, this is empty.
 pub fn extra_path_entries() -> impl Iterator<Item = PathBuf> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            use itertools::Either;
-
-            if let Some(resources_path) = warp_core::paths::bundled_resources_dir() {
-                let bin_path = resources_path.join("bin");
-                Either::Left(std::iter::once(bin_path))
-            } else {
-                Either::Right(std::iter::empty())
-            }
-        } else {
-            std::iter::empty()
-        }
-    }
+    warp_core::paths::bundled_resources_dir()
+        .into_iter()
+        .map(|resources_path| resources_path.join("bin"))
 }
 
 /// Returns `true` if the given `path_or_command` is a valid, executable command or path to a

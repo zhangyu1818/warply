@@ -13,14 +13,10 @@ mod input_model;
 mod permissions;
 mod persistence;
 pub mod prompt;
-pub mod suggested_agent_mode_workflow_modal;
-pub mod suggested_rule_modal;
-mod suggestion_chip_view;
 pub mod summarization_cancel_dialog;
 
 pub(super) mod view_util;
 
-#[cfg_attr(target_family = "wasm", allow(unused_imports))]
 pub(crate) use action_model::{
     read_local_file_context, BlocklistAIActionEvent, BlocklistAIActionModel, ReadFileContextResult,
     ShellCommandExecutor, ShellCommandExecutorEvent,
@@ -48,7 +44,6 @@ pub(crate) use input_model::{
 pub(crate) use passive_suggestions::{
     PassiveSuggestionsModels, TerminalPassiveSuggestionsEvent, TerminalPassiveSuggestionsModel,
 };
-#[cfg_attr(target_family = "wasm", allow(unused))]
 pub(crate) use persistence::PersistedAIInputType;
 pub(crate) use persistence::{PersistedAIInput, SerializedBlockListItem};
 pub(crate) use view_util::{
@@ -57,9 +52,10 @@ pub(crate) use view_util::{
     render_ai_follow_up_icon, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, CLAUDE_ORANGE,
 };
 
-pub use crate::ai::blocklist::block::{secret_redaction, AIBlockResponseRating, TextLocation};
+pub use crate::ai::blocklist::block::{secret_redaction, TextLocation};
 pub use block::keyboard_navigable_buttons;
 pub use block::toggleable_items;
-pub use controller::input_context::{BLOCK_CONTEXT_ATTACHMENT_REGEX, DIFF_HUNK_ATTACHMENT_REGEX};
+pub use controller::input_context::{
+    BLOCK_CONTEXT_ATTACHMENT_REGEX, DIFF_HUNK_ATTACHMENT_REGEX, PLAN_CONTEXT_ATTACHMENT_REGEX,
+};
 pub use permissions::BlocklistAIPermissions;
-pub use suggestion_chip_view::*;

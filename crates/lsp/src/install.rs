@@ -1,15 +1,9 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-#[cfg(all(feature = "local_fs", unix))]
 use async_fs::unix::PermissionsExt;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        use sha2::{Digest, Sha256};
-        use std::path::PathBuf;
-    }
-}
+use sha2::{Digest, Sha256};
+use std::path::PathBuf;
 
 use crate::language_server_candidate::LanguageServerMetadata;
 
@@ -141,16 +135,14 @@ where
 }
 
 /// The type of archive for a GitHub release asset.
-#[cfg(feature = "local_fs")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssetKind {
     /// A gzip-compressed file (e.g., `rust-analyzer-aarch64-apple-darwin.gz`)
     Gz,
-    /// A zip archive (e.g., `rust-analyzer-x86_64-pc-windows-msvc.zip`)
+    /// A zip archive.
     Zip,
 }
 
-#[cfg(feature = "local_fs")]
 impl AssetKind {
     /// Determines the asset kind from a file name based on its extension.
     pub fn from_filename(filename: &str) -> Option<Self> {
@@ -170,7 +162,7 @@ impl AssetKind {
 /// 1. Downloads the binary from the provided URL
 /// 2. Verifies the SHA256 checksum if provided
 /// 3. Extracts/decompresses the archive based on its type
-/// 4. Makes the binary executable (on Unix systems)
+/// 4. Makes the binary executable
 ///
 /// # Arguments
 /// * `client` - The HTTP client to use for downloading
@@ -184,7 +176,6 @@ impl AssetKind {
 ///
 /// # Returns
 /// The path to the installed binary on success.
-#[cfg(feature = "local_fs")]
 pub async fn install_from_github(
     client: &http_client::Client,
     metadata: &LanguageServerMetadata,
@@ -288,18 +279,14 @@ pub async fn install_from_github(
         install_dir.join(&binary_name)
     };
 
-    // Make the binary executable on Unix systems
-    #[cfg(unix)]
-    {
-        let mut perms = async_fs::metadata(&binary_path)
-            .await
-            .with_context(|| format!("Failed to get metadata for {:?}", binary_path))?
-            .permissions();
-        perms.set_mode(0o755);
-        async_fs::set_permissions(&binary_path, perms)
-            .await
-            .with_context(|| format!("Failed to set permissions for {:?}", binary_path))?;
-    }
+    let mut perms = async_fs::metadata(&binary_path)
+        .await
+        .with_context(|| format!("Failed to get metadata for {:?}", binary_path))?
+        .permissions();
+    perms.set_mode(0o755);
+    async_fs::set_permissions(&binary_path, perms)
+        .await
+        .with_context(|| format!("Failed to set permissions for {:?}", binary_path))?;
 
     log::info!("Successfully installed {server_name} to {:?}", binary_path);
     Ok(binary_path)

@@ -15,15 +15,13 @@ pub use local_object_model::ids::FolderId;
 pub struct CloudFolderModel {
     pub name: String,
     pub is_open: bool,
-    pub is_warp_pack: bool,
 }
 
 impl CloudFolderModel {
-    pub fn new(name: &str, is_warp_pack: bool) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
             is_open: false,
-            is_warp_pack,
         }
     }
 }

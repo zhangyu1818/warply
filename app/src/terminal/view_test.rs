@@ -1628,22 +1628,11 @@ fn test_block_select() {
                 .toggle(10.into(), Some(11.into()), Some(9.into()));
 
             let single_mouse_down = BlockSelectAction::MouseDown(Some(1.into()));
-            // On Mac, we use cmd-click to toggle block selections, but
-            // we use ctrl-click on non-Mac platforms.
-            let single_mouse_up = if cfg!(target_os = "macos") {
-                BlockSelectAction::MouseUp {
-                    block_index: 1.into(),
-                    is_ctrl_down: false,
-                    is_cmd_down: true,
-                    is_shift_down: false,
-                }
-            } else {
-                BlockSelectAction::MouseUp {
-                    block_index: 1.into(),
-                    is_ctrl_down: true,
-                    is_cmd_down: false,
-                    is_shift_down: false,
-                }
+            let single_mouse_up = BlockSelectAction::MouseUp {
+                block_index: 1.into(),
+                is_ctrl_down: false,
+                is_cmd_down: true,
+                is_shift_down: false,
             };
             view.block_select(&single_mouse_down, true, ctx);
             view.block_select(&single_mouse_up, true, ctx);

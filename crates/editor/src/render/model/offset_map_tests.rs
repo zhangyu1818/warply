@@ -69,13 +69,8 @@ fn test_offset_map_placeholders() {
 /// Walkthrough test to demonstrate how placeholders are represented in the [`OffsetMap`] and
 /// [`TextFrame`].
 ///
-/// This test only runs on macOS because it needs a text-layout implementation for [`EditDelta`]
-/// that creates non-empty text frames.
 #[test]
-#[cfg(target_os = "macos")]
 fn test_end_to_end() {
-    // Group imports here so they don't cause "unused import" warnings on other targets.
-
     use warpui::{
         App, color::ColorU, elements::Fill, fonts::Cache as FontCache, text_layout::LayoutCache,
     };

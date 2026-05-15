@@ -19,7 +19,6 @@ use super::config::ThemeType;
 #[strum_discriminants(name(TerminalType))]
 pub enum TerminalTypeAndProfile {
     Alacritty,
-    #[cfg(target_os = "macos")]
     ITerm(usize),
 }
 
@@ -103,7 +102,6 @@ impl ImportedConfigModel {
                     .map(|item| (TerminalTypeAndProfile::Alacritty, item))
                     .collect::<Vec<(TerminalTypeAndProfile, &Config)>>()
                     .into_iter(),
-                #[cfg(target_os = "macos")]
                 TerminalType::ITerm => vec
                     .iter()
                     .enumerate()
@@ -118,7 +116,6 @@ impl ImportedConfigModel {
             .get(&TerminalType::from(profile))
             .map(|vec| match profile {
                 TerminalTypeAndProfile::Alacritty => vec.as_ref().ok().and_then(|vec| vec.first()),
-                #[cfg(target_os = "macos")]
                 TerminalTypeAndProfile::ITerm(idx) => {
                     vec.as_ref().ok().and_then(|vec| vec.get(*idx))
                 }
@@ -136,7 +133,6 @@ impl ImportedConfigModel {
                 TerminalTypeAndProfile::Alacritty => {
                     vec.as_mut().ok().and_then(|vec| vec.first_mut())
                 }
-                #[cfg(target_os = "macos")]
                 TerminalTypeAndProfile::ITerm(idx) => {
                     vec.as_mut().ok().and_then(|vec| vec.get_mut(*idx))
                 }

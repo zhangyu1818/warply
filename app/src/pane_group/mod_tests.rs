@@ -1,28 +1,20 @@
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::{
     ai::{
-        acp::model::AcpAgentModel,
-        active_agent_views_model::ActiveAgentViewsModel,
-        agent_conversations_model::AgentConversationsModel,
-        blocklist::BlocklistAIHistoryModel,
+        acp::model::AcpAgentModel, active_agent_views_model::ActiveAgentViewsModel,
+        agent_conversations_model::AgentConversationsModel, blocklist::BlocklistAIHistoryModel,
         document::ai_document_model::AIDocumentModel,
-        execution_profiles::profiles::AIExecutionProfilesModel,
-        llms::LLMPreferences,
-        mcp::{
-            templatable_manager::TemplatableMCPServerManager, FileBasedMCPManager, FileMCPWatcher,
-        },
-        outline::RepoOutlines,
+        execution_profiles::profiles::AIExecutionProfilesModel, outline::RepoOutlines,
         persisted_workspace::PersistedWorkspace,
         restored_conversations::RestoredAgentConversations,
-        skills::SkillManager,
     },
     cloud_object::model::persistence::CloudModel,
     cloud_object::update_manager::UpdateManager,
     context_chips::prompt::Prompt,
     http_api::HttpApiProvider,
     identity::LocalIdentityProvider,
-    network::NetworkStatus,
     notebooks::editor::keys::NotebookKeybindings,
+    projects::ProjectManagementModel,
     resource_center::TipsCompleted,
     search::files::model::FileSearchModel,
     settings_view::keybindings::KeybindingChangedNotifier,
@@ -63,21 +55,15 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| HttpApiProvider::new_for_test());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(UserWorkspaces::default_mock);
     app.add_singleton_model(UpdateManager::mock);
 
-    // Initialize file-based MCP dependencies.
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-    app.add_singleton_model(FileMCPWatcher::new);
-    app.add_singleton_model(|_| FileBasedMCPManager::default());
-
-    app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(|_ctx| SyncedInputState::mock());
     app.add_singleton_model(LocalWorkflows::new);
@@ -97,11 +83,10 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
-    app.add_singleton_model(LLMPreferences::new);
 
     #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
-    app.add_singleton_model(SkillManager::new);
+    app.add_singleton_model(|ctx| ProjectManagementModel::new(vec![], None, ctx));
     app.add_singleton_model(FileSearchModel::new);
     app.add_singleton_model(|_| crate::code_review::git_status_update::GitStatusUpdateModel::new());
     app.add_singleton_model(RepoOutlines::new_for_test);

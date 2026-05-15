@@ -14,15 +14,10 @@ use crate::{
     settings::{AISettings, AgentModeCodingPermissionsType, AgentModeCommandExecutionPredicate},
 };
 
-use crate::ai::mcp::mcp_provider_from_file_path;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::mcp::TemplatableMCPServerManager;
-
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use warp_completer::parsers::simple::decompose_command;
-use warp_core::user_preferences::GetUserPreferences;
-use warp_core::{features::FeatureFlag, settings::Setting};
+use warp_core::settings::Setting;
 use warp_util::path::EscapeChar;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
@@ -125,9 +120,6 @@ pub enum FileWritePermissionDeniedReason {
     AlwaysAskEnabled,
     Inconclusive,
     AgentDecided,
-    /// The path is a system-protected file (e.g. an MCP config) that must never
-    /// be auto-written regardless of user autonomy settings.
-    ProtectedPath,
 }
 
 /// Describes permissions that Agent Mode has, backed by [`AISettings`].
@@ -140,24 +132,7 @@ pub struct BlocklistAIPermissions {
 }
 
 impl BlocklistAIPermissions {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Migrate the old `AgentModeAutoReadFiles` setting to the new [`AgentModeCodingPermissionsType`].
-        if let Some(can_read_files) = ctx
-            .private_user_preferences()
-            .read_value("AgentModeAutoReadFiles")
-            .ok()
-            .flatten()
-            .and_then(|s| s.parse().ok())
-        {
-            if let Err(e) = ctx
-                .private_user_preferences()
-                .remove_value("AgentModeAutoReadFiles")
-            {
-                log::error!("Failed to remove old AgentModeAutoReadFiles user pref: {e}");
-            }
-            if can_read_files {}
-        }
-
+    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         Self {
             temporary_file_permissions: Default::default(),
         }
@@ -178,13 +153,10 @@ impl BlocklistAIPermissions {
             apply_code_diffs: self.get_apply_code_diffs_setting_for_profile(ctx, profile_id),
             read_files: self.get_read_files_setting_for_profile(ctx, profile_id),
             execute_commands: self.get_execute_commands_setting_for_profile(ctx, profile_id),
-            mcp_permissions: self.get_mcp_permissions_setting_for_profile(ctx, profile_id),
             write_to_pty: self.get_write_to_pty_setting_for_profile(ctx, profile_id),
             command_allowlist: self.get_execute_commands_allowlist_for_profile(ctx, profile_id),
             command_denylist: self.get_execute_commands_denylist_for_profile(ctx, profile_id),
             directory_allowlist: self.get_read_files_allowlist_for_profile(ctx, profile_id),
-            mcp_allowlist: self.get_mcp_allowlist_for_profile(ctx, profile_id),
-            mcp_denylist: self.get_mcp_denylist_for_profile(ctx, profile_id),
             computer_use: self.get_computer_use_setting_for_profile(ctx, profile_id),
             ask_user_question: self.get_ask_user_question_setting_for_profile(ctx, profile_id),
 
@@ -374,77 +346,6 @@ impl BlocklistAIPermissions {
         self.get_write_to_pty_setting(ctx, terminal_view_id)
     }
 
-    pub fn get_mcp_permissions_setting_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: ClientProfileId,
-    ) -> ActionPermission {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .mcp_permissions
-    }
-
-    pub fn get_mcp_permissions_setting(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> ActionPermission {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_mcp_permissions_setting_for_profile(ctx, *active_profile.id())
-    }
-
-    pub fn get_mcp_allowlist_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: ClientProfileId,
-    ) -> Vec<uuid::Uuid> {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .mcp_allowlist
-            .clone()
-    }
-
-    pub fn get_mcp_allowlist(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> Vec<uuid::Uuid> {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_mcp_allowlist_for_profile(ctx, *active_profile.id())
-    }
-
-    pub fn get_mcp_denylist_for_profile(
-        &self,
-        ctx: &AppContext,
-        profile_id: ClientProfileId,
-    ) -> Vec<uuid::Uuid> {
-        let profiles_model = AIExecutionProfilesModel::as_ref(ctx);
-        profiles_model
-            .get_profile_by_id(profile_id, ctx)
-            .unwrap_or_else(|| profiles_model.default_profile(ctx))
-            .data()
-            .mcp_denylist
-            .clone()
-    }
-
-    pub fn get_mcp_denylist(
-        &self,
-        ctx: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> Vec<uuid::Uuid> {
-        let active_profile =
-            AIExecutionProfilesModel::as_ref(ctx).active_profile(terminal_view_id, ctx);
-        self.get_mcp_denylist_for_profile(ctx, *active_profile.id())
-    }
-
     pub fn get_computer_use_setting_for_profile(
         &self,
         ctx: &AppContext,
@@ -540,7 +441,7 @@ impl BlocklistAIPermissions {
         }
 
         match self.get_read_files_setting(ctx, terminal_view_id) {
-            ActionPermission::AgentDecides | ActionPermission::Unknown => {
+            ActionPermission::AgentDecides => {
                 // For now, we always read files. We don't ask the user for permission.
                 FileReadPermission::Allowed(FileReadPermissionAllowedReason::AgentDecided)
             }
@@ -567,15 +468,10 @@ impl BlocklistAIPermissions {
     pub fn can_write_files(
         &self,
         conversation_id: &AIConversationId,
-        paths: &[PathBuf],
+        _paths: &[PathBuf],
         terminal_view_id: Option<EntityId>,
         ctx: &AppContext,
     ) -> FileWritePermission {
-        // Protected paths are always denied, regardless of autonomy settings.
-        if let Some(denied) = check_protected_write_paths(paths) {
-            return denied;
-        }
-
         if BlocklistAIHistoryModel::as_ref(ctx)
             .conversation(conversation_id)
             .is_some_and(|convo| convo.autoexecute_any_action())
@@ -586,108 +482,13 @@ impl BlocklistAIPermissions {
         self.determine_write_permissions_from_active_profile(terminal_view_id, ctx)
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub fn can_call_mcp_tool(
-        &self,
-        server_id: Option<&uuid::Uuid>,
-        name: &str,
-        conversation_id: &AIConversationId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &AppContext,
-    ) -> bool {
-        let templatable_manager = TemplatableMCPServerManager::as_ref(ctx);
-
-        // Try resolving via server UUID first, then fall back to tool-name lookup.
-        // On recent clients, the server UUID should always be set - we should eventually
-        // require the server UUID.
-        let mut uuid_of_mcp_server =
-            server_id.and_then(|id| templatable_manager.get_template_uuid(*id));
-
-        // Prefer templatable MCP servers over legacy when a tool name exists in both.
-        // Fall back to legacy behavior if templatable lookup fails or is disabled.
-        if uuid_of_mcp_server.is_none() {
-            uuid_of_mcp_server = templatable_manager
-                .server_from_tool(name.to_string())
-                .copied()
-                .and_then(|installation_uuid| {
-                    templatable_manager.get_template_uuid(installation_uuid)
-                });
-        }
-
-        self.can_use_mcp_server(conversation_id, uuid_of_mcp_server, terminal_view_id, ctx)
-    }
-
-    /// Returns whether or not Agent Mode can automatically read the given MCP resource.
-    #[cfg(not(target_family = "wasm"))]
-    pub fn can_read_mcp_resource(
-        &self,
-        server_id: Option<&uuid::Uuid>,
-        name: &str,
-        uri: Option<&str>,
-        conversation_id: &AIConversationId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &AppContext,
-    ) -> bool {
-        let templatable_manager = TemplatableMCPServerManager::as_ref(ctx);
-
-        // Try resolving via server UUID first, then fall back to resource name/URI lookup.
-        // On recent clients, the server UUID should always be set - we should eventually
-        // require the server UUID.
-        let mut uuid_of_mcp_server =
-            server_id.and_then(|id| templatable_manager.get_template_uuid(*id));
-
-        // Prefer templatable MCP servers over legacy when a resource name exists in both.
-        // Fall back to legacy behavior if templatable lookup fails or is disabled.
-        if uuid_of_mcp_server.is_none() {
-            uuid_of_mcp_server = templatable_manager
-                .server_from_resource(name, uri)
-                .copied()
-                .and_then(|installation_uuid| {
-                    templatable_manager.get_template_uuid(installation_uuid)
-                });
-        }
-
-        self.can_use_mcp_server(conversation_id, uuid_of_mcp_server, terminal_view_id, ctx)
-    }
-
-    /// Checks whether the given MCP server (identified by its template UUID) is permitted
-    /// to be used based on the current MCP permission setting and allowlist/denylist.
-    #[cfg(not(target_family = "wasm"))]
-    fn can_use_mcp_server(
-        &self,
-        conversation_id: &AIConversationId,
-        uuid_of_mcp_server: Option<uuid::Uuid>,
-        terminal_view_id: Option<EntityId>,
-        ctx: &AppContext,
-    ) -> bool {
-        if BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(conversation_id)
-            .is_some_and(|convo| convo.autoexecute_any_action())
-        {
-            return true;
-        }
-
-        let allowlisted = uuid_of_mcp_server
-            .is_some_and(|uid| self.get_mcp_allowlist(ctx, terminal_view_id).contains(&uid));
-        let denylisted = uuid_of_mcp_server
-            .is_some_and(|uid| self.get_mcp_denylist(ctx, terminal_view_id).contains(&uid));
-
-        match self.get_mcp_permissions_setting(ctx, terminal_view_id) {
-            ActionPermission::AgentDecides | ActionPermission::Unknown => {
-                allowlisted && !denylisted
-            }
-            ActionPermission::AlwaysAllow => !denylisted,
-            ActionPermission::AlwaysAsk => allowlisted && !denylisted,
-        }
-    }
-
     fn determine_write_permissions_from_active_profile(
         &self,
         terminal_view_id: Option<EntityId>,
         ctx: &AppContext,
     ) -> FileWritePermission {
         match self.get_apply_code_diffs_setting(ctx, terminal_view_id) {
-            ActionPermission::AgentDecides | ActionPermission::Unknown => {
+            ActionPermission::AgentDecides => {
                 FileWritePermission::Denied(FileWritePermissionDeniedReason::AgentDecided)
             }
             ActionPermission::AlwaysAllow => FileWritePermission::Allowed(
@@ -743,9 +544,8 @@ impl BlocklistAIPermissions {
         }
 
         match self.get_execute_commands_setting(ctx, terminal_view_id) {
-            ActionPermission::AgentDecides | ActionPermission::Unknown => {
-                if FeatureFlag::AgentDecidesCommandExecution.is_enabled() && is_risky == Some(false)
-                {
+            ActionPermission::AgentDecides => {
+                if is_risky == Some(false) {
                     return CommandExecutionPermission::Allowed(
                         CommandExecutionPermissionAllowedReason::AgentDecided,
                     );
@@ -910,30 +710,13 @@ impl BlocklistAIPermissions {
     ) -> bool {
         match self.get_ask_user_question_setting(ctx, terminal_view_id) {
             AskUserQuestionPermission::Never => false,
-            AskUserQuestionPermission::AskExceptInAutoApprove
-            | AskUserQuestionPermission::Unknown => !BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(conversation_id)
-                .is_some_and(|convo| convo.autoexecute_any_action()),
+            AskUserQuestionPermission::AskExceptInAutoApprove => {
+                !BlocklistAIHistoryModel::as_ref(ctx)
+                    .conversation(conversation_id)
+                    .is_some_and(|convo| convo.autoexecute_any_action())
+            }
             AskUserQuestionPermission::AlwaysAsk => true,
         }
-    }
-}
-
-/// Returns `Some(Denied(ProtectedPath))` if any of the given paths are system-protected
-/// and must never be auto-written regardless of user autonomy settings.
-/// Returns `None` if no paths are protected.
-fn check_protected_write_paths(paths: &[PathBuf]) -> Option<FileWritePermission> {
-    // MCP config files are always protected from auto-write to prevent security risks
-    // from injecting arbitrary context into the agent.
-    if paths
-        .iter()
-        .any(|p| mcp_provider_from_file_path(p).is_some())
-    {
-        Some(FileWritePermission::Denied(
-            FileWritePermissionDeniedReason::ProtectedPath,
-        ))
-    } else {
-        None
     }
 }
 

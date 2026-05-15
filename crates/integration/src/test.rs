@@ -14,7 +14,6 @@ mod input;
 mod keyboard_protocol;
 mod launch_configs;
 mod pane_restoration;
-#[cfg(target_os = "macos")]
 mod preview_config_migration;
 mod rules;
 mod secrets;
@@ -44,7 +43,6 @@ pub use input::*;
 pub use keyboard_protocol::*;
 pub use launch_configs::*;
 pub use pane_restoration::*;
-#[cfg(target_os = "macos")]
 pub use preview_config_migration::*;
 pub use rules::*;
 pub use secrets::*;
@@ -4585,7 +4583,6 @@ pub fn test_create_session_with_new_tab_while_bootstrapping() -> Builder {
 
 pub fn test_cmd_enter() -> Builder {
     new_builder()
-        .set_should_run_test(|| cfg!(target_os = "macos"))
         .with_setup(|utils| {
             // Change dir to cargo test dir for auto cleanup.
             let dir = utils.test_dir();
@@ -6717,9 +6714,6 @@ pub fn test_pass_control_sequences_to_long_running_block() -> Builder {
 pub fn test_undo_close_stack_timeout_cleanup() -> Builder {
     FeatureFlag::UndoClosedPanes.set_enabled(true);
     new_builder()
-        // This test is Mac-only due to differences in window management on Linux
-        .set_should_run_test(|| cfg!(target_os = "macos"))
-        // Set a 5-second grace period to give time to close the window before it expires
         .with_user_defaults(HashMap::from([(
             "UndoCloseGracePeriod".to_owned(),
             serde_json::to_string(&Duration::from_secs(5))

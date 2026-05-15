@@ -63,7 +63,7 @@ pub async fn run_git_command_with_env(
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn run_git_command(_repo_path: &Path, _args: &[&str]) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 #[cfg(not(feature = "local_fs"))]
@@ -72,7 +72,7 @@ pub async fn run_git_command_with_env(
     _args: &[&str],
     _path_env: Option<&str>,
 ) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Returns the set of local branch names for the repo at `repo_path`.
@@ -383,7 +383,7 @@ pub async fn get_file_change_entries(
     _repo_path: &Path,
     _include_unstaged: bool,
 ) -> Result<Vec<FileChangeEntry>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Unpushed commits: `<upstream>..HEAD`, or `<fork_point>..HEAD` if no upstream.
@@ -470,7 +470,7 @@ pub async fn get_unpushed_commits(
     _current_branch_name: Option<&str>,
     _upstream_ref: Option<&str>,
 ) -> Result<Vec<Commit>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Returns the list of files changed in a specific commit, with per-file stats.
@@ -509,7 +509,7 @@ pub async fn get_commit_files(repo_path: &Path, hash: &str) -> Result<Vec<FileCh
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn get_commit_files(_repo_path: &Path, _hash: &str) -> Result<Vec<FileChangeEntry>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Maximum number of characters of diff content to send to AI for commit
@@ -651,7 +651,7 @@ pub async fn get_diff_for_commit_message(
     _repo_path: &Path,
     _include_unstaged: bool,
 ) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Commits changes. If `include_unstaged` is true, stages all changes first via `git add -A`.
@@ -676,7 +676,7 @@ pub async fn run_commit(
     _include_unstaged: bool,
     _path_env: Option<&str>,
 ) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Per-file stats for what would land in a PR: default branch vs
@@ -719,7 +719,7 @@ pub async fn get_branch_diff_entries(repo_path: &Path) -> Result<Vec<FileChangeE
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn get_branch_diff_entries(_repo_path: &Path) -> Result<Vec<FileChangeEntry>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Pushes the given branch to origin, setting upstream tracking if not already configured.
@@ -736,7 +736,7 @@ pub async fn run_push(repo_path: &Path, branch: &str, path_env: Option<&str>) ->
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn run_push(_repo_path: &Path, _branch: &str, _path_env: Option<&str>) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 // ── gh CLI helpers ───────────────────────────────────────────────────────────
@@ -821,7 +821,7 @@ pub async fn get_pr_for_branch(
     _repo_path: &Path,
     _path_env: Option<&str>,
 ) -> Result<Option<PrInfo>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// PR-ready diff (default branch vs `origin/<current>` or HEAD),
@@ -855,7 +855,7 @@ pub async fn get_diff_for_pr(repo_path: &Path) -> Result<String> {
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn get_diff_for_pr(_repo_path: &Path) -> Result<String> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Commit subject lines on the current branch since the default branch.
@@ -874,7 +874,7 @@ pub async fn get_branch_commit_messages(repo_path: &Path) -> Result<Vec<String>>
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn get_branch_commit_messages(_repo_path: &Path) -> Result<Vec<String>> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Creates a PR for the current branch (must already be pushed). Falls back
@@ -933,7 +933,7 @@ pub async fn create_pr(
     _body: Option<&str>,
     _path_env: Option<&str>,
 ) -> Result<PrInfo> {
-    Err(anyhow!("Not supported on wasm"))
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 /// Counts newlines in a file, returning 0 for binary or oversized files.

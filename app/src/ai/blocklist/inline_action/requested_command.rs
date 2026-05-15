@@ -15,15 +15,14 @@ use warpui::ui_components::components::UiComponent as _;
 use warpui::{
     elements::{
         Align, Border, ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Expanded,
-        Flex, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement, Radius,
-        SelectableArea, SelectionHandle, Stack, Text,
+        Flex, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement, Radius, Stack,
+        Text,
     },
     keymap::{Context, EditableBinding, FixedBinding, Keystroke},
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateView, View,
     ViewContext, ViewHandle,
 };
 
-use crate::ai::agent::{AIAgentActionResult, AIAgentActionType};
 use warpui::{EntityId, EventContext};
 
 use crate::ai::agent::RequestCommandOutputResult;
@@ -38,7 +37,7 @@ use crate::ai::blocklist::{
     AIBlock, BlocklistAIActionEvent, BlocklistAIHistoryModel, ClientIdentifiers,
 };
 use crate::ai::{
-    agent::{AIAgentActionId, AIAgentCitation, AIAgentOutputMessageType, CallMCPToolResult},
+    agent::{AIAgentActionId, AIAgentCitation, AIAgentOutputMessageType},
     blocklist::{
         action_model::AIActionStatus,
         block::{
@@ -65,7 +64,7 @@ use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme};
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, LARGE_SIZE_SWITCH_THRESHOLD,
-    MEDIUM_SIZE_SWITCH_THRESHOLD, SMALL_SIZE_SWITCH_THRESHOLD,
+    MEDIUM_SIZE_SWITCH_THRESHOLD,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::{cmd_or_ctrl_shift, settings::InputModeSettings, ui_components::blended_colors};
@@ -83,7 +82,6 @@ const REQUESTED_COMMAND_MINIMIZE_LABEL: &str = "Done";
 
 const LOADING_MESSAGE: &str = "Generating command...";
 const COMMAND_WAITING_FOR_USER_MESSAGE: &str = "OK if I run this command and read the output?";
-const MCP_TOOL_WAITING_FOR_USER_MESSAGE: &str = "OK if I call this MCP tool?";
 const MONITORING_COMMAND_MESSAGE: &str = "Agent is monitoring command...";
 const AGENT_NEEDS_INPUT_MESSAGE: &str = "Agent needs your input to continue";
 const USER_TOOK_CONTROL_COMMAND_MESSAGE: &str = "User is in control.";
@@ -91,7 +89,6 @@ const USER_STOPPED_CLI_SUBAGENT_COMMAND_MESSAGE: &str = "Paused agent. User is i
 const AGENT_REQUESTED_USER_TAKE_CONTROL_COMMAND_MESSAGE: &str = "User in control";
 const AGENT_ERRORED_COMMAND_MESSAGE: &str = "Agent ran into an issue. Take over control.";
 pub const VIEWING_COMMAND_DETAIL_MESSAGE: &str = "Viewing command detail";
-const VIEWING_MCP_TOOL_DETAIL_MESSAGE: &str = "Viewing MCP tool call detail";
 
 const EDIT_COMMAND_ACTION_NAME: &str = "requested_command:edit";
 
@@ -169,16 +166,11 @@ pub fn init(app: &mut AppContext) {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestedActionViewType {
     Command,
-    McpTool,
 }
 
 impl RequestedActionViewType {
     fn is_requested_command(&self) -> bool {
         matches!(self, RequestedActionViewType::Command)
-    }
-
-    fn is_mcp_tool(&self) -> bool {
-        matches!(self, RequestedActionViewType::McpTool)
     }
 }
 
@@ -247,10 +239,6 @@ pub struct RequestedCommandView {
 
     autoexecute_readonly_commands_speedbump_checkbox_handle: MouseStateHandle,
     manage_autonomy_settings_link_handle: MouseStateHandle,
-
-    // Selection support for MCP tool call detail text
-    mcp_content_selection_handle: SelectionHandle,
-    mcp_content_selected_text: Arc<std::sync::RwLock<Option<String>>>,
 }
 
 impl RequestedCommandView {
@@ -343,31 +331,6 @@ impl RequestedCommandView {
                     BlocklistAIActionEvent::ExecutingAction(action_id)
                         if *action_id == me.action_id =>
                     {
-                        // For shared-session viewers, sync the command text from the action when it starts executing.
-                        if me.action_model.as_ref(ctx).is_view_only() {
-                            // Get the action from the block's output to sync the command text.
-                            if let Some(command) = me
-                                .block_model
-                                .status(ctx)
-                                .output_to_render()
-                                .and_then(|output| {
-                                    output
-                                        .get()
-                                        .actions()
-                                        .find(|a| a.id == *action_id)
-                                        .and_then(|action| match &action.action {
-                                            AIAgentActionType::RequestCommandOutput {
-                                                command,
-                                                ..
-                                            } => Some(command.clone()),
-                                            _ => None,
-                                        })
-                                })
-                            {
-                                me.apply_streamed_update(&command, ctx);
-                            }
-                        }
-
                         me.destroy_editor();
 
                         if me.is_header_expanded {
@@ -391,8 +354,6 @@ impl RequestedCommandView {
                             return;
                         }
 
-                        let is_view_only = me.action_model.as_ref(ctx).is_view_only();
-                        me.sync_command_from_result_for_viewer(&action_result, is_view_only);
                         me.destroy_editor();
 
                         match &action_result.result {
@@ -413,9 +374,6 @@ impl RequestedCommandView {
                                         }
                                     }
                                 }
-                                ctx.notify();
-                            }
-                            AIAgentActionResultType::CallMCPTool(..) => {
                                 ctx.notify();
                             }
                             _ => (),
@@ -483,8 +441,6 @@ impl RequestedCommandView {
             position_id_prefix,
             terminal_model,
             ai_block_view_id,
-            mcp_content_selection_handle: SelectionHandle::default(),
-            mcp_content_selected_text: Arc::new(std::sync::RwLock::new(None)),
         }
     }
 
@@ -875,25 +831,7 @@ impl RequestedCommandView {
         ctx.notify();
     }
 
-    /// For shared-session viewers, reset the command text to the executed command from
-    /// the action result. This is important for showing the correct command in the action
-    /// header if the command was manually edited by the user.
-    fn sync_command_from_result_for_viewer(
-        &mut self,
-        action_result: &AIAgentActionResult,
-        is_view_only: bool,
-    ) {
-        if !is_view_only {
-            return;
-        }
-        if let Some(command) = action_result.result.command_str() {
-            if !command.is_empty() {
-                self.command_text = command.to_string();
-            }
-        }
-    }
-
-    /// Apply a streamed update from the server.
+    /// Apply a streamed update from the agent.
     ///
     /// Note: It is assumed that this is an incremental update of the command text.
     /// Only the range of bytes that have not been appended are appended. It is assumed that earlier bytes are not modified.
@@ -954,36 +892,16 @@ impl RequestedCommandView {
 
     /// Returns the currently selected text.
     pub fn selected_text(&self, ctx: &AppContext) -> Option<String> {
-        // Check MCP content selection first, then fall back to editor selection.
-        if let Ok(mcp_selection) = self.mcp_content_selected_text.read() {
-            if mcp_selection.is_some() {
-                return mcp_selection.clone();
-            }
-        }
         self.editor
             .as_ref()
             .and_then(|editor| editor.as_ref(ctx).selected_text(ctx))
     }
 
     pub fn clear_selection(&mut self, ctx: &mut ViewContext<Self>) {
-        // Clear MCP content selection if it exists, else fall back to editor selection.
-        self.mcp_content_selection_handle.clear();
-        if let Ok(mut mcp_selection) = self.mcp_content_selected_text.write() {
-            *mcp_selection = None;
-        } else if let Some(editor) = &self.editor {
+        if let Some(editor) = &self.editor {
             editor.update(ctx, |editor, ctx| {
                 editor.clear_selection(ctx);
             });
-        }
-    }
-
-    /// Extracts the tool name from MCP tool command text, removing parameters.
-    /// For example, "tool_name(param1, param2)" becomes "tool_name".
-    fn extract_mcp_tool_name(&self, command_text: &str) -> String {
-        if let Some(paren_pos) = command_text.find('(') {
-            command_text[..paren_pos].trim().to_string()
-        } else {
-            command_text.trim().to_string()
         }
     }
 
@@ -1003,12 +921,9 @@ impl RequestedCommandView {
         let mut font_color_override = None;
 
         let terminal_model = self.terminal_model.lock();
-        let requested_command_block = match &self.action_type {
-            RequestedActionViewType::Command => terminal_model
-                .block_list()
-                .block_for_ai_action_id(&self.action_id),
-            RequestedActionViewType::McpTool => None,
-        };
+        let requested_command_block = terminal_model
+            .block_list()
+            .block_for_ai_action_id(&self.action_id);
 
         match action_status {
             Some(AIActionStatus::Queued) => {
@@ -1020,44 +935,37 @@ impl RequestedCommandView {
                 ));
             }
             Some(AIActionStatus::Blocked) => {
-                title = match &self.action_type {
-                    RequestedActionViewType::Command => COMMAND_WAITING_FOR_USER_MESSAGE.into(),
-                    RequestedActionViewType::McpTool => MCP_TOOL_WAITING_FOR_USER_MESSAGE.into(),
-                };
+                title = COMMAND_WAITING_FOR_USER_MESSAGE.into();
             }
             Some(AIActionStatus::RunningAsync) | Some(AIActionStatus::Finished(..))
                 if self.is_header_expanded =>
             {
-                title = match &self.action_type {
-                    RequestedActionViewType::Command => {
-                        if let Some(long_running_command_control_state) = requested_command_block
-                            .filter(|block| block.is_executing())
-                            .and_then(|block| block.long_running_control_state())
-                        {
-                            match long_running_command_control_state {
-                                LongRunningCommandControlState::Agent { is_blocked, .. } => {
-                                    let is_errored =
-                                        self.block_model.as_ref().conversation(app).is_some_and(
-                                            |conversation| conversation.status().is_error(),
-                                        );
+                title = if let Some(long_running_command_control_state) = requested_command_block
+                    .filter(|block| block.is_executing())
+                    .and_then(|block| block.long_running_control_state())
+                {
+                    match long_running_command_control_state {
+                        LongRunningCommandControlState::Agent { is_blocked, .. } => {
+                            let is_errored = self
+                                .block_model
+                                .as_ref()
+                                .conversation(app)
+                                .is_some_and(|conversation| conversation.status().is_error());
 
-                                    if is_errored {
-                                        AGENT_ERRORED_COMMAND_MESSAGE.into()
-                                    } else if *is_blocked {
-                                        AGENT_NEEDS_INPUT_MESSAGE.into()
-                                    } else {
-                                        MONITORING_COMMAND_MESSAGE.into()
-                                    }
-                                }
-                                LongRunningCommandControlState::User { reason } => {
-                                    header_message_for_user_take_over_reason(reason).into()
-                                }
+                            if is_errored {
+                                AGENT_ERRORED_COMMAND_MESSAGE.into()
+                            } else if *is_blocked {
+                                AGENT_NEEDS_INPUT_MESSAGE.into()
+                            } else {
+                                MONITORING_COMMAND_MESSAGE.into()
                             }
-                        } else {
-                            VIEWING_COMMAND_DETAIL_MESSAGE.into()
+                        }
+                        LongRunningCommandControlState::User { reason } => {
+                            header_message_for_user_take_over_reason(reason).into()
                         }
                     }
-                    RequestedActionViewType::McpTool => VIEWING_MCP_TOOL_DETAIL_MESSAGE.into(),
+                } else {
+                    VIEWING_COMMAND_DETAIL_MESSAGE.into()
                 };
             }
             None => {
@@ -1176,23 +1084,12 @@ impl RequestedCommandView {
                     ];
                     (action_buttons, MEDIUM_SIZE_SWITCH_THRESHOLD)
                 } else {
-                    match &self.action_type {
-                        RequestedActionViewType::Command => {
-                            let action_buttons: Vec<Rc<dyn RenderCompactibleActionButton>> = vec![
-                                Rc::new(self.cancel_button.clone()),
-                                Rc::new(self.edit_button.clone()),
-                                Rc::new(self.accept_and_autoexecute_split_button.clone()),
-                            ];
-                            (action_buttons, LARGE_SIZE_SWITCH_THRESHOLD)
-                        }
-                        RequestedActionViewType::McpTool => {
-                            let action_buttons: Vec<Rc<dyn RenderCompactibleActionButton>> = vec![
-                                Rc::new(self.cancel_button.clone()),
-                                Rc::new(self.accept_and_autoexecute_split_button.clone()),
-                            ];
-                            (action_buttons, SMALL_SIZE_SWITCH_THRESHOLD)
-                        }
-                    }
+                    let action_buttons: Vec<Rc<dyn RenderCompactibleActionButton>> = vec![
+                        Rc::new(self.cancel_button.clone()),
+                        Rc::new(self.edit_button.clone()),
+                        Rc::new(self.accept_and_autoexecute_split_button.clone()),
+                    ];
+                    (action_buttons, LARGE_SIZE_SWITCH_THRESHOLD)
                 };
                 config = config.with_interaction_mode(InteractionMode::ActionButtons {
                     action_buttons,
@@ -1247,10 +1144,7 @@ impl RequestedCommandView {
     }
 
     fn get_header_title_text(&self) -> String {
-        match &self.action_type {
-            RequestedActionViewType::Command => format_command_text(self.command_text()),
-            RequestedActionViewType::McpTool => self.extract_mcp_tool_name(self.command_text()),
-        }
+        format_command_text(self.command_text())
     }
 
     fn get_expansion_config(
@@ -1361,16 +1255,10 @@ impl View for RequestedCommandView {
             && self.action_type.is_requested_command()
             && self.editor.is_some();
 
-        // For MCP tools, when expanded, show either the tool call details or the JSON response.
-        let should_render_mcp_content = self.is_header_expanded
-            && self.action_type.is_mcp_tool()
-            && !self.command_text.is_empty();
-
         let has_citations_footer =
             !self.derived_from_citations.is_empty() && !self.block_model.status(app).is_streaming();
         let header_element = self.render_header(
             !should_render_editor
-                && !should_render_mcp_content
                 && !is_rendered_above_expanded_command_block
                 && !has_citations_footer,
             app,
@@ -1398,62 +1286,6 @@ impl View for RequestedCommandView {
             );
         }
 
-        if should_render_mcp_content {
-            let command_text = self.command_text();
-            let content_text = if let Some(AIAgentActionResultType::CallMCPTool(result)) =
-                action_status
-                    .as_ref()
-                    .and_then(|status| status.finished_result().map(|result| &result.result))
-            {
-                // If we have a result, show the JSON response.
-                let result_text = match result {
-                    CallMCPToolResult::Success { result } => serde_json::to_string_pretty(result)
-                        .unwrap_or_else(|_| "Error formatting JSON".to_string()),
-                    CallMCPToolResult::Error(error) => {
-                        format!("Error: {error}")
-                    }
-                    CallMCPToolResult::Cancelled => "Tool call was cancelled".to_string(),
-                };
-                format!("{command_text}\n\nResponse: {result_text}")
-            } else if self.is_header_expanded {
-                command_text.to_string()
-            } else {
-                self.extract_mcp_tool_name(command_text)
-            };
-
-            let text_element = Text::new(
-                content_text,
-                appearance.monospace_font_family(),
-                appearance.monospace_font_size(),
-            )
-            .with_color(blended_colors::text_main(theme, theme.background()))
-            .with_selectable(true)
-            .finish();
-
-            let mcp_selected_text = self.mcp_content_selected_text.clone();
-            let selectable_text = SelectableArea::new(
-                self.mcp_content_selection_handle.clone(),
-                #[allow(clippy::unwrap_used)]
-                move |selection_args, _, _| {
-                    *mcp_selected_text.write().unwrap() = selection_args.selection;
-                },
-                text_element,
-            )
-            .on_selection_updated(|ctx, _| {
-                ctx.dispatch_typed_action(RequestedCommandViewAction::SelectText);
-            })
-            .finish();
-
-            content.add_child(
-                Container::new(selectable_text)
-                    .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
-                    .with_vertical_padding(REQUESTED_COMMAND_BODY_VERTICAL_PADDING)
-                    .with_background(theme.background())
-                    .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
-                    .finish(),
-            );
-        }
-
         if let Some(footer) = self.maybe_render_footer(app) {
             content.add_child(Clipped::new(footer).finish());
         }
@@ -1474,7 +1306,7 @@ impl View for RequestedCommandView {
         // and have the next AI block take care of the vertical spacing. Moreover, having a non-zero
         // bottom margin while expanded will cause the body to look disconnected from the header.
         let should_remove_bottom_margin = is_rendered_above_expanded_command_block
-            || ((self.action_type.is_requested_command() || self.action_type.is_mcp_tool())
+            || (self.action_type.is_requested_command()
                 && is_last_output_message_in_output
                 && BlocklistAIHistoryModel::as_ref(app)
                     .conversation(&self.client_ids.conversation_id)

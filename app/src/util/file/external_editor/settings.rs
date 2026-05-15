@@ -1,5 +1,5 @@
 pub use crate::util::openable_file_type::EditorLayout;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use settings::{macros::define_settings_group, SupportedPlatforms};
 
 #[derive(
@@ -7,6 +7,7 @@ use settings::{macros::define_settings_group, SupportedPlatforms};
     Clone,
     Copy,
     Serialize,
+    Deserialize,
     PartialEq,
     Eq,
     schemars::JsonSchema,
@@ -22,47 +23,6 @@ pub enum EditorChoice {
     EnvEditor,
     #[schemars(description = "A specific external code editor.")]
     ExternalEditor(super::Editor),
-}
-
-// Custom Deserialize implementation to handle backward compatibility
-// with the old `Option<Editor>` format
-impl<'de> Deserialize<'de> for EditorChoice {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum EditorChoiceCompat {
-            // Try new format first
-            New(EditorChoiceInner),
-            // Fall back to old Option<Editor> format
-            Old(Option<super::Editor>),
-        }
-
-        #[derive(Deserialize)]
-        enum EditorChoiceInner {
-            SystemDefault,
-            Warp,
-            EnvEditor,
-            ExternalEditor(super::Editor),
-        }
-
-        match EditorChoiceCompat::deserialize(deserializer)? {
-            EditorChoiceCompat::New(inner) => match inner {
-                EditorChoiceInner::SystemDefault => Ok(EditorChoice::SystemDefault),
-                EditorChoiceInner::Warp => Ok(EditorChoice::Warp),
-                EditorChoiceInner::EnvEditor => Ok(EditorChoice::EnvEditor),
-                EditorChoiceInner::ExternalEditor(editor) => {
-                    Ok(EditorChoice::ExternalEditor(editor))
-                }
-            },
-            EditorChoiceCompat::Old(old_value) => match old_value {
-                None => Ok(EditorChoice::SystemDefault),
-                Some(editor) => Ok(EditorChoice::ExternalEditor(editor)),
-            },
-        }
-    }
 }
 
 define_settings_group!(EditorSettings, settings: [

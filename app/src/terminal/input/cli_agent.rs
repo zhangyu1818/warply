@@ -129,7 +129,7 @@ impl Input {
         )
         .finish();
 
-        // Render inline menus (slash commands, prompts, skills) above the input,
+        // Render inline menus above the input,
         // matching the pattern used by the agent view input in agent.rs.
         // These must be outside the Hoverable so that mouse events on the menu
         // don't trigger SetUDIHovered, which would cause layout jitter.
@@ -138,8 +138,6 @@ impl Input {
             outer_column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
         } else if self.suggestions_mode_model.as_ref(app).is_prompts_menu() {
             outer_column.add_child(ChildView::new(&self.inline_prompts_menu_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_skill_menu() {
-            outer_column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
         }
         outer_column.add_child(input);
 
@@ -158,9 +156,7 @@ impl Input {
         let appearance = Appearance::as_ref(ctx);
         let default_colors = TextColors::from_appearance(appearance);
 
-        // Only override while the CLI agent rich input is actually open - the
-        // same editor is reused for the normal terminal input and for other
-        // modes (AI, shared sessions), and those shouldn't see the override.
+        // Only override while the CLI agent rich input is actually open.
         let rich_input_open =
             CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
 

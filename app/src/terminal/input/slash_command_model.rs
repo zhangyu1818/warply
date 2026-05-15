@@ -1,15 +1,12 @@
-use ai::skills::SkillReference;
 use input_classifier::InputType;
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::blocklist::{BlocklistAIInputEvent, BlocklistAIInputModel};
-use crate::ai::skills::SkillManager;
 use crate::search::slash_command_menu::StaticCommand;
 use crate::settings::InputSettings;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::slash_commands::SlashCommandDataSource;
-use crate::terminal::model::session::active_session::ActiveSession;
 use settings::Setting as _;
 
 /// Event emitted by the slash command model when its entry state is updated.
@@ -30,19 +27,6 @@ pub struct DetectedCommand {
     pub argument: Option<String>,
 }
 
-/// A detected skill command in the input buffer.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DetectedSkillCommand {
-    /// Either a path or a bundled_skill_id which uniquely identifies the skill
-    pub reference: SkillReference,
-
-    /// The skill name (without the leading '/').
-    pub name: String,
-
-    /// The space-delimited argument to the skill command (the user's prompt).
-    pub argument: Option<String>,
-}
-
 #[derive(Debug, Clone)]
 pub enum SlashCommandEntryState {
     /// The input contents have nothing to do with a slash command.
@@ -54,8 +38,6 @@ pub enum SlashCommandEntryState {
     },
     /// A valid slash command is entered in the input.
     SlashCommand(DetectedCommand),
-    /// A valid skill command is entered in the input.
-    SkillCommand(DetectedSkillCommand),
     /// Slash commands are disabled until the buffer is cleared.
     ///
     /// In this state, buffer content is not parsed for slash commands.
@@ -77,26 +59,13 @@ impl SlashCommandEntryState {
         matches!(self, Self::SlashCommand(_))
     }
 
-    /// Returns `true` if a slash command or skill command has been detected.
-    pub fn is_detected_command_or_skill(&self) -> bool {
-        matches!(self, Self::SlashCommand(_) | Self::SkillCommand(_))
-    }
-
     /// Returns the byte length of the command prefix that should be highlighted
-    /// in the input buffer, or `None` if no command/skill is detected.
+    /// in the input buffer, or `None` if no command is detected.
     pub fn command_prefix_highlight_len(&self, buffer_text: &str) -> Option<usize> {
         match self {
             SlashCommandEntryState::SlashCommand(detected) => buffer_text
                 .starts_with(detected.command.name)
                 .then_some(detected.command.name.len()),
-            SlashCommandEntryState::SkillCommand(detected) => {
-                // Skill name doesn't include the leading '/', so we prefix it for matching.
-                let prefix_len = 1 + detected.name.len();
-                buffer_text
-                    .get(..prefix_len)
-                    .is_some_and(|p| p.starts_with('/') && p[1..] == *detected.name)
-                    .then_some(prefix_len)
-            }
             SlashCommandEntryState::None
             | SlashCommandEntryState::Composing { .. }
             | SlashCommandEntryState::DisabledUntilEmptyBuffer => None,
@@ -118,7 +87,6 @@ impl SlashCommandEntryState {
 pub struct SlashCommandModel {
     input_buffer_model: ModelHandle<InputBufferModel>,
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
-    active_session: ModelHandle<ActiveSession>,
     state: SlashCommandEntryState,
     data_source: ModelHandle<SlashCommandDataSource>,
 }
@@ -127,7 +95,9 @@ impl SlashCommandModel {
     pub fn new(
         buffer_model: &ModelHandle<InputBufferModel>,
         ai_input_model: &ModelHandle<BlocklistAIInputModel>,
-        active_session: ModelHandle<ActiveSession>,
+        _active_session: ModelHandle<
+            crate::terminal::model::session::active_session::ActiveSession,
+        >,
         data_source: ModelHandle<SlashCommandDataSource>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
@@ -165,7 +135,6 @@ impl SlashCommandModel {
         Self {
             input_buffer_model: buffer_model.clone(),
             ai_input_model: ai_input_model.clone(),
-            active_session,
             data_source,
             state: SlashCommandEntryState::None,
         }
@@ -216,7 +185,7 @@ impl SlashCommandModel {
     /// Parses `text` into a `SlashCommandEntryState` without mutating the
     /// model or emitting events.
     /// Use this when you have a prompt string and need to know whether it is
-    /// a slash command, skill command, or plain text.
+    /// a slash command or plain text.
     pub fn detect_command(&self, text: &str, ctx: &AppContext) -> SlashCommandEntryState {
         if !text.starts_with('/') {
             return SlashCommandEntryState::None;
@@ -224,37 +193,7 @@ impl SlashCommandModel {
         if let Some(detected) = self.data_source.as_ref(ctx).parse_slash_command(text) {
             return SlashCommandEntryState::SlashCommand(detected);
         }
-        if let Some(detected) = self.detect_skill_command(text, ctx) {
-            return SlashCommandEntryState::SkillCommand(detected);
-        }
         SlashCommandEntryState::None
-    }
-
-    /// Detects whether `buffer` matches a known skill command.
-    /// Accepts `&AppContext` so it can be called outside a model update.
-    fn detect_skill_command(&self, buffer: &str, ctx: &AppContext) -> Option<DetectedSkillCommand> {
-        let (possible_command, possible_argument) =
-            if let Some((command, argument)) = buffer.split_once(" ") {
-                (command, Some(argument.to_owned()))
-            } else {
-                (buffer, None)
-            };
-
-        let skill_name = possible_command.strip_prefix('/')?;
-
-        let cwd = self.active_session.as_ref(ctx).current_working_directory();
-        let cwd_path = cwd.as_ref().map(std::path::Path::new);
-        let skills = SkillManager::handle(ctx)
-            .as_ref(ctx)
-            .get_skills_for_working_directory(cwd_path, ctx);
-
-        let matched_skill = skills.into_iter().find(|skill| skill.name == skill_name)?;
-
-        Some(DetectedSkillCommand {
-            reference: matched_skill.reference,
-            name: matched_skill.name,
-            argument: possible_argument,
-        })
     }
 
     fn handle_input_buffer_update(
@@ -336,19 +275,6 @@ impl SlashCommandModel {
                     });
                 }
                 self.state = SlashCommandEntryState::SlashCommand(detected_command);
-            }
-            SlashCommandEntryState::SkillCommand(detected_skill) => {
-                if let SlashCommandEntryState::SkillCommand(old_detected_skill) = &self.state {
-                    if *old_detected_skill == detected_skill {
-                        return;
-                    }
-                }
-
-                // Skill commands always require AI mode
-                self.ai_input_model.update(ctx, |input_model, ctx| {
-                    input_model.set_input_type(InputType::AI, ctx);
-                });
-                self.state = SlashCommandEntryState::SkillCommand(detected_skill);
             }
             _ if new.starts_with('/') => {
                 let pending_command = &new[1..];

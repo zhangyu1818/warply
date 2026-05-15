@@ -1,6 +1,3 @@
-#![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
-// Adding this file level gate as some of the code around editability is not used in WASM yet.
-
 use crate::code::editor::{
     line::EditorLineLocation,
     model::CodeEditorModel,
@@ -486,8 +483,24 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-/"),
         EditableBinding::new("editor_view:delete", "Delete", CodeEditorViewAction::Delete)
-            .with_context_predicate(text_entry.clone())
+            .with_context_predicate(
+                text_entry.clone() & !id!("VimNormalMode") & !id!("VimVisualMode"),
+            )
             .with_key_binding("ctrl-d"),
+        EditableBinding::new(
+            "editor_view:vim_scroll_half_page_down",
+            "Scroll down half a page",
+            CodeEditorViewAction::ScrollHalfPageDown,
+        )
+        .with_context_predicate(text_entry.clone() & (id!("VimNormalMode") | id!("VimVisualMode")))
+        .with_key_binding("ctrl-d"),
+        EditableBinding::new(
+            "editor_view:vim_scroll_half_page_up",
+            "Scroll up half a page",
+            CodeEditorViewAction::ScrollHalfPageUp,
+        )
+        .with_context_predicate(text_entry.clone() & (id!("VimNormalMode") | id!("VimVisualMode")))
+        .with_key_binding("ctrl-u"),
         EditableBinding::new(
             "editor_view:cut_word_left",
             "Cut word left",
@@ -591,6 +604,8 @@ pub enum CodeEditorViewAction {
     ToggleComment,
     ScrollVertical(Pixels),
     ScrollHorizontal(Pixels),
+    ScrollHalfPageDown,
+    ScrollHalfPageUp,
     SelectUp,
     SelectDown,
     SelectLeft,
@@ -724,6 +739,8 @@ impl CodeEditorViewAction {
 
             Self::ScrollVertical(_)
             | Self::ScrollHorizontal(_)
+            | Self::ScrollHalfPageDown
+            | Self::ScrollHalfPageUp
             | Self::SelectUp
             | Self::SelectDown
             | Self::SelectLeft
@@ -838,6 +855,12 @@ impl TypedActionView for CodeEditorView {
                     render_state.scroll_horizontal(*delta, ctx);
                 })
             }),
+            ScrollHalfPageDown => {
+                self.vim_keystroke(&Keystroke::parse("ctrl-d").expect("ctrl-d parses"), ctx)
+            }
+            ScrollHalfPageUp => {
+                self.vim_keystroke(&Keystroke::parse("ctrl-u").expect("ctrl-u parses"), ctx)
+            }
             SelectUp => self.model.update(ctx, |model, ctx| {
                 model.select_up(ctx);
             }),

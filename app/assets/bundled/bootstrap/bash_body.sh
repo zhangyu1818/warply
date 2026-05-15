@@ -748,7 +748,7 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
         fi
         # Note that we DO NOT unset the PS1 here, since we want to pass it along as a "hidden left prompt" for 
         # prompt preview purposes, if the Warp prompt is being used. Specifically, we want to show this prompt preview
-        # for the Edit Prompt modal and onboarding prompt block.
+          # for prompt preview UI.
       fi
 
       if [[ -n "$PS1" ]]; then
@@ -830,35 +830,6 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
 
     function clear() {
         warp_send_json_message "{\"hook\": \"Clear\", \"value\": {}}"
-    }
-
-    function warp_finish_update {
-      local update_id="$1"
-      warp_send_json_message "{ \"hook\": \"FinishUpdate\", \"value\": { \"update_id\": \"$update_id\"} }"
-    }
-
-    # Check if the warp apt source file has been renamed to `warpdotdev.list.distUpgrade` due to an ubuntu version update.
-    # If this occurred, we want to rename the source file back to `warpdotdev.list` to ensure updates can proceed.
-    # We purposefully skip this if either the `warpdotdev.list` file already exists (indicating that the user has already
-    # done this themselves) _or_ if a `warpdotdev.sources` file exists (which is the new Deb822 format for source files).
-    # The `.sources` file could only exist if a user manually created it; Ubuntu doesn't create one automatically for the
-    # warp source file due to a bug in its update flow where it considers our source file to be "invalid" because it
-    # contains a `signed-by` key.
-    function warp_handle_dist_upgrade {
-      local source_file_name="$1"
-
-      eval "$(command apt-config shell APT_SOURCESDIR 'Dir::Etc::sourceparts/d')"
-
-      if [[ ! -e $APT_SOURCESDIR$source_file_name.list && \
-          ! -e $APT_SOURCESDIR$source_file_name.sources && \
-           -e $APT_SOURCESDIR$source_file_name.list.distUpgrade ]]; then
-        # DO NOT DO THIS. We should never run a command for user with `sudo`. The only reason this is safe here is because
-        # we insert this function into the input for the user to determine if they want to execute (we never run it on
-        # their behalf without their permission).  To be transparent about what is being executed with sudo, we echo out the
-        # command we're about to run.
-        echo "Executing: sudo cp \"$APT_SOURCESDIR$source_file_name.list.distUpgrade\" \"$APT_SOURCESDIR$source_file_name.list\""
-        sudo cp "$APT_SOURCESDIR$source_file_name.list.distUpgrade" "$APT_SOURCESDIR$source_file_name.list"
-      fi
     }
 
     # The SSH logic only applies to local sessions, because we don't yet have support for bootstrapping
@@ -1063,17 +1034,17 @@ esac
         rcfiles_end_time="$(LC_ALL="C"; echo $EPOCHREALTIME)"
     fi
 
-    # Unset HISTFILESIZE if the user rcfiles didn't change it away from our
-    # very large sentinel value.  We need to set the initial value of HISTSIZE
-    # to ensure that the user's history file doesn't get truncated when we spawn
-    # the shell, but once bootstrap has completes, we want the value to be what
-    # it would have been if we hadn't set an initial value.
+    # Unset bash history sentinels if the user rcfiles did not change them.
     #
     # For more context, see: https://github.com/warpdotdev/Warp/issues/1262
     if [[ $HISTFILESIZE == $WARP_INITIAL_HISTFILESIZE ]]; then
         unset HISTFILESIZE
     fi
     unset WARP_INITIAL_HISTFILESIZE
+    if [[ $HISTSIZE == $WARP_INITIAL_HISTSIZE ]]; then
+        unset HISTSIZE
+    fi
+    unset WARP_INITIAL_HISTSIZE
 
     # Save the value of HISTCONTROL as it existed just after reading the user's
     # rcfiles.
@@ -1236,7 +1207,8 @@ esac
         local _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || command -p uname -n)
         local escaped_editor="$(warp_escape_json "$EDITOR")"
         local escaped_shell_path="$(warp_escape_json "$BASH")"
-        local escaped_json="{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"session_id\": $WARP_SESSION_ID, \"shell\": \"bash\",  \"home_dir\": \"$HOME\", \"user\":\"$_user\", \"host\":\"$_hostname\", \"path\": \"$escaped_path\", \"editor\": \"$escaped_editor\", \"env_var_names\": \"$escaped_env_var_names\", \"abbreviations\": \"$escaped_abbrs\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$escaped_function_names\", \"builtins\": \"$escaped_builtins\", \"keywords\": \"$escaped_keywords\", \"shell_version\": \"$BASH_VERSION\", \"shell_options\": \"$escaped_shell_options\", \"rcfiles_start_time\": \"$rcfiles_start_time\", \"rcfiles_end_time\": \"$rcfiles_end_time\", \"vi_mode_enabled\": \"$vi_mode_enabled\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
+        local escaped_cdpath="$(warp_escape_json "$CDPATH")"
+        local escaped_json="{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"session_id\": $WARP_SESSION_ID, \"shell\": \"bash\",  \"home_dir\": \"$HOME\", \"user\":\"$_user\", \"host\":\"$_hostname\", \"path\": \"$escaped_path\", \"cdpath\": \"$escaped_cdpath\", \"editor\": \"$escaped_editor\", \"env_var_names\": \"$escaped_env_var_names\", \"abbreviations\": \"$escaped_abbrs\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$escaped_function_names\", \"builtins\": \"$escaped_builtins\", \"keywords\": \"$escaped_keywords\", \"shell_version\": \"$BASH_VERSION\", \"shell_options\": \"$escaped_shell_options\", \"rcfiles_start_time\": \"$rcfiles_start_time\", \"rcfiles_end_time\": \"$rcfiles_end_time\", \"vi_mode_enabled\": \"$vi_mode_enabled\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
         warp_send_json_message "$escaped_json"
     }
     warp_bootstrapped

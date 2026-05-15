@@ -27,10 +27,9 @@ pub fn resolve_executable(command: &str) -> Option<Cow<'_, Path>> {
 /// Like [`resolve_executable`], but resolves PATH-based lookups against
 /// the given `path_env` instead of the process's own `PATH`.
 ///
-/// Intended for callers that have a specific PATH to search (e.g. one
-/// captured from the user's interactive login shell, matching how
-/// MCP/LSP find binaries). Callers that want the process's PATH should
-/// use [`resolve_executable`] instead.
+/// Intended for callers that have a specific PATH to search, such as one
+/// captured from the user's interactive login shell. Callers that want the
+/// process's PATH should use [`resolve_executable`] instead.
 pub fn resolve_executable_in_path<'a>(command: &'a str, path_env: &OsStr) -> Option<Cow<'a, Path>> {
     if command.contains(path::MAIN_SEPARATOR) {
         let path = Path::new(command);

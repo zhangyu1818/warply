@@ -192,12 +192,12 @@ pub enum CodePaneSnapShot {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum WorkflowPaneSnapshot {
-    CloudWorkflow { workflow_id: Option<SyncId> },
+    SavedWorkflow { workflow_id: Option<SyncId> },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EnvVarCollectionPaneSnapshot {
-    CloudEnvVarCollection {
+    SavedEnvVarCollection {
         env_var_collection_id: Option<SyncId>,
     },
 }

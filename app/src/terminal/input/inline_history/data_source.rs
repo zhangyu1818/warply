@@ -20,10 +20,10 @@ use crate::terminal::input::inline_menu::{
     InlineMenuAction, InlineMenuClickBehavior, InlineMenuType,
 };
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::terminal::model::session::SessionId;
 use chrono::{DateTime, Local};
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
+use warp_core::SessionId;
 use warpui::{AppContext, Entity, EntityId, ModelHandle, SingletonEntity};
 
 #[derive(Clone, Debug)]

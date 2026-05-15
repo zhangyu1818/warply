@@ -1,9 +1,4 @@
-use warp_cli::agent::Harness;
-
-use super::{
-    agent_icon_variant_for_run, agent_icon_variant_from_terminal_inputs, CLISessionInputs,
-    TerminalIconInputs,
-};
+use super::{agent_icon_variant_from_terminal_inputs, CLISessionInputs, TerminalIconInputs};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::terminal::CLIAgent;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;
@@ -112,19 +107,6 @@ fn command_detected_cli_session_has_no_status() {
             is_cli: true,
             cli_agent: Some(CLIAgent::Claude),
             status: None,
-        }
-    );
-}
-
-#[test]
-fn run_harness_mapping_is_exact() {
-    let codex = agent_icon_variant_for_run(Harness::Codex, ConversationStatus::Success).unwrap();
-    assert_eq!(
-        AgentIconFields::from_variant(&codex).unwrap(),
-        AgentIconFields {
-            is_cli: true,
-            cli_agent: Some(CLIAgent::Codex),
-            status: Some(ConversationStatus::Success),
         }
     );
 }

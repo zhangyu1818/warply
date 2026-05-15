@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [features]
+default = ["local_fs"]
 local_fs = []
 test-util = []
 
@@ -15,33 +16,28 @@ test-util = []
 
 [dependencies]
 anyhow.workspace = true
-dunce.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-walkdir.workspace = true
-itertools.workspace = true
-warpui.workspace = true
-warp_core.workspace = true
-warp_util.workspace = true
-ignore = "0.4.23"
-once_cell.workspace = true
-log.workspace = true
-futures.workspace = true
-tempfile.workspace = true
+async-fs.workspace = true
 cfg-if = "1.0"
 dirs.workspace = true
+dunce.workspace = true
+futures.workspace = true
 futures-lite.workspace = true
-strum_macros.workspace = true
-strum.workspace = true
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
+ignore = "0.4.23"
+itertools.workspace = true
+log.workspace = true
 notify-debouncer-full.workspace = true
-async-fs.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+walkdir.workspace = true
 watcher.workspace = true
-
-[build-dependencies]
-anyhow.workspace = true
+warp_core.workspace = true
+warp_util.workspace = true
+warpui.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true

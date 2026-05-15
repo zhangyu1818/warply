@@ -4,14 +4,11 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use warp_core::user_preferences::GetUserPreferences;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
-use crate::ai::mcp::templatable_manager::TemplatableMCPServerManagerEvent;
 use crate::LaunchMode;
 
-use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::settings::AgentModeCommandExecutionPredicate;
 
 use super::{AIExecutionProfile, ActionPermission, WriteToPtyPermission};
@@ -118,13 +115,6 @@ impl AIExecutionProfilesModel {
                 }
             }
         };
-
-        ctx.subscribe_to_model(
-            &TemplatableMCPServerManager::handle(ctx),
-            |me, event, ctx| {
-                me.handle_templatable_mcp_server_manager_event(event, ctx);
-            },
-        );
 
         log::info!("Initialized execution profile model with state: {default_profile_state}",);
 
@@ -236,10 +226,6 @@ impl AIExecutionProfilesModel {
         None
     }
 
-    pub fn get_all_profile_ids(&self) -> Vec<ClientProfileId> {
-        vec![self.default_profile_state.id()]
-    }
-
     pub fn set_apply_code_diffs(
         &mut self,
         profile_id: ClientProfileId,
@@ -311,31 +297,6 @@ impl AIExecutionProfilesModel {
                     return true;
                 }
                 false
-            },
-            ctx,
-        );
-    }
-
-    pub fn set_mcp_permissions(
-        &mut self,
-        profile_id: ClientProfileId,
-        mcp_permissions: &ActionPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.mcp_permissions == *mcp_permissions {
-                    return false;
-                }
-
-                if mcp_permissions == &ActionPermission::AlwaysAllow {
-                    profile.mcp_allowlist.clear();
-                } else if mcp_permissions == &ActionPermission::AlwaysAsk {
-                    profile.mcp_denylist.clear();
-                }
-                profile.mcp_permissions = *mcp_permissions;
-                true
             },
             ctx,
         );
@@ -537,78 +498,6 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn add_to_mcp_allowlist(
-        &mut self,
-        profile_id: ClientProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.mcp_allowlist.contains(id) {
-                    profile.mcp_allowlist.push(*id);
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-    }
-
-    pub fn remove_from_mcp_allowlist(
-        &mut self,
-        profile_id: ClientProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.mcp_allowlist.len();
-                profile.mcp_allowlist.retain(|p| p != id);
-                profile.mcp_allowlist.len() != original_len
-            },
-            ctx,
-        );
-    }
-
-    pub fn add_to_mcp_denylist(
-        &mut self,
-        profile_id: ClientProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.mcp_denylist.contains(id) {
-                    profile.mcp_denylist.push(*id);
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-    }
-
-    pub fn remove_from_mcp_denylist(
-        &mut self,
-        profile_id: ClientProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.mcp_denylist.len();
-                profile.mcp_denylist.retain(|p| p != id);
-                profile.mcp_denylist.len() != original_len
-            },
-            ctx,
-        );
-    }
-
     fn edit_profile_internal(
         &mut self,
         profile_id: ClientProfileId,
@@ -641,43 +530,6 @@ impl AIExecutionProfilesModel {
         }
 
         false
-    }
-
-    fn handle_templatable_mcp_server_manager_event(
-        &mut self,
-        event: &TemplatableMCPServerManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match event {
-            TemplatableMCPServerManagerEvent::TemplatableMCPServersUpdated => {
-                self.remove_deleted_mcp_servers(ctx);
-            }
-            TemplatableMCPServerManagerEvent::StateChanged
-            | TemplatableMCPServerManagerEvent::ServerInstallationDeleted => {}
-        }
-    }
-
-    fn remove_deleted_mcp_servers(&mut self, ctx: &mut ModelContext<Self>) {
-        let all_valid_uuids =
-            TemplatableMCPServerManager::get_all_templatable_mcp_server_names(ctx);
-        for profile_id in self.get_all_profile_ids() {
-            self.edit_profile_internal(
-                profile_id,
-                |profile| {
-                    let original_allowlist_len = profile.mcp_allowlist.len();
-                    let original_denylist_len = profile.mcp_denylist.len();
-                    profile
-                        .mcp_allowlist
-                        .retain(|uuid| all_valid_uuids.contains_key(uuid));
-                    profile
-                        .mcp_denylist
-                        .retain(|uuid| all_valid_uuids.contains_key(uuid));
-                    profile.mcp_allowlist.len() != original_allowlist_len
-                        || profile.mcp_denylist.len() != original_denylist_len
-                },
-                ctx,
-            );
-        }
     }
 }
 

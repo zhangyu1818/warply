@@ -8,9 +8,10 @@ use super::ChipValue;
 
 use crate::terminal::model::{
     block::{Block, BlockMetadata},
-    session::{Session, SessionId},
+    session::Session,
 };
 use crate::terminal::shell::ShellType;
+use warp_core::SessionId;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShellCommandGenerator {

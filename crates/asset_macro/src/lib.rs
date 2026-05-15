@@ -1,15 +1,10 @@
 //! This module defines a set of macros used to reference assets in Warp.
 //!
-//! The three types of assets are:
+//! The two types of assets are:
 //! - Bundled: These are always included in the app bundle. These files are located in `app/assets/bundled`.
 //!   Access with `bundled_asset!([path of asset relative to app/assets/bundled])`.
-//! - Remote: These are always fetched remotely based on the asset name and a hash of the contents.
-//!   These files are located in `app/assets/remote`. Access with
-//!   `remote_asset!(path of asset relative to app/assets/remote])`.
-//! - Bundled for native builds and remote for web builds: Keeping the size of the web build small
-//!   is critical for having fast load times, so many of the larger assets are split out. These
-//!   files live in `app/assets/async`. Access with
-//!   `bundled_or_fetched!(path of asset relative to app/assets/async])`.
+//! - Async bundled: These files are included from `app/assets/async` for macOS bundles.
+//!   Access with `bundled_async_asset!(path of asset relative to app/assets/async)`.
 //!
 //! These macros check for the existence of the asset at the appropriate location before returning
 //! an `AssetSource` with the appropriate bundle reference or URL.
@@ -24,14 +19,10 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use sha2::Digest;
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 use syn::{parse::Parse, Token};
 use syn::{parse_macro_input, LitStr};
-use warp_util::assets::{ASSETS_DIR, ASYNC_ASSETS_DIR, BUNDLED_ASSETS_DIR, REMOTE_ASSETS_DIR};
+use warp_util::assets::{ASSETS_DIR, ASYNC_ASSETS_DIR, BUNDLED_ASSETS_DIR};
 
 struct MacroArgs {
     /// The name of the asset. E.g. `jpg/jellyfish_bg.jpg`
@@ -83,54 +74,11 @@ fn construct_bundled_asset(asset_name: &str, asset_dir: &str) -> Result<TokenStr
 }
 
 #[proc_macro]
-pub fn remote_asset(input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(input as MacroArgs);
-    let asset_name = args.asset_name.value();
-    let asset_folder_arg = args.asset_folder.map(|s| s.value());
-    let asset_folder = asset_folder_arg.as_deref().unwrap_or(REMOTE_ASSETS_DIR);
-
-    match construct_remote_asset(&asset_name, asset_folder) {
-        Ok(ok) => ok.into(),
-        Err(err_str) => format_error(&asset_name, asset_folder, err_str).into(),
-    }
-}
-
-fn construct_remote_asset(asset_name: &str, asset_dir: &str) -> Result<TokenStream2, String> {
-    let full_path = full_asset_path(asset_name, asset_dir);
-    let contents = std::fs::read(full_path).map_err(|err| err.to_string())?;
-
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(&contents);
-    let hash: [u8; 32] = hasher.finalize().into();
-    let url = warp_util::assets::hashed_asset_url(&warp_util::assets::hashed_asset_path(
-        Path::new(asset_name),
-        &hash,
-    ));
-
-    Ok(quote! {
-        ::asset_cache::url_source(::warp_util::assets::make_absolute_url( #url ))
-    })
-}
-
-#[proc_macro]
-pub fn bundled_or_fetched_asset(input: TokenStream) -> TokenStream {
-    // Proc macros are always compiled on the host, and unfortunately they have no way of getting
-    // information about the target of the crate they're being used in (see:
-    // https://github.com/rust-lang/cargo/issues/10714). To work around this, we return
-    // conditionally compiled references to the appropriate macro.
+pub fn bundled_async_asset(input: TokenStream) -> TokenStream {
     let input_lit = parse_macro_input!(input as LitStr);
 
-    // Attributes cannot be used on most expressions, so we make a short block so the attribute can
-    // be applied in a statement context.
     quote! {
-        {
-            #[cfg(not(target_family = "wasm"))]
-            let val = ::asset_macro::bundled_asset!( #input_lit, #ASYNC_ASSETS_DIR );
-            #[cfg(target_family = "wasm")]
-            let val = ::asset_macro::remote_asset!( #input_lit, #ASYNC_ASSETS_DIR );
-
-            val
-        }
+        ::asset_macro::bundled_asset!( #input_lit, #ASYNC_ASSETS_DIR )
     }
     .into()
 }

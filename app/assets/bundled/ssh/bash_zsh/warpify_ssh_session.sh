@@ -37,7 +37,7 @@ _system_details() {
 
     WH=$( [ -w ~ ] && echo true || echo false )
 
-    printf '%s' "{\"os\": \"$OS\", \"pkg\": \"$PKG\", \"shell\": \"$(basename $SHELL)\", \"root_access\": \"$RA\", \"writable_home\": $WH}"
+    printf '%s' "{\"operating_system\": \"$OS\", \"package_manager\": \"$PKG\", \"shell\": \"$(basename $SHELL)\", \"root_access\": \"$RA\", \"writable_home\": $WH}"
 }
 
   # _check_tmux is used in tmux install script post install!

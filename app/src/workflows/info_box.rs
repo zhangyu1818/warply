@@ -43,7 +43,7 @@ use super::{
     command_parser::{compute_workflow_display_data, WorkflowArgumentIndex, WorkflowDisplayData},
     workflow::Argument,
     workflow_view::env_var_selector::{EnvVarSelector, EnvVarSelectorEvent},
-    AIWorkflowOrigin, CloudWorkflow,
+    AIWorkflowOrigin, SavedWorkflow,
 };
 
 const INFO_BOX_PADDING: f32 = 20.;
@@ -140,7 +140,7 @@ struct ButtonMouseStates {
     collapse: MouseStateHandle,
     view_context: MouseStateHandle,
     save_as_workflow: MouseStateHandle,
-    edit_cloud_workflow: MouseStateHandle,
+    edit_saved_workflow: MouseStateHandle,
     reset_command: MouseStateHandle,
     add_env_var_collection: MouseStateHandle,
 }
@@ -249,21 +249,21 @@ impl WorkflowsMoreInfoView {
 
     fn render_edit_button(
         &self,
-        cloud_workflow: &CloudWorkflow,
+        saved_workflow: &SavedWorkflow,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let label = if cloud_workflow.model().data.is_agent_mode_workflow() {
+        let label = if saved_workflow.model().data.is_agent_mode_workflow() {
             "Edit prompt"
         } else {
             "Edit workflow"
         };
-        let workflow = cloud_workflow.clone();
+        let workflow = saved_workflow.clone();
         render_hoverable_card_button(
             icons::Icon::Rename,
             Some(label.to_owned()),
-            self.button_mouse_states.edit_cloud_workflow.clone(),
+            self.button_mouse_states.edit_saved_workflow.clone(),
             move |ctx: &mut warpui::EventContext<'_>, _, _| {
-                ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalWithCloudWorkflow(
+                ctx.dispatch_typed_action(TerminalAction::OpenWorkflowModalWithSavedWorkflow(
                     workflow.id,
                 ))
             },
@@ -672,12 +672,12 @@ impl WorkflowsMoreInfoView {
         let mut row_content = Flex::row();
 
         match &self.workflow {
-            WorkflowType::Cloud(cloud_workflow) => {
-                let editing_history = cloud_workflow.metadata.semantic_editing_history(app);
+            WorkflowType::Saved(saved_workflow) => {
+                let editing_history = saved_workflow.metadata.semantic_editing_history(app);
 
                 let action_history = ObjectActions::as_ref(app)
                     .get_action_history_summary_for_action_type(
-                        &cloud_workflow.id.uid(),
+                        &saved_workflow.id.uid(),
                         ObjectActionType::Execute,
                     );
 
@@ -707,7 +707,7 @@ impl WorkflowsMoreInfoView {
                     row_content.add_child(Shrinkable::new(1., metadata_history_element).finish());
                 }
 
-                let edit_button = self.render_edit_button(cloud_workflow, appearance);
+                let edit_button = self.render_edit_button(saved_workflow, appearance);
                 row_content.add_children([edit_button, collapse_button, close_button]);
             }
             WorkflowType::AIGenerated { .. } => {

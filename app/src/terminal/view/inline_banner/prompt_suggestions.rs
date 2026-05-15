@@ -92,7 +92,7 @@ pub struct PromptSuggestionBannerState {
     pub accept_button_mouse_state: MouseStateHandle,
     pub llm_warning_learn_more_hyperlink: HighlightedHyperlink,
     pub should_hide: bool,
-    /// The trigger for this suggestion. `None` when the server indicated the
+    /// The trigger for this suggestion. `None` when the suggestion provider indicated the
     /// trigger is not relevant to the suggestion (and should be omitted from
     /// the result sent back).
     pub trigger: Option<PassiveSuggestionTrigger>,

@@ -213,9 +213,6 @@ impl TerminalView {
                 ctx.notify();
             }
             UseAgentToolbarEvent::WriteToPty(text) => {
-                // Route like user-typed terminal input so shared-session viewers
-                // forward the write request to the sharer instead of only
-                // emitting a local PTY write event.
                 self.write_user_bytes_to_pty(text.as_bytes().to_vec(), ctx);
             }
             UseAgentToolbarEvent::InsertIntoRichInput(text) => {

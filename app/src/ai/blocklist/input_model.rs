@@ -29,11 +29,11 @@ use crate::{
     input_classifier::InputClassifierModel,
     settings::{AISettings, InputBoxType, InputSettings},
     terminal::{
-        input::decorations::ParsedTokensSnapshot,
-        model::{rich_content::RichContentType, session::SessionId},
-        History, TerminalModel,
+        input::decorations::ParsedTokensSnapshot, model::rich_content::RichContentType, History,
+        TerminalModel,
     },
 };
+use warp_core::SessionId;
 
 /// Cutoff score for deciding an user input matches a history command entry.
 const HISTORY_ENTRY_MATCH_CUTOFF: f32 = 0.9;
@@ -633,7 +633,6 @@ impl BlocklistAIInputModel {
 
                     // If we have history entries (i.e., a live session), check for
                     // close matches to short-circuit as shell input.
-                    // TODO(vorporeal): decide if we still want to do this with NldImprovements.
                     if let Some(history_entries) = history_entries {
                         if has_any_close_matches(
                             &buffer_cloned,

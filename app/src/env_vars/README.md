@@ -8,15 +8,13 @@ This documentation is up-to-date as of 6/26/2024. All referenced files are prese
 
 The core data model for EVCs is defined in `mod.rs`. The motivations behind our data model are detailed in the above documents, with the v1 tech doc being the most relevant.
 
-## Cloud Infrastructure
+## Local Persistence
 
-Context: EVCs are built on GenericStringObjects (GSOs). Consequently, there isn't much unique server-side infrastructure dedicated to EVCs — we added a variant to the `Format` enum on the server side and did the same on the client (`JsonObjectType::EnvVarCollection`), and a small DB migration to support the type.
+EVCs are built on the retained local GenericStringObject model and are persisted locally. They do not use Warp server APIs or remote synchronization.
 
-We defined `CloudEnvVarCollection` in `mod.rs`, which implements the `GenericCloudObjectType` trait. This is a mostly boilerplate implementation specifying properties such as EVCs should render as local objects, be linkable/exportable, etc.
+`SavedEnvVarCollection` implements the retained object-type trait and specifies local object behavior such as rendering as a local object and supporting local link/export flows.
 
 The implementation of EVCs as a local object is in `app/src/drive/items/env_var_collection.rs`, where code for the preview and click action is located.
-
-Code relevant to edit collisions and fetching EVCs from the server is in `app/src/server/server_api.rs` and `app/src/server/cloud_objects/update_manager.rs`. We aimed to maintain a similar liveness property to workflows, meaning a concurrent edit made by another user requires one to check out the other's edit before committing their own.
 
 ## Client Side
 

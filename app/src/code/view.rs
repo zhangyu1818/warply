@@ -4,7 +4,6 @@ use crate::code::editor_management::CodeEditorStatus;
 use crate::code::global_buffer_model::GlobalBufferModel;
 use crate::code::local_code_editor::ShowFindReferencesCard;
 use crate::code::{ImmediateSaveError, SaveOutcome, SaveStatus};
-use crate::editor::InteractionState;
 use crate::input::Vector2F;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view::header::components::{
@@ -184,9 +183,6 @@ pub enum CodeViewEvent {
     FileOpened {
         file_path: PathBuf,
         tab_index: usize,
-    },
-    RunTabConfigSkill {
-        path: PathBuf,
     },
     OpenLspLogs {
         log_path: PathBuf,
@@ -425,12 +421,6 @@ impl CodeView {
             });
         }
 
-        // Bundled skills cannot be edited.
-        if self.source.is_bundled_skill() {
-            editor.update(ctx, |editor, ctx| {
-                editor.set_interaction_state(InteractionState::Selectable, ctx);
-            });
-        }
         ctx.subscribe_to_view(&code_editor, |me, _, event, ctx| match event {
             LocalCodeEditorEvent::FileLoaded => {
                 me.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -527,9 +517,6 @@ impl CodeView {
             | LocalCodeEditorEvent::RequestOpenComment(_)
             | LocalCodeEditorEvent::DeleteComment { .. } => {
                 // Comment events are handled by CodeReviewView, not CodeView
-            }
-            LocalCodeEditorEvent::RunTabConfigSkill { path } => {
-                ctx.emit(CodeViewEvent::RunTabConfigSkill { path: path.clone() });
             }
             LocalCodeEditorEvent::OpenLspLogs { log_path } => {
                 ctx.emit(CodeViewEvent::OpenLspLogs {
@@ -1860,11 +1847,7 @@ impl CodeView {
             .focus_handle
             .as_ref()
             .is_some_and(|h| h.is_maximized(ctx));
-        let modifier_keys = if cfg!(target_os = "macos") {
-            "⌘R"
-        } else {
-            "Ctrl-R"
-        };
+        let modifier_keys = "⌘R";
 
         let mut items = vec![
             MenuItemFields::new_with_label("Close saved", &format!("{modifier_keys} U"))

@@ -39,7 +39,6 @@ pub enum InlineMenuType {
     SlashCommands,
     ConversationMenu,
     PromptsMenu,
-    SkillMenu,
     UserQueryMenu,
     RewindMenu,
     InlineHistoryMenu,
@@ -53,7 +52,6 @@ impl InlineMenuType {
             InlineMenuType::SlashCommands => "/Commands",
             InlineMenuType::ConversationMenu => "/Conversations",
             InlineMenuType::PromptsMenu => "/Prompts",
-            InlineMenuType::SkillMenu => "/Skills",
             InlineMenuType::UserQueryMenu => "/Fork",
             InlineMenuType::RewindMenu => "/Rewind",
             InlineMenuType::InlineHistoryMenu => "History",
@@ -67,7 +65,6 @@ impl InlineMenuType {
             InputSuggestionsMode::SlashCommands => Some(InlineMenuType::SlashCommands),
             InputSuggestionsMode::ConversationMenu => Some(InlineMenuType::ConversationMenu),
             InputSuggestionsMode::PromptsMenu => Some(InlineMenuType::PromptsMenu),
-            InputSuggestionsMode::SkillMenu => Some(InlineMenuType::SkillMenu),
             InputSuggestionsMode::UserQueryMenu {
                 action: UserQueryMenuAction::ForkFrom,
                 ..

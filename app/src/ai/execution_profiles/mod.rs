@@ -6,8 +6,6 @@ use crate::settings::{
     DEFAULT_COMMAND_EXECUTION_DENYLIST,
 };
 use serde::{Deserialize, Serialize};
-use warp_core::channel::ChannelState;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
 pub const PROFILE_NAME_MAX_LENGTH: usize = 50;
@@ -20,18 +18,12 @@ pub enum ActionPermission {
     AgentDecides,
     AlwaysAllow,
     AlwaysAsk,
-
-    // This is intended to catch deserialization errors whenever we add new variants to this enum. Say we
-    // want to add a "Never" variant. Without this catch-all, old clients wouldn't be able to deserialize
-    // a "Never" into one of the existing options.
-    #[serde(other)]
-    Unknown,
 }
 
 impl ActionPermission {
     pub fn description(&self) -> &'static str {
         match self {
-            ActionPermission::AgentDecides | ActionPermission::Unknown => {
+            ActionPermission::AgentDecides => {
                 "The Agent chooses the safest path: acting on its own when confident, and asking for approval when uncertain."
             }
             ActionPermission::AlwaysAllow => {
@@ -54,16 +46,10 @@ impl ActionPermission {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WriteToPtyPermission {
-    // This is for backwards compatibility with the old "Never" value.
-    #[serde(alias = "Never")]
     AlwaysAllow,
     #[default]
     AlwaysAsk,
     AskOnFirstWrite,
-
-    // This is intended to catch deserialization errors whenever we add new variants to this enum.
-    #[serde(other)]
-    Unknown,
 }
 
 impl WriteToPtyPermission {
@@ -76,7 +62,6 @@ impl WriteToPtyPermission {
             WriteToPtyPermission::AlwaysAsk => {
                 "The agent will always ask for permission to interact with a running command."
             }
-            WriteToPtyPermission::Unknown => ActionPermission::Unknown.description(),
         }
     }
 
@@ -91,10 +76,6 @@ pub enum ComputerUsePermission {
     Never,
     AlwaysAsk,
     AlwaysAllow,
-
-    // This is intended to catch deserialization errors whenever we add new variants to this enum.
-    #[serde(other)]
-    Unknown,
 }
 
 impl ComputerUsePermission {
@@ -109,12 +90,11 @@ impl ComputerUsePermission {
             ComputerUsePermission::AlwaysAllow => {
                 "Give the Agent full autonomy to use computer use tools without approval."
             }
-            ComputerUsePermission::Unknown => "Unknown setting.",
         }
     }
 
     pub fn is_enabled(&self) -> bool {
-        !matches!(self, Self::Never | Self::Unknown)
+        !matches!(self, Self::Never)
     }
 
     pub fn is_always_allow(&self) -> bool {
@@ -131,17 +111,12 @@ pub enum AskUserQuestionPermission {
     AskExceptInAutoApprove,
     /// Always pause and wait for the user to answer before continuing, even in auto-approve mode.
     AlwaysAsk,
-
-    // This is intended to catch deserialization errors whenever we add new variants to this enum.
-    #[serde(other)]
-    Unknown,
 }
 
 impl AskUserQuestionPermission {
     pub fn description(&self) -> &'static str {
         match self {
-            AskUserQuestionPermission::AskExceptInAutoApprove
-            | AskUserQuestionPermission::Unknown => {
+            AskUserQuestionPermission::AskExceptInAutoApprove => {
                 "The Agent may ask a question and pause for your response, but will continue automatically when auto-approve is on."
             }
             AskUserQuestionPermission::Never => {
@@ -165,7 +140,6 @@ pub struct AIExecutionProfile {
 
     pub execute_commands: ActionPermission,
     pub write_to_pty: WriteToPtyPermission,
-    pub mcp_permissions: ActionPermission,
     pub ask_user_question: AskUserQuestionPermission,
 
     /// Always ask for permission for these commands
@@ -176,9 +150,6 @@ pub struct AIExecutionProfile {
 
     /// When the read_files is set to AlwaysAsk, autoread from these directories
     pub directory_allowlist: Vec<PathBuf>,
-
-    pub mcp_allowlist: Vec<uuid::Uuid>,
-    pub mcp_denylist: Vec<uuid::Uuid>,
 
     pub computer_use: ComputerUsePermission,
 
@@ -195,13 +166,10 @@ impl Default for AIExecutionProfile {
             read_files: ActionPermission::AgentDecides,
             execute_commands: ActionPermission::AlwaysAsk,
             write_to_pty: WriteToPtyPermission::AlwaysAsk,
-            mcp_permissions: ActionPermission::AgentDecides,
             ask_user_question: AskUserQuestionPermission::AskExceptInAutoApprove,
             command_denylist: DEFAULT_COMMAND_EXECUTION_DENYLIST.clone(),
             command_allowlist: Vec::new(),
             directory_allowlist: Vec::new(),
-            mcp_allowlist: Vec::new(),
-            mcp_denylist: Vec::new(),
             computer_use: ComputerUsePermission::Never,
             web_search_enabled: true,
         }
@@ -239,16 +207,10 @@ impl AIExecutionProfile {
         };
 
         let computer_use_permission = match computer_use_override {
-            Some(true) => {
-                if is_sandboxed || FeatureFlag::LocalComputerUse.is_enabled() {
-                    ComputerUsePermission::AlwaysAllow
-                } else {
-                    ComputerUsePermission::Never
-                }
-            }
+            Some(true) => ComputerUsePermission::AlwaysAllow,
             Some(false) => ComputerUsePermission::Never,
             None => {
-                if is_sandboxed && ChannelState::channel().is_dogfood() {
+                if is_sandboxed {
                     ComputerUsePermission::AlwaysAllow
                 } else {
                     ComputerUsePermission::Never
@@ -262,16 +224,33 @@ impl AIExecutionProfile {
             apply_code_diffs: ActionPermission::AlwaysAllow,
             read_files: ActionPermission::AlwaysAllow,
             execute_commands: ActionPermission::AlwaysAllow,
-            mcp_permissions: ActionPermission::AlwaysAllow,
             write_to_pty: WriteToPtyPermission::AlwaysAllow,
             ask_user_question: AskUserQuestionPermission::Never,
             command_denylist,
             command_allowlist: DEFAULT_COMMAND_EXECUTION_ALLOWLIST.to_vec(),
             directory_allowlist: Vec::new(),
-            mcp_allowlist: Vec::new(),
-            mcp_denylist: Vec::new(),
             computer_use: computer_use_permission,
             web_search_enabled: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AIExecutionProfile, ComputerUsePermission};
+
+    #[test]
+    fn cli_profile_honors_computer_use_override() {
+        let profile = AIExecutionProfile::create_default_cli_profile(false, Some(true));
+        assert_eq!(profile.computer_use, ComputerUsePermission::AlwaysAllow);
+    }
+
+    #[test]
+    fn cli_profile_allows_computer_use_by_default_only_when_sandboxed() {
+        let sandboxed = AIExecutionProfile::create_default_cli_profile(true, None);
+        let unsandboxed = AIExecutionProfile::create_default_cli_profile(false, None);
+
+        assert_eq!(sandboxed.computer_use, ComputerUsePermission::AlwaysAllow);
+        assert_eq!(unsandboxed.computer_use, ComputerUsePermission::Never);
     }
 }

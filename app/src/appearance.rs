@@ -4,7 +4,6 @@ use warpui::{
     SingletonEntity,
 };
 
-#[cfg(target_os = "macos")]
 mod macos_app_icon {
     #[allow(deprecated)]
     pub use cocoa::{
@@ -17,7 +16,6 @@ mod macos_app_icon {
 
     pub use crate::settings::app_icon::{AppIcon, AppIconSettings, AppIconSettingsChangedEvent};
 }
-#[cfg(target_os = "macos")]
 use macos_app_icon::*;
 
 use crate::{
@@ -42,7 +40,6 @@ pub struct AppearanceManager {
     // as a setting. It is used when the user is actively choosing a theme.
     transient_theme: Option<WarpTheme>,
 
-    #[cfg(target_os = "macos")]
     app_icon_at_startup: AppIcon,
 }
 
@@ -52,17 +49,14 @@ impl AppearanceManager {
             me.refresh_theme_state(ctx);
         });
 
-        #[cfg(target_os = "macos")]
-        {
-            ctx.subscribe_to_model(
-                &AppIconSettings::handle(ctx),
-                move |me, event, ctx| match event {
-                    AppIconSettingsChangedEvent::AppIconState { .. } => {
-                        me.set_app_icon(ctx);
-                    }
-                },
-            );
-        }
+        ctx.subscribe_to_model(
+            &AppIconSettings::handle(ctx),
+            move |me, event, ctx| match event {
+                AppIconSettingsChangedEvent::AppIconState { .. } => {
+                    me.set_app_icon(ctx);
+                }
+            },
+        );
 
         ctx.subscribe_to_model(
             &FontSettings::handle(ctx),
@@ -133,7 +127,6 @@ impl AppearanceManager {
 
         Self {
             transient_theme: None,
-            #[cfg(target_os = "macos")]
             app_icon_at_startup: *AppIconSettings::handle(ctx).as_ref(ctx).app_icon.value(),
         }
     }
@@ -146,9 +139,6 @@ impl AppearanceManager {
             Settings::theme_for_theme_kind(&theme_kind, ctx)
         };
 
-        #[cfg(target_family = "wasm")]
-        emit_theme_background_event(&new_theme);
-
         Appearance::handle(ctx).update(ctx, |appearance, ctx| {
             appearance.set_theme(new_theme, ctx);
         })
@@ -159,7 +149,6 @@ impl AppearanceManager {
         self.refresh_theme_state(ctx);
     }
 
-    #[cfg(target_os = "macos")]
     pub fn app_icon_at_startup(&self) -> AppIcon {
         self.app_icon_at_startup
     }
@@ -177,7 +166,6 @@ impl AppearanceManager {
     ///
     /// Also see the README.md file in app/DockTilePlugin for more information on how best to test
     /// changes to the dock tile plugin.
-    #[cfg(target_os = "macos")]
     #[allow(deprecated)]
     pub fn set_app_icon(&self, app: &AppContext) {
         let icon = *AppIconSettings::as_ref(app).app_icon.value();
@@ -332,15 +320,7 @@ fn load_password_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     })
 }
 
-#[cfg(target_family = "wasm")]
-/// On wasm we don't support loading fonts, so we just use the default.
-fn get_or_load_font_family(_font_name: &str, _ctx: &mut AppContext) -> Option<FamilyId> {
-    None
-}
-
-#[cfg(not(target_family = "wasm"))]
-/// If we're running on a native platform (where we support font loading),
-/// make sure we load the user's selected monospace font. We first check
+/// Make sure we load the user's selected monospace font. We first check
 /// the font cache in case we are using a pre-bundled font like Hack.
 /// Then we fall back to loading a system font.
 fn get_or_load_font_family(font_name: &str, ctx: &mut AppContext) -> Option<FamilyId> {
@@ -400,9 +380,6 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let theme_kind = active_theme_kind(ThemeSettings::as_ref(ctx), ctx);
     let theme = Settings::theme_for_theme_kind(&theme_kind, ctx);
-    #[cfg(target_family = "wasm")]
-    emit_theme_background_event(&theme);
-
     Appearance::new(
         theme,
         monospace_font_family_from_settings.unwrap_or(default_monospace_font_family),
@@ -413,15 +390,6 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         am_font_family_from_settings.unwrap_or(default_monospace_font_family),
         password_font_family,
     )
-}
-
-#[cfg(target_family = "wasm")]
-fn emit_theme_background_event(theme: &WarpTheme) {
-    let bg = theme.background().into_solid();
-    let color = format!("#{:02x}{:02x}{:02x}", bg.r, bg.g, bg.b);
-    crate::platform::wasm::emit_event(crate::platform::wasm::WarpEvent::ThemeBackgroundChanged {
-        color,
-    });
 }
 
 pub fn register(app: &mut impl AddSingletonModel) {

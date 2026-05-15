@@ -1,25 +1,18 @@
-use crate::ai::blocklist::view_util::render_provider_icon_button;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use rand::{distributions::Alphanumeric, thread_rng, Rng as _};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, path::Path, rc::Rc, sync::Arc, time::Duration};
 use warp_core::{
     features::FeatureFlag,
     platform::SessionPlatform,
+    safe_error,
     settings::ToggleableSetting,
     ui::{
         appearance::Appearance,
-        color::CLAUDE_ORANGE,
         theme::{
-            color::internal_colors::{fg_overlay_6, neutral_1, neutral_4},
+            color::internal_colors::{neutral_1, neutral_4},
             Fill,
         },
     },
@@ -29,7 +22,6 @@ use warp_editor::{
     content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
 };
 use warp_util::file::FileSaveError;
-use warp_util::path::common_path;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{
     elements::{
@@ -54,7 +46,7 @@ use crate::{
     ai::{
         agent::{
             icons::{self, yellow_stop_icon},
-            AIAgentActionId, AIIdentifiers, FileEdit, FileLocations, ServerOutputId,
+            AIAgentActionId, AIIdentifiers, FileEdit, FileLocations,
         },
         blocklist::{
             action_model::{AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel},
@@ -65,13 +57,8 @@ use crate::{
             },
             model::{AIBlockModel, AIBlockModelHelper},
         },
-        mcp::{mcp_provider_from_file_path, MCPProvider},
         paths::host_native_absolute_path,
         predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
-        skills::{
-            icon_override_for_skill_name, render_skill_button, skill_path_from_file_path,
-            SkillManager, SkillReference,
-        },
     },
     cmd_or_ctrl_shift,
     code::{
@@ -213,9 +200,7 @@ struct CodeDiffViewMouseStates {
     scroll_icon_button: MouseStateHandle,
     passive_code_suggestion_checkbox: MouseStateHandle,
     ai_settings_link_highlight_index: HighlightedHyperlink,
-    skill_button_handle: MouseStateHandle,
     stats_badge_button: MouseStateHandle,
-    mcp_config_button_handle: MouseStateHandle,
 }
 
 #[derive(Debug, Clone)]
@@ -256,16 +241,6 @@ pub enum CodeDiffViewEvent {
     /// Emitted when candidate diffs are loaded and ready to display.
     /// Used to trigger AIBlock height recalculation for passive code diffs.
     LoadedDiffs,
-    /// Emitted when the user opens a skill file from a code diff
-    OpenSkill {
-        reference: SkillReference,
-        path: PathBuf,
-    },
-    /// Emitted when the user opens an MCP config file from a code diff
-    OpenMCPConfig {
-        provider: MCPProvider,
-        path: PathBuf,
-    },
 }
 
 /// The base content and file path for a diff.
@@ -309,7 +284,6 @@ impl FileDiff {
 /// After the above two conditions are all met, we can emit the Accepted event with all of the diffs.
 /// This tracks which diffs have been computed.
 #[derive(Clone, Debug)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub struct SavingDiffs {
     pending_diffs: Vec<DiffApplicationState>,
 }
@@ -349,7 +323,6 @@ impl SavingDiffs {
 
 /// The status of saving a file.
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 enum SaveStatus {
     #[default]
     Pending,
@@ -365,7 +338,6 @@ impl SaveStatus {
 
 /// The diff application state for a single file.
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 struct DiffApplicationState {
     computed_diff: Option<Rc<DiffResult>>,
     save_status: SaveStatus,
@@ -386,9 +358,8 @@ pub enum CodeDiffState {
     Rejected,
     /// The changes were reverted after acceptance.
     Reverted,
-    /// The diff is being viewed in a shared session (read-only mode).
-    /// is_complete indicates whether the diff has been accepted or is still pending.
-    ViewOnly { is_complete: bool },
+    /// The diff is rendered without local accept/reject controls.
+    ReadOnly { is_complete: bool },
 }
 
 impl CodeDiffState {
@@ -398,7 +369,7 @@ impl CodeDiffState {
             CodeDiffState::Accepted(_)
                 | CodeDiffState::Rejected
                 | CodeDiffState::Reverted
-                | CodeDiffState::ViewOnly { is_complete: true }
+                | CodeDiffState::ReadOnly { is_complete: true }
         )
     }
 
@@ -432,16 +403,6 @@ pub enum CodeDiffViewAction {
     ToggleAcceptMenu,
     OpenCodeReviewPane,
     RevertChanges,
-    OpenSkill {
-        reference: SkillReference,
-        path: PathBuf,
-        mouse_state: MouseStateHandle,
-    },
-    OpenMCPConfig {
-        provider: MCPProvider,
-        path: PathBuf,
-        mouse_state: MouseStateHandle,
-    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -487,10 +448,9 @@ pub struct CodeDiffView {
     display_mode: DisplayMode,
     title: Option<String>,
     focus_handle: Option<PaneFocusHandle>,
-    /// Client and server identifiers for the AI output associated with the code diffs.
+    /// Local identifiers for the AI output associated with the code diffs.
     identifiers: AIIdentifiers,
     /// `False` until a user makes the first edit to one of the diffs in the view.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     user_edited_file_contents: bool,
     /// The ID of the pane that opened this code diff view.
     /// Used to return to the original pane after editing.
@@ -507,9 +467,8 @@ pub struct CodeDiffView {
 
 impl CodeDiffView {
     fn open_accept_split_button_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't allow menu toggling in view-only mode.
-        if matches!(self.state, CodeDiffState::ViewOnly { .. }) {
-            log::error!("Attempted to toggle accept menu in view-only mode");
+        if matches!(self.state, CodeDiffState::ReadOnly { .. }) {
+            log::error!("Attempted to toggle accept menu in read-only mode");
             return;
         }
         self.is_accept_split_button_menu_open = true;
@@ -613,28 +572,21 @@ impl CodeDiffView {
         file_path_for_error: String,
         ctx: &mut ViewContext<Self>,
     ) {
-        #[cfg(not(target_family = "wasm"))]
         let file_path_clone = file_path_for_error;
-        #[cfg(target_family = "wasm")]
-        let _ = file_path_for_error;
-        #[cfg(not(target_family = "wasm"))]
         let window_id = ctx.window_id();
 
         ctx.subscribe_to_view(diff_view, move |me, _, event, ctx| match event {
             InlineDiffViewEvent::DiffStatusUpdated => {
                 ctx.notify();
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FileLoaded => {
                 ctx.notify();
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FileSaved => {
                 me.handle_save_completed(idx, None, ctx);
             }
-            #[cfg(not(target_family = "wasm"))]
             InlineDiffViewEvent::FailedToSave { error } => {
-                crate::safe_error!(
+                safe_error!(
                     safe: ("Failed to save file for accepted AgentMode diffs"),
                     full: ("Failed to save file for accepted AgentMode diffs for {}: {}", file_path_clone, error)
                 );
@@ -670,9 +622,7 @@ impl CodeDiffView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let is_passive = model.request_type(ctx).is_passive_code_diff();
-        let initial_state = if action_model.as_ref(ctx).is_view_only() {
-            CodeDiffState::ViewOnly { is_complete: false }
-        } else if model.is_first_action_in_output(action_id, ctx) {
+        let initial_state = if model.is_first_action_in_output(action_id, ctx) {
             CodeDiffState::WaitingForUser
         } else {
             CodeDiffState::Queued
@@ -699,12 +649,7 @@ impl CodeDiffView {
                             ctx.notify();
                         }
                         Some(status) => {
-                            if matches!(me.state, CodeDiffState::ViewOnly { .. })
-                                && status.is_success()
-                            {
-                                me.state = CodeDiffState::ViewOnly { is_complete: true };
-                                me.should_expand_when_complete = false;
-                            } else if status.is_cancelled() {
+                            if status.is_cancelled() {
                                 me.state = CodeDiffState::Rejected;
                                 me.should_expand_when_complete = false;
                             }
@@ -987,12 +932,8 @@ impl CodeDiffView {
                     )
                 });
 
-                // On non-WASM, register the file with FileModel for save support.
-                #[cfg(not(target_family = "wasm"))]
-                {
-                    let session_type = &self.diff_session_type;
-                    diff_viewer.update(ctx, |view, ctx| view.register_file(session_type, ctx));
-                }
+                let session_type = &self.diff_session_type;
+                diff_viewer.update(ctx, |view, ctx| view.register_file(session_type, ctx));
 
                 self.setup_diff_view_subscriptions(&diff_viewer, idx, file_path, ctx);
 
@@ -1010,8 +951,7 @@ impl CodeDiffView {
 
     /// Save the file and mark the diff as accepted.
     pub fn accept_and_save(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't let users save an old diff while in view-only mode.
-        if matches!(self.state, CodeDiffState::ViewOnly { .. }) {
+        if matches!(self.state, CodeDiffState::ReadOnly { .. }) {
             return;
         }
 
@@ -1031,16 +971,16 @@ impl CodeDiffView {
     }
 
     /// Attempts to accept the diff and returns Ok(()) if the accept flow was initiated.
-    /// Returns Err when acceptance is disallowed (e.g. view-only mode).
+    /// Returns Err when acceptance is disallowed.
     fn try_accept_action_with_selection(
         &mut self,
         selection: AcceptSelection,
         ctx: &mut ViewContext<Self>,
     ) -> Result<()> {
-        if matches!(self.state, CodeDiffState::ViewOnly { .. }) {
-            log::error!("Attempted to accept diff in view-only mode");
+        if matches!(self.state, CodeDiffState::ReadOnly { .. }) {
+            log::error!("Attempted to accept diff in read-only mode");
             return Err(anyhow::anyhow!(
-                "Attempted to accept diff in view-only mode"
+                "Attempted to accept diff in read-only mode"
             ));
         }
 
@@ -1060,9 +1000,8 @@ impl CodeDiffView {
 
     /// Mark the diff as rejected.
     pub fn reject(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't let users reject an old diff while in view-only mode.
-        if matches!(self.state, CodeDiffState::ViewOnly { .. }) {
-            log::error!("Attempted to reject diff in view-only mode");
+        if matches!(self.state, CodeDiffState::ReadOnly { .. }) {
+            log::error!("Attempted to reject diff in read-only mode");
             return;
         }
 
@@ -1156,9 +1095,8 @@ impl CodeDiffView {
     }
 
     pub fn expand_and_edit(&mut self, ctx: &mut ViewContext<Self>) {
-        // Don't let users edit an old diff while in view-only mode.
-        if matches!(self.state, CodeDiffState::ViewOnly { .. }) {
-            log::error!("Attempted to edit/expand diff in view-only mode");
+        if matches!(self.state, CodeDiffState::ReadOnly { .. }) {
+            log::error!("Attempted to edit/expand diff in read-only mode");
             return;
         }
 
@@ -1407,12 +1345,12 @@ impl CodeDiffView {
         };
 
         let icon = match self.state {
-            CodeDiffState::Accepted(_) | CodeDiffState::ViewOnly { is_complete: true } => {
+            CodeDiffState::Accepted(_) | CodeDiffState::ReadOnly { is_complete: true } => {
                 green_check_icon(appearance).finish()
             }
             CodeDiffState::Rejected => cancelled_icon(appearance).finish(),
             CodeDiffState::Reverted => reverted_icon(appearance).finish(),
-            CodeDiffState::Queued | CodeDiffState::ViewOnly { is_complete: false } => {
+            CodeDiffState::Queued | CodeDiffState::ReadOnly { is_complete: false } => {
                 icons::gray_stop_icon(appearance).finish()
             }
             CodeDiffState::WaitingForUser => {
@@ -1492,7 +1430,7 @@ impl CodeDiffView {
             .with_color(
                 if matches!(
                     self.state,
-                    CodeDiffState::Queued | CodeDiffState::ViewOnly { is_complete: false }
+                    CodeDiffState::Queued | CodeDiffState::ReadOnly { is_complete: false }
                 ) {
                     appearance
                         .theme()
@@ -1542,101 +1480,10 @@ impl CodeDiffView {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
 
-        let file_paths: Vec<PathBuf> = self
-            .pending_diffs
-            .iter()
-            .filter_map(|diff| {
-                diff.diff_view
-                    .as_ref(app)
-                    .file_path()
-                    .and_then(|p| p.to_local_path())
-            })
-            .collect();
-
-        // Renders the 'open skill' button if all edited files live in the same skill directory
-        let skill = common_path(&file_paths)
-            .and_then(|common| skill_path_from_file_path(&common))
-            .and_then(|skill_path| SkillManager::as_ref(app).skill_by_path(&skill_path));
-        if let Some(skill) = skill {
-            let skill_path = skill.path.clone();
-            let skill_reference = SkillManager::handle(app)
-                .as_ref(app)
-                .reference_for_skill_path(&skill_path);
-            let skill_button_handle = self.button_mouse_states.skill_button_handle.clone();
-
-            let skill_icon_override = icon_override_for_skill_name(&skill.name);
-            let skill_button = render_skill_button(
-                format!("/{}", skill.name).as_str(),
-                skill_button_handle.clone(),
-                appearance,
-                skill.provider,
-                skill_icon_override,
-                move |ctx| {
-                    ctx.dispatch_typed_action(CodeDiffViewAction::OpenSkill {
-                        reference: skill_reference.clone(),
-                        path: skill_path.clone(),
-                        mouse_state: skill_button_handle.clone(),
-                    });
-                },
-            );
-            right_side_row.add_child(
-                Container::new(skill_button)
-                    .with_margin_right(HEADER_MARGIN)
-                    .finish(),
-            );
-        }
-
-        // Renders the 'open config' button only when every MCP config file in this diff
-        // belongs to the same provider. Mixed-provider diffs (e.g. editing both a Claude
-        // config and a Warp config at once) show no badge to avoid misleading attribution.
-        let mcp_configs: Vec<_> = file_paths
-            .iter()
-            .filter_map(|path| {
-                mcp_provider_from_file_path(path).map(|provider| (provider, path.to_path_buf()))
-            })
-            .collect();
-        let mcp_config = mcp_configs
-            .first()
-            .and_then(|(first_provider, first_path)| {
-                mcp_configs
-                    .iter()
-                    .all(|(p, _)| p == first_provider)
-                    .then(|| (*first_provider, first_path.clone()))
-            });
-        if let Some((provider, config_path)) = mcp_config {
-            let mcp_button_handle = self.button_mouse_states.mcp_config_button_handle.clone();
-            let icon = provider.icon();
-            let color = if provider == MCPProvider::Claude {
-                Fill::Solid(CLAUDE_ORANGE)
-            } else {
-                fg_overlay_6(appearance.theme())
-            };
-            let mcp_config_button = render_provider_icon_button(
-                "Open config",
-                mcp_button_handle.clone(),
-                appearance,
-                icon,
-                color,
-                move |ctx| {
-                    ctx.dispatch_typed_action(CodeDiffViewAction::OpenMCPConfig {
-                        provider,
-                        path: config_path.clone(),
-                        mouse_state: mcp_button_handle.clone(),
-                    });
-                },
-            );
-            right_side_row.add_child(
-                Container::new(mcp_config_button)
-                    .with_margin_right(HEADER_MARGIN)
-                    .finish(),
-            );
-        }
-
         if matches!(self.state, CodeDiffState::WaitingForUser) {
             right_side_row.add_child(action_buttons);
         } else {
-            // Don't show the code review button for viewers of shared sessions
-            if !matches!(self.state, CodeDiffState::ViewOnly { .. }) {
+            if !matches!(self.state, CodeDiffState::ReadOnly { .. }) {
                 right_side_row.add_child(
                     Container::new(ChildView::new(&self.code_review_button).finish())
                         .with_margin_right(HEADER_MARGIN)
@@ -2060,8 +1907,6 @@ impl CodeDiffView {
                 .diff_view
                 .update(ctx, |v, ctx| v.navigate_previous_diff_hunk(ctx)),
         };
-
-        if let Some(_output_id) = self.server_output_id() {}
     }
 
     fn select_file(&mut self, direction: Direction, ctx: &mut ViewContext<Self>) {
@@ -2088,8 +1933,6 @@ impl CodeDiffView {
             mode: ScrollToPositionMode::FullyIntoView,
         });
         ctx.notify();
-
-        if let Some(_output_id) = self.server_output_id() {}
     }
 
     fn set_display_mode(&mut self, display_mode: DisplayMode, ctx: &mut ViewContext<Self>) {
@@ -2187,16 +2030,11 @@ impl CodeDiffView {
         }
     }
 
-    fn server_output_id(&self) -> Option<ServerOutputId> {
-        self.identifiers.server_output_id.clone()
-    }
-
     /// We are processing unified diff and saving files concurrently. That's why
     /// we need to have separate handlers for diff calculation and save completed.
     ///
     /// The diffs applied for each CodeEditorView are received individually.
     /// Store this diff, and try to emit the diffs saved event.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn accepted_file_diff_computed(
         &mut self,
         file_idx: usize,
@@ -2216,7 +2054,6 @@ impl CodeDiffView {
     ///
     /// The save state for each CodeEditorView are received individually.
     /// Update the accepted diff state, and try to emit the diffs saved event.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn handle_save_completed(
         &mut self,
         file_idx: usize,
@@ -2233,7 +2070,6 @@ impl CodeDiffView {
 
     /// Check if we have all pending diffs computed and saved.
     /// Emit the SavedAcceptedDiffs event if so.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn try_emit_diffs_saved(&mut self, ctx: &mut ViewContext<Self>) {
         if let CodeDiffState::Accepted(state) = &mut self.state {
             let is_complete = state
@@ -2695,36 +2531,6 @@ impl TypedActionView for CodeDiffView {
             }
             CodeDiffViewAction::RevertChanges => {
                 self.revert_changes(ctx);
-            }
-            CodeDiffViewAction::OpenSkill {
-                reference,
-                path,
-                mouse_state,
-            } => {
-                // Resets the interaction state of the skill button to avoid an immediate re-hover
-                if let Ok(mut state) = mouse_state.lock() {
-                    state.reset_interaction_state();
-                }
-
-                ctx.emit(CodeDiffViewEvent::OpenSkill {
-                    reference: reference.clone(),
-                    path: path.clone(),
-                });
-            }
-            CodeDiffViewAction::OpenMCPConfig {
-                provider,
-                path,
-                mouse_state,
-            } => {
-                // Resets the interaction state of the button to avoid an immediate re-hover
-                if let Ok(mut state) = mouse_state.lock() {
-                    state.reset_interaction_state();
-                }
-
-                ctx.emit(CodeDiffViewEvent::OpenMCPConfig {
-                    provider: *provider,
-                    path: path.clone(),
-                });
             }
         }
     }

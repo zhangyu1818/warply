@@ -1,44 +1,31 @@
-use std::collections::{HashMap, HashSet};
-#[cfg(not(target_family = "wasm"))]
-use std::path::PathBuf;
-use std::sync::Arc;
-#[cfg(not(target_family = "wasm"))]
-use std::time::Duration;
-
-#[cfg(not(target_family = "wasm"))]
 use crate::client::ClientEvent;
-#[cfg(not(target_family = "wasm"))]
-use crate::client::InitializeParams;
 use crate::client::RemoteServerClient;
 use crate::identity::RemoteServerIdentityContext;
 use crate::setup::PreinstallCheckResult;
-#[cfg(not(target_family = "wasm"))]
 use crate::setup::RemoteOs;
 use crate::setup::RemotePlatform;
 use crate::setup::RemoteServerSetupState;
 use crate::setup::UnsupportedReason;
-#[cfg(not(target_family = "wasm"))]
 use crate::transport::Connection;
 use crate::transport::{Error, RemoteTransport};
 use crate::HostId;
 use repo_metadata::RepoMetadataUpdate;
 use serde::Serialize;
-#[cfg(not(target_family = "wasm"))]
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 use warp_core::channel::ChannelState;
 use warp_core::SessionId;
-#[cfg(not(target_family = "wasm"))]
 use warpui::r#async::FutureExt as _;
 use warpui::{Entity, ModelContext, ModelSpawner, SingletonEntity};
 
 /// Maximum number of reconnection attempts after a spontaneous disconnect.
-#[cfg(not(target_family = "wasm"))]
 const MAX_RECONNECT_ATTEMPTS: u32 = 2;
 /// Delay between reconnection attempts.
-#[cfg(not(target_family = "wasm"))]
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 
 /// Parameters that travel together through the reconnection flow.
-#[cfg(not(target_family = "wasm"))]
 struct ReconnectParams {
     attempt: u32,
     host_id: HostId,
@@ -51,7 +38,6 @@ struct ReconnectParams {
 
 /// Error from [`RemoteServerManager::run_connect_and_handshake`] that
 /// preserves which phase failed so callers can present accurate status.
-#[cfg(not(target_family = "wasm"))]
 #[derive(Debug, thiserror::Error)]
 enum ConnectAndHandshakeError {
     /// `transport.connect()` failed, or the session was deregistered
@@ -62,8 +48,6 @@ enum ConnectAndHandshakeError {
     #[error("initialize: {0:#}")]
     Initialize(anyhow::Error),
 }
-
-#[cfg(not(target_family = "wasm"))]
 impl ConnectAndHandshakeError {
     fn phase(&self) -> RemoteServerInitPhase {
         match self {
@@ -105,7 +89,6 @@ pub struct RemoteServerExitStatus {
 ///   string): treat as compatible. This preserves the `cargo run` +
 ///   `script/deploy_remote_server` dev loop, where neither side reports a
 ///   release tag.
-#[cfg(not(target_family = "wasm"))]
 fn version_is_compatible(client: Option<&str>, server: &str) -> bool {
     match (client, server.is_empty()) {
         (Some(c), false) => c == server,
@@ -142,10 +125,8 @@ pub enum RemoteSessionState {
         /// The transport's owning `Child`. Dropped when the state is
         /// replaced or removed, killing the subprocess via
         /// `kill_on_drop`.
-        #[cfg(not(target_family = "wasm"))]
         _child: async_process::Child,
         /// See type-level doc.
-        #[cfg(not(target_family = "wasm"))]
         control_path: Option<PathBuf>,
     },
     /// Initialize handshake succeeded. Client is ready for requests.
@@ -155,17 +136,13 @@ pub enum RemoteSessionState {
         /// Identity key that was active when this session was established.
         identity_key: String,
         /// The transport's owning `Child`. See `Initializing::_child`.
-        #[cfg(not(target_family = "wasm"))]
         _child: async_process::Child,
         /// See type-level doc.
-        #[cfg(not(target_family = "wasm"))]
         control_path: Option<PathBuf>,
         /// Transport stored for reconnection after spontaneous disconnect.
-        #[cfg(not(target_family = "wasm"))]
         transport: Arc<dyn RemoteTransport>,
     },
     /// A reconnection attempt is in progress after a spontaneous disconnect.
-    #[cfg(not(target_family = "wasm"))]
     Reconnecting {
         attempt: u32,
         host_id: HostId,
@@ -338,7 +315,6 @@ impl RemoteServerManagerEvent {
 /// Persists for the lifetime of the session (removed only in
 /// `deregister_session`) so that `mark_session_connected` can re-send
 /// the notification after a reconnect.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
 struct SessionBootstrapInfo {
     shell_type: String,
     shell_path: Option<String>,
@@ -368,9 +344,7 @@ pub struct RemoteServerManager {
     /// remote server daemon on every (re)connect. Persists until
     /// `deregister_session`.
     session_bootstrap_info: HashMap<SessionId, SessionBootstrapInfo>,
-    /// App identity context used for connection-time `Initialize` and future
-    /// reconnect handshakes.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
+    /// App identity context used for remote daemon/socket partitioning.
     identity_context: Option<Arc<RemoteServerIdentityContext>>,
     /// Detected remote platform per session, populated during the binary check
     /// phase via `detect_platform()`.
@@ -411,7 +385,6 @@ impl RemoteServerManager {
     /// Returns Ok(true) if the binary is installed and executable,
     /// Ok(false) if it is definitively not installed, and
     /// Err(_) if the check failed (e.g. SSH timeout/unreachable).
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub fn check_binary<T>(
         &mut self,
         session_id: SessionId,
@@ -420,12 +393,6 @@ impl RemoteServerManager {
     ) where
         T: RemoteTransport + 'static,
     {
-        #[cfg(target_family = "wasm")]
-        {
-            log::warn!("Remote server check_binary is a no-op on WASM");
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             ctx.emit(RemoteServerManagerEvent::SetupStateChanged {
                 session_id,
@@ -510,24 +477,7 @@ impl RemoteServerManager {
     /// Marks a session as unsupported by the prebuilt remote-server
     /// binary, based on a positive classification from the preinstall
     /// check. The setup state transitions to `Unsupported`, which the
-    /// downstream UI treats as a clean fall-back to the legacy SSH flow.
-    ///
-    /// No-op on WASM (remote server connections use a different transport).
-    #[cfg(target_family = "wasm")]
-    pub fn mark_setup_unsupported(
-        &mut self,
-        _session_id: SessionId,
-        _reason: UnsupportedReason,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        log::warn!("Remote server mark_setup_unsupported is a no-op on WASM");
-    }
-
-    /// Marks a session as unsupported by the prebuilt remote-server
-    /// binary, based on a positive classification from the preinstall
-    /// check. The setup state transitions to `Unsupported`, which the
-    /// downstream UI treats as a clean fall-back to the legacy SSH flow.
-    #[cfg(not(target_family = "wasm"))]
+    /// downstream UI treats as a clean continuation without the remote-server extension.
     pub fn mark_setup_unsupported(
         &mut self,
         session_id: SessionId,
@@ -545,7 +495,6 @@ impl RemoteServerManager {
     ///
     /// Returns Ok(()) if the install succeeded, and
     /// Err(_) if the install failed (e.g. SSH timeout/unreachable).
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     pub fn install_binary<T>(
         &mut self,
         session_id: SessionId,
@@ -555,12 +504,6 @@ impl RemoteServerManager {
     ) where
         T: RemoteTransport + 'static,
     {
-        #[cfg(target_family = "wasm")]
-        {
-            log::warn!("Remote server install_binary is a no-op on WASM");
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             let setup_state = if is_update {
                 RemoteServerSetupState::Updating
@@ -608,8 +551,6 @@ impl RemoteServerManager {
     /// 2. **Handshake** — perform the initialize handshake (which returns the
     ///    `HostId`) and transition to `Connected`.
     ///
-    /// No-op on WASM (remote server connections use a different transport).
-    #[cfg_attr(target_family = "wasm", allow(unused_variables, unused_mut))]
     pub fn connect_session<T>(
         &mut self,
         session_id: SessionId,
@@ -619,12 +560,6 @@ impl RemoteServerManager {
     ) where
         T: RemoteTransport + 'static,
     {
-        #[cfg(target_family = "wasm")]
-        {
-            log::warn!("Remote server connect_session is a no-op on WASM");
-        }
-
-        #[cfg(not(target_family = "wasm"))]
         {
             log::info!("Starting remote server connection: session={session_id:?}");
 
@@ -644,7 +579,6 @@ impl RemoteServerManager {
             // Wrap the transport in an Arc so it can be stored on `Connected`
             // for reconnection after a spontaneous disconnect.
             let transport: Arc<dyn RemoteTransport> = Arc::new(transport);
-            let identity_context_for_task = Arc::clone(&identity_context);
             let identity_key = identity_context.remote_server_identity_key();
 
             ctx.background_executor()
@@ -652,7 +586,6 @@ impl RemoteServerManager {
                     match Self::run_connect_and_handshake(
                         session_id,
                         &*transport,
-                        &identity_context_for_task,
                         &spawner,
                         &executor,
                     )
@@ -709,11 +642,9 @@ impl RemoteServerManager {
     /// 3. Runs the initialize handshake.
     ///
     /// Returns `Ok(host_id)` on success, or a phase-tagged error.
-    #[cfg(not(target_family = "wasm"))]
     async fn run_connect_and_handshake(
         session_id: SessionId,
         transport: &dyn RemoteTransport,
-        identity_context: &RemoteServerIdentityContext,
         spawner: &ModelSpawner<Self>,
         executor: &Arc<warpui::r#async::executor::Background>,
     ) -> Result<HostId, ConnectAndHandshakeError> {
@@ -770,10 +701,7 @@ impl RemoteServerManager {
 
         // Phase 2: Initialize handshake.
         let resp = client
-            .initialize(InitializeParams {
-                user_id: identity_context.user_id().to_owned(),
-                user_email: identity_context.user_email().to_owned(),
-            })
+            .initialize()
             .await
             .map_err(|e| ConnectAndHandshakeError::Initialize(anyhow::anyhow!("{e:#}")))?;
 
@@ -862,7 +790,6 @@ impl RemoteServerManager {
         // force the master to exit below. Safe to do under the
         // "caller already observed ExitShell" assumption documented
         // above.
-        #[cfg(not(target_family = "wasm"))]
         let control_path = match &prev {
             Some(RemoteSessionState::Connected { control_path, .. })
             | Some(RemoteSessionState::Initializing { control_path, .. }) => control_path.clone(),
@@ -873,7 +800,6 @@ impl RemoteServerManager {
         // Extract `host_id` from states that track a host connection.
         let host_id = match &prev {
             Some(RemoteSessionState::Connected { host_id, .. }) => Some(host_id.clone()),
-            #[cfg(not(target_family = "wasm"))]
             Some(RemoteSessionState::Reconnecting { host_id, .. }) => Some(host_id.clone()),
             _ => None,
         };
@@ -893,7 +819,6 @@ impl RemoteServerManager {
         // Force the local SSH ControlMaster to exit after teardown.
         // Spawned detached because the ssh subcommand may take a moment
         // to complete and we don't want to block the main thread on it.
-        #[cfg(not(target_family = "wasm"))]
         if let Some(control_path) = control_path {
             ctx.background_executor()
                 .spawn(async move {
@@ -936,7 +861,6 @@ impl RemoteServerManager {
                 | RemoteSessionState::Initializing { .. }
                 | RemoteSessionState::Connected { .. },
             ) => true,
-            #[cfg(not(target_family = "wasm"))]
             Some(RemoteSessionState::Reconnecting { .. }) => true,
         }
     }
@@ -1101,7 +1025,6 @@ impl RemoteServerManager {
     /// Forwards a push event from the client event channel as a manager event.
     /// No-ops if the session is not in `Connected` state (i.e. `host_id` not
     /// yet available).
-    #[cfg(not(target_family = "wasm"))]
     fn forward_client_event(
         &self,
         session_id: SessionId,
@@ -1132,7 +1055,6 @@ impl RemoteServerManager {
 
     /// Transitions a session from `Initializing` to `Connected`. Stores the
     /// `transport` for reconnection support after a spontaneous disconnect.
-    #[cfg(not(target_family = "wasm"))]
     fn mark_session_connected(
         &mut self,
         session_id: SessionId,
@@ -1199,7 +1121,6 @@ impl RemoteServerManager {
     }
 
     /// Captures the exit status from a `Child` process, if available.
-    #[cfg(not(target_family = "wasm"))]
     fn capture_exit_status(
         child: &mut async_process::Child,
         session_id: SessionId,
@@ -1207,13 +1128,10 @@ impl RemoteServerManager {
         match child.try_status() {
             Ok(Some(status)) => {
                 let code = status.code();
-                #[cfg(unix)]
                 let signal_killed = {
                     use std::os::unix::process::ExitStatusExt;
                     status.signal().is_some()
                 };
-                #[cfg(not(unix))]
-                let signal_killed = false;
                 log::warn!(
                     "Remote server process exited: session={session_id:?} code={code:?} signal_killed={signal_killed}"
                 );
@@ -1236,8 +1154,6 @@ impl RemoteServerManager {
             }
         }
     }
-
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn mark_session_disconnected(
         &mut self,
         session_id: SessionId,
@@ -1315,7 +1231,6 @@ impl RemoteServerManager {
     }
 
     /// Attempt to re-establish the remote server connection.
-    #[cfg(not(target_family = "wasm"))]
     fn attempt_reconnect(
         &mut self,
         session_id: SessionId,
@@ -1348,7 +1263,6 @@ impl RemoteServerManager {
         let spawner = self.spawner.clone();
         let executor = ctx.background_executor().clone();
         let transport_clone = Arc::clone(&transport);
-        let identity_context_for_task = Arc::clone(&identity_context);
 
         ctx.background_executor()
             .spawn(async move {
@@ -1368,7 +1282,6 @@ impl RemoteServerManager {
                 match Self::run_connect_and_handshake(
                     session_id,
                     &*transport_clone,
-                    &identity_context_for_task,
                     &spawner,
                     &executor,
                 )
@@ -1439,7 +1352,6 @@ impl RemoteServerManager {
     }
 
     /// Handle a failed reconnection attempt: either retry or give up.
-    #[cfg(not(target_family = "wasm"))]
     fn handle_reconnect_failure(
         &mut self,
         session_id: SessionId,
@@ -1480,7 +1392,6 @@ impl RemoteServerManager {
     /// Not used by `handle_reconnect_failure` because that path enters
     /// from `attempt_reconnect`, which already cleared the host index
     /// and emitted `HostDisconnected` when entering the reconnect flow.
-    #[cfg(not(target_family = "wasm"))]
     fn finalize_disconnect(
         &mut self,
         session_id: SessionId,

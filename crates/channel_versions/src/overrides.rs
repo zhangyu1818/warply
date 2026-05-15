@@ -17,11 +17,7 @@ pub enum TargetOS {
 
 impl TargetOS {
     pub fn current() -> Option<Self> {
-        if cfg!(target_family = "wasm") {
-            Some(TargetOS::Web)
-        } else {
-            Some(TargetOS::MacOS)
-        }
+        Some(TargetOS::MacOS)
     }
 
     /// Returns the name of the [`TargetOS`], or None if it is unknown.

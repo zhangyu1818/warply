@@ -159,7 +159,7 @@ fn new_command_executor_for_local_tty_session(
     use super::IsLegacySSHSession;
 
     // When the remote server feature flag is enabled and the session is a
-    // legacy SSH session, use the remote server executor *if* the manager
+    // ControlMaster-backed SSH session, use the remote server executor *if* the manager
     // already has a live `Connected` client for this session.
     //
     // By construction this branch is only reached after
@@ -187,8 +187,7 @@ fn new_command_executor_for_local_tty_session(
         }
     }
 
-    if FeatureFlag::SSHTmuxWrapper.is_enabled()
-        && session_info.tmux_control_mode
+    if session_info.tmux_control_mode
         // We don't allow nested tmux warpification, so if our parent session is already warified using
         // tmux then we shouldn't.
         && !parent_session_info.is_some_and(|s| s.tmux_control_mode)
@@ -279,7 +278,7 @@ fn new_command_executor_for_local_tty_session(
                 && !force_use_in_band_generators =>
         {
             if let IsLegacySSHSession::Yes { socket_path } = &session_info.is_legacy_ssh_session {
-                log::info!("creating a legacy ssh executor!");
+                log::info!("creating a ControlMaster ssh executor!");
                 Arc::new(RemoteCommandExecutor::new(socket_path.clone()))
             } else {
                 unreachable!("Unreachable because of match! above. Unfortunately if let guards in rust are still experimental.")

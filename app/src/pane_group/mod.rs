@@ -3,8 +3,6 @@ use crate::ai::ai_document_view::AIDocumentView;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::RestoredConversationData;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
-use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::execution_profiles::profiles::ClientProfileId;
@@ -22,7 +20,6 @@ use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
-#[cfg(not(target_family = "wasm"))]
 use crate::terminal::view::inline_banner::{
     ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
 };
@@ -443,7 +440,7 @@ pub enum Event {
     // Tell the workspace to open the workflow modal.
     OpenWorkflowModalWithCommand(String),
     // Tell the workspace to open the workflow for edit.
-    OpenCloudWorkflowForEdit(SyncId),
+    OpenSavedWorkflowForEdit(SyncId),
     // Tell the workspace to open the workflow modal with an unsaved workflow.
     OpenWorkflowModalWithTemporary(Box<Workflow>),
     OpenPromptEditor,
@@ -522,12 +519,6 @@ pub enum Event {
     /// Clears the hovered tab index so it no longer appears as highlighted drop target
     ClearHoveredTabIndex,
     OpenLocalObjectInPane(ObjectUid),
-    OpenSuggestedAgentModeWorkflowModal {
-        workflow_and_id: SuggestedAgentModeWorkflowAndId,
-    },
-    OpenSuggestedRuleModal {
-        rule_and_id: SuggestedRuleAndId,
-    },
     OpenAIFactCollection {
         /// If set, open the fact collection to the specific rule.
         sync_id: Option<SyncId>,
@@ -630,9 +621,6 @@ pub enum Event {
         open_code_review: CodeReviewPanelArg,
         comments: Vec<AttachedReviewComment>,
         diff_mode: DiffMode,
-    },
-    RunTabConfigSkill {
-        path: PathBuf,
     },
     /// Request to open LSP logs in a terminal pane
     OpenLspLogs {
@@ -1492,7 +1480,7 @@ impl PaneGroup {
             )),
             LeafContents::EnvVarCollection(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
+                    EnvVarCollectionPaneSnapshot::SavedEnvVarCollection {
                         env_var_collection_id,
                     } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)?),
                 };
@@ -1508,7 +1496,7 @@ impl PaneGroup {
             }
             LeafContents::Workflow(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    WorkflowPaneSnapshot::CloudWorkflow { workflow_id } => {
+                    WorkflowPaneSnapshot::SavedWorkflow { workflow_id } => {
                         Box::new(WorkflowPane::restore(workflow_id, ctx)?)
                     }
                 };
@@ -3677,15 +3665,11 @@ impl PaneGroup {
                 return;
             }
 
-            #[cfg(target_os = "macos")]
-            {
-                // if the app is active, but the window is not active, activate the target window.
-                let current_window_id: WindowId = ctx.window_id();
-                let active_window_id = ctx.windows().state().active_window;
-                if active_window_id != Some(current_window_id) {
-                    ctx.windows()
-                        .show_window_and_focus_app_without_ordering_front(current_window_id);
-                }
+            let current_window_id: WindowId = ctx.window_id();
+            let active_window_id = ctx.windows().state().active_window;
+            if active_window_id != Some(current_window_id) {
+                ctx.windows()
+                    .show_window_and_focus_app_without_ordering_front(current_window_id);
             }
         }
 

@@ -16,9 +16,7 @@ pub fn create_a_personal_workflow() -> TestStep {
             UpdateManager::handle(app).update(app, |update_manager, ctx| {
                 update_manager.create_workflow(
                     Workflow::new("My first workflow", "ls"),
-                    UserWorkspaces::as_ref(ctx)
-                        .current_user_owner(ctx)
-                        .expect("User UID must be set in tests"),
+                    UserWorkspaces::as_ref(ctx).current_user_owner(ctx),
                     None,
                     ClientId::default(),
                     CloudObjectEventEntrypoint::Unknown,
@@ -37,7 +35,7 @@ pub fn create_a_personal_workflow() -> TestStep {
                         )
                         .count()
                         > 0,
-                    "cloud objects exist"
+                    "local objects exist"
                 )
             })
         })

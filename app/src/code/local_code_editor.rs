@@ -158,9 +158,6 @@ pub enum LocalCodeEditorEvent {
     OpenLspLogs {
         log_path: PathBuf,
     },
-    RunTabConfigSkill {
-        path: PathBuf,
-    },
     DelayedRenderingFlushed,
 }
 
@@ -1275,9 +1272,6 @@ impl LocalCodeEditorView {
             let footer =
                 ctx.add_typed_action_view(|ctx| CodeFooterView::new(path.to_path_buf(), ctx));
             ctx.subscribe_to_view(&footer, |_, _, event, ctx| match event {
-                CodeFooterViewEvent::RunTabConfigSkill { path } => {
-                    ctx.emit(LocalCodeEditorEvent::RunTabConfigSkill { path: path.clone() });
-                }
                 CodeFooterViewEvent::EnableLSP { path, .. } => {
                     Self::enable_lsp_for_path(path, ctx);
                 }
@@ -1746,11 +1740,7 @@ impl LocalCodeEditorView {
                 {
                     let appearance = Appearance::as_ref(app);
                     let theme = appearance.theme();
-                    let modifier_keys = if cfg!(target_os = "macos") {
-                        "⌘L"
-                    } else {
-                        "Ctrl-L"
-                    };
+                    let modifier_keys = "⌘L";
 
                     let mut row = Flex::row()
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)

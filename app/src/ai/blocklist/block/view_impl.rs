@@ -970,10 +970,8 @@ impl View for AIBlock {
                 detected_links_state: &self.detected_links_state,
                 secret_redaction_state: &self.secret_redaction_state,
                 requested_commands: &self.requested_commands,
-                requested_mcp_tools: &self.requested_mcp_tools,
                 requested_edits: &self.requested_edits,
                 acp_diff_views: &self.acp_diff_views,
-                unit_test_suggestions: &self.unit_tests_suggestions,
                 todo_list_states: &self.todo_list_states,
                 collapsible_block_states: &self.collapsible_block_states,
                 is_selecting_text: self.state_handles.selection_handle.is_selecting(),
@@ -990,18 +988,11 @@ impl View for AIBlock {
                 ),
                 is_references_section_open: self.is_references_section_open,
                 autonomy_setting_speedbump: &self.autonomy_setting_speedbump,
-                suggested_rules: &self.suggested_rules,
-                suggested_agent_mode_workflow: &self.suggested_agent_mode_workflow,
-                manage_rules_button: &self.manage_rules_button,
-                keyboard_navigable_buttons: self.keyboard_navigable_buttons.as_ref(),
-                response_rating: &self.response_rating,
                 search_codebase_view: &self.search_codebase_view,
                 web_search_views: &self.web_search_views,
                 web_fetch_views: &self.web_fetch_views,
                 review_changes_button: &self.review_changes_button,
                 open_all_comments_button: &self.open_all_comments_button,
-                dismiss_suggestion_button: &self.dismiss_suggestion_button,
-                disable_rule_suggestions_button: &self.disable_rule_suggestions_button,
                 has_accepted_edits,
                 current_todo_list: self.current_todo_list(app),
                 finish_reason: self.finish_reason.as_ref(),
@@ -1067,9 +1058,9 @@ impl View for AIBlock {
         // We're assuming that the first element of the vector corresponds to the correct input.
         let renders_below_requested_command_view =
             self.model.inputs_to_render(app).iter().any(|input| {
-                input.action_result().is_some_and(|result| {
-                    result.result.is_requested_command() || result.result.is_call_mcp_tool()
-                })
+                input
+                    .action_result()
+                    .is_some_and(|result| result.result.is_requested_command())
             });
 
         // We don't always apply top padding to every block because we don't want a block's top
@@ -1244,14 +1235,10 @@ impl AIAgentInput {
             | AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::InitProjectRules { .. }
-            | AIAgentInput::TriggerPassiveSuggestion { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CloneRepository { .. }
             | AIAgentInput::FetchReviewComments { .. }
-            | AIAgentInput::SummarizeConversation { .. }
-            | AIAgentInput::InvokeSkill { .. }
-            | AIAgentInput::ActionResult { .. }
-            | AIAgentInput::PassiveSuggestionResult { .. } => None,
+            | AIAgentInput::ActionResult { .. } => None,
         }
     }
 }

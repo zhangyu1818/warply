@@ -2,9 +2,8 @@ use warpui::{platform::WindowStyle, App};
 
 use crate::{
     cloud_object::model::persistence::CloudModel, cloud_object::update_manager::UpdateManager,
-    http_api::HttpApiProvider, network::NetworkStatus,
-    settings_view::keybindings::KeybindingChangedNotifier, system::SystemStats,
-    test_util::settings::initialize_settings_for_tests,
+    http_api::HttpApiProvider, settings_view::keybindings::KeybindingChangedNotifier,
+    system::SystemStats, test_util::settings::initialize_settings_for_tests,
     workspaces::user_workspaces::UserWorkspaces,
 };
 
@@ -14,7 +13,6 @@ fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 
     app.add_singleton_model(|_| HttpApiProvider::new_for_test());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(UserWorkspaces::default_mock);

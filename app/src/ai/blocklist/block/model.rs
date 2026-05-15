@@ -7,8 +7,7 @@ pub use model_impl::*;
 use crate::ai::{
     agent::{
         conversation::AIConversationId, AIAgentExchangeId, AIAgentInput, AIAgentOutput,
-        CancellationReason, PassiveSuggestionTrigger, PassiveSuggestionTriggerType,
-        RenderableAIError, ServerOutputId, Shared,
+        CancellationReason, RenderableAIError, Shared,
     },
     llms::LLMId,
 };
@@ -17,9 +16,7 @@ use warpui::{AppContext, ViewContext};
 
 #[derive(Debug, Clone, Copy)]
 pub enum PassiveRequestType {
-    UnitTestSuggestion,
     CodeDiff,
-    PassiveSuggestion(PassiveSuggestionTriggerType),
 }
 
 /// The type of request that triggered the AI block.
@@ -31,15 +28,6 @@ pub enum AIRequestType {
 }
 
 impl AIRequestType {
-    pub fn from_passive_trigger(trigger: &PassiveSuggestionTrigger) -> Self {
-        match trigger {
-            PassiveSuggestionTrigger::CommandRun | PassiveSuggestionTrigger::FilesChanged => {
-                AIRequestType::Passive(PassiveRequestType::UnitTestSuggestion)
-            }
-            _ => AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(trigger.into())),
-        }
-    }
-
     pub fn is_active(&self) -> bool {
         matches!(self, AIRequestType::Active)
     }
@@ -50,13 +38,6 @@ impl AIRequestType {
 
     pub fn is_passive_code_diff(&self) -> bool {
         matches!(self, AIRequestType::Passive(PassiveRequestType::CodeDiff))
-    }
-
-    pub fn is_passive_unit_test_suggestion(&self) -> bool {
-        matches!(
-            self,
-            AIRequestType::Passive(PassiveRequestType::UnitTestSuggestion)
-        )
     }
 }
 
@@ -81,7 +62,7 @@ pub enum AIBlockOutputStatus {
 }
 
 impl AIBlockOutputStatus {
-    /// Returns true if the response is still actively being streamed from the server.
+    /// Returns true if the response is still actively being streamed from the agent.
     pub fn is_streaming(&self) -> bool {
         matches!(
             self,
@@ -131,7 +112,7 @@ impl AIBlockOutputStatus {
 
 /// Function signature for a callback that may be supplied to
 /// [`AIBlockModel::subscribe_to_updates`], to be called whenever a new event is received from the
-/// server.
+/// agent.
 pub type OutputStatusUpdateCallback<V> = Box<dyn FnMut(&mut V, &mut ViewContext<V>)>;
 
 /// Trait to be implemented by data structures that provide the necessary data to back an
@@ -146,9 +127,6 @@ pub trait AIBlockModel {
 
     /// Returns the status of the agent output to be rendered in the AI block.
     fn status(&self, app: &AppContext) -> AIBlockOutputStatus;
-
-    /// Returns the `server_output_id` associated with this output rendered in this block, if any.
-    fn server_output_id(&self, app: &AppContext) -> Option<ServerOutputId>;
 
     /// Returns the model ID used to generate the output in this block, which may differ from the
     /// requested model ID because of failover, etc.
@@ -208,11 +186,9 @@ pub mod testing {
     use warpui::{AppContext, ViewContext};
 
     use crate::ai::{
-        agent::{
-            conversation::AIConversationId, AIAgentInput, AIAgentOutput, ServerOutputId, Shared,
-        },
+        agent::{conversation::AIConversationId, AIAgentInput, AIAgentOutput, Shared},
         blocklist::{
-            model::{AIRequestType, PassiveRequestType, PassiveSuggestionTriggerType},
+            model::{AIRequestType, PassiveRequestType},
             AIBlock,
         },
         llms::LLMId,
@@ -245,10 +221,6 @@ pub mod testing {
             }
         }
 
-        fn server_output_id(&self, _app: &AppContext) -> Option<ServerOutputId> {
-            None
-        }
-
         fn model_id(&self, _app: &AppContext) -> Option<LLMId> {
             None
         }
@@ -273,15 +245,8 @@ pub mod testing {
         }
 
         fn request_type(&self, app: &AppContext) -> AIRequestType {
-            let inputs = self.inputs_to_render(app);
-            if inputs
-                .iter()
-                .any(|input| input.is_passive_suggestion_trigger())
-            {
-                AIRequestType::Passive(PassiveRequestType::PassiveSuggestion(
-                    PassiveSuggestionTriggerType::ShellCommandCompleted,
-                ))
-            } else if inputs
+            if self
+                .inputs_to_render(app)
                 .iter()
                 .any(|input| input.auto_code_diff_query().is_some())
             {

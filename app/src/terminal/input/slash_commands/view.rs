@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use ai::skills::SkillReference;
 use lazy_static::lazy_static;
 use warpui::elements::ChildView;
 use warpui::{AppContext, Element, ViewContext};
@@ -60,12 +59,6 @@ pub enum SlashCommandsEvent {
         name: String,
         description: String,
         input_hint: Option<String>,
-    },
-    /// A skill was selected from the menu. Contains the skill name (for buffer insertion)
-    /// and path/bundled_skill_id (for execution context).
-    SelectedSkill {
-        reference: SkillReference,
-        name: String,
     },
 }
 
@@ -250,12 +243,6 @@ impl InlineSlashCommandView {
                     name: name.clone(),
                     description: description.clone(),
                     input_hint: input_hint.clone(),
-                });
-            }
-            AcceptSlashCommandOrSavedPrompt::Skill { name, reference } => {
-                ctx.emit(SlashCommandsEvent::SelectedSkill {
-                    reference: reference.clone(),
-                    name: name.clone(),
                 });
             }
         }

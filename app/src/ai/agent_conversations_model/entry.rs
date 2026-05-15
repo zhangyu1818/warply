@@ -4,13 +4,11 @@ use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHis
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::identity::LocalIdentityProvider;
 use chrono::{DateTime, Utc};
-use warp_cli::agent::Harness;
 use warpui::{AppContext, SingletonEntity};
 
 use super::{
     artifacts_match_filter, AgentRunDisplayStatus, ArtifactFilter, ConversationListFilters,
-    ConversationMetadata, CreatedOnFilter, CreatorFilter, EnvironmentFilter, HarnessFilter,
-    OwnerFilter, SourceFilter, StatusFilter,
+    ConversationMetadata, CreatedOnFilter, CreatorFilter, OwnerFilter, SourceFilter, StatusFilter,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -48,8 +46,6 @@ pub struct AgentConversationDisplayData {
     pub creator: AgentConversationCreator,
     pub run_time: Option<String>,
     pub working_directory: Option<String>,
-    pub environment_id: Option<String>,
-    pub harness: Option<Harness>,
     pub artifacts: Vec<Artifact>,
 }
 
@@ -91,8 +87,6 @@ impl AgentConversationEntry {
             && self.matches_source(&filters.source)
             && self.matches_created_on(&filters.created_on)
             && self.matches_artifact(&filters.artifact)
-            && self.matches_environment(&filters.environment)
-            && self.matches_harness(&filters.harness)
     }
 
     fn matches_owner_and_creator(
@@ -143,21 +137,6 @@ impl AgentConversationEntry {
     fn matches_artifact(&self, artifact_filter: &ArtifactFilter) -> bool {
         artifacts_match_filter(&self.display.artifacts, artifact_filter)
     }
-
-    fn matches_environment(&self, environment_filter: &EnvironmentFilter) -> bool {
-        match environment_filter {
-            EnvironmentFilter::All => true,
-            EnvironmentFilter::NoEnvironment => self.display.environment_id.is_none(),
-            EnvironmentFilter::Specific(id) => self.display.environment_id.as_ref() == Some(id),
-        }
-    }
-
-    fn matches_harness(&self, harness_filter: &HarnessFilter) -> bool {
-        match harness_filter {
-            HarnessFilter::All => true,
-            HarnessFilter::Specific(harness) => self.display.harness == Some(*harness),
-        }
-    }
 }
 
 pub(super) fn entry_for_conversation(
@@ -207,21 +186,23 @@ fn entry_for_conversation_parts(
             last_updated: nav_data.last_updated.into(),
             status: status.clone(),
             creator: AgentConversationCreator {
-                name: LocalIdentityProvider::as_ref(app)
-                    .get()
-                    .username_for_display(),
-                uid: LocalIdentityProvider::as_ref(app)
-                    .get()
-                    .user_id()
-                    .map(|uid| uid.to_string()),
+                name: Some(
+                    LocalIdentityProvider::as_ref(app)
+                        .get()
+                        .username_for_display(),
+                ),
+                uid: Some(
+                    LocalIdentityProvider::as_ref(app)
+                        .get()
+                        .user_id()
+                        .to_string(),
+                ),
             },
             run_time: None,
             working_directory: nav_data
                 .latest_working_directory
                 .clone()
                 .or_else(|| nav_data.initial_working_directory.clone()),
-            environment_id: None,
-            harness: None,
             artifacts: conversation
                 .map(|conversation| conversation.artifacts().to_vec())
                 .unwrap_or_default(),

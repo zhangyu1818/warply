@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use warp_core::{features::FeatureFlag, settings::Setting};
+use warp_core::settings::Setting;
 use warp_util::path::ShellFamily;
 
 use crate::terminal::warpify::settings::WarpifySettings;
@@ -31,10 +31,7 @@ pub fn evaluate_warpify_ssh_host(
         && *warpify_settings.use_ssh_tmux_wrapper.value();
     let matches_subshell = warpify_settings.is_denylisted_subshell_command(command)
         || warpify_settings.is_compatible_subshell_command(command, shell_family);
-    if !should_prompt_ssh_tmux_wrapper
-        || matches_subshell
-        || !FeatureFlag::SSHTmuxWrapper.is_enabled()
-    {
+    if !should_prompt_ssh_tmux_wrapper || matches_subshell {
         return SshInteractiveSessionDetected::FeatureDisabled;
     }
 

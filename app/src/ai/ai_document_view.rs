@@ -815,11 +815,9 @@ impl AIDocumentView {
         );
     }
 
-    /// Export the current content as a markdown file (WASM stub).
+    /// Export is unavailable without local filesystem support.
     #[cfg(not(feature = "local_fs"))]
-    fn export(&self, _ctx: &mut ViewContext<Self>) {
-        // No-op for WASM target
-    }
+    fn export(&self, _ctx: &mut ViewContext<Self>) {}
 }
 
 impl Entity for AIDocumentView {
@@ -956,7 +954,7 @@ impl TypedActionView for AIDocumentView {
                     // Send a user query to inform the agent about the plan update
                     // The document is already marked as Dirty and pending_document_id
                     // is already set in the context model, so the updated plan will be attached.
-                    // TODO(roland): don't directly use user query, but send a new input type that can be formatted on the server.
+                    // TODO(roland): don't directly use user query; send a typed plan-update input.
                     terminal_view
                         .ai_controller()
                         .update(ctx, |controller, ctx| {

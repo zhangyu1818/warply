@@ -41,7 +41,7 @@ use ai::diff_validation::DiffDelta;
 use warp_editor::{model::RichTextEditorModel, render::model::RichTextStyles};
 use warpui::color::ColorU;
 
-/// The frequency at which we check for modifications and save the AI document to the server.
+/// The frequency at which we check for modifications and persist the AI document.
 /// Uses the same 2-second period as notebooks for consistency.
 const SAVE_PERIOD: Duration = Duration::from_secs(2);
 

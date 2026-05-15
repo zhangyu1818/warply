@@ -1,11 +1,10 @@
 use chrono::Local;
 use std::collections::HashSet;
-use warp_core::ui::appearance::Appearance;
+use warp_core::{ui::appearance::Appearance, SessionId};
 use warpui::{platform::WindowStyle, App};
 
 use crate::ai::blocklist::AIQueryHistory;
 use crate::input_suggestions::{filter_tab_suggestions, HistoryOrder};
-use crate::terminal::model::session::SessionId;
 use crate::terminal::HistoryEntry;
 use warp_completer::completer::{
     EngineFileType, Match, MatchStrategy, MatchedSuggestion, Priority, Suggestion,

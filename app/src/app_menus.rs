@@ -152,10 +152,7 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
         preferences_menu_items,
     )));
 
-    #[cfg(target_os = "macos")]
-    {
-        menu_items.push(MenuItem::Services);
-    }
+    menu_items.push(MenuItem::Services);
 
     let debug_menu_items = debug_menu_items();
     if !debug_menu_items.is_empty() {
@@ -709,13 +706,6 @@ fn debug_menu_items() -> Vec<MenuItem> {
         if !FeatureFlag::ToggleBootstrapBlock.is_enabled() {
             debug_menu_items.push(toggle_bootstrap_block_menu_item());
         }
-
-        debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
-            "Manually Toggle Network Status",
-            move |ctx| ctx.dispatch_global_action("workspace:toggle_debug_network_status", &()),
-            no_updates,
-            None,
-        )));
 
         debug_menu_items.push(MenuItem::Custom(CustomMenuItem::new(
             EXPORT_DEFAULT_SETTINGS_CSV_MENU_ITEM_NAME,

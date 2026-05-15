@@ -1,9 +1,7 @@
-use warp_cli::agent::Harness;
 use warpui::AppContext;
 use warpui::SingletonEntity;
 
 use crate::ai::agent::conversation::ConversationStatus;
-use crate::ai::agent_conversations_model::AgentConversationEntry;
 use crate::terminal::cli_agent_sessions::listener::agent_supports_rich_status;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::view::TerminalView;
@@ -38,13 +36,6 @@ pub(crate) fn terminal_view_agent_icon_variant(
             .is_some(),
     };
     agent_icon_variant_from_terminal_inputs(&inputs)
-}
-
-pub(crate) fn agent_conversation_entry_icon_variant(
-    entry: &AgentConversationEntry,
-) -> Option<IconWithStatusVariant> {
-    let status = entry.display.status.to_conversation_status();
-    agent_icon_variant_for_run(entry.display.harness?, status)
 }
 
 struct TerminalIconInputs {
@@ -83,16 +74,6 @@ fn agent_icon_variant_from_terminal_inputs(
     }
 
     None
-}
-
-fn agent_icon_variant_for_run(
-    harness: Harness,
-    status: ConversationStatus,
-) -> Option<IconWithStatusVariant> {
-    CLIAgent::from_harness(harness).map(|agent| IconWithStatusVariant::CLIAgent {
-        agent,
-        status: Some(status),
-    })
 }
 
 #[cfg(test)]

@@ -1,14 +1,12 @@
 //! Thin wrapper around ripgrep for searching files.
 
 pub mod search;
-#[cfg(not(target_family = "wasm"))]
 mod types;
 
 /// On Unix, monitor the parent PID and exit this process if it changes.
 ///
 /// This is used by the ripgrep worker process to ensure we don't keep
 /// searching if the main Warp process has exited.
-#[cfg(unix)]
 pub fn monitor_parent_and_exit_on_change(parent_pid: Option<u32>) {
     use nix::unistd::Pid;
     use std::{thread, time::Duration};

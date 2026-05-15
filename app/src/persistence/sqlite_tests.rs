@@ -5,15 +5,19 @@ use crate::{
         AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot,
         PaneNodeSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
     },
+    cloud_object::{CloudObject as _, CloudObjectMetadata, CloudObjectPermissions},
     code::editor_management::CodeSource,
+    object_ids::{ClientId, SyncId},
     persistence::{BlockCompleted, ModelEvent},
     tab::SelectedTabColor,
     terminal::model::block::SerializedBlock,
     terminal::ShellLaunchData,
+    workflows::{workflow::Workflow, SavedWorkflow, SavedWorkflowModel},
 };
 
 use super::{
-    decode_path, deduplicate_events, encode_path, read_sqlite_data, save_app_state, setup_database,
+    decode_path, deduplicate_events, encode_path, handle_model_event, read_sqlite_data,
+    save_app_state, setup_database,
 };
 
 #[test]
@@ -82,6 +86,53 @@ fn test_deduplicate_no_snapshots() {
     assert!(matches!(&filtered_events[0], &ModelEvent::SaveBlock(_)));
 }
 
+#[test]
+fn test_update_object_metadata_updates_client_id_object() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warply.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let workflow_id = SyncId::ClientId(ClientId::new());
+    let workflow = SavedWorkflow::new(
+        workflow_id,
+        SavedWorkflowModel::new(Workflow::new("Test workflow", "echo test")),
+        CloudObjectMetadata::mock(),
+        CloudObjectPermissions::mock_personal(),
+    );
+
+    handle_model_event(
+        ModelEvent::UpsertWorkflow {
+            workflow: workflow.clone(),
+        },
+        &mut conn,
+    )
+    .expect("workflow should save");
+
+    let mut updated_metadata = workflow.metadata().clone();
+    updated_metadata.current_editor_uid = Some("local-editor".to_string());
+    handle_model_event(
+        ModelEvent::UpdateObjectMetadata {
+            id: workflow.hashed_sqlite_id(),
+            metadata: updated_metadata,
+        },
+        &mut conn,
+    )
+    .expect("metadata should update");
+
+    let restored = read_sqlite_data(&mut conn)
+        .expect("data should load")
+        .cloud_objects;
+    let restored_workflow = restored
+        .iter()
+        .find(|object| object.uid() == workflow_id.uid())
+        .expect("workflow should restore");
+
+    assert_eq!(
+        restored_workflow.metadata().current_editor_uid.as_deref(),
+        Some("local-editor")
+    );
+}
+
 fn test_terminal_window_snapshot(vertical_tabs_panel_open: bool) -> WindowSnapshot {
     WindowSnapshot {
         tabs: vec![TabSnapshot {
@@ -140,7 +191,7 @@ fn test_sqlite_round_trips_vertical_tabs_panel_open() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 
@@ -206,7 +257,7 @@ fn test_sqlite_round_trips_custom_vertical_tabs_title() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 
@@ -275,7 +326,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
 
     save_app_state(&mut conn, &app_state).expect("app state should save");
 
-    let restored = read_sqlite_data(&mut conn, None)
+    let restored = read_sqlite_data(&mut conn)
         .expect("app state should load")
         .app_state;
 

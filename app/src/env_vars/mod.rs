@@ -26,20 +26,20 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EnvVarCollectionType {
-    Cloud(Box<CloudEnvVarCollection>),
+    Saved(Box<SavedEnvVarCollection>),
 }
 
 impl EnvVarCollectionType {
-    pub fn as_cloud_env_var_collection(&self) -> &CloudEnvVarCollection {
+    pub fn as_saved_env_var_collection(&self) -> &SavedEnvVarCollection {
         match self {
-            EnvVarCollectionType::Cloud(cloud_env_var) => cloud_env_var,
+            EnvVarCollectionType::Saved(saved_env_var) => saved_env_var,
         }
     }
 }
 
-pub type CloudEnvVarCollection =
-    GenericCloudObject<GenericStringObjectId, CloudEnvVarCollectionModel>;
-pub type CloudEnvVarCollectionModel = GenericStringModel<EnvVarCollection, JsonSerializer>;
+pub type SavedEnvVarCollection =
+    GenericCloudObject<GenericStringObjectId, SavedEnvVarCollectionModel>;
+pub type SavedEnvVarCollectionModel = GenericStringModel<EnvVarCollection, JsonSerializer>;
 
 /// Defines the data model for a single environment variable
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -144,7 +144,7 @@ impl EnvVarCollection {
 }
 
 impl StringModel for EnvVarCollection {
-    type CloudObjectType = CloudEnvVarCollection;
+    type CloudObjectType = SavedEnvVarCollection;
 
     fn model_type_name(&self) -> &'static str {
         "Environment variables"
@@ -198,7 +198,7 @@ impl StringModel for EnvVarCollection {
         &self,
         id: SyncId,
         _appearance: &Appearance,
-        env_var_collection: &CloudEnvVarCollection,
+        env_var_collection: &SavedEnvVarCollection,
     ) -> Option<Box<dyn LocalObjectItem>> {
         Some(Box::new(LocalObjectEnvVarCollection::new(
             CloudObjectTypeAndId::GenericStringObject {
@@ -216,8 +216,8 @@ impl JsonModel for EnvVarCollection {
     }
 }
 
-impl PartialEq<CloudEnvVarCollection> for CloudEnvVarCollection {
-    fn eq(&self, other: &CloudEnvVarCollection) -> bool {
+impl PartialEq<SavedEnvVarCollection> for SavedEnvVarCollection {
+    fn eq(&self, other: &SavedEnvVarCollection) -> bool {
         self.model().string_model == other.model().string_model && self.id == other.id
     }
 }

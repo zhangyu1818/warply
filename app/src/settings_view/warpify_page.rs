@@ -48,16 +48,14 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     // Add all of the toggle settings from the Warpify Page that you want to show up on the Command Palette here.
     let mut toggle_binding_pairs = vec![];
 
-    if FeatureFlag::SSHTmuxWrapper.is_enabled() {
-        toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "SSH session detection for Warpification",
-            builder(SettingsAction::WarpifyPageToggle(
-                WarpifyPageAction::ToggleTmuxWarpification,
-            )),
-            context,
-            flags::SSH_TMUX_WRAPPER_CONTEXT_FLAG,
-        ));
-    }
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "SSH session detection for Warpification",
+        builder(SettingsAction::WarpifyPageToggle(
+            WarpifyPageAction::ToggleTmuxWarpification,
+        )),
+        context,
+        flags::SSH_TMUX_WRAPPER_CONTEXT_FLAG,
+    ));
 
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(toggle_binding_pairs, app);
 }
@@ -68,7 +66,7 @@ const ITEM_VERTICAL_SPACING: f32 = 24.;
 const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
 const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_MARGIN;
 
-const SSH_TMUX_WARPIFICATION_DESCRIPTION: &str = "The tmux ssh wrapper works in many situations where the default one does not, but may require you to hit a button to warpify. Takes effect in new tabs.";
+const SSH_TMUX_WARPIFICATION_DESCRIPTION: &str = "Tmux Warpification keeps Warp features available inside SSH sessions, and may require you to confirm Warpification. Takes effect in new tabs.";
 
 const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str =
     "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
@@ -76,8 +74,7 @@ const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str =
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from
 /// asking. Users can also enable the SSH wrapper, and add hosts to a denylist.
-/// This page is essentially the View for the SubshellSettings model, as well as the SshSettings
-/// related to warpification.
+/// This page is essentially the View for the WarpifySettings model.
 pub struct WarpifyPageView {
     page: PageType<Self>,
     /// This needs to mirror the length of SubshellSettings::added_remove_button_states.
@@ -171,10 +168,9 @@ impl WarpifyPageView {
         ];
 
         let warpify_settings = WarpifySettings::as_ref(ctx);
-        if FeatureFlag::SSHTmuxWrapper.is_enabled()
-            && warpify_settings
-                .enable_ssh_warpification
-                .is_supported_on_current_platform()
+        if warpify_settings
+            .enable_ssh_warpification
+            .is_supported_on_current_platform()
         {
             categories.push(
                 Category::new("SSH", vec![Box::new(SSHWidget::default())])

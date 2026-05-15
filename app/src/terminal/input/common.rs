@@ -35,7 +35,6 @@ pub(super) fn should_show_terminal_input_message_bar(
     app: &AppContext,
 ) -> bool {
     FeatureFlag::AgentView.is_enabled()
-        && !FeatureFlag::AgentViewPromptChip.is_enabled()
         && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
         && AISettings::as_ref(app).is_any_ai_enabled(app)
 }
@@ -310,8 +309,6 @@ pub(super) fn add_input_suggestions_overlays(
         InputSuggestionsMode::ConversationMenu => {}
         // Prompts menu is rendered separately via inline_prompts_menu_view
         InputSuggestionsMode::PromptsMenu => {}
-        // Skill menu is rendered separately via inline_skill_selector_view
-        InputSuggestionsMode::SkillMenu => {}
         // User query menu is rendered separately via user_query_menu_view
         InputSuggestionsMode::UserQueryMenu { .. } => {}
         // Inline history menu is rendered separately via inline_history_menu_view

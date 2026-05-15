@@ -51,8 +51,6 @@ pub enum AgentToolbarItemKind {
     RichInput,
 
     // Both
-    // Renamed from ImageAttach; alias preserves existing user toolbar configs.
-    #[serde(alias = "ImageAttach")]
     FileAttach,
 }
 

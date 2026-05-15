@@ -43,7 +43,6 @@ use crate::{
         PropagateAndNoOpNavigationKeys, TextOptions, TextStyleOperation,
     },
     menu::{Event, Menu, MenuItem, MenuItemFields},
-    network::NetworkStatus,
     object_ids::{ClientId, SyncId},
     themes::theme::AnsiColorIdentifier,
     ui_components::{
@@ -56,7 +55,7 @@ use crate::{
     },
     workflows::{
         workflow::{Argument, Workflow},
-        CloudWorkflow,
+        SavedWorkflow,
     },
 };
 
@@ -130,7 +129,7 @@ pub struct WorkflowModal {
     is_open: bool,
     owner: Option<Owner>,
     initial_folder_id: Option<SyncId>,
-    /// Only present if the workflow already exists in the cloud.
+    /// Only present if the workflow already exists as a saved local object.
     workflow_id: Option<SyncId>,
     button_mouse_states: MouseStateHandles,
     errors: WorkflowEditorErrorState,
@@ -597,7 +596,7 @@ impl WorkflowModal {
             if let Some(object) = object {
                 match object.object_type() {
                     ObjectType::Workflow => {
-                        let workflow: Option<&CloudWorkflow> = object.into();
+                        let workflow: Option<&SavedWorkflow> = object.into();
                         if let Some(workflow) = workflow {
                             let content = workflow.model().data.content().to_owned();
                             ctx.clipboard().write(ClipboardContent::plain_text(content));
@@ -627,7 +626,7 @@ impl WorkflowModal {
         }
     }
 
-    fn menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkflowModalAction>> {
+    fn menu_items(&self, _app: &AppContext) -> Vec<MenuItem<WorkflowModalAction>> {
         let mut menu_items = Vec::new();
 
         // Add "Copy workflow text" to menu
@@ -638,15 +637,12 @@ impl WorkflowModal {
                 .into_item(),
         );
 
-        // Add "Trash" to menu
-        if self.is_online(app) {
-            menu_items.push(
-                MenuItemFields::new("Trash")
-                    .with_on_select_action(WorkflowModalAction::TrashObject)
-                    .with_icon(Icon::Trash)
-                    .into_item(),
-            );
-        }
+        menu_items.push(
+            MenuItemFields::new("Trash")
+                .with_on_select_action(WorkflowModalAction::TrashObject)
+                .with_icon(Icon::Trash)
+                .into_item(),
+        );
 
         menu_items
     }
@@ -742,7 +738,7 @@ impl WorkflowModal {
             .collect()
     }
 
-    /// Iterates through the argument rows and creates/updates any relevant argument objects on the server.
+    /// Iterates through the argument rows and creates/updates any relevant local argument objects.
     /// Returns a mapping of argument row indices to the ID of relevant objects, to be used by `arguments_with_metadata`
     /// when creating or updating a `Workflow` object.
     fn save_argument_objects(&self, ctx: &mut ViewContext<Self>) {
@@ -836,7 +832,7 @@ impl WorkflowModal {
     }
 
     // This method computes the breadcrumb data for the workflow editor. It should be called
-    // every time either the cloud model or workflow ID changes.
+    // every time either the local object model or workflow ID changes.
     fn compute_breadcrumbs(&mut self, ctx: &mut ViewContext<Self>) {
         self.breadcrumbs = self.workflow_id.and_then(|workflow_id| {
             CloudModel::as_ref(ctx)
@@ -1282,10 +1278,6 @@ impl WorkflowModal {
         self.show_unsaved_changes_dialog
             || self.errors.has_any_error()
             || self.show_enum_creation_dialog
-    }
-
-    fn is_online(&self, app: &AppContext) -> bool {
-        NetworkStatus::as_ref(app).is_online()
     }
 
     fn render_header_menu_and_close(&self, appearance: &Appearance) -> Box<dyn Element> {

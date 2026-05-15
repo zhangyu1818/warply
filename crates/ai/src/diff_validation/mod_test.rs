@@ -228,6 +228,26 @@ fn test_prefix_tail_rescue_with_line_number_hint() {
 }
 
 #[test]
+fn test_multiline_prefix_tail_rescue_preserves_suffix_after_deleted_line() {
+    let file_content = "start\nremove me\ntail prefix suffix\n";
+    let input_diffs = vec![SearchAndReplace {
+        search: "1|start\n2|remove me\n3|tail prefix".to_string(),
+        replace: "start\ntail prefix".to_string(),
+    }];
+
+    let diff = fuzzy_match_diffs("test.rs", &input_diffs, file_content);
+
+    assert_eq!(
+        deltas(&diff),
+        &[DiffDelta {
+            replacement_line_range: 1..4,
+            insertion: "start\ntail prefix suffix".to_string(),
+        }]
+    );
+    assert!(diff.failures.is_none());
+}
+
+#[test]
 fn test_parse_line_numbers() {
     let search = "1|hey\n2|there\n3|world";
     let (line_range, line) = parse_line_numbers(search);

@@ -10,9 +10,8 @@ use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use warp_cli::agent::Harness;
 use warp_core::ui::theme::{color::internal_colors, WarpTheme};
 use warpui::color::ColorU;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
@@ -61,44 +60,11 @@ pub enum CreatedOnFilter {
     LastWeek,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum EnvironmentFilter {
-    #[default]
-    All,
-    NoEnvironment,
-    Specific(String),
-}
-
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OwnerFilter {
     All,
     #[default]
     PersonalOnly,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum HarnessFilter {
-    #[default]
-    All,
-    Specific(Harness),
-}
-
-impl Serialize for HarnessFilter {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            HarnessFilter::All => serializer.serialize_str("all"),
-            HarnessFilter::Specific(harness) => serializer.collect_str(harness),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for HarnessFilter {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let raw = String::deserialize(deserializer)?;
-        Ok(Harness::from_config_name(&raw)
-            .map(HarnessFilter::Specific)
-            .unwrap_or(HarnessFilter::All))
-    }
 }
 
 #[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
@@ -109,10 +75,6 @@ pub struct ConversationListFilters {
     pub created_on: CreatedOnFilter,
     pub creator: CreatorFilter,
     pub artifact: ArtifactFilter,
-    #[serde(default)]
-    pub environment: EnvironmentFilter,
-    #[serde(default)]
-    pub harness: HarnessFilter,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

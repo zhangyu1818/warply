@@ -9,8 +9,6 @@ use std::{
 
 use thiserror::Error;
 use warp_util::standardized_path::StandardizedPath;
-
-#[cfg(not(target_family = "wasm"))]
 use warpui::SingletonEntity;
 
 /// Errors that can occur when working with repository metadata.
@@ -46,24 +44,15 @@ pub use entry::{
     BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata,
 };
 
-// Re-export the local model's event under its original name for backward compatibility.
-pub use local_model::RepositoryMetadataEvent;
-
 pub use repository::Repository;
 pub use watcher::{DirectoryWatcher, RepositoryUpdate, TargetFile};
 
-#[cfg(not(target_family = "wasm"))]
 pub fn is_in_repo(path: &str, app: &warpui::AppContext) -> bool {
     use crate::repositories::DetectedRepositories;
 
     DetectedRepositories::as_ref(app)
         .get_root_for_path(std::path::Path::new(path))
         .is_some()
-}
-
-#[cfg(target_family = "wasm")]
-pub fn is_in_repo(_path: &str, _app: &warpui::AppContext) -> bool {
-    false
 }
 pub use file_tree_store::FileTreeEntry;
 

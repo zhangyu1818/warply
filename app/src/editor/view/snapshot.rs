@@ -238,9 +238,8 @@ impl ViewSnapshot {
                 &font_cache.text_layout_system(),
             );
 
-            // Return a vec of lines to be backward compatible with laying out placeholder
-            // without soft_wrapping and autosuggestion. In the future we may want to
-            // return a TextFrame here so we don't have to clone the text_frame lines
+            // Return line fragments because placeholder layout still expects them when
+            // soft wrapping and autosuggestion are disabled.
             text_frame
                 .lines()
                 .iter()

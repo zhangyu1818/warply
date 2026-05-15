@@ -10,14 +10,14 @@ use crate::{
         GenericStringObjectFormat, JsonObjectType, ObjectIdType, Owner, Revision, ServerTimestamp,
     },
     drive::CloudObjectTypeAndId,
-    env_vars::{CloudEnvVarCollectionModel, EnvVarCollection},
-    object_ids::{ClientId, HashableId, ObjectUid, ServerId, SyncId, ToServerId},
+    env_vars::{EnvVarCollection, SavedEnvVarCollectionModel},
+    object_ids::{ClientId, HashableId, ObjectUid, SyncId, ToServerId},
     persistence::ModelEvent,
     util::sync::Condition,
     workflows::{
         workflow::Workflow,
-        workflow_enum::{CloudWorkflowEnumModel, WorkflowEnum},
-        CloudWorkflowModel, WorkflowId,
+        workflow_enum::{SavedWorkflowEnumModel, WorkflowEnum},
+        SavedWorkflowModel, WorkflowId,
     },
 };
 use chrono::Utc;
@@ -46,17 +46,8 @@ pub enum ObjectOperation {
 #[derive(Debug)]
 pub struct ObjectOperationResult {
     pub operation: ObjectOperation,
-    pub client_id: Option<ClientId>,
-    pub server_id: Option<ServerId>,
+    pub sync_id: SyncId,
     pub num_objects: Option<i32>, // counts number of objects (including descendants) deleted for permadeletion
-}
-
-impl ObjectOperationResult {
-    pub fn sync_id(&self) -> Option<SyncId> {
-        self.server_id
-            .map(SyncId::ServerId)
-            .or_else(|| self.client_id.map(SyncId::ClientId))
-    }
 }
 
 #[derive(Debug)]
@@ -148,7 +139,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         self.update_object(
-            CloudWorkflowModel::new(workflow),
+            SavedWorkflowModel::new(workflow),
             workflow_id,
             revision_ts,
             ctx,
@@ -163,7 +154,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         self.update_object(
-            CloudWorkflowEnumModel::new(workflow_enum),
+            SavedWorkflowEnumModel::new(workflow_enum),
             workflow_enum_id,
             revision_ts,
             ctx,
@@ -178,7 +169,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         self.update_object(
-            CloudEnvVarCollectionModel::new(env_var_collection),
+            SavedEnvVarCollectionModel::new(env_var_collection),
             env_var_collection_id,
             revision_ts,
             ctx,
@@ -192,13 +183,13 @@ impl UpdateManager {
     ) {
         match cloud_object_type_and_id {
             CloudObjectTypeAndId::Workflow(workflow_id) => {
-                self.duplicate_object_internal::<WorkflowId, CloudWorkflowModel>(workflow_id, ctx);
+                self.duplicate_object_internal::<WorkflowId, SavedWorkflowModel>(workflow_id, ctx);
             }
             CloudObjectTypeAndId::GenericStringObject { object_type, id } => {
                 if let GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) =
                     object_type
                 {
-                    self.duplicate_object_internal::<GenericStringObjectId, CloudEnvVarCollectionModel>(
+                    self.duplicate_object_internal::<GenericStringObjectId, SavedEnvVarCollectionModel>(
                         id, ctx,
                     );
                 } else {
@@ -320,7 +311,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         self.create_object(
-            CloudWorkflowModel::new(workflow),
+            SavedWorkflowModel::new(workflow),
             owner,
             client_id,
             entrypoint,
@@ -342,7 +333,7 @@ impl UpdateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         self.create_object(
-            CloudWorkflowEnumModel::new(workflow_enum),
+            SavedWorkflowEnumModel::new(workflow_enum),
             owner,
             client_id,
             entrypoint,
@@ -359,7 +350,7 @@ impl UpdateManager {
         client_id: ClientId,
         owner: Owner,
         initial_folder_id: Option<SyncId>,
-        model: CloudEnvVarCollectionModel,
+        model: SavedEnvVarCollectionModel,
         entrypoint: CloudObjectEventEntrypoint,
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
@@ -376,7 +367,7 @@ impl UpdateManager {
         );
     }
 
-    /// Generic function for creating a new cloud object with a given model.
+    /// Generic function for creating a new local object with a given model.
     #[allow(clippy::too_many_arguments)]
     pub fn create_object<K, M>(
         &mut self,
@@ -426,14 +417,13 @@ impl UpdateManager {
         ctx.emit(UpdateManagerEvent {
             result: ObjectOperationResult {
                 operation: ObjectOperation::Create { initiated_by },
-                client_id: Some(client_id),
-                server_id: None,
+                sync_id: object_id,
                 num_objects: None,
             },
         });
     }
 
-    /// Generic function for updating a cloud object with a new model.
+    /// Generic function for updating a local object with a new model.
     pub fn update_object<K, M>(
         &mut self,
         model: M,
@@ -496,10 +486,6 @@ impl UpdateManager {
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             if let Some(object) = cloud_model.get_mut_by_uid(uid) {
                 object.metadata_mut().trashed_ts = Some(timestamp);
-                object
-                    .metadata_mut()
-                    .pending_changes_statuses
-                    .has_pending_metadata_change = false;
                 ctx.emit(CloudModelEvent::ObjectTrashed {
                     type_and_id: object.cloud_object_type_and_id(),
                 });
@@ -524,8 +510,7 @@ impl UpdateManager {
         ctx.emit(UpdateManagerEvent {
             result: ObjectOperationResult {
                 operation: ObjectOperation::Trash,
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                sync_id,
                 num_objects: None,
             },
         });
@@ -538,10 +523,6 @@ impl UpdateManager {
         let was_updated = CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             if let Some(object) = cloud_model.get_mut_by_uid(&uid) {
                 object.metadata_mut().trashed_ts = None;
-                object
-                    .metadata_mut()
-                    .pending_changes_statuses
-                    .pending_untrash = false;
                 ctx.emit(CloudModelEvent::ObjectUntrashed {
                     type_and_id: object.cloud_object_type_and_id(),
                 });
@@ -563,8 +544,7 @@ impl UpdateManager {
         ctx.emit(UpdateManagerEvent {
             result: ObjectOperationResult {
                 operation: ObjectOperation::Untrash,
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                sync_id,
                 num_objects: None,
             },
         });
@@ -595,8 +575,7 @@ impl UpdateManager {
         ctx.emit(UpdateManagerEvent {
             result: ObjectOperationResult {
                 operation: ObjectOperation::Delete { initiated_by },
-                client_id: sync_id.into_client(),
-                server_id: sync_id.into_server(),
+                sync_id,
                 num_objects: Some(num_deleted_objects),
             },
         });

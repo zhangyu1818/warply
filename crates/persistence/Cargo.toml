@@ -6,6 +6,7 @@ publish.workspace = true
 license.workspace = true
 
 [features]
+default = ["local_fs"]
 local_fs = []
 
 [dependencies]
@@ -14,10 +15,6 @@ diesel = { workspace = true, features = [
     "chrono",
     "32-column-tables",
 ] }
-# Ideally, we'd make this an optional dependency, but due to the
-# fact that we're enabling the `local_fs` feature in build.rs and not
-# via some mechanism that the feature resolver has access to, we can't
-# make it optional.
 diesel_migrations = "2.2.0"
 serde.workspace = true
 

@@ -1,7 +1,6 @@
 //! Settings for Blocklist AI.
 //!
-//! These settings are currently used to configure the underlying model/API used to power the AI
-//! UX, as well as small UX configurations.
+//! These settings configure ACP AgentView behavior, terminal suggestions, and local AI UX.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -546,15 +545,6 @@ define_settings_group!(AISettings, settings: [
         toml_path: "ai.active.intelligent_autosuggestions_enabled",
         description: "Controls whether AI-powered intelligent autosuggestions are enabled.",
     }
-    prompt_suggestions_enabled_internal: AgentPromptSuggestionsEnabled {
-        type: bool,
-        default: true, // TODO(advait): revisit this when launched to stable
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "ai.active.prompt_suggestions_enabled",
-        description: "Controls whether prompt suggestions are shown in agent mode.",
-    }
-
     // This field should not be referenced directly to lookup Code Suggestions
     // enablement -- use the `is_code_suggestions_enabled()` getter.
     code_suggestions_enabled_internal: CodeSuggestionsEnabled {
@@ -564,28 +554,6 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "ai.active.code_suggestions_enabled",
         description: "Controls whether AI code suggestions are enabled.",
-    }
-    // This field should not be referenced directly to lookup shared block title generations
-    // enablement -- use the `is_shared_block_title_generation_enabled()` getter.
-    // This feature refers to the auto title generation when the user opens the shared block dialog.
-    shared_block_title_generation_enabled_internal: SharedBlockTitleGenerationEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "ai.active.shared_block_title_generation_enabled",
-        description: "Controls whether titles are auto-generated when sharing blocks.",
-    }
-    // This field should not be referenced directly to lookup Rule Suggestions
-    // enablement -- use the `is_rule_suggestions_enabled()` getter.
-    rule_suggestions_enabled_internal: RuleSuggestionsEnabled {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "ai.active.rule_suggestions_enabled",
-        description: "Controls whether the agent suggests rules to save after responses.",
-        feature_flag: FeatureFlag::SuggestedRules,
     }
     // Predicates that Agent Mode can use to decide if it can execute
     // a command without explicit user consent.
@@ -654,8 +622,7 @@ define_settings_group!(AISettings, settings: [
     }
     // Whether or not the profile-level command autoexecution speedbump has been shown.
     //
-    // Not a user-visible setting - we model it as a setting so we can track how often
-    // it's shown across devices.
+    // Not a user-visible setting - persisted locally so the prompt is only shown once.
     has_shown_agent_mode_profile_command_autoexecution_speedbump: HasShownAgentModeProfileCommandAutoexecutionSpeedbump {
         type: bool,
         default: false,
@@ -664,8 +631,7 @@ define_settings_group!(AISettings, settings: [
     }
     // Whether or not we should show the speedbump for auto-executing readonly cmds.
     //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
+    // Not a user-visible setting - persisted locally so the prompt is only shown once.
     should_show_agent_mode_autoexecute_readonly_commands_speedbump: ShouldShowAgentModeModelExecuteReadonlyCommandsSpeedbump {
         type: bool,
         default: true,
@@ -674,8 +640,7 @@ define_settings_group!(AISettings, settings: [
     }
     // Whether or not we should show the speedbump for auto-writing to the PTY.
     //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
+    // Not a user-visible setting - persisted locally so the prompt is only shown once.
     should_show_agent_mode_write_to_pty_speedbump: ShouldShowAgentModeWriteToPtySpeedbump {
         type: bool,
         default: true,
@@ -684,8 +649,7 @@ define_settings_group!(AISettings, settings: [
     }
     // Whether or not we should show the speedbump for auto-reading files.
     //
-    // Not a user-visible settings - we model it as a setting so we can track how often
-    // it's shown across devices.
+    // Not a user-visible setting - persisted locally so the prompt is only shown once.
     should_show_agent_mode_autoread_files_speedbump: ShouldShowAgentModeCodingReadPermissionsNudge {
         type: bool,
         default: true,
@@ -704,7 +668,7 @@ define_settings_group!(AISettings, settings: [
     // Whether the agent mode setup banner has been shown for a given repo path.
     // Once shown, it will not be shown again for that repo.
     //
-    // Not a user-visible settings - we model it as a setting so we can track state.
+    // Not a user-visible setting - persisted locally so setup banners are not repeated.
     agent_mode_setup_banner_shown_for_repo_paths: AgentModeSetupBannerShownForRepoPaths {
         type: Vec<PathBuf>,
         default: vec![],
@@ -715,20 +679,13 @@ define_settings_group!(AISettings, settings: [
     // Whether or not we should show the speedbump for showing code suggestion banners.
     // This includes both passive code diffs and suggested prompts (passive unit tests).
     //
-    // Not a user-visible settings - we model it as a setting so we can track if the speedbump has already been shown or not.
+    // Not a user-visible setting - persisted locally so the speedbump is not repeated.
     show_code_suggestion_speedbump: ShouldShowCodeSuggestionSpeedbump {
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
         private: true,
     }
-
-    mcp_execution_path: MCPExecutionPath {
-        type: Option<String>,
-        default: None,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: true,
-    },
 
     should_render_use_agent_footer_for_user_commands: ShouldRenderUseAgentToolbarForUserCommands {
         type: bool,
@@ -810,25 +767,13 @@ define_settings_group!(AISettings, settings: [
 
     // The file path of the tab config used when default_session_mode_internal is TabConfig.
     // Only read when mode is TabConfig; ignored for all other modes.
-    // Machine-local (tab config paths vary per machine), so never synced to cloud.
+    // Machine-local because tab config paths vary per machine.
     default_tab_config_path: DefaultTabConfigPath {
         type: String,
         default: String::new(),
         supported_platforms: SupportedPlatforms::ALL,
         private: false,
         toml_path: "general.default_tab_config_path",
-    }
-
-    // Whether file-based MCP servers from third-party AI tools (e.g. Claude, Codex) should
-    // be automatically detected and spawned. Warp-native config files (.warp/.mcp.json) are
-    // always detected and spawned, regardless of this setting.
-    file_based_mcp_enabled: FileBasedMcpEnabled {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::DESKTOP,
-        private: false,
-        toml_path: "agents.mcp_servers.file_based_mcp_enabled",
-        description: "Whether third-party file-based MCP servers are automatically detected.",
     }
 
     // Controls how agent thinking/reasoning traces are displayed.
@@ -858,7 +803,7 @@ define_settings_group!(AISettings, settings: [
 
     // Per-agent, per-host tracking of whether the user dismissed the plugin install chip.
     // Keys are "<agent_prefix>" for local sessions or "<agent_prefix>@<host>" for remote.
-    // Local-only so dismissal doesn't sync across devices.
+    // Machine-local because plugin installation state depends on the current host.
     plugin_install_chip_dismissed_map: PluginInstallChipDismissedMap {
         type: HashMap<String, bool>,
         default: HashMap::default(),
@@ -869,7 +814,7 @@ define_settings_group!(AISettings, settings: [
     // Per-agent, per-host tracking of the MINIMUM_PLUGIN_VERSION for which the user
     // dismissed the plugin update chip. Empty/absent means not dismissed.
     // Keys are "<agent_prefix>" for local sessions or "<agent_prefix>@<host>" for remote.
-    // Local-only so dismissal doesn't sync across devices.
+    // Machine-local because plugin installation state depends on the current host.
     plugin_update_chip_dismissed_for_version_map: PluginUpdateChipDismissedForVersionMap {
         type: HashMap<String, String>,
         default: HashMap::default(),
@@ -967,20 +912,8 @@ impl AISettings {
             && AppExecutionMode::as_ref(app).allows_active_ai()
     }
 
-    pub fn is_prompt_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.prompt_suggestions_enabled_internal
-    }
-
-    pub fn is_rule_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.rule_suggestions_enabled_internal
-    }
-
     pub fn is_code_suggestions_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_active_ai_enabled(app) && *self.code_suggestions_enabled_internal
-    }
-
-    pub fn is_shared_block_title_generation_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_active_ai_enabled(app) && *self.shared_block_title_generation_enabled_internal
     }
 
     pub fn is_intelligent_autosuggestions_enabled(&self, app: &warpui::AppContext) -> bool {
@@ -997,13 +930,6 @@ impl AISettings {
 
     pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {
         self.is_any_ai_enabled(app) && *self.memory_enabled
-    }
-
-    pub fn is_file_based_mcp_enabled(&self, app: &warpui::AppContext) -> bool {
-        if !FeatureFlag::FileBasedMcp.is_enabled() || !self.is_any_ai_enabled(app) {
-            return false;
-        }
-        *self.file_based_mcp_enabled
     }
 
     pub fn is_command_denylist_editable(&self, app: &AppContext) -> bool {
@@ -1039,10 +965,6 @@ impl AISettings {
     }
 
     pub fn is_ask_user_question_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
-    }
-
-    pub fn is_mcp_permission_editable(&self, app: &AppContext) -> bool {
         self.is_any_ai_enabled(app)
     }
 

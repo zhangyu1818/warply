@@ -5,7 +5,7 @@ use pathfinder_color::ColorU;
 
 use std::borrow::Cow;
 
-use warp_core::{features::FeatureFlag, ui::appearance::Appearance};
+use warp_core::ui::appearance::Appearance;
 use warpui::{
     elements::{Border, Container, CrossAxisAlignment, Expanded, Flex, ParentElement, Text},
     keymap::Keystroke,
@@ -140,11 +140,10 @@ struct AgentShortcutKeybindings {
 fn agent_shortcut_keybindings(app: &AppContext) -> AgentShortcutKeybindings {
     AgentShortcutKeybindings {
         code_review: keybinding_name_to_keystroke(TOGGLE_RIGHT_PANEL_BINDING_NAME, app),
-        conversation_list: if FeatureFlag::AgentViewConversationListView.is_enabled() {
-            keybinding_name_to_keystroke(TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, app)
-        } else {
-            None
-        },
+        conversation_list: keybinding_name_to_keystroke(
+            TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME,
+            app,
+        ),
         conversation_search: keybinding_name_to_keystroke(commands::CONVERSATIONS.name, app),
     }
 }

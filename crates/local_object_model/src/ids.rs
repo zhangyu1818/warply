@@ -52,21 +52,19 @@ impl fmt::Display for ClientId {
 
 impl From<String> for ClientId {
     fn from(s: String) -> Self {
-        ClientId::from_hash(&s).unwrap_or_default()
+        ClientId::from_hash(&s).expect("client object id should be valid")
     }
 }
 
-/// ID of an object in the sync queue.
+/// ID of a retained local object.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, schemars::JsonSchema)]
-#[schemars(description = "Identifier for a synced object, either local or server-assigned.")]
+#[schemars(description = "Identifier for a retained local object.")]
 pub enum SyncId {
-    /// Item has not been sync-ed yet. Using a client-created UUID.
-    #[schemars(
-        description = "A locally-generated identifier for an object not yet synced to the server."
-    )]
+    /// Item uses a client-created UUID.
+    #[schemars(description = "A locally-generated identifier for an object.")]
     ClientId(ClientId),
-    /// Item has been sync-ed to the cloud. Using the server ID.
-    #[schemars(description = "A server-assigned identifier for a synced object.")]
+    /// Legacy server-style ID retained for local object identity.
+    #[schemars(description = "A legacy server-style identifier for a local object.")]
     ServerId(ServerId),
 }
 
@@ -92,7 +90,7 @@ impl SyncId {
         }
     }
 
-    /// If this item has been synced to the cloud, extract its server ID.
+    /// Extract the legacy server-style local object ID, if this item uses one.
     pub fn into_server(self) -> Option<ServerId> {
         match self {
             Self::ServerId(id) => Some(id),
@@ -146,36 +144,32 @@ impl<'de> Deserialize<'de> for SyncId {
     {
         let s: String = Deserialize::deserialize(deserializer)?;
 
-        // We try to deserialize as a ClientID, which only succeeds if the ID is prefixed with `Client-`.
-        // If that fails, we assume this is a server id and create a server ID.
         if let Some(hashed) = ClientId::from_hash(s.as_str()) {
             Ok(SyncId::ClientId(hashed))
         } else {
-            Ok(SyncId::ServerId(ServerId::from_string_lossy(s)))
+            ServerId::try_from(s.as_str())
+                .map(SyncId::ServerId)
+                .map_err(serde::de::Error::custom)
         }
     }
 }
 
-/// Length of the ServerId, should be in sync with the length picked for the server.
+/// Length of the legacy server-style ID.
 const SERVER_ID_LENGTH: usize = 22;
 
-/// ServerId is a representation of a string-based unique ID we generate on the server,
-/// of length SERVER_ID_LENGTH.
+/// ServerId is a representation of a fixed-length string ID retained for local object identity.
 /// Because it's of fixed length, it can implement the Copy trait
 /// (in contrast to simply using a String type).
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, schemars::JsonSchema)]
-#[schemars(description = "A server-assigned unique identifier.")]
+#[schemars(description = "A legacy server-style unique identifier.")]
 pub struct ServerId([char; SERVER_ID_LENGTH]);
 
 /// For server IDs, this is the value that is stored
 /// in the database. For client IDs, it is of the form "Client-{id}".
-/// Used to index into cloud model and in most object read, write, and metadata
-/// mutation server APIs.
+/// Used to index objects in the local object model.
 pub type ObjectUid = String;
 
-/// Corresponds to what is stored for a given object id within the local sqlite
-/// database. Needed for backwards compatibility of the sqlite db following a refactor
-/// that stripped the object type away from SyncID.
+/// Corresponds to what is stored for a given object id within the local sqlite database.
 ///
 /// Of the format {sqlite_prefix}-{uid}.
 ///
@@ -203,23 +197,8 @@ pub fn parse_sqlite_id_to_uid(hashed_sqlite_id: HashedSqliteId) -> Result<Object
 }
 
 impl ServerId {
-    /// Convert a string input to a server ID. If the string is not exactly
-    /// [`SERVER_ID_LENGTH`] characters long, it will be truncated or padded as
-    /// necessary.
-    pub fn from_string_lossy(id: impl AsRef<str>) -> Self {
-        let id = id.as_ref();
-        Self::try_from(id).unwrap_or_else(|err| {
-            if cfg!(debug_assertions) {
-                panic!("{err}");
-            }
-            // ServerIds need to be exactly 22 characters, so to prevent a crash, we'll normalize
-            // the string. Nothing that uses it will work, but it's better than crashing.
-            let normalized = Self::normalize_id_str(id, 0);
-            Self::try_from(normalized).expect("id should convert")
-        })
-    }
-
     /// Normalizes a string to be exactly 22 characters long.
+    #[cfg(any(test, feature = "test-util"))]
     fn normalize_id_str(input: &str, prefix_length: usize) -> String {
         let available_len = SERVER_ID_LENGTH - prefix_length;
         let truncated = if input.len() > available_len {
@@ -234,8 +213,7 @@ impl ServerId {
         (*self).into()
     }
 
-    /// We need this API for backwards compatibility with local sqlite data.
-    /// In sqlite, objects are stored in object typy, uid pairs of the format
+    /// In sqlite, objects are stored in object type, uid pairs of the format
     /// {sqlite-prefix}-{uid}. For example, for a workflow this would be
     /// "Workflow-{uid}".
     pub fn sqlite_type_and_uid_hash(&self, object_id_type: ObjectIdType) -> HashedSqliteId {
@@ -345,7 +323,10 @@ macro_rules! server_id_traits {
 
         impl From<String> for $t {
             fn from(id: String) -> Self {
-                Self($crate::ids::ServerId::from_string_lossy(id))
+                Self(
+                    $crate::ids::ServerId::try_from(id)
+                        .expect("server-style object id should be valid"),
+                )
             }
         }
 

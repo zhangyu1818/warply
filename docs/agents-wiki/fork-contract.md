@@ -7,6 +7,7 @@ This contract defines what must remain true after local development or upstream 
 The fork is a local-first terminal application:
 
 - Terminal GUI and shell workflow.
+- Warpify for subshells and SSH sessions.
 - ACP-backed agent conversations.
 - OpenAI-compatible Next Command.
 - OpenAI-compatible Prompt Suggestions.
@@ -45,17 +46,23 @@ These were deliberately removed. If upstream changes touch them, the default dec
 
 - `app/src/auth/`: account auth, anonymous id, SSO, access tokens, login UI.
 - `app/src/billing/`: billing, usage, upgrade, referral/invite gates.
+- Unused cloud/billing/team/referral SVGs and icon variants, including `cloud-01.svg`, `cloud-filled.svg`, `cloud-off.svg`, `create-team.svg`, `credits.svg`, `referral-*`, `Icon::Cloud`, `Icon::CloudFilled`, and `Icon::CoinsStacked`.
 - `app/src/autoupdate/`: upstream update/changelog behavior not needed for this fork.
 - `app/src/crash_reporting/` and Sentry scripts.
 - `app/src/ai/agent_sdk/`: old Warp-hosted Agent SDK and harnesses.
 - `app/src/ai/agent_management/`: cloud agent management UI.
 - `app/src/ai/ambient_agents/`: ambient/scheduled/cloud agents.
+- `Icon::AmbientAgentMode` and `app/assets/bundled/svg/ambient-agent-mode.svg`: ambient/cloud agent icon surface.
 - `crates/graphql/` and `crates/warp_graphql_schema/`: Warp cloud GraphQL client/schema.
 - `crates/managed_secrets/` and `crates/managed_secrets_wasm/`.
 - `crates/isolation_platform/`: hosted/cloud isolation infrastructure.
 - `crates/onboarding/`: onboarding and marketing flows.
+- `app/assets/async/png/onboarding/`: onboarding, agent intention, third-party toolbar/notification, and Warp Drive marketing screenshots.
 - `crates/voice_input/`: voice input/transcription.
 - Old Warp model/profile selector surfaces, Codex modal/deeplink handling, and per-terminal LLM override persistence.
+- Bundled, channel-gated, MCP, or locally scanned skills managed by the Warp app. ACP agents own their own skill and MCP configuration.
+- Agent shared-session viewer action sync, remote action mirroring, cloud session sharing, view-only action-result replay, shared-session resize sync, and input peer-edit sync.
+- WASM-only cloud conversation web-viewer contexts such as `Workspace_CloudConversationWebViewer`. Local conversation transcript viewing may remain without cloud viewer gates.
 - External telemetry/event-store code and app focus telemetry.
 - Linux and Windows native host implementations, WSL/MSYS2 host executors, and Linux/Windows packaging/build-support paths.
 
@@ -64,12 +71,29 @@ These were deliberately removed. If upstream changes touch them, the default dec
 These are still in scope and should receive compatible upstream fixes:
 
 - Terminal emulator, blocks, PTY, shell integration, session restoration, input editor, completions.
+- Warpify, including subshell bootstrap, SSH warpification, tmux wrapper checks, and related UI states.
 - Natural language detection.
-- AgentView shell, local conversation history, conversation navigation, help shortcuts, code review panel, context chips, local file attachments.
+- AgentView shell, local conversation history, conversation navigation, help shortcuts, code review panel, context chips, local file attachments, and local plan/block/diff context references that are converted into ACP prompt context.
+- AgentView conversation list/navigation is a retained local ACP UI path and should not be reintroduced as an optional rollout gate.
+- Long-running command control transfer and CLI subagent takeover/handback UI when routed through AgentView and ACP.
 - ACP implementation and ACP UI rendering.
-- OpenAI-compatible terminal suggestions.
-- Local MCP file-based configuration.
-- Local persisted objects used by workflows, prompts, AI facts, MCP, and local conversation data.
+- Generic read-only ACP tool-call diff rendering.
+- OpenAI-compatible Next Command and Prompt Suggestions.
+- ACP tool-call rendering only. MCP server configuration, capability probing, startup, execution, and MCP/skill instructions belong to the ACP agent process.
+- ACP client capabilities are host capabilities exposed to the ACP process, not MCP server capability queries. Next Command and Prompt Suggestions do not use ACP skills, bundled skills, or app-managed MCP.
+- Do not bundle or restore skills that teach agents to manage Warp-owned `.mcp.json` server config, a Warp MCP settings pane, provider-specific hosted agents, tab/settings helpers, app-distributed MCP workflows, local skill scanners, `/skills` or `/open-skill` UI, `ReadSkill`/`InvokeSkill` actions, or tab-config skill CTAs.
+- Web/WASM and Linux/Windows host branches are not retained compatibility layers. Keep native macOS host behavior direct; keep remote host detection only as part of SSH/remote-server setup.
+- Local persisted objects used by workflows, prompts, AI facts, and local conversation data.
+- Retained local objects must not require cloud online status, cloud sync state, or Warp sharing permissions for local edit/delete behavior.
+- Retained local object pending state may exist for local persistence and quit-warning accounting, but it must not render Warp cloud sync badges or cloud save/error UX.
+- Environment-variable collection references to user-installed secret-manager CLIs such as 1Password or LastPass are retained local shell integrations. Do not restore Warp managed secrets, cloud secret storage, cloud credential discovery, or account-backed secret APIs around them.
+- Local object metadata should not keep online-only pending metadata, permissions, untrash, or delete fields. Persist retained metadata/permissions directly to the local store.
+- Local object metadata writes must support the current local object id column instead of assuming server-assigned identity.
+- Local object create/update/delete events should carry the local `SyncId` directly. Do not restore client-id to server-id backfill flows after object creation.
+- Persisted local UI references such as saved workflow panes, saved environment-variable panes, and command-history workflow links should use the current client-id form without server-style hash fallback.
+- Persisted local UI state should use current formats only; do not restore old-format readers such as bare ANSI tab-color payloads.
+- Retained AI history may store ACP model metadata for display, but must not restore old Warp planning-model selector state.
+- Do not restore app-level cloud online/offline mode, offline cloud toolbar indicators, debug network-status toggles, or suggestion gates that depend on Warp cloud connectivity.
 - OS launch-at-login settings.
 - SSH/remote terminal behavior that does not depend on Warp account auth.
 - macOS host platform integration, packaging, secure storage, user preferences, local PTY, windowing, menus, and launch-at-login behavior.
@@ -86,7 +110,9 @@ These are still in scope and should receive compatible upstream fixes:
 Names alone are not merge evidence.
 
 - `blocklist` is legacy naming for the AgentView path.
+- `subagent`, `handoff`, and `control transfer` may describe retained long-running command behavior if it routes through AgentView and ACP; remove only cloud handoff/orchestration/remote-control services.
 - `CloudObject` may still represent local persisted object data.
+- Saved workflows and environment-variable collections are local persisted objects. Do not restore `CloudWorkflow`, `WorkflowType::Cloud`, `WorkflowSource::PersonalCloud`, `CloudEnvVarCollection`, or command-history `cloud_workflow_id` compatibility paths.
 - `server_id` is legacy naming only if still present in retained local-object data. Do not add new compatibility fallback around it.
 - `remote_server` is remote terminal support, not account login by itself.
 - References to Linux/Windows inside terminal protocol parsing, shell target metadata, or path conversion must be checked before removal. Preserve SSH/remote terminal behavior; remove only local host platform support unless the code is required by macOS-to-remote workflows.

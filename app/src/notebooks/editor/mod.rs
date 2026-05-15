@@ -24,7 +24,7 @@ use crate::{
     themes::theme::Fill,
     ui_components::icons::Icon,
     util::color::{ContrastingColor, MinimumAllowedContrast},
-    workflows::{CloudWorkflow, WorkflowSource, WorkflowType},
+    workflows::{SavedWorkflow, WorkflowSource, WorkflowType},
 };
 
 mod block_insertion_menu;
@@ -340,10 +340,10 @@ pub struct NotebookWorkflow {
 }
 
 impl NotebookWorkflow {
-    pub fn from_cloud_workflow(cloud_workflow: Box<CloudWorkflow>) -> Self {
+    pub fn from_saved_workflow(saved_workflow: Box<SavedWorkflow>) -> Self {
         Self {
-            source: Some(cloud_workflow.permissions.owner.into()),
-            workflow: UserInput::new(Arc::new(WorkflowType::Cloud(cloud_workflow))),
+            source: Some(saved_workflow.permissions.owner.into()),
+            workflow: UserInput::new(Arc::new(WorkflowType::Saved(saved_workflow))),
         }
     }
 }

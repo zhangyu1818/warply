@@ -8,9 +8,8 @@
 //! implementation delegates to serde, so types without custom file formatting
 //! need only an empty `impl SettingsValue for T {}`.
 //!
-//! Cloud sync and platform-native stores (UserDefaults, registry) continue
-//! using serde directly — this trait is only consulted when writing to or
-//! reading from the settings file.
+//! Other serde-backed stores continue using serde directly — this trait is
+//! only consulted when writing to or reading from the settings file.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;

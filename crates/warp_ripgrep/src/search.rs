@@ -45,9 +45,8 @@ pub fn run_search_subprocess(
     paths: Vec<PathBuf>,
     ignore_case: bool,
     multiline: bool,
-    #[cfg_attr(not(unix), allow(unused_variables))] parent_pid: Option<u32>,
+    parent_pid: Option<u32>,
 ) -> anyhow::Result<()> {
-    #[cfg(unix)]
     crate::monitor_parent_and_exit_on_change(parent_pid);
 
     if patterns.is_empty() {
@@ -136,132 +135,122 @@ pub fn run_search_subprocess(
     Ok(())
 }
 
-#[cfg(not(target_family = "wasm"))]
-mod process_impl {
-    use std::path::PathBuf;
-    use std::process::Stdio;
+use std::process::Stdio;
 
-    use futures::io::{AsyncBufReadExt as _, BufReader};
-    use futures::stream::Stream;
-    use futures::StreamExt as _;
+use futures::io::{AsyncBufReadExt as _, BufReader};
+use futures::stream::Stream;
+use futures::StreamExt as _;
 
-    use super::{Match, Submatch};
-    use crate::types::RipgrepMessage;
+use crate::types::RipgrepMessage;
 
-    /// Searches `paths` for lines matching `patterns` and returns all results.
-    ///
-    /// Spawns a child process that runs the ripgrep search, collects every
-    /// match, and returns them once the search is complete.
-    ///
-    /// For incremental results, use [`search_streaming`] instead.
-    pub async fn search(
-        patterns: &[String],
-        paths: &[PathBuf],
-        ignore_case: bool,
-        multiline: bool,
-    ) -> anyhow::Result<Vec<Match>> {
-        let stream = search_streaming(patterns, paths, ignore_case, multiline)?;
-        Ok(stream.collect().await)
-    }
-
-    /// Searches `paths` for lines matching `patterns`, returning a stream
-    /// of matches as they are found.
-    ///
-    /// This is the preferred entry point when responsiveness matters (e.g.
-    /// the global search UI). The caller controls batching and throttling.
-    pub fn search_streaming(
-        patterns: &[String],
-        paths: &[PathBuf],
-        ignore_case: bool,
-        multiline: bool,
-    ) -> anyhow::Result<impl Stream<Item = Match>> {
-        let child = spawn_search_process(patterns, paths, ignore_case, multiline)?;
-        Ok(match_stream_from_child(child))
-    }
-
-    /// Spawns the warp CLI with the `ripgrep-search` subcommand.
-    fn spawn_search_process(
-        patterns: &[String],
-        paths: &[PathBuf],
-        ignore_case: bool,
-        multiline: bool,
-    ) -> Result<async_process::Child, std::io::Error> {
-        let current_exe = std::env::current_exe()?;
-        let mut cmd = command::r#async::Command::new(current_exe);
-
-        cmd.arg(warp_cli::ripgrep_search_subcommand())
-            .arg(warp_cli::parent_flag());
-
-        if ignore_case {
-            cmd.arg("--ignore-case");
-        }
-
-        if multiline {
-            cmd.arg("--multiline");
-        }
-
-        for pattern in patterns {
-            cmd.arg(pattern);
-        }
-
-        for path in paths {
-            cmd.arg(path);
-        }
-
-        cmd.kill_on_drop(true)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        cmd.spawn()
-    }
-
-    /// Turns a child process (with piped stdout) into a stream of parsed matches.
-    fn match_stream_from_child(mut child: async_process::Child) -> impl Stream<Item = Match> {
-        let stdout = child
-            .stdout
-            .take()
-            .expect("spawn_search_process must pipe stdout");
-        let reader = BufReader::new(stdout);
-
-        futures::stream::unfold((reader, child), |(mut reader, child)| async move {
-            let mut line = String::new();
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) | Err(_) => return None,
-                    Ok(_) => {}
-                }
-                if line.trim().is_empty() {
-                    continue;
-                }
-                match serde_json::from_str::<RipgrepMessage>(&line) {
-                    Ok(RipgrepMessage::Match { data }) => {
-                        let submatches = data
-                            .submatches
-                            .into_iter()
-                            .map(|s| Submatch {
-                                byte_start: s.start,
-                                byte_end: s.end,
-                            })
-                            .collect();
-                        let m = Match {
-                            file_path: PathBuf::from(data.path.text),
-                            line_number: data.line_number,
-                            line_text: data.lines.text,
-                            submatches,
-                        };
-                        return Some((m, (reader, child)));
-                    }
-                    Ok(RipgrepMessage::Begin | RipgrepMessage::End) => continue,
-                    Err(err) => {
-                        log::warn!("ripgrep: failed to parse JSON line: {err}");
-                        continue;
-                    }
-                }
-            }
-        })
-    }
+/// Searches `paths` for lines matching `patterns` and returns all results.
+///
+/// Spawns a child process that runs the ripgrep search, collects every
+/// match, and returns them once the search is complete.
+///
+/// For incremental results, use [`search_streaming`] instead.
+pub async fn search(
+    patterns: &[String],
+    paths: &[PathBuf],
+    ignore_case: bool,
+    multiline: bool,
+) -> anyhow::Result<Vec<Match>> {
+    let stream = search_streaming(patterns, paths, ignore_case, multiline)?;
+    Ok(stream.collect().await)
 }
 
-#[cfg(not(target_family = "wasm"))]
-pub use process_impl::{search, search_streaming};
+/// Searches `paths` for lines matching `patterns`, returning a stream
+/// of matches as they are found.
+///
+/// This is the preferred entry point when responsiveness matters (e.g.
+/// the global search UI). The caller controls batching and throttling.
+pub fn search_streaming(
+    patterns: &[String],
+    paths: &[PathBuf],
+    ignore_case: bool,
+    multiline: bool,
+) -> anyhow::Result<impl Stream<Item = Match>> {
+    let child = spawn_search_process(patterns, paths, ignore_case, multiline)?;
+    Ok(match_stream_from_child(child))
+}
+
+fn spawn_search_process(
+    patterns: &[String],
+    paths: &[PathBuf],
+    ignore_case: bool,
+    multiline: bool,
+) -> Result<async_process::Child, std::io::Error> {
+    let current_exe = std::env::current_exe()?;
+    let mut cmd = command::r#async::Command::new(current_exe);
+
+    cmd.arg(warp_cli::ripgrep_search_subcommand())
+        .arg(warp_cli::parent_flag());
+
+    if ignore_case {
+        cmd.arg("--ignore-case");
+    }
+
+    if multiline {
+        cmd.arg("--multiline");
+    }
+
+    for pattern in patterns {
+        cmd.arg(pattern);
+    }
+
+    for path in paths {
+        cmd.arg(path);
+    }
+
+    cmd.kill_on_drop(true)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped());
+
+    cmd.spawn()
+}
+
+fn match_stream_from_child(mut child: async_process::Child) -> impl Stream<Item = Match> {
+    let stdout = child
+        .stdout
+        .take()
+        .expect("spawn_search_process must pipe stdout");
+    let reader = BufReader::new(stdout);
+
+    futures::stream::unfold((reader, child), |(mut reader, child)| async move {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line).await {
+                Ok(0) | Err(_) => return None,
+                Ok(_) => {}
+            }
+            if line.trim().is_empty() {
+                continue;
+            }
+            match serde_json::from_str::<RipgrepMessage>(&line) {
+                Ok(RipgrepMessage::Match { data }) => {
+                    let submatches = data
+                        .submatches
+                        .into_iter()
+                        .map(|s| Submatch {
+                            byte_start: s.start,
+                            byte_end: s.end,
+                        })
+                        .collect();
+                    let m = Match {
+                        file_path: PathBuf::from(data.path.text),
+                        line_number: data.line_number,
+                        line_text: data.lines.text,
+                        submatches,
+                    };
+                    return Some((m, (reader, child)));
+                }
+                Ok(RipgrepMessage::Begin | RipgrepMessage::End) => continue,
+                Err(err) => {
+                    log::warn!("ripgrep: failed to parse JSON line: {err}");
+                    continue;
+                }
+            }
+        }
+    })
+}

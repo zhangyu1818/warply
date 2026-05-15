@@ -2882,9 +2882,9 @@ impl BlockList {
                 command_finished_to_precmd_delay: None,
                 block_type: BlockType::Restored,
                 num_secrets_obfuscated: self.active_block().num_secrets_obfuscated(),
-                // We don't track if a restored block was a cloud workflow execution.
-                cloud_workflow_id: None,
-                cloud_env_var_collection_id: None,
+                // We don't track if a restored block was a saved workflow execution.
+                saved_workflow_id: None,
+                env_var_collection_id: None,
             }));
 
         // Set the completed_ts to the saved completed_ts _after_ `finish`ing the block (which would have set its own completed_ts).
@@ -2950,8 +2950,8 @@ impl BlockList {
                 command_finished_to_precmd_delay: delay,
                 block_type,
                 num_secrets_obfuscated: finished_block.num_secrets_obfuscated(),
-                cloud_workflow_id: finished_block.cloud_workflow_state(),
-                cloud_env_var_collection_id: finished_block.cloud_env_var_collection_state(),
+                saved_workflow_id: finished_block.saved_workflow_state(),
+                env_var_collection_id: finished_block.env_var_collection_state(),
             }));
     }
 
@@ -2978,9 +2978,9 @@ impl BlockList {
                         command_finished_to_precmd_delay: None,
                         block_type,
                         num_secrets_obfuscated: num_secrets_obfuscated.unwrap_or_default(),
-                        // Background blocks are not tracked as cloud workflow executions.
-                        cloud_workflow_id: None,
-                        cloud_env_var_collection_id: None,
+                        // Background blocks are not tracked as saved workflow executions.
+                        saved_workflow_id: None,
+                        env_var_collection_id: None,
                     },
                 ));
             }

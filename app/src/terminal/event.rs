@@ -20,8 +20,9 @@ use crate::util::AsciiDebug;
 use super::history::HistoryEntry;
 use super::model::ansi::WarpificationUnavailableReason;
 use super::model::block::BlockId;
-use super::model::session::{SessionId, SessionInfo};
+use super::model::session::SessionInfo;
 use super::model::terminal_model::{BlockIndex, ExitReason, TmuxInstallationState};
+use warp_core::SessionId;
 
 pub use remote_server::setup::RemoteServerSetupState;
 
@@ -222,10 +223,10 @@ pub struct AfterBlockCompletedEvent {
     pub num_secrets_obfuscated: usize,
 
     /// If the completed block was a workflow, this is its id.
-    pub cloud_workflow_id: Option<SyncId>,
+    pub saved_workflow_id: Option<SyncId>,
 
     /// If the completed block had an env var object associated.
-    pub cloud_env_var_collection_id: Option<SyncId>,
+    pub env_var_collection_id: Option<SyncId>,
 }
 
 #[derive(Clone)]

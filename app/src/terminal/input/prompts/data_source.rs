@@ -18,7 +18,7 @@ use crate::terminal::input::inline_menu::{
     default_navigation_message_items, InlineMenuAction, InlineMenuMessageArgs, InlineMenuType,
 };
 use crate::terminal::input::message_bar::Message;
-use crate::workflows::CloudWorkflow;
+use crate::workflows::SavedWorkflow;
 
 #[derive(Clone, Debug)]
 pub struct AcceptPrompt {
@@ -52,9 +52,9 @@ impl SyncDataSource for PromptsMenuDataSource {
         let query_text = query.text.trim();
 
         if query_text.is_empty() {
-            let cloud_workflows = CloudModel::as_ref(app).get_all_active_workflows();
+            let saved_workflows = CloudModel::as_ref(app).get_all_active_workflows();
 
-            return Ok(cloud_workflows
+            return Ok(saved_workflows
                 .filter(|workflow| !workflow.model().data.is_command_workflow())
                 .map(|workflow| QueryResult::from(PromptSearchItem::from_workflow(workflow)))
                 .collect());
@@ -64,9 +64,9 @@ impl SyncDataSource for PromptsMenuDataSource {
         // search to avoid missing valid results while still filtering the list.
         if query_text.chars().count() == 1 {
             let query_char = query_text.chars().next().unwrap();
-            let cloud_workflows = CloudModel::as_ref(app).get_all_active_workflows();
+            let saved_workflows = CloudModel::as_ref(app).get_all_active_workflows();
 
-            return Ok(cloud_workflows
+            return Ok(saved_workflows
                 .filter(|workflow| {
                     !workflow.model().data.is_command_workflow()
                         && workflow
@@ -112,7 +112,7 @@ struct PromptSearchItem {
 }
 
 impl PromptSearchItem {
-    fn from_workflow(workflow: &CloudWorkflow) -> Self {
+    fn from_workflow(workflow: &SavedWorkflow) -> Self {
         Self {
             id: workflow.id,
             name: workflow.model().data.name().to_owned(),

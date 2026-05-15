@@ -1,4 +1,4 @@
-use warpui::{elements::MouseStateHandle, AppContext, Element};
+use warpui::{AppContext, Element};
 
 use crate::{
     appearance::Appearance,
@@ -12,7 +12,6 @@ use super::{cloud_object_styling::local_object_icon_color, CloudObjectTypeAndId,
 pub mod ai_fact;
 pub mod env_var_collection;
 pub mod folder;
-pub mod mcp_server;
 pub mod space;
 pub mod workflow;
 
@@ -23,11 +22,6 @@ pub trait LocalObjectItem {
     fn secondary_icon(&self, color: Option<Fill>) -> Option<Box<dyn Element>>;
     fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>>;
     fn local_object_id(&self) -> LocalObjectItemId;
-    fn sync_status_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>>;
 
     fn icon(&self, appearance: &Appearance, color: Option<Fill>) -> Option<Box<dyn Element>> {
         let object_type = self.object_type()?;
@@ -47,7 +41,6 @@ pub trait LocalObjectItem {
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum LocalObjectItemId {
     AIFactCollection,
-    MCPServerCollection,
     Object(CloudObjectTypeAndId),
     Space(Space),
     Trash,

@@ -28,9 +28,7 @@ use warpui::elements::{
 };
 use warpui::prelude::{ChildView, Container};
 use warpui::text_layout::ClipConfig;
-use warpui::ui_components::components::UiComponent;
-#[cfg(not(target_arch = "wasm32"))]
-use warpui::ui_components::components::UiComponentStyles;
+use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::WeakModelHandle;
 use warpui::{AppContext, Element, ModelHandle, SingletonEntity, TypedActionView, ViewContext};
 
@@ -279,14 +277,7 @@ impl TerminalView {
         let mut icon_button_count: u32 = 0;
 
         let button_element = if self.can_show_conversation_details_ui(app) {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                Some(self.render_conversation_details_toggle_button(app))
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                None
-            }
+            Some(self.render_conversation_details_toggle_button(app))
         } else {
             None
         };
@@ -456,8 +447,6 @@ impl BackingView for TerminalView {
 
 impl TerminalView {
     /// Render the info button for toggling the conversation details panel.
-    /// Only available on non-WASM platforms (WASM uses a per-window button instead).
-    #[cfg(not(target_arch = "wasm32"))]
     fn render_conversation_details_toggle_button(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();

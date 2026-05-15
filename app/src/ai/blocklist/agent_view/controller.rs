@@ -118,8 +118,6 @@ pub enum AgentViewEntryOrigin {
     AgentRequestedNewConversation,
     /// Entered agent view via accepting a prompt suggestion.
     AcceptedPromptSuggestion,
-    /// Entered agent view via accepting a unit test suggestion.
-    AcceptedUnitTestSuggestion,
     /// Entered agent view via accepting a passive code diff.
     AcceptedPassiveCodeDiff,
     /// Entered agent view by starting conversation with an inline code review submission.
@@ -657,9 +655,7 @@ impl AgentViewController {
         origin: AgentViewEntryOrigin,
         ctx: &mut ModelContext<Self>,
     ) -> Result<AIConversationId, EnterAgentViewError> {
-        // Block entry to fullscreen mode if there's an active long-running command. Transcript
-        // viewers and 3p cloud viewers are exempt: in those contexts the long-running block is
-        // either a restored snapshot or the harness CLI we want to wrap in agent-view chrome.
+        // Block entry to fullscreen mode if there's an active long-running command.
         let is_long_running = {
             let terminal_model = self.terminal_model.lock();
             terminal_model

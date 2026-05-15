@@ -16,11 +16,10 @@ use warp_completer::completer::{
     GeneratorContext, PathCompletionContext, PathSeparators, TopLevelCommandCaseSensitivity,
 };
 use warp_completer::signatures::CommandRegistry;
-use warp_core::features::FeatureFlag;
+use warp_core::{features::FeatureFlag, safe_warn};
 use warp_util::path::{EscapeChar, ShellFamily};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::safe_warn;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionType};
 use crate::util::AsciiDebug;
 use crate::workflows::aliases::WorkflowAliases;
@@ -179,6 +178,10 @@ impl SessionContext {
 impl PathCompletionContext for SessionContext {
     fn home_directory(&self) -> Option<&str> {
         self.session.home_dir()
+    }
+
+    fn cdpath(&self) -> Option<&str> {
+        self.session.cdpath()
     }
 
     fn pwd(&self) -> TypedPath<'_> {
@@ -413,8 +416,7 @@ impl CompletionContext for SessionAgnosticContext {
     }
 }
 
-/// Empty `CompletionContext` used in places without a live shell session
-/// (i.e. shared session viewers without a real terminal instance).
+/// Empty `CompletionContext` used in places without a live shell session.
 #[derive(Clone)]
 pub struct EmptyCompletionContext;
 impl EmptyCompletionContext {

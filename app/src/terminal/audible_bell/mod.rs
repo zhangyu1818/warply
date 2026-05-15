@@ -1,10 +1,7 @@
-//! Module containing the definition of a platform agnostic audible bell.
-
 use anyhow::Result;
 use warpui::{Entity, SingletonEntity};
 
-#[cfg_attr(target_os = "macos", path = "macos.rs")]
-#[cfg_attr(target_family = "wasm", path = "noop.rs")]
+#[path = "macos.rs"]
 mod imp;
 
 /// A singleton model that provides a way convenient way to make a "beep" when rung (via a call to

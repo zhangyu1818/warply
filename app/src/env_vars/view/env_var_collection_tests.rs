@@ -10,7 +10,6 @@ use crate::{
         view::env_var_collection::EnvVarCollectionView,
     },
     http_api::HttpApiProvider,
-    network::NetworkStatus,
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
     workspace::ActiveSession,
@@ -24,7 +23,6 @@ fn initialize_app(app: &mut App) {
     let global_resources = GlobalResourceHandles::mock(app);
     app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resources));
     app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| Appearance::mock());
 
     app.add_singleton_model(UserWorkspaces::default_mock);

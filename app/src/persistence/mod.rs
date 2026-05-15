@@ -27,26 +27,22 @@ use crate::ai::persisted_workspace::EnablementState;
 use ai::project_context::model::ProjectRulePath;
 use chrono::{DateTime, Local};
 use lsp::supported_servers::LSPServerType;
-use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warpui::{AppContext, Entity, SingletonEntity};
 
 use crate::ai::blocklist::PersistedAIInput;
-use crate::ai::mcp::TemplatableMCPServerInstallation;
 use crate::app_state::AppState;
 use crate::cloud_object::model::actions::ObjectAction;
 use crate::cloud_object::model::generic_string_model::CloudStringObject;
 
-use crate::cloud_object::{
-    CloudObject, CloudObjectMetadata, ObjectIdType, RevisionAndLastEditor, ServerTimestamp,
-};
+use crate::cloud_object::{CloudObject, CloudObjectMetadata, ObjectIdType};
 use crate::drive::folders::CloudFolder;
 use crate::object_ids::SyncId;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
 use crate::terminal::history::PersistedCommand;
 use crate::terminal::model::block::{SerializedAgentViewVisibility, SerializedBlock};
-use crate::terminal::model::session::SessionId;
-use crate::workflows::CloudWorkflow;
+use crate::workflows::SavedWorkflow;
+use warp_core::SessionId;
 
 use ai::workspace::WorkspaceMetadata as CodeWorkspaceMetadata;
 
@@ -148,8 +144,6 @@ pub struct PersistedData {
     pub projects: Vec<Project>,
     pub project_rules: Vec<ProjectRulePath>,
     pub ignored_suggestions: Vec<(String, SuggestionType)>,
-    pub mcp_server_installations: HashMap<Uuid, TemplatableMCPServerInstallation>,
-    pub mcp_servers_to_restore: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug)]
@@ -170,7 +164,7 @@ pub struct StartedCommandMetadata {
     pub hostname: Option<String>,
     pub session_id: Option<SessionId>,
     pub git_branch: Option<String>,
-    pub cloud_workflow_id: Option<SyncId>,
+    pub saved_workflow_id: Option<SyncId>,
     pub workflow_command: Option<String>,
     pub is_agent_executed: bool,
 }
@@ -188,20 +182,14 @@ pub enum ModelEvent {
     SaveBlock(BlockCompleted),
     DeleteBlocks(Vec<u8>),
     Snapshot(AppState),
-    UpsertWorkflows(Vec<CloudWorkflow>),
+    UpsertWorkflows(Vec<SavedWorkflow>),
     UpsertFolders(Vec<CloudFolder>),
-    MarkObjectAsSynced {
-        hashed_sqlite_id: String,
-        revision_and_editor: RevisionAndLastEditor,
-        metadata_ts: Option<ServerTimestamp>,
-    },
-    IncrementRetryCount(String),
     UpsertGenericStringObject {
         object: Box<dyn CloudStringObject>,
     },
     UpsertGenericStringObjects(Vec<Box<dyn CloudStringObject>>),
     UpsertWorkflow {
-        workflow: CloudWorkflow,
+        workflow: SavedWorkflow,
     },
     UpsertFolder {
         folder: CloudFolder,
@@ -254,10 +242,6 @@ pub enum ModelEvent {
     DeleteProject {
         path: String,
     },
-    UpsertMCPServerEnvironmentVariables {
-        mcp_server_uuid: Vec<u8>,
-        environment_variables: String,
-    },
     UpsertProjectRules {
         project_rule_paths: Vec<ProjectRulePath>,
     },
@@ -271,19 +255,6 @@ pub enum ModelEvent {
     RemoveIgnoredSuggestion {
         suggestion: String,
         suggestion_type: SuggestionType,
-    },
-    UpsertMCPServerInstallation {
-        mcp_server_installation: TemplatableMCPServerInstallation,
-    },
-    DeleteMCPServerInstallations {
-        installation_uuids: Vec<Uuid>,
-    },
-    DeleteMCPServerInstallationsByTemplateUuid {
-        template_uuid: Uuid,
-    },
-    UpdateMCPInstallationRunning {
-        installation_uuid: Uuid,
-        running: bool,
     },
     UpsertWorkspaceLanguageServer {
         workspace_path: PathBuf,

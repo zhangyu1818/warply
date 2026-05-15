@@ -262,11 +262,10 @@ fn test_scroll_preservation_no_adjustment_when_item_below_changes() {
 
 #[test]
 #[ignore = "Flaking on CI - KC looking into 3/31/26"]
-fn test_list_state_without_scroll_preservation_backward_compatible() {
+fn test_list_state_without_scroll_preservation() {
     App::test((), |mut app| async move {
         let app = &mut app;
 
-        // Create a simple view using the non-generic ListState (backward compatibility)
         struct SimpleListView {
             list_state: ListState<()>,
         }

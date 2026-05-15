@@ -37,7 +37,6 @@ diesel::table! {
         working_directory -> Nullable<Text>,
         output_status -> Text,
         model_id -> Text,
-        planning_model_id -> Text,
         coding_model_id -> Text,
     }
 }
@@ -118,7 +117,7 @@ diesel::table! {
         hostname -> Nullable<Text>,
         session_id -> Nullable<BigInt>,
         git_branch -> Nullable<Text>,
-        cloud_workflow_id -> Nullable<Text>,
+        saved_workflow_id -> Nullable<Text>,
         workflow_command -> Nullable<Text>,
         is_agent_executed -> Nullable<Bool>,
     }
@@ -137,7 +136,6 @@ diesel::table! {
         id -> Integer,
         name -> Text,
         is_open -> Bool,
-        is_warp_pack -> Bool,
     }
 }
 
@@ -153,31 +151,6 @@ diesel::table! {
         id -> Integer,
         suggestion -> Text,
         suggestion_type -> Text,
-    }
-}
-
-diesel::table! {
-    mcp_environment_variables (mcp_server_uuid) {
-        mcp_server_uuid -> Binary,
-        environment_variables -> Text,
-    }
-}
-
-diesel::table! {
-    mcp_server_installations (id) {
-        id -> Text,
-        templatable_mcp_server -> Text,
-        template_version_ts -> Timestamp,
-        variable_values -> Text,
-        restore_running -> Bool,
-        last_modified_at -> Timestamp,
-    }
-}
-
-diesel::table! {
-    mcp_server_panes (id) {
-        id -> Integer,
-        kind -> Text,
     }
 }
 

@@ -20,7 +20,7 @@ pub fn initialize_settings_for_tests_with_mode(
             manager::SettingsManager, AISettings, AccessibilitySettings, AliasExpansionSettings,
             AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings, FontSettings,
             GPUSettings, InputModeSettings, InputSettings, PaneSettings, ScrollSettings,
-            SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
+            SelectionSettings, ThemeSettings, VimBannerSettings,
         },
         terminal::{
             general_settings::GeneralSettings, keys_settings::KeysSettings,
@@ -69,7 +69,6 @@ pub fn initialize_settings_for_tests_with_mode(
         WarpifySettings::register(ctx);
     });
     SessionSettings::register(app);
-    SshSettings::register(app);
     TabSettings::register(app);
     TerminalSettings::register(app);
     PaneSettings::register(app);
@@ -83,8 +82,5 @@ pub fn initialize_settings_for_tests_with_mode(
     app.update(|ctx| {
         // Register a no-op secure storage provider for testing.
         warpui_extras::secure_storage::register_noop("test", ctx);
-
-        // Add settings models that are backed by secure storage, not user preferences.
-        ctx.add_singleton_model(ai::api_keys::ApiKeyManager::new);
     });
 }

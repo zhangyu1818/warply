@@ -189,9 +189,6 @@ pub enum QueryFilter {
 
     StaticSlashCommands,
 
-    /// Filter results for skills (used for browsing skills).
-    Skills,
-
     /// Include only conversations whose most recent directory matches the session's current working directory.
     CurrentDirectoryConversations,
 }
@@ -226,7 +223,6 @@ impl QueryFilter {
             QueryFilter::Repos => "Search code repos",
             QueryFilter::DiffSets => "Search diff sets",
             QueryFilter::StaticSlashCommands => "Search static slash commands",
-            QueryFilter::Skills => "Search skills",
             QueryFilter::CurrentDirectoryConversations => {
                 "Search conversations in current directory"
             }
@@ -256,7 +252,6 @@ impl QueryFilter {
             QueryFilter::DiffSets => &DIFFSETS_FILTER_ATOM,
             QueryFilter::StaticSlashCommands => &STATIC_SLASH_COMMANDS_FILTER_ATOM,
             QueryFilter::HistoricalConversations => &NO_FILTER_ATOM,
-            QueryFilter::Skills => &NO_FILTER_ATOM,
             QueryFilter::CurrentDirectoryConversations => &NO_FILTER_ATOM,
         }
     }
@@ -284,7 +279,6 @@ impl QueryFilter {
             QueryFilter::DiffSets => "diff sets",
             QueryFilter::StaticSlashCommands => "slash commands",
             QueryFilter::HistoricalConversations => "historical conversations",
-            QueryFilter::Skills => "skills",
             QueryFilter::CurrentDirectoryConversations => "current directory conversations",
         }
     }
@@ -320,7 +314,6 @@ impl QueryFilter {
             QueryFilter::Repos => Some("bundled/svg/folder.svg"),
             QueryFilter::DiffSets => Some("bundled/svg/diff.svg"),
             QueryFilter::StaticSlashCommands => None,
-            QueryFilter::Skills => None,
             QueryFilter::CurrentDirectoryConversations => None,
         }
     }

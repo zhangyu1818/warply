@@ -4,19 +4,17 @@ use crate::ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::facts::manager::AIFactManager;
-use crate::ai::llms::LLMPreferences;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::restored_conversations::RestoredAgentConversations;
-use crate::ai::skills::SkillManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::Event;
 use crate::gpu_state::GPUState;
 use crate::identity::LocalIdentityProvider;
-use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::pane_group::{Direction, PaneGroupAction, PaneId};
+use crate::projects::ProjectManagementModel;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 #[cfg(feature = "local_fs")]
 use crate::user_config::tab_configs_dir;
@@ -46,9 +44,6 @@ use crate::terminal::local_tty::spawner::PtySpawner;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::mcp::{
-    templatable_manager::TemplatableMCPServerManager, FileBasedMCPManager, FileMCPWatcher,
-};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::undo_close::UndoCloseSettings;
@@ -72,7 +67,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
-    app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(UserWorkspaces::default_mock);
@@ -95,19 +89,13 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(AgentConversationsModel::new);
-    app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(|_| SettingsPaneManager::new());
     app.add_singleton_model(|_| AIFactManager::new());
 
-    // Initialize file-based MCP dependencies.
     app.add_singleton_model(|_| DetectedRepositories::default());
     app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
-    app.add_singleton_model(FileMCPWatcher::new);
-    app.add_singleton_model(|_| FileBasedMCPManager::default());
-
-    app.add_singleton_model(|_| TemplatableMCPServerManager::default());
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
@@ -126,6 +114,7 @@ fn initialize_app(app: &mut App) {
     #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(search::files::model::FileSearchModel::new);
+    app.add_singleton_model(|ctx| ProjectManagementModel::new(vec![], None, ctx));
 
     #[cfg(feature = "local_tty")]
     terminal::available_shells::register(app);
@@ -135,8 +124,6 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|ctx| PersistedWorkspace::new(vec![], HashMap::new(), None, ctx));
     app.add_singleton_model(AIDocumentModel::new);
     app.add_singleton_model(|_| History::new(vec![]));
-
-    app.add_singleton_model(SkillManager::new);
 
     // Make sure to initialize the keybindings so that they are available for subviews
     app.update(workspace::init);
@@ -1082,6 +1069,15 @@ fn set_left_panel_visibility_across_tabs(is_enabled: bool, ctx: &mut ViewContext
     });
 }
 
+fn mark_conversation_list_auto_opened(ctx: &mut ViewContext<Workspace>) {
+    AISettings::handle(ctx).update(ctx, |settings, ctx| {
+        settings
+            .has_auto_opened_conversation_list
+            .set_value(true, ctx)
+            .expect("Failed to update has_auto_opened_conversation_list setting");
+    });
+}
+
 fn add_welcome_tab_snapshot(workspace: &mut Workspace, ctx: &mut ViewContext<Workspace>) {
     workspace.add_tab_with_pane_layout(
         PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
@@ -1119,15 +1115,14 @@ fn find_non_following_tab_index(workspace: &Workspace, ctx: &AppContext) -> usiz
 
 #[test]
 fn test_left_panel_window_scoped_reconciles_between_terminal_tabs_when_enabled() {
-    let _conversation_list_guard =
-        FeatureFlag::AgentViewConversationListView.override_enabled(false);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
         let workspace = mock_workspace(&mut app);
 
         workspace.update(&mut app, |workspace, ctx| {
+            mark_conversation_list_auto_opened(ctx);
+            workspace.close_left_panel(ctx);
             set_left_panel_visibility_across_tabs(true, ctx);
 
             workspace.add_terminal_tab(false, ctx);
@@ -1180,16 +1175,13 @@ fn test_left_panel_window_scoped_reconciles_between_terminal_tabs_when_enabled()
 
 #[test]
 fn test_toggle_conversation_list_view_opens_left_panel_conversation_view() {
-    let _conversation_list_guard =
-        FeatureFlag::AgentViewConversationListView.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
         let workspace = mock_workspace(&mut app);
 
         workspace.update(&mut app, |workspace, ctx| {
-            assert!(FeatureFlag::AgentViewConversationListView.is_enabled());
+            mark_conversation_list_auto_opened(ctx);
             workspace.close_left_panel(ctx);
             workspace.handle_action(&WorkspaceAction::ToggleConversationListView, ctx);
 
@@ -1209,9 +1201,6 @@ fn test_toggle_conversation_list_view_opens_left_panel_conversation_view() {
 
 #[test]
 fn test_left_panel_new_conversation_event_opens_new_agent_tab() {
-    let _conversation_list_guard =
-        FeatureFlag::AgentViewConversationListView.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -1246,16 +1235,18 @@ fn test_left_panel_new_conversation_event_opens_new_agent_tab() {
 
 #[test]
 fn test_left_panel_window_scoped_non_following_tab_does_not_reconcile_but_updates_window_state() {
-    let _conversation_list_guard =
-        FeatureFlag::AgentViewConversationListView.override_enabled(false);
-    let _welcome_guard = FeatureFlag::WelcomeTab.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
-        let workspace = mock_workspace(&mut app);
+        let workspace = {
+            let _welcome_guard = FeatureFlag::WelcomeTab.override_enabled(false);
+            mock_workspace(&mut app)
+        };
+        let _welcome_guard = FeatureFlag::WelcomeTab.override_enabled(true);
 
         workspace.update(&mut app, |workspace, ctx| {
+            mark_conversation_list_auto_opened(ctx);
+            workspace.close_left_panel(ctx);
             set_left_panel_visibility_across_tabs(true, ctx);
 
             // Establish window-scoped desired state = open on a terminal tab.
@@ -1322,15 +1313,14 @@ fn test_left_panel_window_scoped_non_following_tab_does_not_reconcile_but_update
 
 #[test]
 fn test_left_panel_window_scoped_disabled_keeps_per_tab_state() {
-    let _conversation_list_guard =
-        FeatureFlag::AgentViewConversationListView.override_enabled(false);
-
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
         let workspace = mock_workspace(&mut app);
 
         workspace.update(&mut app, |workspace, ctx| {
+            mark_conversation_list_auto_opened(ctx);
+            workspace.close_left_panel(ctx);
             set_left_panel_visibility_across_tabs(false, ctx);
 
             workspace.add_terminal_tab(false, ctx);

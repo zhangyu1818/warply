@@ -10,10 +10,7 @@ use super::*;
 async fn round_trip_client_message() {
     let msg = ClientMessage {
         request_id: "test-123".to_string(),
-        message: Some(client_message::Message::Initialize(Initialize {
-            user_id: String::new(),
-            user_email: String::new(),
-        })),
+        message: Some(client_message::Message::Initialize(Initialize {})),
     };
 
     let mut buf = Vec::new();
@@ -122,10 +119,7 @@ async fn write_message_too_large() {
 fn try_extract_request_id_from_valid_message() {
     let msg = ClientMessage {
         request_id: "abc-123".to_string(),
-        message: Some(client_message::Message::Initialize(Initialize {
-            user_id: String::new(),
-            user_email: String::new(),
-        })),
+        message: Some(client_message::Message::Initialize(Initialize {})),
     };
     let buf = msg.encode_to_vec();
     assert_eq!(try_extract_request_id(&buf), Some("abc-123".to_string()));

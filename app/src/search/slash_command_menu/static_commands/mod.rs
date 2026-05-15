@@ -22,7 +22,7 @@ bitflags! {
         const AGENT_VIEW = 1 << 0;
         /// Requires the terminal view.
         const TERMINAL_VIEW = 1 << 1;
-        /// Requires a local session (not available in remote/cloud sessions).
+        /// Requires a local session (not available in remote sessions).
         const LOCAL = 1 << 2;
         /// Requires a git repository.
         const REPOSITORY = 1 << 3;

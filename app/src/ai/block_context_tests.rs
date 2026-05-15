@@ -32,7 +32,7 @@ fn block_context_serializes_id_as_block_id() {
 }
 
 #[test]
-fn block_context_omits_none_environment_fields_with_default() {
+fn block_context_serializes_none_environment_fields_as_null() {
     let ctx = BlockContext {
         id: "b1".to_string().into(),
         index: 0.into(),
@@ -52,30 +52,22 @@ fn block_context_omits_none_environment_fields_with_default() {
     };
 
     let json_str = serde_json::to_string(&ctx).unwrap();
-    // Environment fields with None should still serialize (serde default, not skip_serializing_if).
-    // They appear as null in the JSON.
+    // Environment fields with None are part of the current payload and serialize as null.
     let json: Value = serde_json::from_str(&json_str).unwrap();
     assert!(json.get("pwd").is_some());
     assert!(json["pwd"].is_null());
 }
 
 #[test]
-fn block_context_deserializes_without_environment_fields() {
-    // Simulates deserializing a BlockContext from an older format that doesn't
-    // have environment fields. The #[serde(default)] attributes should handle this.
+fn block_context_requires_auto_attached_field() {
     let json = r#"{
         "block_id": "b1",
         "index": 0,
         "command": "ls",
         "output": "file.txt",
-        "exit_code": 0,
-        "is_auto_attached": false
+        "exit_code": 0
     }"#;
 
-    let ctx: BlockContext = serde_json::from_str(json).unwrap();
-    assert_eq!(ctx.id, BlockId::from("b1".to_string()));
-    assert_eq!(ctx.command, "ls");
-    assert!(ctx.pwd.is_none());
-    assert!(ctx.shell.is_none());
-    assert!(ctx.session_id.is_none());
+    let result = serde_json::from_str::<BlockContext>(json);
+    assert!(result.is_err());
 }

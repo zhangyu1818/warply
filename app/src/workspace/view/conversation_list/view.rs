@@ -1057,8 +1057,6 @@ impl TypedActionView for ConversationListView {
                 ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
                     conversation_id: ai_conversation_id,
                     fork_from_exchange: None,
-                    summarize_after_fork: false,
-                    summarization_prompt: None,
                     initial_prompt: None,
                     destination: *destination,
                 });

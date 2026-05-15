@@ -620,35 +620,6 @@ if [[ -z $WARP_BOOTSTRAPPED ]]; then
       warp_send_json_message "{\"hook\": \"Clear\", \"value\": {}}"
   }
 
-  function warp_finish_update {
-    local update_id="$1"
-    warp_send_json_message "{ \"hook\": \"FinishUpdate\", \"value\": { \"update_id\": \"$update_id\"} }"
-  }
-
-  # Check if the warp apt source file has been renamed to `warpdotdev.list.distUpgrade` due to an ubuntu version update.
-  # If this occurred, we want to rename the source file back to `warpdotdev.list` to ensure updates can proceed.
-  # We purposefully skip this if either the `warpdotdev.list` file already exists (indicating that the user has already
-  # done this themselves) _or_ if a `warpdotdev.sources` file exists (which is the new Deb822 format for source files).
-  # The `.sources` file could only exist if a user manually created it; Ubuntu doesn't create one automatically for the
-  # warp source file due to a bug in its update flow where it considers our source file to be "invalid" because it
-  # contains a `signed-by` key.
-  function warp_handle_dist_upgrade {
-      local source_file_name="$1"
-
-      eval "$(command apt-config shell APT_SOURCESDIR 'Dir::Etc::sourceparts/d')"
-
-      if [[ ! -e $APT_SOURCESDIR$source_file_name.list && \
-          ! -e $APT_SOURCESDIR$source_file_name.sources && \
-           -e $APT_SOURCESDIR$source_file_name.list.distUpgrade ]]; then
-        # DO NOT DO THIS. We should never run a command for user with `sudo`. The only reason this is safe here is because
-        # we insert this function into the input for the user to determine if they want to execute (we never run it on
-        # their behalf without their permission).  To be transparent about what is being executed with sudo, we echo out the
-        # command we're about to run.
-        echo "Executing: sudo cp \"$APT_SOURCESDIR$source_file_name.list.distUpgrade\" \"$APT_SOURCESDIR$source_file_name.list\""
-        sudo cp "$APT_SOURCESDIR$source_file_name.list.distUpgrade" "$APT_SOURCESDIR$source_file_name.list"
-      fi
-  }
-
   # Check whether the prompt-related variables have OSC prompt marker sequences,
   # and if not, wrap them with the appropriate markers so that we can direct the
   # prompt bytes to the appropriate grids.
@@ -683,7 +654,7 @@ if [[ -z $WARP_BOOTSTRAPPED ]]; then
         SAVED_RPROMPT=${RPROMPT:-}
       fi
       
-      # We don't unset the $PROMPT since we want to show the lprompt preview in the edit prompt modal (and onboarding blocks).
+      # We don't unset the $PROMPT since we want to show the lprompt preview in prompt preview UI.
       # Note that the prompt grid is separate from the combined prompt/command grid and ONLY used for prompt previews, in the
       # case of the combined grid being enabled.
       # Clear the rprompt, so it doesn't accidentally appear in selections/any other relevant logic.
@@ -1377,7 +1348,8 @@ esac
 
     local escaped_editor="$(warp_escape_json "$EDITOR")"
     local escaped_shell_path="$(warp_escape_json "${commands[zsh]}")"
-    local escaped_json="{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"shell\": \"zsh\", \"home_dir\": \"$HOME\", \"path\": \"$escaped_path\", \"editor\": \"$escaped_editor\", \"env_var_names\":  \"$env_var_names\", \"abbreviations\": \"$escaped_abbrs\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$function_names\",  \"builtins\": \"$escaped_builtins\",  \"keywords\": \"$escaped_keywords\", \"shell_version\": \"$ZSH_VERSION\", \"shell_options\": \"$shell_options\", \"rcfiles_start_time\": \"$rcfiles_start_time\", \"rcfiles_end_time\": \"$rcfiles_end_time\", \"shell_plugins\": \"$escaped_shell_plugins\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
+    local escaped_cdpath="$(warp_escape_json "$CDPATH")"
+    local escaped_json="{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"shell\": \"zsh\", \"home_dir\": \"$HOME\", \"path\": \"$escaped_path\", \"cdpath\": \"$escaped_cdpath\", \"editor\": \"$escaped_editor\", \"env_var_names\":  \"$env_var_names\", \"abbreviations\": \"$escaped_abbrs\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$function_names\",  \"builtins\": \"$escaped_builtins\",  \"keywords\": \"$escaped_keywords\", \"shell_version\": \"$ZSH_VERSION\", \"shell_options\": \"$shell_options\", \"rcfiles_start_time\": \"$rcfiles_start_time\", \"rcfiles_end_time\": \"$rcfiles_end_time\", \"shell_plugins\": \"$escaped_shell_plugins\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
     warp_send_json_message "$escaped_json"
   }
   warp_bootstrapped

@@ -24,7 +24,7 @@ pub trait CloudStringObject: CloudObject + Send + Sync {
     /// Returns a serialized model from this string object.
     fn serialized(&self) -> SerializedModel;
 
-    /// Returns a cloned boxed version of this cloud object.
+    /// Returns a cloned boxed version of this local object.
     /// Note that we can't force this trait to derive from Cloned
     /// directly because that would make the trait not object safe.  This
     /// is a workaround.
@@ -34,9 +34,9 @@ pub trait CloudStringObject: CloudObject + Send + Sync {
 /// A `StringModel` is a model that can be serialized and deserialized as a simple string.
 ///
 /// Any model that has a simple string representation (e.g. JSON, markdown, yaml) that can be atomically updated
-/// can implement this trait and get most cloud object functionality for free.
+/// can implement this trait and get most local object functionality for free.
 ///
-/// Objects that implement this type all share common storage and server apis.
+/// Objects that implement this type share common local storage plumbing.
 pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
     type CloudObjectType: CloudObject + 'static;
 

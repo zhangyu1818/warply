@@ -26,12 +26,13 @@ use super::{
     event::BootstrappedEvent,
     model::{
         ansi,
-        session::{IsLegacySSHSession, SessionId, SessionInfo},
+        session::{IsLegacySSHSession, SessionInfo},
         terminal_model::{CommandType, HandlerEvent},
     },
 };
 use crate::features::FeatureFlag;
 use crate::terminal::shell::ShellType;
+use warp_core::SessionId;
 
 /// Model that dispatches events that have been emitted by the [`crate::terminal::TerminalModel`],
 /// allowing other models/views to subscribe to `TerminalModel` events like it would any other
@@ -300,7 +301,7 @@ impl ModelEventDispatcher {
 
     /// Finalizes session initialization by calling `Sessions::initialize_bootstrapped_session`.
     ///
-    /// For legacy SSH sessions with the `SshRemoteServer` flag, this also
+    /// For ControlMaster-backed SSH sessions with the `SshRemoteServer` flag, this also
     /// sends the `SessionBootstrapped` notification to the remote server via
     /// the manager.
     fn complete_bootstrapped_session(
@@ -325,16 +326,6 @@ impl ModelEventDispatcher {
             session_info.shell.shell_path().clone(),
         );
 
-        self.sessions.update(ctx, |sessions, ctx| {
-            sessions.initialize_bootstrapped_session(
-                *session_info,
-                spawning_command,
-                restored_block_commands,
-                rcfiles_duration_seconds,
-                ctx,
-            );
-        });
-
         if FeatureFlag::SshRemoteServer.is_enabled() && is_legacy_ssh {
             RemoteServerManager::handle(ctx).update(ctx, |mgr, _ctx| {
                 mgr.notify_session_bootstrapped(
@@ -344,6 +335,16 @@ impl ModelEventDispatcher {
                 );
             });
         }
+
+        self.sessions.update(ctx, |sessions, ctx| {
+            sessions.initialize_bootstrapped_session(
+                *session_info,
+                spawning_command,
+                restored_block_commands,
+                rcfiles_duration_seconds,
+                ctx,
+            );
+        });
     }
 
     /// Emits an event so `TerminalView` can render the remote server block.

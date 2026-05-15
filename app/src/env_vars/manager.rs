@@ -3,9 +3,10 @@ use crate::{
     env_vars::view::env_var_collection::EnvVarCollectionView,
     object_ids::SyncId,
     pane_group::{EnvVarCollectionPane, PaneContent},
-    safe_warn, PaneViewLocator, WindowId,
+    PaneViewLocator, WindowId,
 };
 use std::collections::{hash_map::Entry, HashMap};
+use warp_core::safe_warn;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle};
 
 pub struct EnvVarCollectionManager {

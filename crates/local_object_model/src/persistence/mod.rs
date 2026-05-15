@@ -1,4 +1,4 @@
-//! Persistence utilities for cloud objects.
+//! Persistence utilities for local persisted objects.
 
 use diesel::SqliteConnection;
 use diesel::result::Error;
@@ -10,17 +10,17 @@ use crate::ids::SyncId;
 use persistence::model::{NewObjectMetadata, NewObjectPermissions, ObjectMetadata};
 use persistence::schema;
 
-/// The sqlite id of a cloud object.
+/// The sqlite id of a local persisted object.
 pub type CloudObjectId = i32;
 
-/// When upserting a cloud object, this callback is used to create the cloud
-/// object itself. It returns the id of the created cloud object.
+/// When upserting a local persisted object, this callback creates the object row.
+/// It returns the id of the created object.
 /// Note: the supplied conn has already started a transaction.
 pub type CreateCloudObjectFn =
     Box<dyn FnOnce(&mut SqliteConnection) -> Result<CloudObjectId, Error>>;
 
-/// When upserting a cloud object, this callback is used to update the cloud
-/// object. It takes the id of the cloud object to update as a parameter.
+/// When upserting a local persisted object, this callback updates the object row.
+/// It takes the sqlite id of the object to update as a parameter.
 /// The supplied conn has already started a transaction.
 pub type UpdateCloudObjectFn =
     Box<dyn FnOnce(&mut SqliteConnection, CloudObjectId) -> Result<(), Error>>;
@@ -89,35 +89,23 @@ pub fn upsert_cloud_object(
                 ))
                 .execute(conn)?;
 
-            if !cloud_object_metadata
-                .pending_changes_statuses
-                .has_pending_metadata_change
-            {
-                diesel::update(metadata_filter)
-                    .set((
-                        metadata_last_updated_ts.eq(metadata_last_updated_at),
-                        trashed_ts.eq(trashed_timestamp),
-                        folder_id.eq(folder_id_str),
-                        current_editor.eq(cloud_object_metadata.current_editor_uid),
-                    ))
-                    .execute(conn)?;
-            }
+            diesel::update(metadata_filter)
+                .set((
+                    metadata_last_updated_ts.eq(metadata_last_updated_at),
+                    trashed_ts.eq(trashed_timestamp),
+                    folder_id.eq(folder_id_str),
+                    current_editor.eq(cloud_object_metadata.current_editor_uid),
+                ))
+                .execute(conn)?;
 
-            // Update the permissions.
-            if !cloud_object_metadata
-                .pending_changes_statuses
-                .has_pending_permissions_change
-            {
-                let permissions_filter =
-                    object_permissions.filter(object_metadata_id.eq(metadata.id));
-                diesel::update(permissions_filter)
-                    .set((
-                        subject_type.eq(subject_type_value),
-                        subject_id.eq(subject_id_value),
-                        subject_uid.eq(subject_uid_value),
-                    ))
-                    .execute(conn)?;
-            }
+            let permissions_filter = object_permissions.filter(object_metadata_id.eq(metadata.id));
+            diesel::update(permissions_filter)
+                .set((
+                    subject_type.eq(subject_type_value),
+                    subject_id.eq(subject_id_value),
+                    subject_uid.eq(subject_uid_value),
+                ))
+                .execute(conn)?;
         }
         None => {
             // The object doesn't exist in sqlite so create the object.
@@ -156,9 +144,8 @@ pub fn upsert_cloud_object(
                 current_editor: cloud_object_metadata.current_editor_uid,
             };
 
-            // There are two distinct cases:
-            // - If the client created this object, the clientId will be set. There is another model event to set the server id.
-            // - Otherwise, the server notified the client about this object so only the serverId will be set.
+            // There are two local identifier forms. New local objects use client IDs;
+            // retained server-style IDs are written to the legacy server_id column.
             match sync_id {
                 SyncId::ClientId(_) => {
                     new_object_metadata.client_id = Some(hashed_sync_id);

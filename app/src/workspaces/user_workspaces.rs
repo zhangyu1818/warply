@@ -20,16 +20,9 @@ impl UserWorkspaces {
         vec![Space::Personal]
     }
 
-    pub fn current_user_owner(&self, ctx: &AppContext) -> Option<Owner> {
-        LocalIdentityProvider::as_ref(ctx)
-            .get()
-            .user_id()
-            .map(|user_uid| Owner::User { user_uid })
-    }
-
-    pub fn space_to_owner(&self, space: Space, ctx: &AppContext) -> Option<Owner> {
-        match space {
-            Space::Personal => self.current_user_owner(ctx),
+    pub fn current_user_owner(&self, ctx: &AppContext) -> Owner {
+        Owner::User {
+            user_uid: LocalIdentityProvider::as_ref(ctx).get().user_id(),
         }
     }
 
@@ -37,7 +30,7 @@ impl UserWorkspaces {
         match owner {
             Owner::User { user_uid } => {
                 let current_user = LocalIdentityProvider::as_ref(ctx).get().user_id();
-                debug_assert_eq!(Some(user_uid), current_user);
+                debug_assert_eq!(user_uid, current_user);
                 Space::Personal
             }
         }

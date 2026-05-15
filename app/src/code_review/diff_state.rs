@@ -21,7 +21,6 @@ cfg_if::cfg_if! {
         use std::future::Future;
     }
 }
-#[cfg(not(target_arch = "wasm32"))]
 use warpui::AppContext;
 use warpui::{r#async::SpawnedFutureHandle, ModelContext};
 
@@ -36,7 +35,6 @@ use crate::util::git::{
 
 use super::diff_size_limits::compute_diff_size;
 
-#[cfg(not(target_family = "wasm"))]
 use warp_core::channel::ChannelState;
 use warp_core::safe_warn;
 
@@ -732,7 +730,6 @@ impl DiffStateModel {
         _should_fetch_base: bool,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
     }
 
     /// Stashes uncommitted changes for specific files
@@ -1037,7 +1034,6 @@ impl DiffStateModel {
         _branch_name: Option<String>,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
     }
 
     /// Sets whether the code review pane needs diff metadata.
@@ -1095,7 +1091,6 @@ impl DiffStateModel {
         _invalidation_behavior: InvalidationBehavior,
         _ctx: &mut ModelContext<Self>,
     ) {
-        // Noop on WASM builds.
     }
 
     #[cfg(feature = "local_fs")]

@@ -73,7 +73,6 @@ pub struct AltScreenElement {
     active_session_state: ActiveSessionState,
     selection_range: Option<Vec1<Range<Point>>>,
 
-    // Fields needed for vertical scrolling for shared session viewer when window is smaller than sharer's
     scroll_top: Lines,
     max_scroll_top: Option<Lines>,
     visible_lines: Option<Lines>,

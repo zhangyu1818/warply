@@ -24,7 +24,6 @@ use crate::{themes::theme_creator_body::ThemeCreatorBody, user_config};
 
 use super::{alacritty_parser::AlacrittyConfig, model::TerminalType};
 
-#[cfg(target_os = "macos")]
 use super::iterm_parser::ITermProfile;
 
 #[derive(Debug)]
@@ -241,7 +240,6 @@ impl Config {
             TerminalType::Alacritty => {
                 Config::create_from_external_configs::<AlacrittyConfig>(fonts).await
             }
-            #[cfg(target_os = "macos")]
             TerminalType::ITerm => {
                 Config::create_from_external_configs::<ITermProfile>(fonts).await
             }

@@ -41,12 +41,12 @@ Do not restore these systems when merging upstream:
 
 These remain part of the fork and should receive applicable upstream fixes:
 
-- Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions.
+- Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions, and Warpify for subshell/SSH sessions.
 - Natural language detection and input classification.
 - AgentView shell, conversation navigation, help shortcuts, code review side panel, context chips, local attachments.
 - ACP implementation under `app/src/ai/acp/`.
-- OpenAI-compatible suggestions under `app/src/ai/terminal_suggestions/` and `app/src/ai/predict/terminal_*`.
-- Local MCP file-based configuration.
+- OpenAI-compatible Next Command and Prompt Suggestions under `app/src/ai/terminal_suggestions/` and `app/src/ai/predict/terminal_*`.
+- ACP tool-call rendering. MCP server configuration belongs to the ACP agent process, not the Warp app.
 - Local persistence for conversations, workflows, prompts, AI facts, and retained object data.
 - OS launch-at-login settings.
 - SSH/remote terminal behavior that does not require Warp account auth.

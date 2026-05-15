@@ -28,7 +28,6 @@ use lazy_static::lazy_static;
 use unicode_general_category::{get_general_category, GeneralCategory};
 use unicode_width::UnicodeWidthChar;
 use urlocator::{UrlLocation, UrlLocator};
-use warp_core::features::FeatureFlag;
 use warp_core::semantic_selection::{SemanticSelection, SMART_SELECT_MATCH_WINDOW_LIMIT};
 use warp_core::{safe_assert, safe_assert_eq};
 use warp_terminal::model::grid::CellType;
@@ -1673,12 +1672,6 @@ impl GridHandler {
         // new block is started as part of the same PTY read, we'll only end up
         // calling the finish byte processing hook on _that_ block.
         self.on_finish_byte_processing(&ansi::ProcessorInput::new(&[]));
-
-        // If we're using flat storage, push as many rows as possible into
-        // flat storage to minimize memory consumption.
-        if FeatureFlag::MaximizeFlatStorage.is_enabled() {
-            self.resize_storage(1, self.columns());
-        }
     }
 
     /// Returns the total number of rows that _precede_ the row containing the

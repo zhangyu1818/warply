@@ -27,11 +27,6 @@ pub enum FeatureFlag {
     /// Ligature Support in the Editor and Grid
     Ligatures,
 
-    /// When enabled, the `History` rule from the command_corrections crate
-    /// will be enabled. When the `History` rule is enabled, the command_corrections
-    /// lib will use the user's history as a last-ditch effort to find a reasonable correction.
-    CommandCorrectionsHistoryRule,
-
     /// Warp Agent Mode.
     AgentMode,
 
@@ -57,9 +52,6 @@ pub enum FeatureFlag {
     /// Enables the settings file feature.
     SettingsFile,
 
-    /// Enables importing settings from supported terminals.
-    SettingsImport,
-
     /// Enables rect selection.
     RectSelection,
 
@@ -69,35 +61,12 @@ pub enum FeatureFlag {
     /// Enable dynamic enum parameter types for workflow arguments
     DynamicWorkflowEnums,
 
-    /// Enables workflows for use with Agent Mode.
-    AgentModeWorkflows,
-
     /// Enables AI rules for use with Agent Mode.
     AIRules,
-
-    /// Routes SSH sessions through the tmux-backed SSH wrapper.
-    SSHTmuxWrapper,
-
-    /// Reduces the amount of horizontal padding in the blocklist
-    /// from 20px to 16px.
-    LessHorizontalTerminalPadding,
 
     /// Enables the shell selector, allowing us to open a new tab in
     /// a shell other than the default shell.
     ShellSelector,
-
-    /// Replaces the bookmark button with a "save as workflow" button.
-    BlockToolbeltSaveAsWorkflow,
-
-    /// Lazily builds scenes at render time instead of eagerly when a view
-    /// changes.
-    LazySceneBuilding,
-
-    /// Removes the extraneous padding from the alt-screen that we previously had
-    /// to keep consistent size between blocklist and alt-screen.
-    ///
-    /// See plan here: https://docs.google.com/document/d/1TBPSWNfh4KylkEgL5o5xyYgK_KQzUQk1oxjuIx2ipXw
-    RemoveAltScreenPadding,
 
     /// Enables the full-screen "zen mode" setting, where we hide the tab bar if there's only one
     /// tab.
@@ -106,29 +75,16 @@ pub enum FeatureFlag {
     /// Playground for reducing Warp UI clutter.
     MinimalistUI,
 
-    /// Enables support for using native shell completions to supplement our
-    /// completion specs.
-    NativeShellCompletions,
-
     /// Adds aliases for executing workflows.
     WorkflowAliases,
 
     SshDragAndDrop,
     DragTabsToWindows,
 
-    /// Enables cycling through the next command suggestions with down arrow.
-    CycleNextCommandSuggestion,
-
     /// Enables multi-workspace selection.
     MultiWorkspace,
 
-    /// Maximizes data in flat storage to reduce memory usage.
-    MaximizeFlatStorage,
-
     ImeMarkedText,
-
-    /// Enables partial next command suggestions with a prefix.
-    PartialNextCommandSuggestions,
 
     /// Enables iTerm image rendering
     ITermImages,
@@ -142,47 +98,17 @@ pub enum FeatureFlag {
     /// Enables Kitty image rendering
     KittyImages,
 
-    /// Enables support for Warp Packs.
-    WarpPacks,
-
-    /// Enables suggested rules.
-    SuggestedRules,
-
-    /// Enables suggested workflows for Agent Mode.
-    SuggestedAgentModeWorkflows,
-
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
     /// Enables image as context for AM.
     ImageAsContext,
 
-    /// Retry truncated file edit responses from the coding agent.
-    RetryTruncatedCodeResponses,
-
     /// Enables the AI context menu, or at-menu.
     AIContextMenuEnabled,
 
-    /// Enables the AI context menu outside of AI input mode.
-    AtMenuOutsideOfAIMode,
-
-    /// Enables the resume button for cancelled AI conversations.
-    AIResumeButton,
-
-    /// Enables the agent to decide whether to execute a command.
-    AgentDecidesCommandExecution,
-
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
-
-    /// Enables the natural language classification model.
-    NLDClassifierModelEnabled,
-
-    /// Enables the fast-forward autoexecute button
-    FastForwardAutoexecuteButton,
-
-    /// Remembers the per-conversation fast-forward state across local session restoration.
-    RememberFastForwardState,
 
     /// Enables the find/replace in code editor
     CodeFindReplace,
@@ -190,23 +116,14 @@ pub enum FeatureFlag {
     /// Enables file search functionality in command palette
     CommandPaletteFileSearch,
 
-    /// Enables the AI context menu nesting and commands
-    AIContextMenuCommands,
-
     /// Enables sending stderr warnings in FileGlobV2 results.
     FileGlobV2Warnings,
-
-    /// Enables code symbols in AI context menu
-    AIContextMenuCode,
 
     /// Expands code diff edits to replace the current pane instead of opening in a new tab.
     ExpandEditToPane,
 
     /// Enables close button on left side of tabs
     TabCloseButtonOnLeft,
-
-    /// Enables new Search Codebase UI
-    SearchCodebaseUI,
 
     /// Enables return changed lines on apply diff result
     ChangedLinesOnlyApplyDiffResult,
@@ -219,9 +136,6 @@ pub enum FeatureFlag {
 
     /// Enables displaying imported PR review comments in the blocklist.
     PRCommentsV2,
-
-    /// Gates the bundled skill-based implementation of PR comment fetching.
-    PRCommentsSkill,
 
     /// An entrypoint pane type to launch other pane types from a search palette. The default view
     /// when creating a tab.
@@ -244,9 +158,6 @@ pub enum FeatureFlag {
 
     /// Allows opening file links using the $EDITOR environment variable.
     AllowOpeningFileLinksUsingEditorEnv,
-
-    /// Enables improvements to our natural language detection functionality.
-    NldImprovements,
 
     /// Enables the ability to undo closed panes.
     UndoClosedPanes,
@@ -287,14 +198,6 @@ pub enum FeatureFlag {
     /// Enables the local docker sandbox entrypoints in the client.
     LocalDockerSandbox,
 
-    /// Enables the /compact slash command.
-    SummarizationConversationCommand,
-
-    /// Groups MCP tools and resources by their originating server when sending context to the AI backend.
-    MCPGroupedServerContext,
-
-    /// Enables rendering of images in markdown files and AI responses.
-    MarkdownImages,
     /// Enables rendering Mermaid diagrams in markdown notebooks.
     MarkdownMermaid,
     /// Enables editable Mermaid diagrams to behave atomically in notebook and plan editors.
@@ -303,8 +206,6 @@ pub enum FeatureFlag {
     /// Enables rendering markdown tables in notebooks.
     MarkdownTables,
 
-    /// Enables rendering markdown tables inline in AI block list responses.
-    BlocklistMarkdownTableRendering,
     /// Enables rendering markdown images inline in AI block list responses.
     BlocklistMarkdownImages,
 
@@ -317,16 +218,7 @@ pub enum FeatureFlag {
     /// Enables embedded code review comments.
     EmbeddedCodeReviewComments,
 
-    /// Enables the revert to checkpoints feature.
-    RevertToCheckpoints,
-
-    /// Enables the /rewind slash command.
-    RewindSlashCommand,
-
     AgentView,
-
-    /// Enables block context functionality in Agent View.
-    AgentViewBlockContext,
 
     /// Enables the inline history menu for quickly accessing previous commands and conversations.
     InlineHistoryMenu,
@@ -334,66 +226,22 @@ pub enum FeatureFlag {
     /// Enables the inline repo switcher menu for switching between indexed repos.
     InlineRepoMenu,
 
-    /// Enables agent tips displayed below the warping indicator in Agent Mode.
-    AgentTips,
-
-    /// Enables computer use functionality in local clients.
-    LocalComputerUse,
-
-    /// Enables the "New agent" prompt chip in terminal mode when AgentView is enabled.
-    ///
-    /// When disabled (the default), the terminal message bar is shown instead.
-    AgentViewPromptChip,
-
     /// Enables editing the agent input footer layout from the prompt context menu.
     AgentToolbarEditor,
 
     /// Enables configuring header toolbar item order, side placement, and visibility.
     ConfigurableToolbar,
 
-    // Enables a side panel conversation list view for AgentView mode.
-    AgentViewConversationListView,
-
-    /// When enabled, the server will use message replacement + retroactive subtasks for
-    /// summarization.
-    SummarizationViaMessageReplacement,
-
     /// Enables pluggable notifications via OSC 9 and OSC 777 escape sequences.
     /// External programs can trigger system and in-app notifications.
     PluggableNotifications,
 
-    /// Enables sending the server a list of Skills that the client has access to.
-    ///
-    /// If disabled, the server will send None as the SkillsContext.
-    ListSkills,
-
-    /// When enabled, we expose LSP as a tool to the agent
-    LSPAsATool,
-
-    /// Enables platform skills support (--skill flag) for agent runs.
-    ///
-    /// Skills are loaded from `.agents/skills/`, `.warp/skills/`, `.claude/skills/`, and `.codex/skills/`
-    /// directories to provide base prompts for agent runs.
-    PlatformSkills,
-
-    /// Enables loading and returning bundled skills in the SkillManager.
-    BundledSkills,
-
     /// Updated tab styling (background colors, border, close button positioning, margins).
     NewTabStyling,
-
-    /// Enables file-based MCP server support via .mcp.json files in repo roots.
-    FileBasedMcp,
-
-    /// Enables passing user query arguments to skill invocations ($ARGUMENTS, $N).
-    SkillArguments,
 
     /// When enabled, a conversation is only considered "active" once a new query has been
     /// sent since opening (rather than the moment its agent view is expanded).
     ActiveConversationRequiresInteraction,
-
-    /// Enables attaching conversations as context in Agent Mode via the @ menu.
-    ConversationsAsContext,
 
     /// Enables the rich input editor for CLI agents (e.g., Claude Code).
     /// Ctrl-G intercepts the keystroke and opens Warp's input editor instead of $EDITOR.
@@ -405,14 +253,6 @@ pub enum FeatureFlag {
     /// Enables scroll position preservation in the code review pane when file
     /// content changes via auto-reload.
     CodeReviewScrollPreservation,
-
-    /// Shows a pending user query indicator during summarization when a follow-up
-    /// prompt is queued via `/fork-and-compact` or `/compact-and`.
-    PendingUserQueryIndicator,
-
-    /// Gates the `/queue` slash command, which lets users queue a follow-up prompt
-    /// while the agent is mid-response.
-    QueueSlashCommand,
 
     /// Enables Kitty keyboard protocol support (CSI u encoding, progressive enhancement).
     KittyKeyboardProtocol,
@@ -436,12 +276,6 @@ pub enum FeatureFlag {
 
     /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
     TabConfigs,
-
-    /// Enables the ask_user_question tool allowing the agent to ask clarifying questions.
-    AskUserQuestion,
-
-    /// Replaces the in-block warpification banner with a warpify footer.
-    WarpifyFooter,
 
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
@@ -483,28 +317,15 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ToggleBootstrapBlock,
     FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
     FeatureFlag::ResizeFix,
-    FeatureFlag::AgentModeWorkflows,
-    FeatureFlag::SSHTmuxWrapper,
-    FeatureFlag::LazySceneBuilding,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
-    FeatureFlag::RetryTruncatedCodeResponses,
     FeatureFlag::ContextLineReviewComments,
-    FeatureFlag::NLDClassifierModelEnabled,
     FeatureFlag::Projects,
-    FeatureFlag::MarkdownImages,
     FeatureFlag::FileAndDiffSetComments,
     FeatureFlag::FileGlobV2Warnings,
-    FeatureFlag::SummarizationViaMessageReplacement,
-    FeatureFlag::LocalComputerUse,
-    FeatureFlag::PlatformSkills,
-    FeatureFlag::AgentViewBlockContext,
-    FeatureFlag::PendingUserQueryIndicator,
-    FeatureFlag::QueueSlashCommand,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,
-    FeatureFlag::RememberFastForwardState,
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,
     FeatureFlag::SshRemoteServer,
@@ -514,7 +335,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
 /// Features enabled for feature preview build users (e.g.: Friends of Warp).
 /// All PREVIEW_FLAGS are also automatically added to dogfood builds (WarpDev).
 pub const PREVIEW_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::BlocklistMarkdownTableRendering,
     FeatureFlag::MarkdownTables,
     FeatureFlag::GitOperationsInCodeReview,
 ];
@@ -593,9 +413,6 @@ impl FeatureFlag {
                 Some("Enables rendering markdown images inline in AI block list responses.")
             }
             GlobalSearch => Some("Enables global search in the left panel"),
-            BlocklistMarkdownTableRendering => {
-                Some("Enables rendering markdown tables inline in AI block list responses.")
-            }
             MarkdownTables => {
                 Some("Enables rendering and interaction support for markdown tables in notebooks.")
             }

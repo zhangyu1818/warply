@@ -357,7 +357,6 @@ fn test_parse_tab_path_bare_tilde() {
 // up a full `AppContext`.
 
 #[test]
-#[cfg(unix)]
 fn test_open_file_executable_sh_routes_to_execute() {
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
@@ -371,7 +370,6 @@ fn test_open_file_executable_sh_routes_to_execute() {
 }
 
 #[test]
-#[cfg(unix)]
 fn test_open_file_non_executable_sh_routes_to_editor() {
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
@@ -382,7 +380,6 @@ fn test_open_file_non_executable_sh_routes_to_editor() {
 }
 
 #[test]
-#[cfg(unix)]
 fn test_open_file_executable_bash_zsh_fish_route_to_execute() {
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
@@ -425,7 +422,6 @@ fn test_open_file_directory_routes_to_session() {
 }
 
 #[test]
-#[cfg(unix)]
 fn test_open_file_non_runnable_shebang_routes_to_editor() {
     // Extensionless `#!/bin/sh` file without the user-execute bit. Without the
     // shebang fall-through this would hit `ExecuteInSession` and the shell would

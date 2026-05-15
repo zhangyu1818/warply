@@ -1,5 +1,5 @@
 use warpui::{
-    elements::{Container, Flex, MouseStateHandle, ParentElement},
+    elements::{Container, Flex, ParentElement},
     fonts::Weight,
     ui_components::components::{UiComponent, UiComponentStyles},
     AppContext, Element, SingletonEntity,
@@ -13,7 +13,7 @@ use crate::{
     },
     drive::{CloudObjectTypeAndId, DriveObjectType},
     themes::theme::Fill,
-    workflows::CloudWorkflow,
+    workflows::SavedWorkflow,
 };
 
 use super::{LocalObjectItem, LocalObjectItemId};
@@ -21,11 +21,11 @@ use super::{LocalObjectItem, LocalObjectItemId};
 #[derive(Clone)]
 pub struct LocalObjectWorkflow {
     id: CloudObjectTypeAndId,
-    workflow: CloudWorkflow,
+    workflow: SavedWorkflow,
 }
 
 impl LocalObjectWorkflow {
-    pub fn new(id: CloudObjectTypeAndId, workflow: CloudWorkflow) -> Self {
+    pub fn new(id: CloudObjectTypeAndId, workflow: SavedWorkflow) -> Self {
         Self { id, workflow }
     }
 }
@@ -99,17 +99,6 @@ impl LocalObjectItem for LocalObjectWorkflow {
 
     fn local_object_id(&self) -> LocalObjectItemId {
         LocalObjectItemId::Object(self.id)
-    }
-
-    fn sync_status_icon(
-        &self,
-        hover_state: MouseStateHandle,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        self.workflow
-            .metadata
-            .pending_changes_statuses
-            .render_icon(hover_state, appearance)
     }
 
     fn action_summary(&self, app: &AppContext) -> Option<String> {

@@ -110,17 +110,12 @@ async fn dump_jemalloc_heap_profile_inner() -> anyhow::Result<Vec<u8>> {
 
 #[cfg(feature = "heap_usage_tracking")]
 fn pprof_binary_path() -> anyhow::Result<std::path::PathBuf> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            use anyhow::Context as _;
+    use anyhow::Context as _;
 
-            let app_bundle_dir = std::path::PathBuf::from(warp_core::macos::get_bundle_path().context("Failed to get app bundle path")?);
-            Ok(app_bundle_dir.join("Contents/Helpers/pprof"))
-        }
-        else {
-            Err(anyhow::anyhow!("pprof binary path not supported on this platform"))
-        }
-    }
+    let app_bundle_dir = std::path::PathBuf::from(
+        warp_core::macos::get_bundle_path().context("Failed to get app bundle path")?,
+    );
+    Ok(app_bundle_dir.join("Contents/Helpers/pprof"))
 }
 
 /// Returns the path at which heap profiles will be written.
@@ -171,7 +166,6 @@ fn profile_output_dir() -> std::path::PathBuf {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
 pub fn make_router() -> axum::Router {
     let router = axum::Router::new();
 

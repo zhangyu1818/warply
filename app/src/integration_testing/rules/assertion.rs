@@ -45,7 +45,7 @@ pub fn assert_rule_count(expected_count: usize) -> AssertionCallback {
     })
 }
 
-/// Helper function to count AI facts in the cloud model
+/// Helper function to count AI facts in the local object model.
 pub fn rule_count(cloud_model: &CloudModel, _ctx: &AppContext) -> usize {
     cloud_model
         .get_all_objects_of_type::<GenericStringObjectId, CloudAIFactModel>()

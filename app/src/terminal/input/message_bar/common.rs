@@ -280,7 +280,7 @@ fn render_terminal_message_items(items: &[MessageItem], app: &AppContext) -> Box
                 let mut key_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
                 for (i, key) in keys.iter().enumerate() {
-                    let mut key_text = key.text(true);
+                    let key_text = key.text(true);
                     let rendered_key = if key_text == "⏎" {
                         ConstrainedBox::new(
                             Icon::CornerDownLeft
@@ -300,9 +300,6 @@ fn render_terminal_message_items(items: &[MessageItem], app: &AppContext) -> Box
                         .with_width(icon_size)
                         .finish()
                     } else {
-                        if !cfg!(target_os = "macos") && i < (keys.len() - 1) {
-                            key_text = format!("{key_text}-").into();
-                        }
                         Text::new(key_text, font_family, icon_size)
                             .with_color(keystroke_color)
                             .soft_wrap(false)
