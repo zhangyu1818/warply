@@ -25,7 +25,6 @@ pub struct AgentConversationCapabilities {
     pub can_open: bool,
     pub can_delete: bool,
     pub can_fork_locally: bool,
-    pub can_cancel: bool,
 }
 
 pub(super) fn entry_for_conversation(
@@ -63,7 +62,7 @@ fn entry_for_conversation_parts(
         display: AgentConversationDisplayData {
             title,
             last_updated: nav_data.last_updated.into(),
-            status: status.clone(),
+            status,
             working_directory: nav_data
                 .latest_working_directory
                 .clone()
@@ -73,7 +72,6 @@ fn entry_for_conversation_parts(
             can_open: has_local_persisted_data,
             can_delete: has_local_persisted_data,
             can_fork_locally: has_local_persisted_data,
-            can_cancel: status.is_cancellable(),
         },
     }
 }

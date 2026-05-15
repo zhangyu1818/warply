@@ -48,10 +48,6 @@ impl AgentRunDisplayStatus {
         }
     }
 
-    pub fn is_cancellable(&self) -> bool {
-        matches!(self, AgentRunDisplayStatus::ConversationInProgress)
-    }
-
     pub fn status_icon_and_color(
         &self,
         theme: &WarpTheme,
