@@ -284,14 +284,11 @@ fn escape_markdown_link_label(label: &str) -> String {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[allow(dead_code)]
 pub struct AcpPlan {
     pub plan: Plan,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(dead_code)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct AcpCommands {
     pub commands: Vec<AvailableCommand>,
 }
@@ -302,9 +299,7 @@ impl AcpCommands {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(dead_code)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct AcpSessionConfig {
     pub current_mode: Option<CurrentModeUpdate>,
     pub config: Option<ConfigOptionUpdate>,
@@ -323,7 +318,6 @@ impl AcpSessionConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(dead_code)]
 pub struct AcpSessionInfo {
     pub info: SessionInfoUpdate,
 }

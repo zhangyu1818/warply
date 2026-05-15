@@ -6,7 +6,6 @@ use agent_client_protocol::schema::{
 use super::{AcpPermissionRequest, AcpTerminalTrace, AcpToolCall};
 
 #[derive(Clone, Debug, PartialEq)]
-#[allow(dead_code)]
 pub enum AcpEvent {
     AdapterMissing {
         command: String,

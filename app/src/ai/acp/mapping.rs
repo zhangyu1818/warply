@@ -3,7 +3,6 @@ use agent_client_protocol::schema::{ContentBlock, ContentChunk, SessionUpdate};
 use super::events::AcpEvent;
 use super::AcpToolCall;
 
-#[allow(dead_code)]
 pub fn map_session_update(update: SessionUpdate) -> Option<AcpEvent> {
     match update {
         SessionUpdate::UserMessageChunk(chunk) => {

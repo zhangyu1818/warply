@@ -42,7 +42,6 @@ use super::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum AcpAgentState {
     Idle,
     Starting,
@@ -160,16 +159,6 @@ impl AcpAgentModel {
         response
             .send(AcpPermissionSelection::Selected { option_id })
             .is_ok()
-    }
-
-    #[allow(dead_code)]
-    pub fn cancel_permission_request(&mut self, request_id: &str) -> bool {
-        let Some(response) = self.pending_permission_responses.remove(request_id) else {
-            log::warn!("ACP: permission cancel for unknown request_id={request_id}");
-            return false;
-        };
-
-        response.send(AcpPermissionSelection::Cancelled).is_ok()
     }
 
     pub fn cancel_session(&mut self, conversation_id: AIConversationId) -> bool {
