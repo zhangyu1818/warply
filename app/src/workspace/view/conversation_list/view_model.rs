@@ -1,7 +1,6 @@
 use crate::ai::agent_conversations_model::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationsModel,
-    AgentConversationsModelEvent, ArtifactFilter, ConversationListFilters, CreatedOnFilter,
-    SourceFilter, StatusFilter,
+    AgentConversationsModelEvent,
 };
 use fuzzy_match::match_indices_case_insensitive;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
@@ -52,15 +51,7 @@ impl ConversationListViewModel {
     fn refresh_cached_items(&mut self, ctx: &mut ModelContext<Self>) {
         let model = self.conversations_model.as_ref(ctx);
         self.cached_entry_ids = model
-            .get_entries(
-                &ConversationListFilters {
-                    status: StatusFilter::All,
-                    source: SourceFilter::All,
-                    created_on: CreatedOnFilter::All,
-                    artifact: ArtifactFilter::All,
-                },
-                ctx,
-            )
+            .get_entries(ctx)
             .into_iter()
             .filter(|entry| entry.capabilities.can_open)
             .map(|entry| entry.id)

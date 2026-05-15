@@ -4,10 +4,7 @@ use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHis
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use chrono::{DateTime, Utc};
 
-use super::{
-    artifacts_match_filter, AgentRunDisplayStatus, ArtifactFilter, ConversationListFilters,
-    ConversationMetadata, CreatedOnFilter, SourceFilter, StatusFilter,
-};
+use super::{AgentRunDisplayStatus, ConversationMetadata};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AgentConversationEntryId {
@@ -45,46 +42,6 @@ pub struct AgentConversationCapabilities {
     pub can_delete: bool,
     pub can_fork_locally: bool,
     pub can_cancel: bool,
-}
-
-impl AgentConversationEntry {
-    pub(super) fn matches_filters(&self, filters: &ConversationListFilters) -> bool {
-        self.matches_status(&filters.status)
-            && self.matches_source(&filters.source)
-            && self.matches_created_on(&filters.created_on)
-            && self.matches_artifact(&filters.artifact)
-    }
-
-    fn matches_status(&self, status_filter: &StatusFilter) -> bool {
-        match status_filter {
-            StatusFilter::All => true,
-            StatusFilter::Working | StatusFilter::Done | StatusFilter::Failed => {
-                self.display.status.status_filter() == *status_filter
-            }
-        }
-    }
-
-    fn matches_source(&self, source_filter: &SourceFilter) -> bool {
-        matches!(source_filter, SourceFilter::All)
-    }
-
-    fn matches_created_on(&self, created_on_filter: &CreatedOnFilter) -> bool {
-        let now = Utc::now();
-        let created_cutoff = match created_on_filter {
-            CreatedOnFilter::All => None,
-            CreatedOnFilter::Last24Hours => Some(now - chrono::Duration::hours(24)),
-            CreatedOnFilter::Past3Days => Some(now - chrono::Duration::days(3)),
-            CreatedOnFilter::LastWeek => Some(now - chrono::Duration::days(7)),
-        };
-        match created_cutoff {
-            Some(cutoff) => self.display.created_at >= cutoff,
-            None => true,
-        }
-    }
-
-    fn matches_artifact(&self, artifact_filter: &ArtifactFilter) -> bool {
-        artifacts_match_filter(&self.display.artifacts, artifact_filter)
-    }
 }
 
 pub(super) fn entry_for_conversation(

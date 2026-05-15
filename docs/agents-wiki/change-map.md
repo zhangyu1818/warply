@@ -374,6 +374,7 @@ This map explains the large fork baseline change at a path level.
 - Removed unused conversation-list copy-link/share capability fields. Local ACP conversation entries expose only retained local actions such as open, delete, fork, and cancel; do not restore cloud link sharing controls.
 - Collapsed conversation-list entry identity/provenance to the local ACP conversation ID. Do not restore cloud-vs-local dual identity or provenance wrappers for conversation entries.
 - Removed conversation-list entry backing-source metadata. Local ACP conversation entries are resolved directly from the retained navigation map and current local capabilities, not from cloud/local backing-source fallbacks.
+- Removed unused conversation-list status/source/date/artifact filter model. The retained local conversation list uses search text and local openability only; do not restore old cloud conversation filtering shells without a current local UI.
 
 ## Legacy Names Still Present
 

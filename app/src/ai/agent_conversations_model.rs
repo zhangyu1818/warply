@@ -6,57 +6,13 @@ pub use entry::{
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
-use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use warp_core::ui::theme::{color::internal_colors, WarpTheme};
 use warpui::color::ColorU;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum StatusFilter {
-    #[default]
-    All,
-    Working,
-    Done,
-    Failed,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum SourceFilter {
-    #[default]
-    All,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum ArtifactFilter {
-    #[default]
-    All,
-    PullRequest,
-    Plan,
-    Screenshot,
-    File,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum CreatedOnFilter {
-    #[default]
-    All,
-    Last24Hours,
-    Past3Days,
-    LastWeek,
-}
-
-#[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
-pub struct ConversationListFilters {
-    pub status: StatusFilter,
-    pub source: SourceFilter,
-    pub created_on: CreatedOnFilter,
-    pub artifact: ArtifactFilter,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentRunDisplayStatus {
@@ -77,16 +33,6 @@ impl AgentRunDisplayStatus {
             ConversationStatus::Blocked { blocked_action } => Self::ConversationBlocked {
                 blocked_action: blocked_action.clone(),
             },
-        }
-    }
-
-    pub fn status_filter(&self) -> StatusFilter {
-        match self {
-            AgentRunDisplayStatus::ConversationInProgress => StatusFilter::Working,
-            AgentRunDisplayStatus::ConversationSucceeded => StatusFilter::Done,
-            AgentRunDisplayStatus::ConversationError
-            | AgentRunDisplayStatus::ConversationBlocked { .. }
-            | AgentRunDisplayStatus::ConversationCancelled => StatusFilter::Failed,
         }
     }
 
@@ -153,27 +99,6 @@ pub struct ConversationMetadata {
     pub nav_data: ConversationNavigationData,
 }
 
-pub(crate) fn artifacts_match_filter(
-    artifacts: &[Artifact],
-    artifact_filter: &ArtifactFilter,
-) -> bool {
-    match artifact_filter {
-        ArtifactFilter::All => true,
-        ArtifactFilter::PullRequest => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::PullRequest { .. })),
-        ArtifactFilter::Plan => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::Plan { .. })),
-        ArtifactFilter::Screenshot => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::Screenshot { .. })),
-        ArtifactFilter::File => artifacts
-            .iter()
-            .any(|artifact| matches!(artifact, Artifact::File { .. })),
-    }
-}
-
 pub struct AgentConversationsModel {
     conversations: HashMap<AIConversationId, ConversationMetadata>,
 }
@@ -231,17 +156,12 @@ impl AgentConversationsModel {
     ) {
     }
 
-    pub fn get_entries(
-        &self,
-        filters: &ConversationListFilters,
-        app: &AppContext,
-    ) -> Vec<AgentConversationEntry> {
+    pub fn get_entries(&self, app: &AppContext) -> Vec<AgentConversationEntry> {
         let history_model = BlocklistAIHistoryModel::as_ref(app);
         let mut entries: Vec<_> = self
             .conversations
             .values()
             .map(|conversation| entry::entry_for_conversation(conversation, history_model))
-            .filter(|entry| entry.matches_filters(filters))
             .collect();
         entries.sort_by(|a, b| b.display.last_updated.cmp(&a.display.last_updated));
         entries
