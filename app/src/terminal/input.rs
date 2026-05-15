@@ -1861,7 +1861,6 @@ impl Input {
             prompt_selection_state_handle,
             view_id,
             input_render_state_model_handle.clone(),
-            ai_input_model.clone(),
         );
 
         let next_command_model = ctx.add_model(|_| {
@@ -1924,11 +1923,9 @@ impl Input {
                             let is_universal_developer_input_enabled = InputSettings::as_ref(app)
                                 .is_universal_developer_input_enabled(app);
 
-                            if (!FeatureFlag::AgentView.is_enabled()
-                                || !agent_view_controller_clone.as_ref(app).is_active())
+                            if !agent_view_controller_clone.as_ref(app).is_active()
                                 && should_render_prompt_using_editor_decorator_elements(
                                     is_universal_developer_input_enabled,
-                                    &ai_input_model,
                                     &terminal_model,
                                     app,
                                 )
@@ -1990,12 +1987,7 @@ impl Input {
                             ai_input_model_clone.as_ref(app).is_ai_input_enabled();
                         let appearance = Appearance::as_ref(app);
                         if is_ai_input_enabled {
-                            let color_identifier = if FeatureFlag::AgentView.is_enabled() {
-                                AnsiColorIdentifier::Magenta
-                            } else {
-                                AnsiColorIdentifier::Yellow
-                            };
-                            let cursor_color = color_identifier
+                            let cursor_color = AnsiColorIdentifier::Magenta
                                 .to_ansi_color(&appearance.theme().terminal_colors().normal);
                             let selection_color = ColorU::new(
                                 cursor_color.r,
