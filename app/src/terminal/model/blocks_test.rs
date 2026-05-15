@@ -1,5 +1,4 @@
 use float_cmp::{approx_eq, assert_approx_eq};
-use warp_core::features::FeatureFlag;
 use warpui::units::IntoLines;
 use warpui::{elements::DEFAULT_UI_LINE_HEIGHT_RATIO, App};
 
@@ -1348,7 +1347,6 @@ fn test_remove_rich_content_block() {
 
 #[test]
 fn test_conversation_scoped_rich_content_hidden_outside_fullscreen_agent_view() {
-    let _agent_view = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
     let conversation_id = AIConversationId::new();
@@ -1491,7 +1489,6 @@ fn test_clear_user_executed_command_blocks_for_conversation() {
 
 #[test]
 fn test_agent_origin_block_can_be_attached_to_other_conversation() {
-    let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
     let mut block_list =
         new_bootstrapped_block_list(None, None, ChannelEventListener::new_for_test());
 

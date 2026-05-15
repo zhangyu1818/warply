@@ -35,7 +35,6 @@ use std::ops::{AddAssign, Range, RangeInclusive};
 use std::sync::Arc;
 use std::time::Duration;
 use sum_tree::{Dimension, Item, SeekBias, SumTree};
-use warp_core::features::FeatureFlag;
 use warpui::color::ColorU;
 use warpui::r#async::executor::Background;
 use warpui::record_trace_event;
@@ -112,10 +111,6 @@ impl RichContentItem {
     }
 
     pub fn should_hide_for_agent_view_state(&self, agent_view_state: &AgentViewState) -> bool {
-        if !FeatureFlag::AgentView.is_enabled() {
-            return false;
-        }
-
         match agent_view_state {
             AgentViewState::Active {
                 conversation_id,
@@ -1456,9 +1451,9 @@ impl BlockList {
 
     /// Sets the agent view state for this blocklist.
     ///
-    /// With `FeatureFlag::AgentView` enabled, if the state is active, only blocks corresponding to
-    /// the active state's conversation ID are rendered. If inactive, only blocks with no conversation
-    /// ID (i.e. those executed in the top-level terminal context) are rendered.
+    /// If the state is active, only blocks corresponding to the active state's conversation ID are
+    /// rendered. If inactive, only blocks with no conversation ID (i.e. those executed in the
+    /// top-level terminal context) are rendered.
     ///
     /// Do not call this method directly. Instead, use the `AgentViewController` to enter/exit the
     /// agent view.
