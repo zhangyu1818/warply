@@ -4889,7 +4889,7 @@ impl Input {
         self.workflows_state.selected_workflow_state.is_some()
     }
 
-    pub fn workflows_info_box_open_workflow_cloud_id(&self) -> Option<SyncId> {
+    pub fn workflows_info_box_open_workflow_id(&self) -> Option<SyncId> {
         if let Some(state) = &self.workflows_state.selected_workflow_state {
             match &state.workflow_type {
                 WorkflowType::Saved(workflow) => Some(workflow.id),

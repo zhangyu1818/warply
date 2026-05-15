@@ -6271,7 +6271,7 @@ impl Workspace {
             let open_workflow_id = terminal_input.update(ctx, |input, _| {
                 // We only care to refresh if workflow info box is visible
                 if input.is_workflows_info_box_open() {
-                    input.workflows_info_box_open_workflow_cloud_id()
+                    input.workflows_info_box_open_workflow_id()
                 } else {
                     None
                 }

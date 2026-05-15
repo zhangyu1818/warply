@@ -1,7 +1,6 @@
 use crate::cloud_object::{
-    CloudModelType, CloudObjectLocation, GenericCloudObject, GenericStringObjectFormat,
-    JsonObjectType, ObjectIdType, ObjectType, Owner, Revision, RevisionAndLastEditor,
-    ServerTimestamp, Space,
+    CloudModelType, CloudObjectLocation, GenericCloudObject, ObjectIdType, ObjectType, Owner,
+    Revision, RevisionAndLastEditor, ServerTimestamp, Space,
 };
 use crate::drive::folders::{CloudFolder, CloudFolderModel};
 use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
@@ -506,31 +505,6 @@ impl CloudModel {
 
         if let Some(parent_folder_id) = parent_folder_id {
             self.force_expand_object_and_ancestors_internal(parent_folder_id, ctx);
-        }
-    }
-
-    /// Force expands object and its ancestors when given a CloudObjectTypeAndId input
-    pub fn force_expand_object_and_ancestors_cloud_id(
-        &mut self,
-        id: CloudObjectTypeAndId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match id {
-            CloudObjectTypeAndId::Workflow(sync_id) => {
-                self.force_expand_object_and_ancestors(sync_id, ctx)
-            }
-            CloudObjectTypeAndId::Folder(sync_id) => {
-                self.force_expand_object_and_ancestors(sync_id, ctx)
-            }
-            CloudObjectTypeAndId::GenericStringObject { object_type, id } => {
-                if let GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection) =
-                    object_type
-                {
-                    self.force_expand_object_and_ancestors(id, ctx)
-                } else {
-                    log::error!("Attempted to force expand an unsupported GenericStringObject type")
-                }
-            }
         }
     }
 

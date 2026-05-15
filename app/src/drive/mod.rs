@@ -7,7 +7,7 @@ use std::fmt;
 
 use crate::{
     cloud_object::{GenericStringObjectFormat, ObjectIdType, ObjectType},
-    object_ids::{HashedSqliteId, ObjectUid, ServerId, SyncId},
+    object_ids::{HashedSqliteId, ObjectUid, SyncId},
     ui_components::icons::Icon,
 };
 
@@ -130,30 +130,6 @@ impl CloudObjectTypeAndId {
     pub fn as_generic_string_object_id(self) -> Option<SyncId> {
         match self {
             CloudObjectTypeAndId::GenericStringObject { object_type: _, id } => Some(id),
-            _ => None,
-        }
-    }
-
-    pub fn has_server_id(self) -> bool {
-        matches!(
-            self,
-            CloudObjectTypeAndId::Workflow(SyncId::ServerId(_))
-                | CloudObjectTypeAndId::Folder(SyncId::ServerId(_))
-                | CloudObjectTypeAndId::GenericStringObject {
-                    id: SyncId::ServerId(_),
-                    ..
-                }
-        )
-    }
-
-    pub fn server_id(self) -> Option<ServerId> {
-        match self {
-            CloudObjectTypeAndId::Workflow(SyncId::ServerId(workflow_id)) => Some(workflow_id),
-            CloudObjectTypeAndId::Folder(SyncId::ServerId(folder_id)) => Some(folder_id),
-            CloudObjectTypeAndId::GenericStringObject {
-                id: SyncId::ServerId(json_object_id),
-                ..
-            } => Some(json_object_id),
             _ => None,
         }
     }
