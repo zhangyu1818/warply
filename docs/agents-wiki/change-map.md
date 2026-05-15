@@ -390,6 +390,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `ValidateAutosuggestions` rollout flag and Cargo feature. OpenAI-compatible Next Command/autosuggestions now run retained local command validation directly; do not restore an old disabled-validation branch around terminal suggestions.
 - Removed the `ClearAutosuggestionOnEscape` rollout flag and Cargo feature. Escape now directly clears retained terminal autosuggestions when the editor is in the applicable normal-selection state; do not restore an off branch for old rollout state.
 - Removed the `RemoveAutosuggestionDuringTabCompletions` rollout flag. Opening tab completions now directly hides terminal autosuggestions unless completions-as-you-type is active; do not restore dogfood-only branches around retained terminal completion UX.
+- Removed the `.warp` workflow that copied the WarpDev keychain refresh token into the local app keychain service. This fork should not ship or document developer workflows that restore Warp account token reuse, login migration, or app authentication bootstrap paths.
 
 ## Legacy Names Still Present
 
