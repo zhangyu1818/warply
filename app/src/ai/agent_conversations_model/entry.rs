@@ -3,7 +3,7 @@ use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHis
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use chrono::{DateTime, Utc};
 
-use super::{AgentRunDisplayStatus, ConversationMetadata};
+use super::AgentRunDisplayStatus;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentConversationEntry {
@@ -21,19 +21,15 @@ pub struct AgentConversationDisplayData {
 }
 
 pub(super) fn entry_for_conversation(
-    metadata: &ConversationMetadata,
+    nav_data: &ConversationNavigationData,
     history_model: &BlocklistAIHistoryModel,
 ) -> AgentConversationEntry {
-    let conversation_metadata = history_model.get_conversation_metadata(&metadata.nav_data.id);
-    entry_for_conversation_parts(
-        metadata.nav_data.clone(),
-        conversation_metadata,
-        history_model,
-    )
+    let conversation_metadata = history_model.get_conversation_metadata(&nav_data.id);
+    entry_for_conversation_parts(nav_data, conversation_metadata, history_model)
 }
 
 fn entry_for_conversation_parts(
-    nav_data: ConversationNavigationData,
+    nav_data: &ConversationNavigationData,
     conversation_metadata: Option<&AIConversationMetadata>,
     history_model: &BlocklistAIHistoryModel,
 ) -> AgentConversationEntry {

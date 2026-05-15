@@ -89,12 +89,8 @@ impl std::fmt::Display for AgentRunDisplayStatus {
     }
 }
 
-pub struct ConversationMetadata {
-    pub nav_data: ConversationNavigationData,
-}
-
 pub struct AgentConversationsModel {
-    conversations: HashMap<AIConversationId, ConversationMetadata>,
+    conversations: HashMap<AIConversationId, ConversationNavigationData>,
 }
 
 pub enum AgentConversationsModelEvent {
@@ -127,8 +123,7 @@ impl AgentConversationsModel {
         let nav_data_list = ConversationNavigationData::all_conversations(ctx);
         self.conversations.clear();
         for nav_data in nav_data_list {
-            self.conversations
-                .insert(nav_data.id, ConversationMetadata { nav_data });
+            self.conversations.insert(nav_data.id, nav_data);
         }
         ctx.emit(AgentConversationsModelEvent::ConversationsLoaded);
     }
@@ -176,11 +171,7 @@ impl AgentConversationsModel {
         let conversation_id = entry.conversation_id;
 
         if active_views_model.is_conversation_open(conversation_id, app) {
-            if let Some(nav_data) = self
-                .conversations
-                .get(&conversation_id)
-                .map(|metadata| &metadata.nav_data)
-            {
+            if let Some(nav_data) = self.conversations.get(&conversation_id) {
                 return Some(WorkspaceAction::RestoreOrNavigateToConversation {
                     conversation_id,
                     window_id: nav_data.window_id,
@@ -197,10 +188,7 @@ impl AgentConversationsModel {
             }
         }
 
-        let nav_data = self
-            .conversations
-            .get(&conversation_id)
-            .map(|metadata| &metadata.nav_data)?;
+        let nav_data = self.conversations.get(&conversation_id)?;
 
         Some(WorkspaceAction::RestoreOrNavigateToConversation {
             conversation_id,
