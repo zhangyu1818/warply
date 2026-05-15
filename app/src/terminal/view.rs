@@ -4715,7 +4715,7 @@ impl TerminalView {
         self.input.update(ctx, |input, ctx| {
             // Remove the @-trigger text (e.g. "@uncom") that was used to open the context menu.
             input.replace_at_symbol_with_text(&attachment_reference, ctx);
-            input.ensure_agent_mode_for_ai_features(true, ctx);
+            input.ensure_agent_mode_for_ai_features(ctx);
         });
 
         // Load the diff data asynchronously and complete the attachment when done

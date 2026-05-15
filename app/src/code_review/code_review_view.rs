@@ -5898,7 +5898,7 @@ impl CodeReviewView {
                 terminal_view.input().update(ctx, |input, ctx| {
                     input.append_to_buffer(&location, ctx);
                     // Ensure agent mode for AI features
-                    input.ensure_agent_mode_for_ai_features(true, ctx);
+                    input.ensure_agent_mode_for_ai_features(ctx);
                 });
             });
         }
@@ -6030,7 +6030,7 @@ impl CodeReviewView {
                 terminal_view.update(ctx, |terminal_view, ctx| {
                     terminal_view.input().update(ctx, |input, ctx| {
                         input.append_to_buffer(&format!("{attachment_reference} "), ctx);
-                        input.ensure_agent_mode_for_ai_features(true, ctx);
+                        input.ensure_agent_mode_for_ai_features(ctx);
                     });
                 });
 
@@ -6186,7 +6186,7 @@ impl CodeReviewView {
                 terminal_view.update(ctx, |terminal_view, ctx| {
                     terminal_view.input().update(ctx, |input, ctx| {
                         input.append_to_buffer(&format!("{attachment_reference} "), ctx);
-                        input.ensure_agent_mode_for_ai_features(true, ctx);
+                        input.ensure_agent_mode_for_ai_features(ctx);
                     });
                 });
 

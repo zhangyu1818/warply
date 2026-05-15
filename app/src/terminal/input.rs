@@ -4129,7 +4129,7 @@ impl Input {
     fn select_image(&mut self, ctx: &mut ViewContext<Self>) {
         self.focus_input_box(ctx);
 
-        self.ensure_agent_mode_for_ai_features(true, ctx);
+        self.ensure_agent_mode_for_ai_features(ctx);
 
         // Update image context options immediately after switching to AI mode
         // to ensure attach_images has the correct state
@@ -4263,9 +4263,6 @@ impl Input {
             }
             UniversalDeveloperInputButtonBarEvent::OpenSlashCommandMenu => {
                 self.focus_input_box(ctx);
-                if !FeatureFlag::AgentView.is_enabled() {
-                    self.ensure_agent_mode_for_ai_features(false, ctx);
-                }
                 self.toggle_slash_commands_menu(ctx);
             }
         }
@@ -4278,22 +4275,11 @@ impl Input {
         });
     }
 
-    /// Helper function to ensure agent mode when needed, using the same logic as SelectFile.
-    /// This handles the transition from shell mode to agent mode while preserving lock semantics.
-    /// Only forces agent mode if the user hasn't explicitly locked the mode to Shell.
-    pub fn ensure_agent_mode_for_ai_features(
-        &mut self,
-        should_override_shell_lock: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn ensure_agent_mode_for_ai_features(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_input_model = self.ai_input_model.as_ref(ctx);
         let config = ai_input_model.input_config();
 
-        // Don't force agent mode if user has explicitly locked to Shell mode
-        if (!should_override_shell_lock || FeatureFlag::AgentView.is_enabled())
-            && config.is_locked
-            && !config.input_type.is_ai()
-        {
+        if config.is_locked && !config.input_type.is_ai() {
             return;
         }
 
@@ -6916,7 +6902,7 @@ impl Input {
                 if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) && edit_origin.is_user() {
                     let buffer_text = self.buffer_text(ctx);
                     if Self::buffer_contains_attachment_patterns(&buffer_text) {
-                        self.ensure_agent_mode_for_ai_features(false, ctx);
+                        self.ensure_agent_mode_for_ai_features(ctx);
                     }
                 }
 

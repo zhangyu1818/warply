@@ -10269,7 +10269,7 @@ impl Workspace {
                 }
 
                 if ensure_agent_mode {
-                    input.ensure_agent_mode_for_ai_features(true, ctx);
+                    input.ensure_agent_mode_for_ai_features(ctx);
                 }
 
                 if should_submit {
