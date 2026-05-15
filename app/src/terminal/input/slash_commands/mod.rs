@@ -212,9 +212,7 @@ impl Input {
                     self.close_slash_commands_menu(ctx);
                 }
 
-                if detected_command.command.auto_enter_ai_mode
-                    || !FeatureFlag::AgentView.is_enabled()
-                {
+                if detected_command.command.auto_enter_ai_mode {
                     self.enter_ai_mode(ctx);
                 }
 
@@ -254,9 +252,6 @@ impl Input {
                     log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
                     return;
                 };
-                let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-
                 self.show_workflows_info_box_on_workflow_selection(
                     WorkflowType::Saved(Box::new(workflow)),
                     WorkflowSource::Agent,
@@ -369,11 +364,7 @@ impl Input {
                 ctx.emit(Event::CreateDockerSandbox);
             }
             conversations if command.name == commands::CONVERSATIONS.name => {
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_conversation_menu(ctx);
-                } else {
-                    ctx.dispatch_typed_action(&TerminalAction::OpenConversationsPalette);
-                }
+                self.open_conversation_menu(ctx);
             }
             rename_tab if command.name == commands::RENAME_TAB.name => {
                 let Some(name) = argument
@@ -583,11 +574,7 @@ impl Input {
                 ctx.dispatch_typed_action(&TerminalAction::OpenRulesPane);
             }
             prompts if command.name == commands::PROMPTS.name => {
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_prompts_menu(ctx);
-                } else {
-                    return false;
-                }
+                self.open_prompts_menu(ctx);
             }
             rewind if command.name == commands::REWIND.name => {
                 self.open_rewind_menu(ctx);
@@ -703,8 +690,6 @@ impl Input {
             });
         }
 
-        let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_active();
         true
     }
 

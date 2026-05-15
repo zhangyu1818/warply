@@ -2,7 +2,6 @@ mod saved_prompts;
 mod zero_state;
 
 pub(crate) use saved_prompts::*;
-use warp_core::features::FeatureFlag;
 pub use zero_state::*;
 
 use std::collections::HashMap;
@@ -142,12 +141,7 @@ impl SlashCommandDataSource {
         let mut session_context = Availability::empty();
 
         let is_agent_view_active = self.agent_view_controller.as_ref(ctx).is_active();
-        if !FeatureFlag::AgentView.is_enabled() {
-            // When the AgentView feature flag is disabled, set both view bits so that
-            // either view requirement is satisfied (but other requirements like
-            // REPOSITORY and LOCAL still apply).
-            session_context |= Availability::AGENT_VIEW | Availability::TERMINAL_VIEW;
-        } else if is_agent_view_active {
+        if is_agent_view_active {
             session_context |= Availability::AGENT_VIEW;
         } else {
             session_context |= Availability::TERMINAL_VIEW;

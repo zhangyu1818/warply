@@ -147,8 +147,6 @@ define_settings_group!(InputSettings,
             toml_path: "ai.input.show_agent_tips",
             description: "Whether agent tips are displayed in the input.",
         },
-        // Whether to show the terminal input message bar (contextual hints at the bottom of terminal input).
-        // Only applicable when FeatureFlag::AgentView is enabled.
         show_terminal_input_message_bar: ShowTerminalInputMessageBar {
             type: bool,
             default: true,
