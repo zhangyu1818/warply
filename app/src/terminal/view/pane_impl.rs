@@ -4,7 +4,6 @@ use super::{Event, PaneConfiguration, TerminalAction, TerminalViewState};
 use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
 use crate::ai::blocklist::agent_view::agent_view_bg_fill;
 use crate::appearance::Appearance;
-use crate::features::FeatureFlag;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent, PaneGroupFocusState};
 use crate::pane_group::pane::view::header::components::{
@@ -117,19 +116,13 @@ impl TerminalView {
         };
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.set_title(new_pane_title, ctx);
-            if FeatureFlag::AgentView.is_enabled() {
-                pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            }
+            pane_config.refresh_pane_header_overflow_menu_items(ctx);
             pane_config.notify_header_content_changed(ctx);
         });
         self.update_agent_view_pane_header(ctx);
     }
 
     pub(super) fn update_agent_view_pane_header(&mut self, ctx: &mut ViewContext<Self>) {
-        if !FeatureFlag::AgentView.is_enabled() {
-            return;
-        }
-
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.notify_header_content_changed(ctx);
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
@@ -155,7 +148,7 @@ impl TerminalView {
     /// Renders the back button for the pane header, or an empty element if the
     /// back button should not be shown.
     fn maybe_render_header_back_button(&self, app: &AppContext) -> Box<dyn Element> {
-        if !FeatureFlag::AgentView.is_enabled() || warpui::platform::is_mobile_device() {
+        if warpui::platform::is_mobile_device() {
             return Flex::row().finish();
         }
 
@@ -259,8 +252,7 @@ impl TerminalView {
         app: &AppContext,
     ) -> (Box<dyn Element>, f32) {
         let appearance = Appearance::as_ref(app);
-        let is_fullscreen_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_fullscreen();
+        let is_fullscreen_agent_view = self.agent_view_controller.as_ref(app).is_fullscreen();
         let icon_color = Some(
             appearance
                 .theme()
@@ -322,8 +314,7 @@ impl TerminalView {
         header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let is_fullscreen_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_fullscreen();
+        let is_fullscreen_agent_view = self.agent_view_controller.as_ref(app).is_fullscreen();
 
         let left = self.maybe_render_header_back_button(app);
         let center = self.render_header_title(is_fullscreen_agent_view, header_ctx, app);
@@ -414,8 +405,7 @@ impl BackingView for TerminalView {
     }
 
     fn should_render_header(&self, app: &AppContext) -> bool {
-        let is_fullscreen_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(app).is_fullscreen();
+        let is_fullscreen_agent_view = self.agent_view_controller.as_ref(app).is_fullscreen();
         is_fullscreen_agent_view
     }
 
@@ -543,27 +533,17 @@ impl TerminalView {
         self.ai_context_model
             .as_ref(ctx)
             .selected_conversation(ctx)
-            .filter(|conversation| {
-                !conversation.is_entirely_passive()
-                    && (conversation.title().is_some_and(|title| !title.is_empty())
-                        || FeatureFlag::AgentView.is_enabled())
-            })
+            .filter(|conversation| !conversation.is_entirely_passive())
     }
 
     fn selected_conversation_display_title_for_chrome(
         &self,
         conversation: &AIConversation,
     ) -> String {
-        if FeatureFlag::AgentView.is_enabled() {
-            conversation
-                .title()
-                .filter(|title| !title.is_empty())
-                .unwrap_or_else(|| default_agent_conversation_title(false))
-        } else {
-            conversation
-                .title()
-                .expect("checked above that title exists")
-        }
+        conversation
+            .title()
+            .filter(|title| !title.is_empty())
+            .unwrap_or_else(|| default_agent_conversation_title(false))
     }
 
     /// Selected conversation status for chrome, or [`ConversationStatus::InProgress`] while the
