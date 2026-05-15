@@ -1,5 +1,3 @@
-//! Inline conversation menu for selecting AI conversations, enabled
-//! when `FeatureFlag::AgentView` is enabled.
 mod data_source;
 mod search_item;
 mod view;

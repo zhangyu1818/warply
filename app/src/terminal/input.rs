@@ -18,7 +18,6 @@ mod suggestions_mode_menu;
 pub mod suggestions_mode_model;
 mod terminal;
 mod terminal_message_bar;
-mod universal;
 pub mod user_query;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
@@ -87,11 +86,11 @@ use crate::{
     ai::{
         agent::AIAgentContext,
         blocklist::{
-            render_ai_agent_mode_icon, render_ai_follow_up_icon, BlocklistAIContextEvent,
-            BlocklistAIContextModel, BlocklistAIController, BlocklistAIControllerEvent,
-            BlocklistAIHistoryEvent, BlocklistAIHistoryModel, BlocklistAIInputEvent,
-            BlocklistAIInputModel, InputConfig, InputType, BLOCK_CONTEXT_ATTACHMENT_REGEX,
-            DIFF_HUNK_ATTACHMENT_REGEX, PLAN_CONTEXT_ATTACHMENT_REGEX,
+            BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIController,
+            BlocklistAIControllerEvent, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
+            BlocklistAIInputEvent, BlocklistAIInputModel, InputConfig, InputType,
+            BLOCK_CONTEXT_ATTACHMENT_REGEX, DIFF_HUNK_ATTACHMENT_REGEX,
+            PLAN_CONTEXT_ATTACHMENT_REGEX,
         },
         predict::next_command_model::{
             is_command_valid, is_next_command_enabled, NextCommandModel, NextCommandModelEvent,
@@ -222,11 +221,10 @@ use warpui::{
     color::ColorU,
     elements::{
         resizable_state_handle, Align, AnchorPair, ChildAnchor, Clipped, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, DispatchEventResult, DropTargetData, Element,
-        EventHandler, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-        OffsetType, ParentAnchor, ParentElement, PositionedElementOffsetBounds, PositioningAxis,
-        Radius, ResizableStateHandle, SavePosition, SelectionHandle, Text, Wrap, XAxisAnchor,
-        YAxisAnchor,
+        CornerRadius, DispatchEventResult, DropTargetData, Element, EventHandler, Flex,
+        MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, OffsetType,
+        ParentAnchor, ParentElement, PositionedElementOffsetBounds, PositioningAxis, Radius,
+        ResizableStateHandle, SavePosition, SelectionHandle, Text, Wrap, XAxisAnchor, YAxisAnchor,
     },
     end_trace,
     keymap::{BindingDescription, EditableBinding, FixedBinding, Keystroke},
@@ -1242,10 +1240,6 @@ pub struct Input {
     ai_context_model: ModelHandle<BlocklistAIContextModel>,
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
     ai_action_model: ModelHandle<BlocklistAIActionModel>,
-    /// The input is responsible for managing the lifetime
-    /// of this mouse state handle.
-    #[allow(dead_code)]
-    ai_follow_up_icon_mouse_state: MouseStateHandle,
 
     /// To ensure we only have one run of completions-as-you-type at any given time,
     /// we keep an abort handle of the current run. If we have reason to start a new run
@@ -1874,7 +1868,6 @@ impl Input {
             me.handle_next_command_model_event(event, ctx);
         });
 
-        let ai_follow_up_icon_mouse_state = MouseStateHandle::default();
         let has_prompt_suggestion_banner = Arc::new(AtomicBool::new(false));
         let editor = {
             // Clones used in render_decorator_elements closure below.
@@ -1885,7 +1878,6 @@ impl Input {
             let has_prompt_suggestion_banner_for_keymap = has_prompt_suggestion_banner.clone();
             let input_render_state_model_handle_clone = input_render_state_model_handle.clone();
 
-            let ai_context_model_clone = ai_context_model.clone();
             let ai_input_model = ai_input_model.clone();
 
             ctx.subscribe_to_model(&ai_input_model, |me, _, _, ctx| {
@@ -1895,7 +1887,6 @@ impl Input {
             });
 
             let ai_input_model_clone = ai_input_model.clone();
-            let ai_follow_up_icon_mouse_state_clone = ai_follow_up_icon_mouse_state.clone();
             let agent_view_controller_clone = agent_view_controller.clone();
 
             ctx.add_typed_action_view(|ctx| {
@@ -1949,13 +1940,9 @@ impl Input {
                                 )
                             }
 
-                            // Render the AI mode indicator to the left of the editor if we're in AI mode or the AI suggested a command.
-                            // Also renders the reply icon when following up in an existing conversation.
                             if let Some(ai_input_indicator) = maybe_render_ai_input_indicators(
                                 &ai_input_model,
-                                &ai_context_model_clone,
                                 &agent_view_controller_clone,
-                                ai_follow_up_icon_mouse_state_clone.clone(),
                                 terminal_view_id,
                                 app,
                             ) {
@@ -2559,7 +2546,6 @@ impl Input {
             ai_context_model,
             ai_input_model,
             ai_action_model,
-            ai_follow_up_icon_mouse_state: MouseStateHandle::default(),
             enable_autosuggestions_setting: *editor_settings_handle
                 .as_ref(ctx)
                 .enable_autosuggestions,
@@ -2893,9 +2879,6 @@ impl Input {
             InlineConversationMenuEvent::NavigateToConversation {
                 conversation_navigation_data,
             } => {
-                let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-
                 let conversation_id = conversation_navigation_data.id;
                 let active_ids =
                     ActiveAgentViewsModel::as_ref(ctx).get_all_active_conversation_ids(ctx);
@@ -3082,8 +3065,6 @@ impl Input {
         self.suggestions_mode_model.update(ctx, |model, ctx| {
             model.set_mode(InputSuggestionsMode::ConversationMenu, ctx);
         });
-        let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_fullscreen();
         ctx.notify();
     }
 
@@ -3136,9 +3117,6 @@ impl Input {
                     initial_prompt: None,
                     destination,
                 });
-
-                let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_active();
 
                 self.suggestions_mode_model.update(ctx, |model, ctx| {
                     model.set_mode(InputSuggestionsMode::Closed, ctx);
@@ -3412,9 +3390,6 @@ impl Input {
                     conversation_id,
                     exchange_id: *exchange_id,
                 });
-
-                let _is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_active();
 
                 self.suggestions_mode_model.update(ctx, |model, ctx| {
                     model.set_mode(InputSuggestionsMode::Closed, ctx);
@@ -4158,15 +4133,11 @@ impl Input {
         }
 
         let ai_settings = AISettings::as_ref(ctx);
-        if FeatureFlag::AgentView.is_enabled() {
-            if self.agent_view_controller.as_ref(ctx).is_fullscreen() {
-                if !ai_settings.is_ai_autodetection_enabled(ctx) {
-                    return;
-                }
-            } else if !ai_settings.is_nld_in_terminal_enabled(ctx) {
+        if self.agent_view_controller.as_ref(ctx).is_fullscreen() {
+            if !ai_settings.is_ai_autodetection_enabled(ctx) {
                 return;
             }
-        } else if !ai_settings.is_ai_autodetection_enabled(ctx) {
+        } else if !ai_settings.is_nld_in_terminal_enabled(ctx) {
             return;
         }
 
@@ -6133,15 +6104,10 @@ impl Input {
             self.editor.update(ctx, |editor, editor_ctx| {
                 editor.handle_action(&EditorAction::VimEscape, editor_ctx);
             });
-        } else if FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_active()
-            && has_attached_context
-        {
+        } else if self.agent_view_controller.as_ref(ctx).is_active() && has_attached_context {
             self.clear_attached_context(ctx);
         } else {
-            if FeatureFlag::AgentView.is_enabled()
-                && !self.agent_view_controller.as_ref(ctx).is_fullscreen()
-            {
+            if !self.agent_view_controller.as_ref(ctx).is_fullscreen() {
                 if self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {
                     // This implies the contents of the terminal input are autodetected as an agent
                     // prompt; overrides the autodetection by explicitly setting input mode back to
@@ -7847,21 +7813,14 @@ impl Input {
     /// Check if we can attach on filepaths paste or drag-drop
     fn can_attach_on_filepaths_paste_or_dragdrop(&self, ctx: &mut ViewContext<Self>) -> bool {
         // CLI agent rich input always supports image attachment, independent of
-        // the UDI setting or the `AgentView` feature flag. Its own composer
-        // gates image chips on `ImageAsContext` + an active CLI agent session.
+        // the terminal input setting. Its own composer gates image chips on
+        // `ImageAsContext` + an active CLI agent session.
         let is_cli_agent_input_open =
             CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
         if is_cli_agent_input_open {
             return true;
         }
 
-        let is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-        if !is_udi_enabled && !FeatureFlag::AgentView.is_enabled() {
-            return false;
-        }
-
-        // Check if Agent Mode enabled, in active agent view, or if the buffer is empty
-        // (if the buffer is empty, we assume that the user wants the images to be attached).
         let ai_input = self.ai_input_model.as_ref(ctx);
         let in_agent_mode = matches!(ai_input.input_type(), InputType::AI);
         let is_buffer_empty = self.buffer_text(ctx).is_empty();
@@ -7979,10 +7938,6 @@ impl Input {
         });
     }
 
-    /// Enters agent view when adding images, unless the CLI agent rich input is
-    /// open (which is already a composer context and doesn't use the agent view),
-    /// Agent View is disabled, we're already in the agent view, or a long running
-    /// command is in progress.
     fn maybe_enter_agent_view_for_image_add(&mut self, ctx: &mut ViewContext<Self>) {
         let is_cli_agent_input_open =
             CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
@@ -7996,10 +7951,7 @@ impl Input {
             .block_list()
             .active_block()
             .is_active_and_long_running();
-        if !FeatureFlag::AgentView.is_enabled()
-            || self.agent_view_controller.as_ref(ctx).is_active()
-            || is_in_long_running_command
-        {
+        if self.agent_view_controller.as_ref(ctx).is_active() || is_in_long_running_command {
             return;
         }
 
@@ -8078,13 +8030,8 @@ impl Input {
         ctx.notify();
     }
 
-    /// If we're in AI input mode, clears the rightmost AI icon. There may be multiple AI icons
-    /// to backspace away in sequence (AI icon and follow up icon)
     fn maybe_backspace_ai_icon(&mut self, ctx: &mut ViewContext<Self>) {
-        // If we're not in AI input mode, do nothing.
         if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {
-            // If the AI is locked in shell mode in an active agent view or CLI
-            // agent rich input, clear the '!' indicator by switching to agent mode.
             let is_cli_agent_input_open =
                 CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
             if self.ai_input_model.as_ref(ctx).is_input_type_locked()
@@ -8097,44 +8044,6 @@ impl Input {
             } else {
                 return;
             }
-        }
-
-        let is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
-        if is_udi_enabled {
-            return;
-        }
-
-        // When the agent view is active, the classic-mode AI icon toggling and follow-up clearing
-        // logic below does not apply.
-        if FeatureFlag::AgentView.is_enabled() && self.agent_view_controller.as_ref(ctx).is_active()
-        {
-            return;
-        }
-
-        // If we have an AI follow up icon, backspace should clear that icon.
-        if self
-            .ai_context_model
-            .as_ref(ctx)
-            .is_targeting_existing_conversation()
-        {
-            self.ai_context_model.update(ctx, |ai_context_model, ctx| {
-                ai_context_model.set_pending_query_state_for_new_conversation(
-                    // This origin is unused in this codepath, which doesn't get called when
-                    // AgentView is enabled.
-                    AgentViewEntryOrigin::Input {
-                        was_prompt_autodetected: false,
-                    },
-                    ctx,
-                );
-            });
-        } else {
-            // Otherwise backspace away the AI icon.
-            self.ai_input_model.update(ctx, |ai_input_model, ctx| {
-                let new_input_config = ai_input_model.input_config().with_toggled_type().locked();
-                let new_input_type = new_input_config.input_type;
-                ai_input_model.set_input_config_for_classic_mode(new_input_config, ctx);
-                new_input_type
-            });
         }
     }
 
@@ -9545,9 +9454,7 @@ impl Input {
         ai_query: String,
         ctx: &mut ViewContext<Self>,
     ) {
-        if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
+        if !self.agent_view_controller.as_ref(ctx).is_active() {
             self.agent_view_controller.update(ctx, |controller, ctx| {
                 let _ =
                     controller.try_enter_agent_view(None, AgentViewEntryOrigin::ProjectEntry, ctx);
@@ -9562,9 +9469,7 @@ impl Input {
     }
 
     pub(crate) fn initiate_clone_repository(&mut self, url: String, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(ctx).is_active()
-        {
+        if !self.agent_view_controller.as_ref(ctx).is_active() {
             self.agent_view_controller.update(ctx, |controller, ctx| {
                 let _ =
                     controller.try_enter_agent_view(None, AgentViewEntryOrigin::ProjectEntry, ctx);
@@ -9812,21 +9717,6 @@ impl Input {
         // NaturalLanguageCommandSearch has its own `cmd+enter` behaviour, not expected to execute here
         let mode = self.suggestions_mode_model.as_ref(ctx).mode().clone();
         match &mode {
-            InputSuggestionsMode::CompletionSuggestions { .. }
-            | InputSuggestionsMode::HistoryUp { .. }
-                // If FeatureFlag::AgentView is enabled, cmd-enter should unconditionally enter the
-                // agent view with the current buffer contents as agent input.
-                //
-                // I'm (ZB) not even sure what this legacy behavior is for, because if you have any
-                // selected completion or history suggestion, that suggestion has already been
-                // inserted into the buffer so enter (without cmd- prefix) would directly execute
-                // it anyway.
-                if !FeatureFlag::AgentView.is_enabled() =>
-            {
-                self.input_suggestions.update(ctx, |suggestions, ctx| {
-                    suggestions.confirm_and_execute(ctx);
-                });
-            }
             InputSuggestionsMode::DynamicWorkflowEnumSuggestions {
                 dynamic_enum_status: DynamicEnumSuggestionStatus::Unapproved,
                 command,
@@ -9844,9 +9734,7 @@ impl Input {
                     .update(ctx, |view, ctx| view.accept_selected_item(true, ctx));
             }
             _ => {
-                if FeatureFlag::AgentView.is_enabled()
-                    && self.maybe_handle_cmd_or_ctrl_shift_enter_for_slash_command(ctx)
-                {
+                if self.maybe_handle_cmd_or_ctrl_shift_enter_for_slash_command(ctx) {
                     return;
                 }
                 // If there is a slash command bound to cmd-enter, we'll execute it.
@@ -9860,7 +9748,6 @@ impl Input {
                         })
                         .cloned()
                 };
-
 
                 if let Some(command) = cmd_enter_slash_command {
                     self.select_slash_command(&command, SlashCommandTrigger::keybinding(), ctx);
@@ -10043,26 +9930,19 @@ impl Input {
             editor.clear_buffer(ctx);
         });
 
-        if FeatureFlag::AgentView.is_enabled() {
-            let conversation_id = self
-                .agent_view_controller
-                .as_ref(ctx)
-                .agent_view_state()
-                .active_conversation_id();
-            let was_prompt_autodetected = !self.ai_input_model.as_ref(ctx).is_input_type_locked();
-            ctx.emit(Event::EnterAgentView {
-                initial_prompt: Some(ai_query),
-                conversation_id,
-                origin: AgentViewEntryOrigin::Input {
-                    was_prompt_autodetected,
-                },
-            });
-        } else {
-            self.ai_controller.update(ctx, |controller, ctx| {
-                controller.send_user_query_in_new_conversation(ai_query, None, ctx);
-            });
-            ctx.emit(Event::ExecuteAIQuery);
-        }
+        let conversation_id = self
+            .agent_view_controller
+            .as_ref(ctx)
+            .agent_view_state()
+            .active_conversation_id();
+        let was_prompt_autodetected = !self.ai_input_model.as_ref(ctx).is_input_type_locked();
+        ctx.emit(Event::EnterAgentView {
+            initial_prompt: Some(ai_query),
+            conversation_id,
+            origin: AgentViewEntryOrigin::Input {
+                was_prompt_autodetected,
+            },
+        });
     }
 
     /// Returns true if toggling the input mode is disabled.
@@ -10140,15 +10020,8 @@ impl Input {
     ) {
         let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
 
-        // When AgentView is enabled, reverting to AI mode in an active agent view with an empty
-        // buffer should unlock (re-enable autodetection) - semantically like clearing the "!".
-        //
-        // If there is a pending image / file attachment, do NOT unlock. The user's intent is
-        // unambiguously "talk to the agent"; letting the classifier flip the input back to
-        // shell mode would be a bug.
         let has_locking_attachment = self.ai_context_model.as_ref(ctx).has_locking_attachment();
-        let should_unlock = FeatureFlag::AgentView.is_enabled()
-            && self.agent_view_controller.as_ref(ctx).is_fullscreen()
+        let should_unlock = self.agent_view_controller.as_ref(ctx).is_fullscreen()
             && is_input_buffer_empty
             && AISettings::as_ref(ctx).is_ai_autodetection_enabled(ctx)
             && !has_locking_attachment;
@@ -10248,19 +10121,6 @@ impl Input {
         if matches!(edit_origin, EditOrigin::UserTyped) {
             self.model.lock().set_is_input_dirty(true);
         }
-        // If not in Agent Mode, clear any active text selections in the blocklist when inserting
-        // new text. Note that the TerminalModel lock is instantly dropped after this expression,
-        // since it's stored in a temporary variable.
-        //
-        // When `FeatureFlag::AgentView` is enabled, blocks are attachable as AI context in terminal
-        // mode. Selections are preserved so they can be attached to the query when entering the
-        // agent view.
-        if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
-            && !FeatureFlag::AgentView.is_enabled()
-        {
-            self.model.lock().block_list_mut().clear_selection();
-        }
-
         ctx.focus(&self.editor);
         self.editor.update(ctx, |editor, ctx| match edit_origin {
             EditOrigin::UserTyped => editor.user_insert(text, ctx),
@@ -10670,8 +10530,7 @@ impl Input {
             .with_height(2. * appearance.line_height_ratio() * appearance.monospace_font_size())
             .finish();
         let should_use_udi_spacing = self.should_show_universal_developer_input(app)
-            || (FeatureFlag::AgentView.is_enabled()
-                && self.agent_view_controller.as_ref(app).is_active());
+            || self.agent_view_controller.as_ref(app).is_active();
         let mut container: Container = Container::new(constrained_banner);
         let (suggestion_to_prompt_padding, suggestion_to_input_border_padding) =
             if should_use_udi_spacing {
@@ -10816,10 +10675,7 @@ impl Input {
             terminal_settings.terminal_input_spacing(appearance.line_height_ratio(), app);
         let mut bottom_padding = terminal_spacing.editor_bottom_padding;
 
-        // When `FeatureFlag::AgentView` is enabled, always render with UDI-style spacing values,
-        // regardless of terminal/agent mode or prompt setting.
-        let is_udi_style_spacing =
-            self.should_show_universal_developer_input(app) || FeatureFlag::AgentView.is_enabled();
+        let is_udi_style_spacing = true;
 
         let is_compact_mode =
             matches!(terminal_settings.spacing_mode.value(), SpacingMode::Compact)
@@ -10980,15 +10836,6 @@ impl Input {
 
     pub fn should_show_universal_developer_input(&self, app: &AppContext) -> bool {
         InputSettings::as_ref(app).is_universal_developer_input_enabled(app)
-    }
-
-    /// Returns whether the input box is currently pinned to the top of the screen.
-    fn is_input_at_top(&self, model: &TerminalModel, ctx: &AppContext) -> bool {
-        match InputModeSettings::as_ref(ctx).input_mode.value() {
-            InputMode::PinnedToBottom => false,
-            InputMode::PinnedToTop => true,
-            InputMode::Waterfall => model.is_block_list_empty(),
-        }
     }
 }
 
@@ -11205,16 +11052,12 @@ impl View for Input {
             ctx.set.insert(flags::LOCKED_INPUT);
         }
 
-        // Keep Input's keymap context in sync with TerminalView's context for AgentView-related
-        // bindings (e.g. cmd-i).
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.set.insert(flags::AGENT_VIEW_ENABLED);
-            let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
-            if agent_view_state.is_fullscreen() {
-                ctx.set.insert(flags::ACTIVE_AGENT_VIEW);
-            } else if agent_view_state.is_inline() {
-                ctx.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
-            }
+        ctx.set.insert(flags::AGENT_VIEW_ENABLED);
+        let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
+        if agent_view_state.is_fullscreen() {
+            ctx.set.insert(flags::ACTIVE_AGENT_VIEW);
+        } else if agent_view_state.is_inline() {
+            ctx.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
         }
 
         if self.buffer_text(app).is_empty() {
@@ -11323,17 +11166,10 @@ impl View for Input {
         if CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id) {
             return self.render_cli_agent_input(app);
         }
-        let is_universal_input = self.should_show_universal_developer_input(app);
-        if FeatureFlag::AgentView.is_enabled() && self.agent_view_controller.as_ref(app).is_active()
-        {
+        if self.agent_view_controller.as_ref(app).is_active() {
             self.render_agent_input(app)
-        } else if FeatureFlag::AgentView.is_enabled()
-            && !self.agent_view_controller.as_ref(app).is_active()
-            && !should_render_ps1_prompt(&self.model.lock(), app)
-        {
+        } else if !should_render_ps1_prompt(&self.model.lock(), app) {
             self.render_terminal_input(app)
-        } else if !FeatureFlag::AgentView.is_enabled() && is_universal_input {
-            self.render_universal_developer_input(app)
         } else {
             self.render_classic_input(app)
         }
@@ -11378,18 +11214,9 @@ impl Autosuggester for Input {
     }
 }
 
-/// Returns an optional element to be rendered at the start of the editor buffer, almost like a
-/// rich UI 'prefix'.
-///
-/// When AgentView is enabled, this is responsible for rendering the '!' shell mode indicator.
-///
-/// When Agent View is disabled, this renders the agent mode icon and optional follow-up icon when
-/// classic input is enabled.
 fn maybe_render_ai_input_indicators(
     ai_input_model: &ModelHandle<BlocklistAIInputModel>,
-    ai_context_model: &ModelHandle<BlocklistAIContextModel>,
     agent_view_controller: &ModelHandle<AgentViewController>,
-    ai_follow_up_icon_mouse_state: MouseStateHandle,
     terminal_view_id: EntityId,
     app: &AppContext,
 ) -> Option<Box<dyn Element>> {
@@ -11435,45 +11262,7 @@ fn maybe_render_ai_input_indicators(
         );
     }
 
-    if is_agent_view_active {
-        return None;
-    }
-
-    if !ai_input_model.is_ai_input_enabled() || FeatureFlag::AgentView.is_enabled() {
-        return None;
-    }
-
-    let is_universal_developer_input_enabled =
-        InputSettings::as_ref(app).is_universal_developer_input_enabled(app);
-
-    // If universal developer input is enabled, don't show any AI indicators
-    if is_universal_developer_input_enabled {
-        return None;
-    }
-
-    let ai_icon = render_ai_agent_mode_icon(
-        app,
-        AnsiColorIdentifier::Yellow.to_ansi_color(&appearance.theme().terminal_colors().normal),
-    );
-
-    let all_icons = if ai_context_model
-        .as_ref(app)
-        .is_targeting_existing_conversation()
-    {
-        let reply_icon = render_ai_follow_up_icon(ai_follow_up_icon_mouse_state, app);
-        Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(ai_icon)
-            .with_child(reply_icon)
-            .finish()
-    } else {
-        ai_icon
-    };
-    Some(
-        Container::new(all_icons)
-            .with_margin_right(em_width)
-            .finish(),
-    )
+    None
 }
 
 #[cfg(feature = "integration_tests")]

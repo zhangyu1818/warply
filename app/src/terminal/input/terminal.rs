@@ -27,8 +27,6 @@ use warpui::{
 };
 
 impl Input {
-    /// Renders the terminal mode input when `FeatureFlag::AgentView` is enabled and there is no
-    /// active agent view.
     pub(super) fn render_terminal_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
