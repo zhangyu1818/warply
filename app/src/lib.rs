@@ -1473,8 +1473,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::GlobalSearch,
         #[cfg(feature = "embedded_code_review_comments")]
         FeatureFlag::EmbeddedCodeReviewComments,
-        #[cfg(feature = "file_and_diff_set_comments")]
-        FeatureFlag::FileAndDiffSetComments,
         #[cfg(feature = "configurable_toolbar")]
         FeatureFlag::ConfigurableToolbar,
         #[cfg(feature = "classic_completions")]

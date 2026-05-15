@@ -147,9 +147,6 @@ pub enum FeatureFlag {
     /// Enables the file tree (with an entrypoint through code mode).
     FileTree,
 
-    /// Enables file- and diff set-level comments in the code review header.
-    FileAndDiffSetComments,
-
     /// Enables discarding per-file and discarding all changes
     DiscardPerFileAndAllChanges,
 
@@ -264,7 +261,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ImeMarkedText,
     FeatureFlag::ContextLineReviewComments,
     FeatureFlag::Projects,
-    FeatureFlag::FileAndDiffSetComments,
     FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::CodeReviewScrollPreservation,

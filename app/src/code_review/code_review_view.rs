@@ -6700,16 +6700,11 @@ impl CodeReviewView {
         }
     }
 
-    /// Legacy menu items — gated on FileAndDiffSetComments only.
     fn header_menu_items_legacy(
         &self,
         ctx: &mut ViewContext<Self>,
     ) -> Vec<MenuItem<CodeReviewAction>> {
         let mut items = Vec::new();
-
-        if !FeatureFlag::FileAndDiffSetComments.is_enabled() {
-            return items;
-        }
 
         let mut has_changes = false;
         if let CodeReviewViewState::Loaded(loaded) = self.state() {
@@ -6760,7 +6755,7 @@ impl CodeReviewView {
             );
         }
 
-        if FeatureFlag::FileAndDiffSetComments.is_enabled() && has_changes {
+        if has_changes {
             let (comment_label, comment_icon) = if self.get_existing_diffset_comment(ctx).is_some()
             {
                 ("Show saved comment", Icon::MessageText)
