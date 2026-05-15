@@ -99,7 +99,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `warp_logging` WASM logger implementation and target-specific web dependencies. Logging now uses the retained native file/stderr implementation directly.
 - Removed the `ipc` crate's WASM placeholder transport and target-specific dependency gate. IPC now uses the retained native local-socket transport directly, with no WebWorker/wasm compatibility stub.
 - Removed `warp_ripgrep` WASM dependency gates and search API cfgs. Ripgrep search now keeps the retained native helper-process path directly, including parent-process monitoring for the macOS host.
-- Removed the `websocket` crate's WASM backend and target dependency sections. Remote terminal websocket traffic keeps the native `async-tungstenite` TLS/proxy implementation directly.
+- Removed the old websocket PTY client path along with its Web/WASM target dependency sections. Do not restore `async-tungstenite` or native websocket PTY traffic for remote terminals; retained remote terminal support is `remote_server` plus SSH/Warpify.
 - Removed the `asset_cache` WASM fetch branch and `cfg-if` dependency. URL asset loading now uses the retained native `reqwest` path with `async-compat`, while local cache persistence remains unchanged.
 - Removed the editor image asset resolver's WASM branch. Markdown image paths now use the retained local path canonicalization and URL asset loading behavior directly.
 - Removed `warpui_extras` Web Storage user-preferences backend and wasm secure-storage selector. User preferences and secure storage now use the retained macOS/file/no-op test backends directly.
