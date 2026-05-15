@@ -18,7 +18,6 @@ use crate::{
     Appearance,
 };
 use regex::Regex;
-use warpui::ui_components::switch::SwitchStateHandle;
 
 use std::path::{Path, PathBuf};
 use warpui::{
@@ -95,9 +94,6 @@ pub enum ExecutionProfileEditorViewAction {
         path: PathBuf,
     },
     DeleteProfile,
-    SetWebSearchEnabled {
-        enabled: bool,
-    },
 }
 
 pub struct ExecutionProfileEditorView {
@@ -120,7 +116,6 @@ pub struct ExecutionProfileEditorView {
     profile_name_editor: ViewHandle<EditorView>,
     delete_button: ViewHandle<ActionButton>,
     tooltip_mouse_state_handles: TooltipMouseStateHandles,
-    web_search_switch: SwitchStateHandle,
 }
 
 impl ExecutionProfileEditorView {
@@ -388,7 +383,6 @@ impl ExecutionProfileEditorView {
             profile_name_editor,
             delete_button,
             tooltip_mouse_state_handles: Default::default(),
-            web_search_switch: Default::default(),
         };
 
         ctx.subscribe_to_view(&view.profile_name_editor, |view, _, event, ctx| {
@@ -882,12 +876,6 @@ impl TypedActionView for ExecutionProfileEditorView {
                     profiles_model.delete_profile(self.profile_id, ctx);
                 });
                 ctx.emit(ExecutionProfileEditorViewEvent::Pane(PaneEvent::Close));
-            }
-            ExecutionProfileEditorViewAction::SetWebSearchEnabled { enabled } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_web_search_enabled(self.profile_id, *enabled, ctx);
-                });
-                ctx.notify();
             }
         }
     }

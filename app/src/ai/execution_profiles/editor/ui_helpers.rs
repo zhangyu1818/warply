@@ -8,9 +8,8 @@ use pathfinder_geometry::vector::vec2f;
 use warpui::elements::Hoverable;
 use warpui::elements::MouseStateHandle;
 use warpui::elements::{
-    ChildAnchor, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment,
-    MainAxisSize, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Shrinkable,
-    Stack, Text,
+    ChildAnchor, ChildView, ConstrainedBox, Container, Flex, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::components::UiComponent;
@@ -280,12 +279,6 @@ pub fn render_permissions_section(
             .clone(),
     ));
 
-    column.add_child(
-        Container::new(render_web_search_toggle(appearance, view, profile_data))
-            .with_margin_top(16.)
-            .finish(),
-    );
-
     Container::new(column.finish())
         .with_margin_bottom(24.)
         .finish()
@@ -457,79 +450,6 @@ fn render_command_denylist_section(
 
     Container::new(column.finish())
         .with_margin_bottom(16.)
-        .finish()
-}
-
-pub fn render_web_search_toggle(
-    appearance: &Appearance,
-    view: &ExecutionProfileEditorView,
-    profile_data: &AIExecutionProfile,
-) -> Box<dyn Element> {
-    let icon_size = 16.0;
-    let icon_elem = Container::new(
-        ConstrainedBox::new(
-            Icon::Globe
-                .to_warpui_icon(appearance.theme().active_ui_text_color())
-                .finish(),
-        )
-        .with_width(icon_size)
-        .with_height(icon_size)
-        .finish(),
-    )
-    .with_margin_right(8.)
-    .finish();
-
-    let label_elem = Text::new(
-        "Call web tools".to_string(),
-        appearance.ui_font_family(),
-        13.,
-    )
-    .with_color(appearance.theme().active_ui_text_color().into())
-    .finish();
-
-    let desc_elem = Text::new(
-        "The agent may use web search when helpful for completing tasks.".to_string(),
-        appearance.ui_font_family(),
-        11.,
-    )
-    .with_color(
-        appearance
-            .theme()
-            .sub_text_color(appearance.theme().surface_1())
-            .into(),
-    )
-    .finish();
-
-    let current_value = profile_data.web_search_enabled;
-    let switch = appearance
-        .ui_builder()
-        .switch(view.web_search_switch.clone())
-        .check(current_value)
-        .build()
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(ExecutionProfileEditorViewAction::SetWebSearchEnabled {
-                enabled: !current_value,
-            });
-        })
-        .finish();
-
-    let left_content = Flex::column()
-        .with_child(
-            Flex::row()
-                .with_child(icon_elem)
-                .with_child(label_elem)
-                .finish(),
-        )
-        .with_child(desc_elem)
-        .finish();
-
-    Flex::row()
-        .with_main_axis_size(MainAxisSize::Max)
-        .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_spacing(8.)
-        .with_child(Shrinkable::new(1., left_content).finish())
-        .with_child(switch)
         .finish()
 }
 

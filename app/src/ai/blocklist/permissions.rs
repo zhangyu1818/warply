@@ -157,7 +157,6 @@ impl BlocklistAIPermissions {
 
             name: profile_data.name.clone(),
             is_default_profile: profile_data.is_default_profile,
-            web_search_enabled: profile_data.web_search_enabled,
         }
     }
 

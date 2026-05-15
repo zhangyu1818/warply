@@ -147,9 +147,6 @@ pub struct AIExecutionProfile {
     pub directory_allowlist: Vec<PathBuf>,
 
     pub computer_use: ComputerUsePermission,
-
-    /// Whether the agent may use web search when helpful for completing tasks
-    pub web_search_enabled: bool,
 }
 
 impl Default for AIExecutionProfile {
@@ -166,7 +163,6 @@ impl Default for AIExecutionProfile {
             command_allowlist: Vec::new(),
             directory_allowlist: Vec::new(),
             computer_use: ComputerUsePermission::Never,
-            web_search_enabled: true,
         }
     }
 }
