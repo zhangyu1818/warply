@@ -291,8 +291,8 @@ impl EnumCreationDialog {
 
     // Load an enum from memory
     pub fn load_from_local_model(&mut self, enum_id: SyncId, ctx: &mut ViewContext<Self>) {
-        let cloud_model = CloudModel::as_ref(ctx);
-        let workflow_enum_model = cloud_model.get_workflow_enum(&enum_id);
+        let local_object_model = CloudModel::as_ref(ctx);
+        let workflow_enum_model = local_object_model.get_workflow_enum(&enum_id);
 
         self.revision_ts = workflow_enum_model.and_then(|model| model.metadata.revision.clone());
 

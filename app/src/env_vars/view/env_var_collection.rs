@@ -477,8 +477,8 @@ impl EnvVarCollectionView {
         let appearance = Appearance::as_ref(ctx);
         let ui_font_family = appearance.ui_font_family();
 
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |view, _handle, event, ctx| {
+        let local_object_model = CloudModel::handle(ctx);
+        ctx.subscribe_to_model(&local_object_model, |view, _handle, event, ctx| {
             view.handle_local_object_model_event(event, ctx);
         });
 
@@ -683,8 +683,8 @@ impl EnvVarCollectionView {
             .active_env_var_collection
         {
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
-                let cloud_model = CloudModel::as_ref(ctx);
-                if let Some(saved_env_var) = cloud_model.get_env_var_collection(id) {
+                let local_object_model = CloudModel::as_ref(ctx);
+                if let Some(saved_env_var) = local_object_model.get_env_var_collection(id) {
                     ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Saved(
                         Box::new(saved_env_var.clone()),
                     )));

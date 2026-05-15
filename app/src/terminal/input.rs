@@ -5075,11 +5075,11 @@ impl Input {
                 });
 
                 // Get enum variants
-                let cloud_model = CloudModel::as_ref(ctx);
+                let local_object_model = CloudModel::as_ref(ctx);
                 let enum_variants_map = argument_index_to_object_id_map
                     .iter()
                     .filter_map(|(index, object_id)| {
-                        cloud_model
+                        local_object_model
                             .get_workflow_enum(object_id)
                             .map(|workflow_enum| {
                                 workflow_enum.model().string_model.variants.clone()

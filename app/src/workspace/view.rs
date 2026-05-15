@@ -6276,8 +6276,8 @@ impl Workspace {
             // Check if workflow displayed in info box matches the one that was just updated.
             if open_workflow_id == Some(*workflow_id) {
                 // Fetch latest version of workflow and update info box with fresh contents
-                let cloud_model = CloudModel::as_ref(ctx);
-                if let Some(workflow) = cloud_model.get_workflow(workflow_id) {
+                let local_object_model = CloudModel::as_ref(ctx);
+                if let Some(workflow) = local_object_model.get_workflow(workflow_id) {
                     self.run_saved_workflow_in_active_input(
                         workflow.clone(),
                         WorkflowSelectionSource::LocalObject,
@@ -10419,11 +10419,11 @@ impl Workspace {
     ) {
         let result = &event.result;
 
-        let cloud_model = CloudModel::as_ref(ctx);
+        let local_object_model = CloudModel::as_ref(ctx);
 
         let object_id = result.sync_id.uid();
 
-        if let Some(object) = cloud_model.get_by_uid(&object_id) {
+        if let Some(object) = local_object_model.get_by_uid(&object_id) {
             if !object.should_show_activity_toasts() {
                 // Early exit for objects that don't show toasts.
                 return;
@@ -10472,8 +10472,8 @@ impl Workspace {
         // If this was a successful update on a workflow - caused by this client - then we may need
         // to update the contents of the workflow info box to represent the new synced state.
         if result.operation == ObjectOperation::Update {
-            let cloud_model = CloudModel::as_ref(ctx);
-            let updated_object = cloud_model.get_by_uid(&result.sync_id.uid());
+            let local_object_model = CloudModel::as_ref(ctx);
+            let updated_object = local_object_model.get_by_uid(&result.sync_id.uid());
             if let Some(CloudObjectTypeAndId::Workflow(workflow_id)) =
                 updated_object.map(|o| o.cloud_object_type_and_id())
             {

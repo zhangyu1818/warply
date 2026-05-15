@@ -218,8 +218,8 @@ impl LinkedWorkflowData {
     pub fn linked_workflow(&self, ctx: &AppContext) -> Option<(WorkflowType, WorkflowSource)> {
         match self {
             LinkedWorkflowData::Id(id) => {
-                let cloud_model = CloudModel::as_ref(ctx);
-                let workflow = cloud_model.get_workflow(id);
+                let local_object_model = CloudModel::as_ref(ctx);
+                let workflow = local_object_model.get_workflow(id);
                 let workflow_source = WorkflowSource::Saved;
                 workflow.map(|workflow| {
                     (

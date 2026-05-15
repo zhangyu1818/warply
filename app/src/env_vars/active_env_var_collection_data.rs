@@ -48,9 +48,9 @@ impl ActiveEnvVarCollectionData {
             me.handle_update_manager_event(event, ctx);
         });
 
-        let cloud_model = CloudModel::handle(ctx);
+        let local_object_model = CloudModel::handle(ctx);
 
-        ctx.subscribe_to_model(&cloud_model, |me, event, ctx| {
+        ctx.subscribe_to_model(&local_object_model, |me, event, ctx| {
             me.handle_local_object_model_event(event, ctx);
         });
 
@@ -78,7 +78,7 @@ impl ActiveEnvVarCollectionData {
         event: &UpdateManagerEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        let cloud_model = CloudModel::as_ref(ctx);
+        let local_object_model = CloudModel::as_ref(ctx);
 
         let result = &event.result;
 
@@ -87,7 +87,7 @@ impl ActiveEnvVarCollectionData {
                 if let Some(current_id) = self.id() {
                     if current_id == result.sync_id {
                         if let Some(env_var_collection) =
-                            cloud_model.get_env_var_collection(&result.sync_id)
+                            local_object_model.get_env_var_collection(&result.sync_id)
                         {
                             self.saving_status = SavingStatus::Saved;
                             self.active_env_var_collection =
@@ -104,7 +104,7 @@ impl ActiveEnvVarCollectionData {
                 if let Some(current_id) = self.id() {
                     if current_id == result.sync_id {
                         if let Some(env_var_collection) =
-                            cloud_model.get_env_var_collection(&result.sync_id)
+                            local_object_model.get_env_var_collection(&result.sync_id)
                         {
                             self.saving_status = SavingStatus::Saved;
                             self.active_env_var_collection =
@@ -213,10 +213,10 @@ impl ActiveEnvVarCollectionData {
                 TrashStatus::Active
             }
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
-                let cloud_model = CloudModel::as_ref(ctx);
-                match cloud_model.get_env_var_collection(id) {
+                let local_object_model = CloudModel::as_ref(ctx);
+                match local_object_model.get_env_var_collection(id) {
                     Some(env_var_collection) => {
-                        if env_var_collection.is_trashed(cloud_model) {
+                        if env_var_collection.is_trashed(local_object_model) {
                             TrashStatus::Trashed
                         } else {
                             TrashStatus::Active

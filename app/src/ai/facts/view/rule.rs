@@ -161,8 +161,8 @@ impl RuleView {
             me.handle_update_manager_event(event, ctx);
         });
 
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
+        let local_object_model = CloudModel::handle(ctx);
+        ctx.subscribe_to_model(&local_object_model, |me, _, event, ctx| {
             me.handle_local_object_model_event(event, ctx);
         });
 
@@ -179,8 +179,8 @@ impl RuleView {
         });
 
         let ai_rules: Vec<CloudAIFact> = {
-            let cloud_model = CloudModel::handle(ctx);
-            cloud_model
+            let local_object_model = CloudModel::handle(ctx);
+            local_object_model
                 .as_ref(ctx)
                 .get_all_objects_of_type::<GenericStringObjectId, CloudAIFactModel>()
                 .cloned()
@@ -308,8 +308,8 @@ impl RuleView {
 
     fn fetch_ai_rules(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_rules: Vec<CloudAIFact> = {
-            let cloud_model = CloudModel::handle(ctx);
-            cloud_model
+            let local_object_model = CloudModel::handle(ctx);
+            local_object_model
                 .as_ref(ctx)
                 .get_all_objects_of_type::<GenericStringObjectId, CloudAIFactModel>()
                 .cloned()

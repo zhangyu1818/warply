@@ -2266,13 +2266,13 @@ impl WorkflowView {
     }
 
     pub(super) fn render_trash_banner(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        let cloud_model = CloudModel::as_ref(app);
+        let local_object_model = CloudModel::as_ref(app);
         let deleted = if matches!(self.workflow_view_mode, WorkflowViewMode::Create) {
             return None;
         } else {
-            match cloud_model.get_workflow(&self.workflow_id) {
+            match local_object_model.get_workflow(&self.workflow_id) {
                 Some(notebook) => {
-                    if notebook.is_trashed(cloud_model) {
+                    if notebook.is_trashed(local_object_model) {
                         false
                     } else {
                         return None;

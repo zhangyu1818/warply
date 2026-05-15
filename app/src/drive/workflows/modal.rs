@@ -240,8 +240,8 @@ impl WorkflowModal {
             me.handle_content_editor_event(event, ctx);
         });
 
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
+        let local_object_model = CloudModel::handle(ctx);
+        ctx.subscribe_to_model(&local_object_model, |me, _, event, ctx| {
             me.handle_local_object_model_event(event, ctx);
         });
 
@@ -590,8 +590,8 @@ impl WorkflowModal {
     // Identical to logic in DriveIndexAction::CopyObjectToClipboard
     fn copy_object_to_clipboard(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(workflow_id) = self.workflow_id {
-            let cloud_model = CloudModel::as_ref(ctx);
-            let object = cloud_model.get_by_uid(&workflow_id.uid());
+            let local_object_model = CloudModel::as_ref(ctx);
+            let object = local_object_model.get_by_uid(&workflow_id.uid());
 
             if let Some(object) = object {
                 match object.object_type() {

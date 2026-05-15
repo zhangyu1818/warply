@@ -1666,8 +1666,8 @@ fn mock_workflow(id: i64, app: &mut App) {
         },
     );
 
-    CloudModel::handle(app).update(app, |cloud_model, _| {
-        cloud_model.add_object(sync_id, workflow);
+    CloudModel::handle(app).update(app, |local_object_model, _| {
+        local_object_model.add_object(sync_id, workflow);
     });
 }
 
@@ -2732,7 +2732,7 @@ fn test_multiselect_pasting() {
 
         editor.update(&mut app, |editor, ctx| {
             editor.cursor_at(CharOffset::from(1), ctx);
-            editor.add_cursor_at(49.into(), ctx);
+            editor.add_cursor_at(55.into(), ctx);
         });
 
         // Pasting into text and code block should paste plain text only.
