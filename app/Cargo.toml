@@ -301,7 +301,6 @@ warp_util.workspace = true
 # Note that we support channel-specific enables for these features
 [features]
 changelog = []
-clear_autosuggestion_on_escape = []
 completions_v2 = [
     "plugin_host",
     "warp_completer/v2",
@@ -318,7 +317,6 @@ default = [
     "rect_selection",
     "command_correction_key",
     "kitty_images",
-    "clear_autosuggestion_on_escape",
     "command_palette_file_search",
     "tab_close_button_on_left",
     "code_find_replace",

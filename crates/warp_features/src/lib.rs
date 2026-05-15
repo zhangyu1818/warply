@@ -77,9 +77,6 @@ pub enum FeatureFlag {
     /// Enables iTerm image rendering
     ITermImages,
 
-    /// Enables using `esc` to clear autosuggestions.
-    ClearAutosuggestionOnEscape,
-
     /// Enables Kitty image rendering
     KittyImages,
 

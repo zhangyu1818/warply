@@ -384,6 +384,7 @@ This map explains the large fork baseline change at a path level.
 - Removed conversation-list entry backing-source metadata. Local ACP conversation entries are resolved directly from the retained navigation map and current local capabilities, not from cloud/local backing-source fallbacks.
 - Removed unused conversation-list status/source/date/artifact filter model. The retained local conversation list uses search text and local openability only; do not restore old cloud conversation filtering shells without a current local UI.
 - Removed the `ValidateAutosuggestions` rollout flag and Cargo feature. OpenAI-compatible Next Command/autosuggestions now run retained local command validation directly; do not restore an old disabled-validation branch around terminal suggestions.
+- Removed the `ClearAutosuggestionOnEscape` rollout flag and Cargo feature. Escape now directly clears retained terminal autosuggestions when the editor is in the applicable normal-selection state; do not restore an off branch for old rollout state.
 
 ## Legacy Names Still Present
 

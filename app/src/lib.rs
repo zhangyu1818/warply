@@ -1402,8 +1402,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ImeMarkedText,
         #[cfg(feature = "iterm_images")]
         FeatureFlag::ITermImages,
-        #[cfg(feature = "clear_autosuggestion_on_escape")]
-        FeatureFlag::ClearAutosuggestionOnEscape,
         #[cfg(feature = "kitty_images")]
         FeatureFlag::KittyImages,
         #[cfg(feature = "command_correction_key")]
