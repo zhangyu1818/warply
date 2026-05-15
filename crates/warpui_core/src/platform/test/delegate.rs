@@ -9,7 +9,7 @@ use crate::platform::{
     Cursor, RequestNotificationPermissionsCallback, SendNotificationErrorCallback,
     WindowFocusBehavior, WindowOptions,
 };
-use crate::platform::{MicrophoneAccessState, TerminationMode, TextLayoutSystem};
+use crate::platform::{TerminationMode, TextLayoutSystem};
 use crate::text_layout::TextAlignment;
 use crate::windowing::WindowCallbacks;
 use crate::{accessibility::AccessibilityContent, notification::UserNotification, Scene, WindowId};
@@ -285,10 +285,6 @@ impl platform::Delegate for AppDelegate {
         None
     }
 
-    fn microphone_access_state(&self) -> MicrophoneAccessState {
-        MicrophoneAccessState::NotDetermined
-    }
-
     fn show_native_platform_modal(&self, _id: ModalId, _modal: AlertDialog) {
         // no-op
     }
@@ -398,10 +394,6 @@ impl platform::Delegate for IntegrationTestDelegate {
 
     fn is_screen_reader_enabled(&self) -> Option<bool> {
         None
-    }
-
-    fn microphone_access_state(&self) -> MicrophoneAccessState {
-        MicrophoneAccessState::NotDetermined
     }
 
     fn show_native_platform_modal(&self, _id: ModalId, _modal: AlertDialog) {

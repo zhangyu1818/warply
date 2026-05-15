@@ -168,14 +168,6 @@ impl WindowBounds {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum MicrophoneAccessState {
-    NotDetermined,
-    Denied,
-    Restricted,
-    Authorized,
-}
-
 pub trait Delegate: 'static {
     /// Returns a handle to the platform dispatch delegate.
     fn dispatch_delegate(&self) -> Arc<dyn DispatchDelegate>;
@@ -253,9 +245,6 @@ pub trait Delegate: 'static {
     /// Returns whether or not a screen reader is enabled, or None if we do not
     /// know for sure.
     fn is_screen_reader_enabled(&self) -> Option<bool>;
-
-    /// Returns the current microphone access state.
-    fn microphone_access_state(&self) -> MicrophoneAccessState;
 
     /// Returns whether the app is running with a headless rendering backend
     /// (no GUI or visible output).

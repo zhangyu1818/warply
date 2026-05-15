@@ -18,8 +18,8 @@ use warpui_core::keymap::Keystroke;
 use warpui_core::modals::{AlertDialog, ModalId};
 use warpui_core::notification::{NotificationSendError, RequestPermissionsOutcome};
 use warpui_core::platform::{
-    Cursor, FilePickerCallback, FilePickerConfiguration, MicrophoneAccessState,
-    SendNotificationErrorCallback, TerminationMode,
+    Cursor, FilePickerCallback, FilePickerConfiguration, SendNotificationErrorCallback,
+    TerminationMode,
 };
 use warpui_core::ApplicationBundleInfo;
 use warpui_core::{
@@ -172,10 +172,6 @@ impl platform::Delegate for IntegrationTestDelegate {
 
     fn is_screen_reader_enabled(&self) -> Option<bool> {
         self.app_delegate.is_screen_reader_enabled()
-    }
-
-    fn microphone_access_state(&self) -> MicrophoneAccessState {
-        self.app_delegate.microphone_access_state()
     }
 
     fn show_native_platform_modal(&self, _id: ModalId, _modal: AlertDialog) {
@@ -413,28 +409,6 @@ impl platform::Delegate for AppDelegate {
 
     fn is_screen_reader_enabled(&self) -> Option<bool> {
         unsafe { Some(isVoiceOverEnabled() == YES) }
-    }
-
-    fn microphone_access_state(&self) -> MicrophoneAccessState {
-        unsafe {
-            let cls = class!(AVCaptureDevice);
-            // "soun" is not a typo, it's the correct constant name.
-            let media_type_audio = make_nsstring("soun");
-
-            // AVAuthorizationStatus constants:
-            // 0 = AVAuthorizationStatusNotDetermined - User has not yet made a choice
-            // 1 = AVAuthorizationStatusRestricted - Restricted by system settings/parental controls
-            // 2 = AVAuthorizationStatusDenied - User explicitly denied access
-            // 3 = AVAuthorizationStatusAuthorized - User granted access
-            let status: i32 = msg_send![cls, authorizationStatusForMediaType: media_type_audio];
-            match status {
-                0 => MicrophoneAccessState::NotDetermined,
-                1 => MicrophoneAccessState::Restricted,
-                2 => MicrophoneAccessState::Denied,
-                3 => MicrophoneAccessState::Authorized,
-                _ => MicrophoneAccessState::NotDetermined, // fallback
-            }
-        }
     }
 }
 

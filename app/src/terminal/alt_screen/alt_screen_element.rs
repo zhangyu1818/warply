@@ -29,7 +29,6 @@ use warp_core::features::FeatureFlag;
 use warp_util::user_input::UserInput;
 use warpui::elements::new_scrollable::{NewScrollableElement, ScrollableAxis};
 use warpui::event::{KeyState, ModifiersState};
-use warpui::platform::keyboard::KeyCode;
 use warpui::text::SelectionType;
 
 use super::{should_intercept_mouse, should_intercept_scroll};
@@ -521,15 +520,6 @@ impl AltScreenElement {
     fn line_height(&self) -> Pixels {
         self.grid_render_params.size_info.cell_height_px()
     }
-
-    fn maybe_handle_voice_toggle(
-        &self,
-        _key_code: &KeyCode,
-        _state: &KeyState,
-        _ctx: &mut EventContext,
-    ) -> bool {
-        false
-    }
 }
 
 impl Element for AltScreenElement {
@@ -859,7 +849,7 @@ impl Element for AltScreenElement {
                         ctx.dispatch_typed_action(TerminalAction::ControlSequence(escape_sequence));
                         return true;
                     }
-                    self.maybe_handle_voice_toggle(key_code, state, ctx)
+                    false
                 } else {
                     false
                 }

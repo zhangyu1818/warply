@@ -13,8 +13,7 @@ use crate::{
         app::TerminationResult,
         file_picker::{FilePickerConfiguration, FilePickerError},
         keyboard::KeyCode,
-        FullscreenState, MicrophoneAccessState, SaveFilePickerConfiguration, SystemTheme,
-        TerminationMode, WindowContext,
+        FullscreenState, SaveFilePickerConfiguration, SystemTheme, TerminationMode, WindowContext,
     },
     r#async::{block_on, SpawnableOutput, Timer},
     windowing::{WindowCallbacks, WindowManager},
@@ -4403,10 +4402,6 @@ impl AppContext {
 
     pub fn is_headless(&self) -> bool {
         self.platform_delegate.is_headless()
-    }
-
-    pub fn microphone_access_state(&self) -> MicrophoneAccessState {
-        self.platform_delegate.microphone_access_state()
     }
 
     pub fn windows(&self) -> &WindowManager {

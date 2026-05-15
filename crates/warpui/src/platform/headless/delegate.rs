@@ -177,10 +177,6 @@ impl platform::Delegate for AppDelegate {
         None
     }
 
-    fn microphone_access_state(&self) -> platform::MicrophoneAccessState {
-        platform::MicrophoneAccessState::Denied
-    }
-
     fn is_headless(&self) -> bool {
         true
     }
