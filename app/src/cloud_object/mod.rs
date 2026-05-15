@@ -211,56 +211,6 @@ pub trait CloudObject: Debug {
         }
     }
 
-    /// Sets the content pending status of this object to `InFlight` (if it wasn't already) and
-    /// increments the number of in flight requests tracked in the `InFlight` enum.
-    fn increment_in_flight_request_count(&mut self) {
-        let new_reqs = match &self.metadata().pending_changes_statuses.content_sync_status {
-            CloudObjectSyncStatus::InFlight(reqs) => reqs.0 + 1,
-            _ => 1,
-        };
-
-        self.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
-            NumInFlightRequests(new_reqs),
-        ))
-    }
-
-    /// Decrements the number of in flight requests tracked in this object's `InFlight` enum. If
-    /// that number becomes 0, it's no longer in flight, so it will be set to `status_if_no_reqs`.
-    /// Returns true if the object is no longer in flight.
-    fn decrement_in_flight_request_count(
-        &mut self,
-        status_if_no_reqs: CloudObjectSyncStatus,
-    ) -> bool {
-        match &self.metadata().pending_changes_statuses.content_sync_status {
-            CloudObjectSyncStatus::InFlight(reqs) => {
-                if reqs.0 - 1 == 0 {
-                    self.set_pending_content_changes_status(status_if_no_reqs);
-                    return true;
-                } else {
-                    self.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
-                        NumInFlightRequests(reqs.0 - 1),
-                    ));
-                    return false;
-                }
-            }
-            _ => log::error!(
-                "called decrement_in_flight_request_count with a non-`InFlight` content status"
-            ),
-        }
-
-        true
-    }
-
-    /// Sets the content change status on this object's metadata
-    fn set_pending_content_changes_status(
-        &mut self,
-        pending_content_changes_status: CloudObjectSyncStatus,
-    ) {
-        self.metadata_mut()
-            .pending_changes_statuses
-            .content_sync_status = pending_content_changes_status;
-    }
-
     /// Whether or not this object can be exported.
     fn can_export(&self) -> bool;
 

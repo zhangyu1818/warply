@@ -262,10 +262,6 @@ pub enum CloudObjectSyncStatus {
     NoLocalChanges,
     /// The object's content has been modified locally and is currently being persisted.
     InFlight(NumInFlightRequests),
-    /// The object's content has been modified locally but has an unresolved revision conflict.
-    InConflict,
-    /// The object's content has been modified locally, but persistence could not complete.
-    Errored,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -322,14 +318,7 @@ impl CloudObjectMetadata {
     pub fn has_pending_content_changes(&self) -> bool {
         !matches!(
             self.pending_changes_statuses.content_sync_status,
-            CloudObjectSyncStatus::NoLocalChanges | CloudObjectSyncStatus::InConflict
-        )
-    }
-
-    pub fn is_errored(&self) -> bool {
-        matches!(
-            self.pending_changes_statuses.content_sync_status,
-            CloudObjectSyncStatus::Errored
+            CloudObjectSyncStatus::NoLocalChanges
         )
     }
 

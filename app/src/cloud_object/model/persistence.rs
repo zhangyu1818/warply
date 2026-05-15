@@ -572,14 +572,6 @@ impl CloudModel {
             .count()
     }
 
-    /// Number of visible local objects that have errored in some way.
-    pub fn num_visible_errored_objects(&self) -> usize {
-        self.objects_by_id
-            .values()
-            .filter(|object| object.renders_as_local_object() && object.metadata().is_errored())
-            .count()
-    }
-
     pub fn has_objects(&self) -> bool {
         !self.objects_by_id.is_empty()
     }
