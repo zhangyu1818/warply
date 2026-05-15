@@ -2371,7 +2371,6 @@ impl Input {
         let slash_command_model = ctx.add_model(|ctx| {
             SlashCommandModel::new(
                 &buffer_model,
-                &ai_input_model,
                 active_session.clone(),
                 slash_command_data_source.clone(),
                 ctx,

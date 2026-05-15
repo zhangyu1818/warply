@@ -16,7 +16,7 @@ use warpui::clipboard::ClipboardContent;
 use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::{BlocklistAIHistoryModel, SlashCommandRequest};
+use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, InputType, SlashCommandRequest};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::object_ids::SyncId;
@@ -25,6 +25,7 @@ use crate::search::slash_command_menu::static_commands::Availability;
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
 use crate::terminal::input::slash_command_model::{
@@ -155,10 +156,42 @@ impl Input {
                 ctx,
             );
         } else {
+            if command.auto_enter_ai_mode {
+                self.enter_auto_slash_command_ai_mode(trigger, ctx);
+            }
             self.editor.update(ctx, |editor, ctx| {
                 editor.set_buffer_text(&format!("{} ", command.name), ctx);
             });
         }
+    }
+
+    fn enter_auto_slash_command_ai_mode(
+        &mut self,
+        trigger: SlashCommandTrigger,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let is_cli_agent_input_open =
+            CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
+        if !is_cli_agent_input_open && !self.agent_view_controller.as_ref(ctx).is_active() {
+            self.ai_context_model.update(ctx, |context_model, ctx| {
+                context_model.set_pending_query_state_for_new_conversation(
+                    AgentViewEntryOrigin::SlashCommand { trigger },
+                    ctx,
+                );
+            });
+        }
+
+        let is_input_buffer_empty = self.editor.as_ref(ctx).buffer_text(ctx).is_empty();
+        self.ai_input_model.update(ctx, |input_model, ctx| {
+            input_model.set_input_config(
+                InputConfig {
+                    input_type: InputType::AI,
+                    is_locked: true,
+                },
+                is_input_buffer_empty,
+                ctx,
+            );
+        });
     }
 
     pub(super) fn close_slash_commands_menu(&mut self, ctx: &mut ViewContext<Self>) {
@@ -213,7 +246,7 @@ impl Input {
                 }
 
                 if detected_command.command.auto_enter_ai_mode {
-                    self.enter_ai_mode(ctx);
+                    self.enter_auto_slash_command_ai_mode(SlashCommandTrigger::input(), ctx);
                 }
 
                 if detected_command.command.name == commands::EDIT.name

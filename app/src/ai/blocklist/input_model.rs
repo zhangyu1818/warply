@@ -205,7 +205,9 @@ impl BlocklistAIInputModel {
                         },
                         ctx,
                     );
-                } else if me.has_locking_attachment(ctx) {
+                } else if matches!(origin, AgentViewEntryOrigin::SlashCommand { .. })
+                    || me.has_locking_attachment(ctx)
+                {
                     me.set_input_config_internal(
                         InputConfig {
                             input_type: InputType::AI,

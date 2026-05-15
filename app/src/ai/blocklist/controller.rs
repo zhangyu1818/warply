@@ -8,15 +8,13 @@ mod slash_command;
 use input_context::{input_context_for_request, parse_context_attachments};
 pub use slash_command::*;
 
-use super::agent_view::AgentViewEntryOrigin;
 use super::ResponseStreamId;
 use super::{
     action_model::{BlocklistAIActionEvent, BlocklistAIActionModel},
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::BlocklistAIContextModel,
     history_model::BlocklistAIHistoryModel,
-    input_model::InputConfig,
-    BlocklistAIInputModel, InputType,
+    BlocklistAIInputModel,
 };
 use crate::ai::acp::model::{AcpAgentModel, AcpRunTarget};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
@@ -31,7 +29,6 @@ use crate::ai::document::ai_document_model::{
     AIDocumentId, AIDocumentModel, AIDocumentUserEditStatus,
 };
 use crate::ai::llms::LLMId;
-use crate::features::FeatureFlag;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
 use crate::settings::AISettings;
@@ -208,12 +205,6 @@ enum WhichTask {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FollowUpTrigger {
-    Auto,
-    UserRequested,
-}
-
 struct InputQuery {
     which_task: WhichTask,
     input_query: InputQueryType,
@@ -333,12 +324,7 @@ impl BlocklistAIController {
                 }
                 return;
             }
-            let trigger = if has_manual_follow_up {
-                FollowUpTrigger::UserRequested
-            } else {
-                FollowUpTrigger::Auto
-            };
-            me.send_follow_up_for_conversation(*conversation_id, trigger, ctx);
+            me.send_follow_up_for_conversation(*conversation_id, ctx);
         });
 
         ctx.subscribe_to_model(&agent_view_controller, |me, event, ctx| {
@@ -497,7 +483,6 @@ impl BlocklistAIController {
 
         let send_result = self.send_request_input(
             RequestInput::for_task(inputs, task_id, &self.active_session, conversation_id, ctx),
-            /*default_to_follow_up_on_success*/ true,
             is_queued_prompt,
             ctx,
         );
@@ -959,11 +944,7 @@ impl BlocklistAIController {
             .as_ref(ctx)
             .get_finished_action_results(conversation_id);
         if finished_action_results.is_some_and(|results| !results.is_empty()) {
-            self.send_follow_up_for_conversation(
-                conversation_id,
-                FollowUpTrigger::UserRequested,
-                ctx,
-            );
+            self.send_follow_up_for_conversation(conversation_id, ctx);
         }
     }
 
@@ -987,7 +968,6 @@ impl BlocklistAIController {
     fn send_follow_up_for_conversation(
         &mut self,
         conversation_id: AIConversationId,
-        trigger: FollowUpTrigger,
         ctx: &mut ModelContext<Self>,
     ) {
         if AcpAgentModel::as_ref(ctx).has_active_session_for_conversation(conversation_id) {
@@ -997,18 +977,6 @@ impl BlocklistAIController {
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
             history.mark_active_conversation_id(conversation_id, self.terminal_view_id, ctx);
         });
-
-        if !FeatureFlag::AgentView.is_enabled() && trigger == FollowUpTrigger::Auto {
-            // If `AgentView` is enabled, the conversation is guaranteed to be active while the
-            // conversation is in-progress and thus while actions are executing/finishing.
-            self.context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_query_state_for_existing_conversation(
-                    conversation_id,
-                    AgentViewEntryOrigin::AutoFollowUp,
-                    ctx,
-                );
-            });
-        }
 
         let finished_results = self.action_model.update(ctx, |action_model, _| {
             action_model.drain_finished_action_results(conversation_id)
@@ -1033,12 +1001,7 @@ impl BlocklistAIController {
             ctx,
         );
 
-        let _ = self.send_request_input(
-            request_input,
-            /*default_to_follow_up_on_success*/ false,
-            /*is_queued_prompt*/ false,
-            ctx,
-        );
+        let _ = self.send_request_input(request_input, /*is_queued_prompt*/ false, ctx);
 
         self.pending_passive_follow_ups.remove(&conversation_id);
     }
@@ -1085,7 +1048,6 @@ impl BlocklistAIController {
         let inputs = vec![AIAgentInput::ResumeConversation { context }];
         let _ = self.send_request_input(
             RequestInput::for_task(inputs, task_id, &self.active_session, conversation_id, ctx),
-            /*default_to_follow_up_on_success*/ true,
             /*is_queued_prompt*/ false,
             ctx,
         );
@@ -1291,7 +1253,6 @@ impl BlocklistAIController {
     fn send_request_input(
         &mut self,
         mut request_input: RequestInput,
-        default_to_follow_up_on_success: bool,
         is_queued_prompt: bool,
         ctx: &mut ModelContext<Self>,
     ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
@@ -1449,29 +1410,6 @@ impl BlocklistAIController {
         // This ensures the agent view is restored if the app restarts.
         if input_contains_user_query {
             ctx.dispatch_global_action("workspace:save_app", ());
-        }
-
-        // If `AgentView` is enabled, the agent view is guaranteed to be active when the agent
-        // input is sent, so logic to ensure follow-ups is redundant.
-        if !FeatureFlag::AgentView.is_enabled() && default_to_follow_up_on_success {
-            // Set the input mode to AI but allow autodetection to run
-            self.input_model.update(ctx, |input_model, ctx| {
-                input_model.set_input_config_for_classic_mode(
-                    InputConfig {
-                        input_type: InputType::AI,
-                        is_locked: false,
-                    },
-                    ctx,
-                );
-            });
-            // After making an AI query, default to asking a follow up.
-            self.context_model.update(ctx, |context_model, ctx| {
-                context_model.set_pending_query_state_for_existing_conversation(
-                    conversation_id,
-                    AgentViewEntryOrigin::AutoFollowUp,
-                    ctx,
-                )
-            });
         }
 
         Ok((conversation_id, response_stream_id))

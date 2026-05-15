@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::{
@@ -58,24 +57,17 @@ impl SlashCommandRequest {
         let active_conversation_id = BlocklistAIHistoryModel::as_ref(ctx)
             .active_conversation_id(controller.terminal_view_id);
 
-        // If no existing conversation, create a new one.
-        // When AgentView is enabled, enter agent view which creates the conversation
-        // and ensures AI blocks render correctly in the agent view.
         let Some(conversation_id) = conversation_id.or_else(|| {
-            if FeatureFlag::AgentView.is_enabled() {
-                controller.context_model.update(ctx, |context_model, ctx| {
-                    context_model
-                        .try_enter_agent_view_for_new_conversation(
-                            AgentViewEntryOrigin::SlashCommand {
-                                trigger: SlashCommandTrigger::input(),
-                            },
-                            ctx,
-                        )
-                        .ok()
-                })
-            } else {
-                Some(controller.start_new_conversation_for_request(ctx).id())
-            }
+            controller.context_model.update(ctx, |context_model, ctx| {
+                context_model
+                    .try_enter_agent_view_for_new_conversation(
+                        AgentViewEntryOrigin::SlashCommand {
+                            trigger: SlashCommandTrigger::input(),
+                        },
+                        ctx,
+                    )
+                    .ok()
+            })
         }) else {
             log::error!("Failed to get conversation ID for slash command request");
             return;
@@ -106,12 +98,7 @@ impl SlashCommandRequest {
             conversation_id,
             ctx,
         );
-        match controller.send_request_input(
-            request_input,
-            /*default_to_follow_up_on_success*/ true,
-            is_queued_prompt,
-            ctx,
-        ) {
+        match controller.send_request_input(request_input, is_queued_prompt, ctx) {
             Ok(_) => {}
             Err(e) => log::error!("Failed to send agent slash command request: {e:?}"),
         }

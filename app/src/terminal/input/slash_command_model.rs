@@ -1,7 +1,5 @@
-use input_classifier::InputType;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::search::slash_command_menu::StaticCommand;
 use crate::settings::InputSettings;
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
@@ -85,7 +83,6 @@ impl SlashCommandEntryState {
 
 pub struct SlashCommandModel {
     input_buffer_model: ModelHandle<InputBufferModel>,
-    ai_input_model: ModelHandle<BlocklistAIInputModel>,
     state: SlashCommandEntryState,
     data_source: ModelHandle<SlashCommandDataSource>,
 }
@@ -93,7 +90,6 @@ pub struct SlashCommandModel {
 impl SlashCommandModel {
     pub fn new(
         buffer_model: &ModelHandle<InputBufferModel>,
-        ai_input_model: &ModelHandle<BlocklistAIInputModel>,
         _active_session: ModelHandle<
             crate::terminal::model::session::active_session::ActiveSession,
         >,
@@ -106,7 +102,6 @@ impl SlashCommandModel {
 
         Self {
             input_buffer_model: buffer_model.clone(),
-            ai_input_model: ai_input_model.clone(),
             data_source,
             state: SlashCommandEntryState::None,
         }
@@ -206,11 +201,6 @@ impl SlashCommandModel {
                     }
                 }
 
-                if detected_command.command.auto_enter_ai_mode {
-                    self.ai_input_model.update(ctx, |input_model, ctx| {
-                        input_model.set_input_type(InputType::AI, ctx);
-                    });
-                }
                 self.state = SlashCommandEntryState::SlashCommand(detected_command);
             }
             _ if new.starts_with('/') => {
