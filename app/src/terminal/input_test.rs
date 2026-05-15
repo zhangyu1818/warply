@@ -2199,7 +2199,7 @@ fn test_completions_while_typing_doesnt_hide_autosuggestion() {
 }
 
 #[test]
-fn test_agent_mode_set_while_typing_slash_command() {
+fn test_slash_command_composition_does_not_force_agent_mode() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -2210,33 +2210,27 @@ fn test_agent_mode_set_while_typing_slash_command() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Start with natural language detection
         input.update(&mut app, |input, ctx| {
             input.set_input_mode_natural_language_detection(ctx);
             assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
         });
 
-        // Open slash commands menu by typing "/"
         input.update(&mut app, |input, ctx| {
             input.user_insert("/", ctx);
         });
 
-        // Verify slash commands menu is open and agent mode is forced
         input.read(&app, |input, ctx| {
             assert!(matches!(
                 input.suggestions_mode_model.as_ref(ctx).mode(),
                 InputSuggestionsMode::SlashCommands
             ));
-            // Should be in agent mode now
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
         });
 
-        // Add a command with a space
         input.update(&mut app, |input, ctx| {
             input.user_insert("plan ", ctx);
         });
 
-        // Verify menu is closed and we're still in agent mode
         input.read(&app, |input, ctx| {
             assert!(matches!(
                 input.suggestions_mode_model.as_ref(ctx).mode(),
@@ -2497,7 +2491,7 @@ fn test_open_slash_command_expands_tilde() {
 }
 
 #[test]
-fn test_shell_lock_respected_when_slash_command_typed() {
+fn test_auto_enter_slash_command_enters_agent_mode_from_locked_shell() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -2508,27 +2502,23 @@ fn test_shell_lock_respected_when_slash_command_typed() {
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
 
-        // Explicitly lock to shell mode
         input.update(&mut app, |input, ctx| {
             input.set_input_mode_terminal(true, ctx);
         });
 
-        // Verify locked in shell mode
         input.read(&app, |input, ctx| {
             let ai_model = input.ai_input_model.as_ref(ctx);
             assert!(ai_model.is_input_type_locked());
             assert!(!ai_model.is_ai_input_enabled());
         });
 
-        // Type a slash command - should NOT force agent mode when locked
         input.update(&mut app, |input, ctx| {
             input.user_insert("/plan ", ctx);
         });
 
-        // Should still be in shell mode because it was locked
         input.read(&app, |input, ctx| {
             let ai_model = input.ai_input_model.as_ref(ctx);
-            assert!(!ai_model.is_ai_input_enabled());
+            assert!(ai_model.is_ai_input_enabled());
             assert!(ai_model.is_input_type_locked());
         });
     });

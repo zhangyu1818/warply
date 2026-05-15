@@ -13,7 +13,6 @@ use crate::{
 use pathfinder_geometry::vector::vec2f;
 use vim::vim::{VimMode, VimState};
 use warp_completer::completer::Description;
-use warp_core::features::FeatureFlag;
 use warpui::{
     elements::{
         AnchorPair, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
@@ -34,8 +33,7 @@ pub(super) fn should_show_terminal_input_message_bar(
     _model: &TerminalModel,
     app: &AppContext,
 ) -> bool {
-    FeatureFlag::AgentView.is_enabled()
-        && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
+    InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
         && AISettings::as_ref(app).is_any_ai_enabled(app)
 }
 

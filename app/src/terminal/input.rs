@@ -411,8 +411,6 @@ pub const SET_INPUT_MODE_UNLOCKED_AGENT_ACTION_NAME: &str = "input:set_mode_unlo
 /// Action name for setting input mode to unlocked terminal mode (with natural language detection)
 pub const SET_INPUT_MODE_UNLOCKED_TERMINAL_ACTION_NAME: &str = "input:set_mode_unlocked_terminal";
 
-const START_NEW_CONVERSATION_KEYBINDING_NAME: &str = "input:start_new_agent_conversation";
-
 /// The position ID used to identify the start of the replacement span for completions.
 const COMPLETIONS_START_OF_REPLACEMENT_SPAN_POSITION_ID: &str =
     "start_of_completions_replacement_span";
@@ -1526,17 +1524,6 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Input") & id!(flags::IS_ANY_AI_ENABLED) & !id!("AIInput"))
         .with_group(bindings::BindingGroup::Ai.as_str())
         .with_custom_action(CustomAction::AISearch),
-        EditableBinding::new(
-            START_NEW_CONVERSATION_KEYBINDING_NAME,
-            "New agent conversation",
-            InputAction::StartNewAgentConversation,
-        )
-        .with_enabled(|| !FeatureFlag::AgentView.is_enabled())
-        .with_group(bindings::BindingGroup::Ai.as_str())
-        .with_context_predicate(
-            id!("Input") & id!(flags::IS_ANY_AI_ENABLED) & id!("TerminalView_NonEmptyBlockList"),
-        )
-        .with_mac_key_binding("cmd-shift-N"),
         EditableBinding::new(
             "input:enable_auto_detection",
             "Trigger Auto Detection",

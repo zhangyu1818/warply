@@ -352,7 +352,6 @@ default = [
     "force_classic_completions",
     "pluggable_notifications",
     "global_search",
-    "agent_view",
     "inline_slash_commands",
     "inline_history_menu",
     "new_tab_styling",
@@ -399,7 +398,7 @@ welcome_tab = []
 github_pr_prompt_chip = []
 create_project_flow = []
 allow_ignoring_input_suggestions = []
-inline_slash_commands = ["agent_view"]
+inline_slash_commands = []
 
 # Enable this feature to track heap usage and automatically produce a heap
 # profile report when app memory usage exceeds a 10GB threshold.
@@ -515,12 +514,11 @@ inline_code_review = []
 fork_from_command = []
 global_search = []
 file_and_diff_set_comments = []
-agent_view = []
-agent_toolbar_editor = ["agent_view"]
+agent_toolbar_editor = []
 classic_completions = []
 force_classic_completions = []
-inline_history_menu = ["agent_view"]
-inline_repo_menu = ["agent_view"]
+inline_history_menu = []
+inline_repo_menu = []
 new_tab_styling = []
 active_conversation_requires_interaction = []
 incremental_auto_reload = []

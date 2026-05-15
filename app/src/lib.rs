@@ -1501,7 +1501,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::EmbeddedCodeReviewComments,
         #[cfg(feature = "file_and_diff_set_comments")]
         FeatureFlag::FileAndDiffSetComments,
-        #[cfg(feature = "agent_view")]
         FeatureFlag::AgentView,
         #[cfg(feature = "agent_toolbar_editor")]
         FeatureFlag::AgentToolbarEditor,
