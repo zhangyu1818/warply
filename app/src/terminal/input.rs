@@ -665,9 +665,7 @@ impl InputSuggestionsMode {
                 ..
             } => Some("Search queries to rewind to"),
             InputSuggestionsMode::ConversationMenu => Some("Search conversations"),
-            InputSuggestionsMode::SlashCommands if FeatureFlag::AgentView.is_enabled() => {
-                Some("Search commands")
-            }
+            InputSuggestionsMode::SlashCommands => Some("Search commands"),
             InputSuggestionsMode::PromptsMenu => Some("Search prompts"),
             InputSuggestionsMode::IndexedReposMenu => Some("Search indexed repos"),
             InputSuggestionsMode::PlanMenu { .. } => Some("Search plans"),
@@ -1589,18 +1587,16 @@ pub fn init(app: &mut AppContext) {
             & id!(flags::PASSIVE_CODE_DIFF_KEYBINDINGS_ENABLED),
     )]);
 
-    if FeatureFlag::AgentView.is_enabled() {
-        app.register_fixed_bindings([FixedBinding::new(
-            "shift-?",
-            InputAction::ToggleAgentViewShortcuts,
-            id!("Input")
-                & !id!("IMEOpen")
-                & id!(flags::EMPTY_INPUT_BUFFER)
-                & id!(flags::ACTIVE_AGENT_VIEW)
-                & !id!("LongRunningCommand")
-                & !(id!(flags::TERMINAL_MODE_INPUT) & id!(flags::LOCKED_INPUT)),
-        )]);
-    }
+    app.register_fixed_bindings([FixedBinding::new(
+        "shift-?",
+        InputAction::ToggleAgentViewShortcuts,
+        id!("Input")
+            & !id!("IMEOpen")
+            & id!(flags::EMPTY_INPUT_BUFFER)
+            & id!(flags::ACTIVE_AGENT_VIEW)
+            & !id!("LongRunningCommand")
+            & !(id!(flags::TERMINAL_MODE_INPUT) & id!(flags::LOCKED_INPUT)),
+    )]);
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -2045,9 +2041,7 @@ impl Input {
                                 .insert(flags::CTRL_ENTER_ACCEPTS_PROMPT_SUGGESTION);
                         }
 
-                        if FeatureFlag::AgentView.is_enabled() {
-                            context.set.insert(flags::AGENT_VIEW_ENABLED);
-                        }
+                        context.set.insert(flags::AGENT_VIEW_ENABLED);
 
                         if CLIAgentSessionsModel::as_ref(app).is_input_open(terminal_view_id) {
                             context.set.insert(flags::CLI_AGENT_RICH_INPUT_OPEN);
@@ -2408,14 +2402,12 @@ impl Input {
                 ctx,
             )
         });
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_view(&inline_conversation_menu_view, |me, _, event, ctx| {
-                me.handle_conversation_menu_event(event, ctx);
-            });
-            ctx.subscribe_to_model(&inline_terminal_menu_positioner, |_, _, _, ctx| {
-                ctx.notify();
-            });
-        }
+        ctx.subscribe_to_view(&inline_conversation_menu_view, |me, _, event, ctx| {
+            me.handle_conversation_menu_event(event, ctx);
+        });
+        ctx.subscribe_to_model(&inline_terminal_menu_positioner, |_, _, _, ctx| {
+            ctx.notify();
+        });
 
         let inline_repos_menu_view = ctx.add_view(|ctx| {
             InlineReposMenuView::new(
@@ -2453,11 +2445,9 @@ impl Input {
                 ctx,
             )
         });
-        if FeatureFlag::AgentView.is_enabled() {
-            ctx.subscribe_to_view(&user_query_menu_view, |me, _, event, ctx| {
-                me.handle_user_query_menu_event(event, ctx);
-            });
-        }
+        ctx.subscribe_to_view(&user_query_menu_view, |me, _, event, ctx| {
+            me.handle_user_query_menu_event(event, ctx);
+        });
 
         let inline_plan_menu_view = ctx.add_view(|ctx| {
             InlinePlanMenuView::new(
