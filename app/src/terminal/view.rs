@@ -5608,14 +5608,6 @@ impl TerminalView {
             if let Some(model) = &self.active_init_project_model {
                 model.update(ctx, |m, ctx| m.cancel(ctx));
             }
-        } else if self
-            .passive_suggestions_models
-            .terminal
-            .as_ref(ctx)
-            .is_passive_code_diff_being_generated()
-        {
-            // Handle Ctrl-C for passive code generation blocks ("Generating fix..." state)
-            self.abort_prompt_and_code_suggestions(ctx);
         } else if let Some(active_env_var_block) = self.active_env_var_collection_block(ctx) {
             active_env_var_block.update(ctx, |env_var_block, ctx| {
                 env_var_block.handle_ctrl_c(ctx);
@@ -7400,33 +7392,10 @@ impl TerminalView {
             .unwrap_or_default()
     }
 
-    // Abort any pending prompt or code suggestions, which may now be irrelevant.
-    fn abort_prompt_and_code_suggestions(&mut self, ctx: &mut ViewContext<Self>) {
-        let pending_stream_ids = self
-            .passive_suggestions_models
+    fn abort_prompt_suggestions(&mut self, ctx: &mut ViewContext<Self>) {
+        self.passive_suggestions_models
             .terminal
-            .update(ctx, |model, ctx| model.abort_pending_requests(ctx));
-        for stream_id in pending_stream_ids {
-            if let Some(passive_block) =
-                self.rich_content_views
-                    .iter()
-                    .rev()
-                    .find_map(|rich_content| {
-                        let ai_metadata = rich_content.ai_block_metadata()?;
-                        if ai_metadata
-                            .ai_block_handle
-                            .as_ref(ctx)
-                            .response_stream_id()
-                            .is_some_and(|id| id == &stream_id)
-                        {
-                            return Some(ai_metadata.ai_block_handle.clone());
-                        }
-                        None
-                    })
-            {
-                self.cleanup_and_remove_conversation_for_ai_block(&passive_block, ctx);
-            }
-        }
+            .update(ctx, |model, _ctx| model.abort_pending_requests());
     }
 
     /// Cleans up and removes the conversation associated with the given AI block.
@@ -12820,7 +12789,7 @@ impl TerminalView {
             self.set_current_state(TerminalViewState::Normal, ctx);
         }
 
-        self.abort_prompt_and_code_suggestions(ctx);
+        self.abort_prompt_suggestions(ctx);
         self.input.update(ctx, |input, ctx| {
             input
                 .editor()

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::ai::blocklist::controller::{
-    response_stream::ResponseStreamId, BlocklistAIController, BlocklistAIControllerEvent,
-};
+use crate::ai::blocklist::controller::{BlocklistAIController, BlocklistAIControllerEvent};
 use crate::ai::execution_context::AiExecutionContext;
 use crate::ai::predict::terminal_prompt_suggestions::{
     TerminalPromptSuggestion, TerminalPromptSuggestionsRequest, TerminalPromptSuggestionsResponse,
@@ -63,24 +61,16 @@ impl PassiveSuggestionsModel {
         }
     }
 
-    pub fn is_passive_code_diff_being_generated(&self) -> bool {
-        false
-    }
-
-    pub fn abort_pending_requests(
-        &mut self,
-        _ctx: &mut ModelContext<Self>,
-    ) -> Vec<ResponseStreamId> {
+    pub fn abort_pending_requests(&mut self) {
         if let Some(handle) = self.prompt_suggestions_future_handle.take() {
             handle.abort();
         }
-        Vec::new()
     }
 
     fn handle_model_event(&mut self, event: &ModelEvent, ctx: &mut ModelContext<Self>) {
         match event {
             ModelEvent::AfterBlockStarted { .. } => {
-                self.abort_pending_requests(ctx);
+                self.abort_pending_requests();
             }
             ModelEvent::AfterBlockCompleted(after_block_completed_event) => {
                 let BlockType::User(block_completed) = &after_block_completed_event.block_type
@@ -96,12 +86,12 @@ impl PassiveSuggestionsModel {
     fn handle_controller_event(
         &mut self,
         event: &BlocklistAIControllerEvent,
-        ctx: &mut ModelContext<Self>,
+        _ctx: &mut ModelContext<Self>,
     ) {
         match event {
             BlocklistAIControllerEvent::SentRequest { stream_id, .. } => {
                 let _ = stream_id;
-                self.abort_pending_requests(ctx);
+                self.abort_pending_requests();
             }
             _ => {}
         }
@@ -116,7 +106,7 @@ impl PassiveSuggestionsModel {
             return;
         }
 
-        self.abort_pending_requests(ctx);
+        self.abort_pending_requests();
 
         if should_generate_prompt_suggestions(block_completed, ctx) {
             self.generate_prompt_suggestions(block_completed.clone(), ctx);
