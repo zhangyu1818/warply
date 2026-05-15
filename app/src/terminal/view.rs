@@ -5095,7 +5095,7 @@ impl TerminalView {
                         })
                     }
                     FinishedAIAgentOutput::Error {
-                        error: RenderableAIError::Other { error_message, .. },
+                        error: RenderableAIError::Other { error_message },
                         ..
                     } => Some(AIBlockNotificationSummary {
                         success: false,

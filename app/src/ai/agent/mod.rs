@@ -18,7 +18,6 @@ use crate::code::editor_management::CodeSource;
 use crate::code_review::comments::{
     AttachedReviewComment as CodeReviewComment, ReviewCommentBatch,
 };
-use crate::http_api::AIApiError;
 use crate::search::slash_command_menu::static_commands::commands;
 use chrono::{DateTime, Local, TimeDelta};
 use comment::ReviewComment;
@@ -514,52 +513,13 @@ impl AIAgentOutput {
 /// Represents user visible errors.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RenderableAIError {
-    ProviderOverloaded,
-    Other {
-        error_message: String,
-        will_attempt_resume: bool,
-        /// When `will_attempt_resume` is true, this indicates whether we're waiting for network
-        /// connectivity before attempting the resume.
-        waiting_for_network: bool,
-    },
-}
-
-impl RenderableAIError {
-    /// Returns true if an automatic resume will be attempted for this error.
-    pub fn will_attempt_resume(&self) -> bool {
-        matches!(
-            self,
-            Self::Other {
-                will_attempt_resume: true,
-                ..
-            }
-        )
-    }
-}
-
-impl From<&AIApiError> for RenderableAIError {
-    fn from(value: &AIApiError) -> Self {
-        match value {
-            AIApiError::ProviderOverloaded => Self::ProviderOverloaded,
-            _ => Self::Other {
-                error_message: format!("Request failed with error: {value:?}"),
-                will_attempt_resume: false,
-                waiting_for_network: false,
-            },
-        }
-    }
+    Other { error_message: String },
 }
 
 impl Display for RenderableAIError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ProviderOverloaded => {
-                write!(
-                    f,
-                    "AI provider is currently overloaded. Please try again later."
-                )
-            }
-            Self::Other { error_message, .. } => write!(f, "{error_message}"),
+            Self::Other { error_message } => write!(f, "{error_message}"),
         }
     }
 }

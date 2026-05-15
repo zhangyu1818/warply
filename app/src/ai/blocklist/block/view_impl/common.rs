@@ -2630,28 +2630,8 @@ pub struct FailedOutputProps<'a> {
 pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
 
-    let error_text = match props.error {
-        RenderableAIError::ProviderOverloaded => {
-            "AI provider is currently overloaded. Please try again later.".to_string()
-        }
-        RenderableAIError::Other {
-            error_message,
-            will_attempt_resume,
-            waiting_for_network,
-        } => {
-            if *will_attempt_resume {
-                if *waiting_for_network {
-                    format!(
-                        "{error_message}\n\nWill resume conversation when network connectivity is restored..."
-                    )
-                } else {
-                    format!("{error_message}\n\nAttempting to resume conversation...")
-                }
-            } else {
-                format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}")
-            }
-        }
-    };
+    let RenderableAIError::Other { error_message } = props.error;
+    let error_text = format!("{ERROR_APOLOGY_TEXT}\n\n{error_message}");
 
     Flex::row()
         .with_child(

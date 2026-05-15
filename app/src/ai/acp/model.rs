@@ -674,8 +674,6 @@ impl AcpAgentModel {
             history.mark_response_stream_completed_with_error(
                 RenderableAIError::Other {
                     error_message: message,
-                    will_attempt_resume: false,
-                    waiting_for_network: false,
                 },
                 &target.response_stream_id,
                 target.conversation_id,

@@ -10,9 +10,7 @@ use warpui::{AppContext, Entity, ModelHandle, SingletonEntity, View, ViewContext
 
 use super::{AgentViewState, EphemeralMessageModel, EphemeralMessageModelEvent};
 use crate::ai::agent::conversation::AIConversation;
-use crate::ai::agent::{
-    AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIError,
-};
+use crate::ai::agent::{AIAgentExchangeId, AIAgentOutputStatus, FinishedAIAgentOutput};
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
 use crate::ai::blocklist::agent_view::{
     agent_view_bg_fill, AgentViewController, AgentViewControllerEvent,
@@ -606,19 +604,11 @@ fn should_fork_from_last_known_good_state(
         return false;
     };
 
-    let error = match &latest_exchange.output_status {
+    match &latest_exchange.output_status {
         AIAgentOutputStatus::Finished {
-            finished_output: FinishedAIAgentOutput::Error { error, .. },
-        } => error,
-        _ => return false,
-    };
-
-    match error {
-        RenderableAIError::ProviderOverloaded => false,
-        RenderableAIError::Other {
-            will_attempt_resume,
-            ..
-        } => !will_attempt_resume,
+            finished_output: FinishedAIAgentOutput::Error { .. },
+        } => true,
+        _ => false,
     }
 }
 
