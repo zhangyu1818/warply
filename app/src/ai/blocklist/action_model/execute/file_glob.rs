@@ -19,7 +19,6 @@ use crate::{
         ShellLaunchData,
     },
 };
-use warp_core::features::FeatureFlag;
 
 const FILE_GLOB_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -276,13 +275,12 @@ async fn run_find_command(
     let stdout = String::from_utf8_lossy(&command_output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&command_output.stderr).to_string();
 
-    let has_results = FeatureFlag::FileGlobV2Warnings.is_enabled() && !stdout.trim().is_empty();
+    let has_results = !stdout.trim().is_empty();
     if command_output.success() || has_results {
         let files = non_empty_lines(&stdout).map(|line| FileGlobV2Match {
             file_path: line.to_string(),
         });
-        let warnings = if FeatureFlag::FileGlobV2Warnings.is_enabled() && !stderr.trim().is_empty()
-        {
+        let warnings = if !stderr.trim().is_empty() {
             Some(stderr)
         } else {
             None

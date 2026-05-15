@@ -98,9 +98,6 @@ pub enum FeatureFlag {
     /// Enables file search functionality in command palette
     CommandPaletteFileSearch,
 
-    /// Enables sending stderr warnings in FileGlobV2 results.
-    FileGlobV2Warnings,
-
     /// Expands code diff edits to replace the current pane instead of opening in a new tab.
     ExpandEditToPane,
 
@@ -222,7 +219,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ImeMarkedText,
     FeatureFlag::ContextLineReviewComments,
     FeatureFlag::Projects,
-    FeatureFlag::FileGlobV2Warnings,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::LocalDockerSandbox,
     FeatureFlag::VerticalTabsSummaryMode,

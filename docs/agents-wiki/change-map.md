@@ -345,6 +345,7 @@ This map explains the large fork baseline change at a path level.
 - `harness`, `remote control`, `GraphQL`, `billing`, `credits`, `marketplace`, and `template` hits were test harnesses, keyboard documentation, file-type fixtures, tokenizer vocabulary, retained tab/workflow templates, or docs. They are not live Warp cloud product paths.
 - Reworded the retained remote terminal daemon model away from orchestration wording. `remote_server` remains SSH/remote terminal functionality, not Warp service-client behavior.
 - Removed the unused `remote_tty` Web/network-backed PTY feature, its websocket PTY client, and the dedicated `crates/websocket` wrapper. This old `ssh-proxy-server`/Warp-on-Web path is not the retained SSH remote server: keep `remote_server`, `RemoteServerManager`, SSH remote-server workers, ControlMaster fallback, and Warpify.
+- Removed the `FileGlobV2Warnings` rollout flag. File glob warning capture is now direct behavior in the retained local AgentView action renderer; ACP tool calls continue to render from protocol-native ACP events and are not routed through app-managed skills, MCP, or cloud agent tooling.
 
 ## Legacy Names Still Present
 

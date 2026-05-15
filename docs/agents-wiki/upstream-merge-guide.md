@@ -111,6 +111,8 @@ Do not confuse ACP client capabilities with MCP capability probing. ACP client c
 
 Reject UI/action changes that make retained local objects depend on network online status, Warp cloud sync state, sharing permissions, server-assigned IDs, or client-id to server-id backfill for local create/edit/delete flows.
 
+When upstream changes retained local AgentView action rendering such as grep/file-glob display, port UI and local-result handling without restoring rollout gates or Warp-hosted tool execution. ACP tool calls should remain protocol-native UI events; app-managed MCP/skills and cloud agent tooling should not be reintroduced.
+
 Reject Drive/local-object UI changes that restore cloud sync badges, cloud save progress, or cloud save-error indicators. Keep local pending state only when it supports local persistence or quit-warning behavior.
 
 Reject changes that restore workflow or environment-variable collection runtime names and schema fields as `CloudWorkflow`, `WorkflowType::Cloud`, `WorkflowSource::PersonalCloud`, `CloudEnvVarCollection`, or `cloud_workflow_id`. Port them as saved/local object behavior without legacy compatibility aliases.
