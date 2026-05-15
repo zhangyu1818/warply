@@ -2647,10 +2647,6 @@ impl ansi::Handler for TerminalModel {
         delegate!(self.on_finish_byte_processing(input))
     }
 
-    fn on_reset_grid(&mut self) {
-        delegate!(self.on_reset_grid());
-    }
-
     fn tmux_control_mode_event(&mut self, event: tmux::ControlModeEvent) {
         match event {
             tmux::ControlModeEvent::BackgroundPaneOutput { pane, byte } => {

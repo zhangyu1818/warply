@@ -31,7 +31,6 @@ fn empty_blockgrid(
         max_scroll_limit,
         ChannelEventListener::new_for_test(),
         secret_obfuscation_mode,
-        Default::default(),
     )
 }
 

@@ -3,10 +3,7 @@
 //! utilizing a combined prompt/command grid, with helper methods to expose the prompt and command.
 use std::{cmp::max, io};
 
-use super::{
-    grid::{grid_handler::PerformResetGridChecks, Dimensions as _},
-    selection::ScrollDelta,
-};
+use super::{grid::Dimensions as _, selection::ScrollDelta};
 use instant::Instant;
 use pathfinder_color::ColorU;
 use warpui::units::{IntoLines as _, Lines};
@@ -147,24 +144,18 @@ impl HeaderGrid {
         event_proxy: ChannelEventListener,
         should_scan_for_secrets: ObfuscateSecrets,
         honor_ps1: bool,
-        perform_reset_grid_checks: PerformResetGridChecks,
     ) -> Self {
         let prompt_grid = BlockGrid::new(
             sizes.size,
-            // Even though prompt is most likely only 1-2 lines, we allow for the bigger
-            // max_scroll_limit, to account for resizing the window/pane.
             sizes.max_block_scroll_limit,
             event_proxy.clone(),
             should_scan_for_secrets,
-            // We ignore checking if we've received the Reset Grid OSC on the prompt grid.
-            PerformResetGridChecks::No,
         );
         let prompt_and_command_grid = BlockGrid::new(
             sizes.size,
             sizes.max_block_scroll_limit,
             event_proxy.clone(),
             should_scan_for_secrets,
-            perform_reset_grid_checks,
         );
         Self {
             prompt_grid,
@@ -812,11 +803,6 @@ impl HeaderGrid {
     pub fn prompt_to_string(&self) -> String {
         self.prompt_to_string_internal(false, RespectObfuscatedSecrets::Yes, false)
     }
-
-    pub(super) fn disable_reset_grid_checks(&mut self) {
-        self.prompt_grid.disable_reset_grid_checks();
-        self.prompt_and_command_grid.disable_reset_grid_checks();
-    }
 }
 
 // Utilities used in tests for HeaderGrid.
@@ -1115,11 +1101,6 @@ impl ansi::Handler for HeaderGrid {
                     ansi::PromptKind::Initial => {
                         if self.honor_ps1 {
                             self.mark_and_cache_end_of_prompt();
-                        } else {
-                            // We need to reset the cursor position via the Reset Grid OSC so that
-                            // ConPTY doesn't think the cursor is after the prompt. Therefore, we expect
-                            // to receive another OSC before the command is inputted.
-                            self.prompt_and_command_grid.reset_received_osc();
                         }
 
                         if self.ignore_next_prompt_preview {
@@ -1213,10 +1194,6 @@ impl ansi::Handler for HeaderGrid {
 
     fn on_finish_byte_processing(&mut self, input: &ansi::ProcessorInput<'_>) {
         delegate!(self.on_finish_byte_processing(input));
-    }
-
-    fn on_reset_grid(&mut self) {
-        delegate!(self.on_reset_grid());
     }
 
     fn set_keyboard_enhancement_flags(

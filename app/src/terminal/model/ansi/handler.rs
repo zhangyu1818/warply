@@ -316,9 +316,6 @@ pub trait Handler {
     /// input after it's been parsed.
     fn on_finish_byte_processing(&mut self, _input: &ProcessorInput<'_>) {}
 
-    /// Hook that gets called upon receiving a "Reset Grid" OSC from ConPTY.
-    fn on_reset_grid(&mut self) {}
-
     /// tmux control mode event
     fn tmux_control_mode_event(&mut self, _event: ControlModeEvent) {}
 

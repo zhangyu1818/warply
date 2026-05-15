@@ -5,7 +5,6 @@ use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::ansi::{self, Handler};
 use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::cell::Flags;
-use crate::terminal::model::grid::grid_handler::PerformResetGridChecks;
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::index::{VisiblePoint, VisibleRow};
 use crate::terminal::model::ObfuscateSecrets;
@@ -57,7 +56,6 @@ pub fn mock_blockgrid(content: &str) -> BlockGrid {
         MAX_SCROLL_LIMIT,
         ChannelEventListener::new_for_test(),
         ObfuscateSecrets::No,
-        PerformResetGridChecks::default(),
     );
 
     blockgrid.start();

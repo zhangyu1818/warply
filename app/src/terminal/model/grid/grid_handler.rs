@@ -316,20 +316,6 @@ impl AbsoluteRectangle {
     }
 }
 
-/// Whether or not this Grid should keep track of a "Reset Grid" OSC. On Windows, ConPTY has an internal
-/// grid that needs to be kept in sync with Warp's grids. We do this via clearing the ConPTY
-/// grid before Warp starts populating a new grid.
-///
-/// See here for more: https://docs.google.com/document/d/11fU_vVW8CH72W92QUnFJ1Kl31fGWNGbjkQQCK3TUaYk/edit?usp=sharing
-#[derive(Default, Clone, Copy)]
-pub enum PerformResetGridChecks {
-    /// Enable checks relating to the Reset Grid OSC.
-    Yes,
-    /// Disable checks related to the Reset Grid OSC.
-    #[default]
-    No,
-}
-
 /// Specifies a row index within a particular internal storage structure.
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum StorageRow {
@@ -398,7 +384,6 @@ impl GridHandler {
         event_proxy: ChannelEventListener,
         is_alt_screen: bool,
         obfuscate_secrets: ObfuscateSecrets,
-        perform_reset_grid_checks: PerformResetGridChecks,
     ) -> Self {
         // We set the maximum scrollback for grid storage to zero, as the
         // scrollback is stored in flat storage _instead_.  `GridHandler`
@@ -414,13 +399,8 @@ impl GridHandler {
             obfuscate_secrets,
         );
 
-        let ansi_handler_state = ansi_handler::State::new(
-            &size_info,
-            event_proxy,
-            is_alt_screen,
-            obfuscate_secrets,
-            perform_reset_grid_checks,
-        );
+        let ansi_handler_state =
+            ansi_handler::State::new(&size_info, event_proxy, is_alt_screen, obfuscate_secrets);
 
         GridHandler {
             grid,
@@ -458,7 +438,6 @@ impl GridHandler {
             ChannelEventListener::new_for_test(),
             false,
             ObfuscateSecrets::No,
-            PerformResetGridChecks::No,
         )
     }
 
@@ -470,7 +449,6 @@ impl GridHandler {
             ChannelEventListener::new_for_test(),
             true,
             ObfuscateSecrets::No,
-            PerformResetGridChecks::No,
         )
     }
 

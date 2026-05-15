@@ -63,9 +63,6 @@ const WARP_IN_BAND_GENERATOR_END_BYTE: &[u8] = b"B";
 
 /// Marks an OSC that is used for messages containing shell hooks.
 const WARP_OSC_MARKER: &[u8] = b"9278";
-/// Marks an OSC that is used for resetting ConPTY's grid. This is useful for performing a series
-/// of checks ensuring that Warp's grids and ConPTY's grid are in sync.
-const WARP_RESET_GRID_OSC_MARKER: &[u8] = b"9279";
 
 /// The amount of time a single synchronized update can take from the time the corresponding
 /// 'Set Mode' escape sequence is processed before a redraw is forced.
@@ -1132,11 +1129,6 @@ where
                         log::error!("Invalid OSC JSON marker found: {json_marker_char}");
                     }
                 }
-            }
-
-            WARP_RESET_GRID_OSC_MARKER => {
-                log::debug!("Received Warp OSC string for reset grid");
-                self.handler.on_reset_grid();
             }
 
             // Received a Warp OSC used for completions.

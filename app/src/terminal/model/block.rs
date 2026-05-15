@@ -5,7 +5,7 @@ pub use interaction_mode::*;
 pub use serialized_block::*;
 use warp_core::SessionId;
 
-use super::grid::grid_handler::{GridHandler, PerformResetGridChecks};
+use super::grid::grid_handler::GridHandler;
 use super::grid::{Cursor, RespectDisplayedOutput};
 use super::header_grid::HeaderGrid;
 use super::header_grid::PromptEndPoint;
@@ -910,29 +910,23 @@ impl Block {
         should_scan_for_secrets: ObfuscateSecrets,
         conversation_id: Option<AIConversationId>,
     ) -> Self {
-        let perform_reset_grid_checks = PerformResetGridChecks::No;
         let header_grid = HeaderGrid::new(
             sizes.clone(),
             event_proxy.clone(),
             should_scan_for_secrets,
             honor_ps1,
-            perform_reset_grid_checks,
         );
         let rprompt_grid = BlockGrid::new(
             sizes.size,
-            // Even though prompt is most likely only 1-2 lines, we allow for the bigger
-            // max_scroll_limit, to account for resizing the window/pane.
             sizes.max_block_scroll_limit,
             event_proxy.clone(),
             should_scan_for_secrets,
-            PerformResetGridChecks::No,
         );
         let output_grid = BlockGrid::new(
             sizes.size,
             sizes.max_block_scroll_limit,
             event_proxy.clone(),
             should_scan_for_secrets,
-            perform_reset_grid_checks,
         );
 
         Block {
@@ -1209,16 +1203,9 @@ impl Block {
         self.header_grid.start_command_grid();
         self.header_grid.finish_command_grid();
 
-        // TODO(CORE-2826): We disable reset grid checks for background blocks.
-        self.disable_reset_grid_checks();
         self.output_grid.start();
         self.state = BlockState::Background;
         self.wakeup_after_delay();
-    }
-
-    pub(super) fn disable_reset_grid_checks(&mut self) {
-        self.header_grid.disable_reset_grid_checks();
-        self.output_grid.disable_reset_grid_checks();
     }
 
     /// Method used in tests to finish the BlockGrid containing the command WITHOUT a linefeed in the empty command
@@ -3257,10 +3244,6 @@ impl ansi::Handler for Block {
 
     fn on_finish_byte_processing(&mut self, input: &ansi::ProcessorInput<'_>) {
         delegate!(self.on_finish_byte_processing(input));
-    }
-
-    fn on_reset_grid(&mut self) {
-        delegate!(self.on_reset_grid());
     }
 
     fn handle_completed_iterm_image(&mut self, image: ITermImage) {

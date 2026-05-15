@@ -18,7 +18,7 @@ use crate::terminal::model::ansi::{
     Mode, PrecmdValue, PreexecValue, StandardCharset, TabulationClearMode,
 };
 use crate::terminal::model::grid::grid_handler::{
-    FragmentBoundary, GridHandler, Link, PerformResetGridChecks, PossiblePath, TermMode,
+    FragmentBoundary, GridHandler, Link, PossiblePath, TermMode,
 };
 use crate::terminal::model::grid::{Dimensions, GridStorage};
 use crate::terminal::model::index::{Point, Side, VisibleRow};
@@ -77,7 +77,6 @@ impl AltScreen {
             event_proxy.clone(),
             true,
             obfuscate_secrets,
-            PerformResetGridChecks::default(),
         );
 
         AltScreen {
@@ -628,10 +627,6 @@ impl ansi::Handler for AltScreen {
 
     fn on_finish_byte_processing(&mut self, input: &ansi::ProcessorInput<'_>) {
         self.ansi_handler().on_finish_byte_processing(input);
-    }
-
-    fn on_reset_grid(&mut self) {
-        self.ansi_handler().on_reset_grid();
     }
 
     fn handle_completed_iterm_image(&mut self, image: ITermImage) {

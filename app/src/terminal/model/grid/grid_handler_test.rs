@@ -417,7 +417,6 @@ fn test_basic_input_and_newline() {
         ChannelEventListener::new_for_test(),
         false,
         ObfuscateSecrets::No,
-        PerformResetGridChecks::default(),
     );
     grid.input('a');
     grid.linefeed();
@@ -447,7 +446,6 @@ fn test_empty_grid_bounds_to_string() {
         ChannelEventListener::new_for_test(),
         false,
         ObfuscateSecrets::No,
-        PerformResetGridChecks::No,
     );
     assert_eq!(
         grid_handler.bounds_to_string(
@@ -1275,7 +1273,6 @@ fn test_emoji_variation_selector() {
         MAX_SCROLL_LIMIT,
         ChannelEventListener::new_for_test(),
         ObfuscateSecrets::No,
-        PerformResetGridChecks::default(),
     );
 
     blockgrid.start();
