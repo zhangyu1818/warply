@@ -23,7 +23,6 @@ use settings::Setting as _;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::time::Duration;
-use warp_core::features::FeatureFlag;
 use warpui::elements::ConstrainedBox;
 use warpui::elements::CrossAxisAlignment;
 use warpui::elements::Empty;
@@ -383,7 +382,7 @@ impl AIContextMenu {
             {
                 categories.push(AIContextMenuCategory::Code);
             }
-            if FeatureFlag::DiffSetAsContext.is_enabled() && is_active_dir_in_git_repo {
+            if is_active_dir_in_git_repo {
                 categories.push(AIContextMenuCategory::DiffSet);
             }
             categories.push(AIContextMenuCategory::Conversations);

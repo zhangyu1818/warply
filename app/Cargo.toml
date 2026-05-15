@@ -340,7 +340,6 @@ default = [
     "ui_zoom",
     "discard_per_file_and_all_changes",
     "auto_open_code_review_pane",
-    "diff_set_as_context",
     "inline_code_review",
     "code_review_find",
     "fork_from_command",
@@ -488,7 +487,6 @@ undo_closed_panes = []
 revert_diff_hunk = []
 code_review_save_changes = []
 file_tree = []
-diff_set_as_context = []
 discard_per_file_and_all_changes = []
 ui_zoom = []
 code_review_find = []

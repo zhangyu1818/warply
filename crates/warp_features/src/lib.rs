@@ -156,9 +156,6 @@ pub enum FeatureFlag {
     /// Enables the file tree (with an entrypoint through code mode).
     FileTree,
 
-    /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
-    DiffSetAsContext,
-
     /// Enables file- and diff set-level comments in the code review header.
     FileAndDiffSetComments,
 
