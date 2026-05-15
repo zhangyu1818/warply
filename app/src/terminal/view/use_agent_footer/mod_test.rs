@@ -14,7 +14,6 @@ use crate::{
         },
         llms::LLMId,
     },
-    features::FeatureFlag,
     settings::AISettings,
     terminal::model::ansi::{BootstrappedValue, Handler as _, InitShellValue},
     test_util::{add_window_with_terminal, terminal::initialize_app_for_terminal_view},
@@ -182,7 +181,6 @@ fn insert_pending_ai_block(
 fn use_agent_footer_renders_for_manual_handoff_even_when_user_command_footer_setting_disabled() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             let _ = settings
                 .should_render_use_agent_footer_for_user_commands
@@ -224,7 +222,6 @@ fn use_agent_footer_renders_for_manual_handoff_even_when_user_command_footer_set
 fn use_agent_footer_renders_for_manual_handoff_when_unfinished_ai_block_remains() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 

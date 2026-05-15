@@ -39,6 +39,7 @@ use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
 use crate::terminal::CLIAgent;
 
+use crate::terminal::settings::TerminalSettings;
 use crate::terminal::{MockTerminalManager, TerminalModel};
 use crate::test_util::terminal::add_window_with_id_and_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
@@ -130,7 +131,6 @@ fn test_create_new_block_with_local_status() {
 fn submit_cli_agent_rich_input_restores_unlocked_input_config() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_agent_rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             let _ = settings
@@ -198,7 +198,6 @@ fn submit_cli_agent_rich_input_restores_unlocked_input_config() {
 fn unregister_cli_agent_session_restores_unlocked_input_config() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_agent_rich_input = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
@@ -266,7 +265,6 @@ fn unregister_cli_agent_session_restores_unlocked_input_config() {
 fn clear_buffer_action_in_fullscreen_agent_view_starts_new_conversation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -320,7 +318,6 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
 fn escape_does_not_exit_local_agent_view_with_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -526,17 +523,15 @@ fn test_insert() {
         assert_selected_blocks_cardinality_eq(&mut app, BlockSelectionCardinality::None);
         assert_selected_text_eq(&mut app, None);
 
-        // Shell Mode: Block selected
         terminal.update(&mut app, |view, ctx| {
             view.selected_blocks.reset_to_single(BlockIndex::zero());
             view.focus_terminal(ctx);
             view.typed_characters_on_terminal("_this", ctx);
         });
         assert_input_text_eq(&mut app, "hello_this");
-        assert_selected_blocks_cardinality_eq(&mut app, BlockSelectionCardinality::None);
+        assert_selected_blocks_cardinality_eq(&mut app, BlockSelectionCardinality::One);
         assert_selected_text_eq(&mut app, None);
 
-        // Shell Mode: Text selected
         terminal.update(&mut app, |view, ctx| {
             select_text(view, ctx);
             view.focus_terminal(ctx);
@@ -544,10 +539,11 @@ fn test_insert() {
         });
         assert_input_text_eq(&mut app, "hello_this_is");
         assert_selected_blocks_cardinality_eq(&mut app, BlockSelectionCardinality::None);
-        assert_selected_text_eq(&mut app, None);
+        assert_selected_text_eq(&mut app, Some("f".to_owned()));
 
         // Activate Agent Mode, which should no longer allow text insertion to clear the selected block(s) or text
         terminal.update(&mut app, |view, ctx| {
+            view.model.lock().block_list_mut().clear_selection();
             view.set_ai_input_mode_with_query(None, ctx);
         });
 
@@ -622,14 +618,13 @@ fn test_insert_into_input() {
             terminal_view.context_menu_insert_selected_text(ctx);
         });
 
-        // Confirm that the blocklist selection is cleared upon inserting into the input box.
         terminal.read(&app, |terminal_view, _ctx| {
             let terminal_model = terminal_view.model.lock();
             let blocks = terminal_model.block_list();
             let selection = blocks.selection();
             assert!(
-                selection.is_none(),
-                "Expected no selections in the blocklist but got {selection:?}"
+                selection.is_some(),
+                "Expected blocklist selection to be preserved"
             );
         });
         let input = terminal.read(&app, |terminal, _ctx| terminal.input().clone());
@@ -1023,16 +1018,7 @@ fn test_viewport_iter_most_recent_at_bottom() {
                 BlockVisibilityMode::TopOfBlockVisible
             ));
 
-            let third_block = iter.next().expect("item 3");
-            assert_eq!(
-                Some(std::convert::Into::<BlockIndex>::into(3)),
-                third_block.block_index
-            );
-            assert_eq!(
-                std::convert::Into::<TotalIndex>::into(3),
-                third_block.entry_index
-            );
-            assert_eq!(0., third_block.block_height_item.height().as_f64());
+            assert!(iter.next().is_none());
         });
     })
 }
@@ -1814,7 +1800,6 @@ fn test_reinput_blocks() {
             view.reinput_commands(false /* as_root */, ctx);
             assert_eq!(view.input().as_ref(ctx).buffer_text(ctx), second_command);
 
-            view.selected_blocks.toggle(2.into(), None, Some(1.into()));
             view.reinput_commands(true /* as_root */, ctx);
             assert_eq!(
                 view.input().as_ref(ctx).buffer_text(ctx),
@@ -1822,6 +1807,7 @@ fn test_reinput_blocks() {
             );
 
             // test reinput commands for multiple blocks (selected in reverse)
+            view.selected_blocks.reset();
             view.selected_blocks.toggle(2.into(), None, Some(1.into()));
             view.selected_blocks.toggle(1.into(), Some(2.into()), None);
             view.reinput_commands(false /* as_root */, ctx);
@@ -1830,8 +1816,6 @@ fn test_reinput_blocks() {
                 format!("{first_command}\n{second_command}")
             );
 
-            view.selected_blocks.toggle(2.into(), None, Some(1.into()));
-            view.selected_blocks.toggle(1.into(), Some(2.into()), None);
             view.reinput_commands(true /* as_root */, ctx);
             assert_eq!(
                 view.input().as_ref(ctx).buffer_text(ctx),
@@ -2762,7 +2746,6 @@ fn test_prompt_context_menu_items_for_no_context_chips() {
 
 #[test]
 fn test_prompt_context_menu_items_for_agent_toolbelt_flag() {
-    let _agent_view_guard = FeatureFlag::AgentView.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
 
@@ -2814,7 +2797,6 @@ fn test_prompt_context_menu_items_for_agent_toolbelt_flag() {
 fn agent_footer_updates_chip_groups_when_side_assignment_changes() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -2937,7 +2919,16 @@ fn test_scroll_position_doesnt_change_when_block_finished() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
+        TerminalSettings::handle(&app).update(&mut app, |settings, ctx| {
+            let _ = settings
+                .show_terminal_zero_state_block
+                .set_value(false, ctx);
+        });
         let terminal = add_window_with_terminal(&mut app, None);
+        assert_eventually!(
+            terminal.read(&app, |view, _| view.is_login_shell_bootstrapped()),
+            "Terminal should finish bootstrapping before scroll assertions"
+        );
 
         let (tx, rx) = async_channel::bounded(1);
         app.update(|ctx| {
@@ -2995,7 +2986,6 @@ fn test_scroll_position_doesnt_change_when_block_finished() {
 fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3056,7 +3046,6 @@ fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
 fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3138,7 +3127,6 @@ fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_runnin
 fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_setting_disabled() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             let _ = settings
                 .should_render_use_agent_footer_for_user_commands
@@ -3265,7 +3253,6 @@ fn exiting_agent_view_removes_empty_conversations() {
 fn ctrl_c_exit_agent_view_requires_confirmation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3313,7 +3300,6 @@ fn ctrl_c_exit_agent_view_requires_confirmation() {
 fn ctrl_c_buffer_clear_then_exit_requires_three_presses_in_agent_view() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3371,7 +3357,6 @@ fn ctrl_c_buffer_clear_then_exit_requires_three_presses_in_agent_view() {
 fn terminal_action_ctrl_c_exit_agent_view_requires_confirmation() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -3494,7 +3479,6 @@ fn ctrl_g_closes_cli_agent_rich_input_when_editor_is_focused() {
             crate::terminal::init(ctx);
             crate::editor::init(ctx);
         });
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let (window_id, terminal) =
@@ -3529,7 +3513,6 @@ fn ctrl_g_closes_cli_agent_rich_input_when_editor_is_focused() {
 fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         for (agent, expected_hint_text) in [
@@ -3556,7 +3539,6 @@ fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
 fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
@@ -3591,7 +3573,6 @@ fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
 fn submit_cli_agent_rich_input_codex_uses_bracketed_paste() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let (_terminal, pty_writes) =
@@ -3620,7 +3601,6 @@ fn submit_cli_agent_rich_input_codex_uses_bracketed_paste() {
 fn submit_cli_agent_rich_input_opencode_defers_enter_and_close() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let (_terminal, pty_writes) =
@@ -3649,7 +3629,6 @@ fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
     // of shell-escaping the path and typing it into the agent's prompt.
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         // The new path actually reads the file off disk, so we need a real
         // file. Bytes don't have to be a valid PNG.
@@ -3722,7 +3701,6 @@ fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
 fn submit_without_auto_dismiss_keeps_rich_input_open() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         // auto_dismiss defaults to false — leave it off.
 
@@ -3767,7 +3745,6 @@ fn submit_without_auto_dismiss_keeps_rich_input_open() {
 fn submit_with_plugin_and_auto_toggle_keeps_rich_input_open() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         // auto_toggle_rich_input defaults to true.
         // Turn on auto_dismiss too — it should be overridden by auto_toggle.
@@ -3821,7 +3798,6 @@ fn submit_with_plugin_and_auto_toggle_keeps_rich_input_open() {
 fn submit_with_plugin_but_auto_toggle_off_respects_auto_dismiss() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             let _ = settings.auto_toggle_rich_input.set_value(false, ctx);
@@ -3878,7 +3854,6 @@ fn submit_with_plugin_but_auto_toggle_off_respects_auto_dismiss() {
 fn status_blocked_auto_closes_rich_input() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         // auto_toggle_rich_input defaults to true.
 
@@ -3952,7 +3927,6 @@ fn status_blocked_auto_closes_rich_input() {
 fn status_in_progress_auto_opens_rich_input_after_blocked() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
@@ -4040,7 +4014,6 @@ fn status_in_progress_auto_opens_rich_input_after_blocked() {
 fn manual_dismiss_disables_auto_toggle_for_session() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
@@ -4134,7 +4107,6 @@ fn manual_dismiss_disables_auto_toggle_for_session() {
 fn close_cli_agent_rich_input_saves_draft_and_reopen_restores_it() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
@@ -4190,7 +4162,6 @@ fn close_cli_agent_rich_input_saves_draft_and_reopen_restores_it() {
 fn submit_cli_agent_rich_input_clears_draft() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
         AISettings::handle(&app).update(&mut app, |settings, ctx| {
             // Keep the input open after submit so we can inspect the buffer.
@@ -4227,7 +4198,6 @@ fn submit_cli_agent_rich_input_clears_draft() {
 fn close_cli_agent_rich_input_with_empty_buffer_stores_no_draft() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
         let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
 
         let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
@@ -4311,7 +4281,6 @@ fn linear_deeplink_populates_input_as_draft_when_not_in_agent_view() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -4357,7 +4326,6 @@ fn linear_deeplink_does_not_auto_submit_when_already_in_agent_view() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 
@@ -4437,7 +4405,6 @@ fn linear_deeplink_via_default_entrypoint_does_not_auto_submit_in_fullscreen() {
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
-        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
 
         let terminal = add_window_with_terminal(&mut app, None);
 

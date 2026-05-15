@@ -519,9 +519,7 @@ fn test_input_tab() {
 }
 
 #[test]
-fn test_clear_selection_after_insert() {
-    // When Agent Mode is inactive, we should clear the selection after inserting text into the
-    // input box (both user-inserted and system-inserted text).
+fn test_preserve_selection_after_insert_for_agent_view_context() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
         let session_info = SessionInfo::new_for_test();
@@ -558,15 +556,13 @@ fn test_clear_selection_after_insert() {
             });
         };
 
-        // Shell Mode: Insert some text into the input box - this should clear the terminal selection!
         select_text(&mut app);
         user_insert(&mut app, "bar");
-        assert_selections_in_blocklist(&mut app, false);
+        assert_selections_in_blocklist(&mut app, true);
 
-        // Shell Mode: System insert should also clear terminal selection.
         select_text(&mut app);
         user_insert(&mut app, "baz");
-        assert_selections_in_blocklist(&mut app, false);
+        assert_selections_in_blocklist(&mut app, true);
 
         // Activate Agent Mode, which should no longer allow text insertion to clear the selected text.
         terminal.update(&mut app, |terminal, ctx| {
@@ -2527,7 +2523,6 @@ fn test_auto_enter_slash_command_enters_agent_mode_from_locked_shell() {
 #[test]
 fn test_conversations_keybinding_opens_inline_conversation_menu() {
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -4423,6 +4418,19 @@ fn test_alias_expansion_with_abbreviations() {
 
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
         let editor = input.read(&app, |input, _| input.editor().clone());
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
         input.update(&mut app, |input, ctx| {
             input.set_active_block_metadata(
@@ -4533,6 +4541,19 @@ fn test_alias_expansion_disabled_in_ai_input_mode() {
                 false,
                 ctx,
             )
+        });
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
         });
 
         // Set input type to AI mode
@@ -4944,6 +4965,19 @@ fn test_input_type_button_explicit_lock() {
         )
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
         // Start in unlocked shell mode (auto-detection enabled)
         input.update(&mut app, |input, ctx| {
@@ -5021,6 +5055,19 @@ fn test_auto_detection_toggle() {
         )
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
         // Start in locked AI mode
         input.update(&mut app, |input, ctx| {
@@ -5143,6 +5190,19 @@ fn test_input_mode_setting_methods() {
                 .input_box_type
                 .set_value(InputBoxType::Universal, ctx);
         });
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
         // Test setting input mode to agent mode
         input.update(&mut app, |input, ctx| {
@@ -5155,7 +5215,10 @@ fn test_input_mode_setting_methods() {
             })
         });
         assert_eq!(config.input_type, InputType::AI);
-        assert!(config.is_locked, "Input should be locked to AI mode");
+        assert!(
+            !config.is_locked,
+            "AgentView AI mode should keep autodetection enabled for an empty input"
+        );
 
         // Test setting input mode to terminal mode
         input.update(&mut app, |input, ctx| {
@@ -5247,7 +5310,7 @@ terminal_input_prefix_tests! {
 }
 
 #[test]
-fn test_image_attachment_preserves_lock_state() {
+fn test_image_attachment_respects_locked_shell_and_agent_view_autodetection() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -5257,6 +5320,19 @@ fn test_image_attachment_preserves_lock_state() {
         )
         .await;
         let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        terminal.update(&mut app, |view, ctx| {
+            view.agent_view_controller().update(ctx, |controller, ctx| {
+                controller
+                    .try_enter_agent_view(
+                        None,
+                        AgentViewEntryOrigin::Input {
+                            was_prompt_autodetected: false,
+                        },
+                        ctx,
+                    )
+                    .expect("agent view should open")
+            })
+        });
 
         // Test with locked Shell mode
         input.update(&mut app, |input, ctx| {
@@ -5272,7 +5348,6 @@ fn test_image_attachment_preserves_lock_state() {
             });
         });
 
-        // Select image (should switch to AI mode but preserve lock state)
         input.update(&mut app, |input, ctx| {
             input.handle_universal_developer_input_button_bar_event(
                 &UniversalDeveloperInputButtonBarEvent::SelectFile,
@@ -5280,16 +5355,15 @@ fn test_image_attachment_preserves_lock_state() {
             );
         });
 
-        // Verify we're in AI mode but still locked
         let locked_config = input.read(&app, |input, _| {
             app.read_model(input.ai_input_model(), |ai_input, _| {
                 ai_input.input_config()
             })
         });
-        assert_eq!(locked_config.input_type, InputType::AI);
+        assert_eq!(locked_config.input_type, InputType::Shell);
         assert!(
             locked_config.is_locked,
-            "Lock state should be preserved when selecting image"
+            "Image attachments should not override locked Shell mode"
         );
 
         // Test with unlocked Shell mode
@@ -5636,8 +5710,6 @@ fn test_submit_ai_query_uses_acp_model() {
 #[test]
 fn test_agent_view_terminal_only_initial_input_config_unlocked_when_autodetection_enabled() {
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
@@ -5666,8 +5738,6 @@ fn test_terminal_only_ai_enter_uses_acp_and_clears_buffer() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {
@@ -5723,8 +5793,6 @@ fn test_terminal_only_ai_enter_uses_acp_and_clears_buffer() {
 #[test]
 fn test_terminal_only_cjk_natural_language_enter_uses_acp() {
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -5797,8 +5865,6 @@ fn test_agent_slash_command_uses_acp() {
 #[test]
 fn test_acp_history_updates_render_in_terminal_ai_block() {
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -5887,8 +5953,6 @@ fn test_acp_history_updates_render_in_terminal_ai_block() {
 #[test]
 fn test_agent_view_ai_submit_uses_visible_agent_view_conversation_for_acp() {
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
@@ -5929,8 +5993,6 @@ fn test_terminal_only_escape_locks_shell_mode() {
     use crate::ai::blocklist::InputConfig;
 
     App::test((), |mut app| async move {
-        let _agent_view_flag = FeatureFlag::AgentView.override_enabled(true);
-
         initialize_app(&mut app);
 
         AISettings::handle(&app).update(&mut app, |ai_settings, ctx| {

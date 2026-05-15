@@ -1354,19 +1354,6 @@ impl BlocklistAIHistoryModel {
         Some(active_conversation_id)
     }
 
-    /// Returns `Some` with the [`AIConversationId`] of the last conversation created for a given
-    /// [`crate::terminal::TerminalView`] with the given [`EntityId`] if there is one. Returns
-    /// `None` otherwise.
-    pub(crate) fn last_conversation_id(
-        &self,
-        terminal_view_id: EntityId,
-    ) -> Option<AIConversationId> {
-        self.live_conversation_ids_for_terminal_view
-            .get(&terminal_view_id)?
-            .last()
-            .copied()
-    }
-
     /// Set the hidden status of the exchange with the given ID.
     pub fn set_exchange_hidden_status(
         &mut self,
