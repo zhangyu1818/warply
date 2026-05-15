@@ -71,7 +71,7 @@ use warpui::{
     async_assert, async_assert_eq,
     integration::{AssertionOutcome, StepData, TestStep},
     keymap::{Keystroke, Trigger},
-    platform::{OperatingSystem, TerminationMode},
+    platform::TerminationMode,
     windowing::WindowManager,
     AssetProvider, Event, SingletonEntity, UpdateView, ViewHandle,
 };
@@ -6656,11 +6656,7 @@ pub fn test_tab_behavior_setting() -> Builder {
     let completions_binding_name = "input:open_completion_suggestions";
     let autosuggestions_binding_name = "editor_view:insert_autosuggestion";
 
-    let expected_completion_binding_name = if OperatingSystem::get().is_mac() {
-        "⌃Space"
-    } else {
-        "Ctrl Space"
-    };
+    let expected_completion_binding_name = "⌃Space";
 
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))

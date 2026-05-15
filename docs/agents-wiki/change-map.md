@@ -147,6 +147,10 @@ This map explains the large fork baseline change at a path level.
 - Removed `AgentModeEntrypoint` source metadata from AgentView tab/pane actions. The retained actions now route directly to local ACP AgentView creation instead of carrying old analytics entrypoint labels.
 - These source labels were old telemetry/product analytics residue. Future upstream merges should not restore them unless a retained local behavior actually branches on the value.
 
+## 2026-05 macOS-Only Platform Cleanup
+
+- Removed Linux/Windows fallback branches from default custom keybinding resolution and binding display tests. The app now treats default shortcuts as macOS-native only; future upstream merges should not restore cross-platform keybinding fallbacks or cmd-binding rejection for non-macOS hosts.
+
 ## 2026-05 Test Harness Notes
 
 - Workspace and pane-group tests that can construct `WelcomePane` must register `ProjectManagementModel`, matching production app initialization.

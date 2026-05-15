@@ -1,4 +1,3 @@
-use warpui::platform::OperatingSystem;
 use warpui::{
     keymap::{EditableBinding, Keystroke, Trigger},
     App,
@@ -28,13 +27,8 @@ fn test_keybinding_name_to_display_string() {
                 ),
             ]);
 
-            let displayed_keybinding = if OperatingSystem::get().is_mac() {
-                "⌘,"
-            } else {
-                "Logo ,"
-            };
             assert_eq!(
-                Some(displayed_keybinding),
+                Some("⌘,"),
                 keybinding_name_to_display_string("workspace:show_settings", ctx).as_deref()
             );
 
@@ -48,13 +42,8 @@ fn test_keybinding_name_to_display_string() {
                 Trigger::Keystrokes(vec![Keystroke::parse("cmd-shift-<").unwrap()]),
             );
 
-            let displayed_keybinding = if OperatingSystem::get().is_mac() {
-                "⇧⌘<"
-            } else {
-                "Shift Logo <"
-            };
             assert_eq!(
-                Some(displayed_keybinding),
+                Some("⇧⌘<"),
                 keybinding_name_to_display_string("workspace:show_settings", ctx).as_deref()
             );
 
@@ -63,13 +52,8 @@ fn test_keybinding_name_to_display_string() {
                 Trigger::Keystrokes(vec![Keystroke::parse("cmd-alt-/").unwrap()]),
             );
 
-            let expected_keybinding = if OperatingSystem::get().is_mac() {
-                "⌥⌘/"
-            } else {
-                "Alt Logo /"
-            };
             assert_eq!(
-                Some(expected_keybinding),
+                Some("⌥⌘/"),
                 keybinding_name_to_display_string("workspace:toggle_resource_center", ctx)
                     .as_deref()
             );

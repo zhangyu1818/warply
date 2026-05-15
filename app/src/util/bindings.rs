@@ -6,14 +6,12 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 
 use regex::Regex;
-use std::borrow::Cow;
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 use warpui::keymap::{BindingId, IsBindingValid};
-use warpui::platform::OperatingSystem;
 use warpui::{
     actions::StandardAction,
     keymap::{
@@ -218,13 +216,11 @@ pub fn trigger_to_keystroke(trigger: &Trigger) -> Option<Keystroke> {
         Trigger::Custom(custom) => custom_tag_to_keystroke(*custom),
         // Similarly, Standard Actions have their keyboard shortcuts set when creating the menu
         Trigger::Standard(standard) => match standard {
-            StandardAction::Close => mac_only_keystroke("cmd-shift-W"),
-            // "cmd-q" to quit and "cmd-h" to hide are the standard bindings for these actions on
-            // Mac.
-            StandardAction::Quit => mac_only_keystroke("cmd-q"),
-            StandardAction::Hide => mac_only_keystroke("cmd-h"),
+            StandardAction::Close => parse_keystroke("cmd-shift-W"),
+            StandardAction::Quit => parse_keystroke("cmd-q"),
+            StandardAction::Hide => parse_keystroke("cmd-h"),
             StandardAction::HideOtherApps => Keystroke::parse("cmdorctrl-alt-h").ok(),
-            StandardAction::ToggleFullScreen => mac_only_keystroke("cmd-ctrl-f"),
+            StandardAction::ToggleFullScreen => parse_keystroke("cmd-ctrl-f"),
             StandardAction::Paste => Keystroke::parse(cmd_or_ctrl_shift("v")).ok(),
             StandardAction::ShowAllApps
             | StandardAction::BringAllToFront
@@ -266,71 +262,23 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::DecreaseZoom => Keystroke::parse("cmdorctrl--").ok(),
         CustomAction::ResetZoom => Keystroke::parse("cmdorctrl-0").ok(),
         CustomAction::SplitPaneRight => Keystroke::parse(cmd_or_ctrl_shift("d")).ok(),
-        CustomAction::SplitPaneDown => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-shift-D").ok()
-            } else {
-                // On non-Mac platforms, we can't use `ctrl-shift-D` for `SplitPaneRight` since
-                // we already  use that for `SplitPaneRight` above. Instead we use
-                // `ctrl-shift-E`, which matches what Hyper uses. See https://github.com/vercel/hyper/blob/9c72409f5138c03a5a74fcc4dba9109217b4524a/app/keymaps/linux.json#L32.
-                Keystroke::parse("ctrl-shift-E").ok()
-            }
-        }
-        CustomAction::MoveTabLeft => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-ctrl-left").ok()
-            } else {
-                Keystroke::parse("shift-ctrl-pageup").ok()
-            }
-        }
-        CustomAction::MoveTabRight => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-ctrl-right").ok()
-            } else {
-                Keystroke::parse("shift-ctrl-pagedown").ok()
-            }
-        }
-        CustomAction::ActivateNextTab => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-cmd-}").ok()
-            } else {
-                Keystroke::parse("ctrl-pagedown").ok()
-            }
-        }
-        CustomAction::ActivatePreviousTab => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("shift-cmd-{").ok()
-            } else {
-                Keystroke::parse("ctrl-pageup").ok()
-            }
-        }
-        CustomAction::ActivateNextPane => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-]").ok()
-            } else {
-                Keystroke::parse("ctrl-shift-}").ok()
-            }
-        }
-        CustomAction::ActivatePreviousPane => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-[").ok()
-            } else {
-                Keystroke::parse("ctrl-shift-{").ok()
-            }
-        }
-        CustomAction::NavigationPalette => mac_only_keystroke("cmd-shift-P"),
-        CustomAction::LaunchConfigPalette => mac_only_keystroke("ctrl-cmd-l"),
+        CustomAction::SplitPaneDown => Keystroke::parse("cmd-shift-D").ok(),
+        CustomAction::MoveTabLeft => Keystroke::parse("shift-ctrl-left").ok(),
+        CustomAction::MoveTabRight => Keystroke::parse("shift-ctrl-right").ok(),
+        CustomAction::ActivateNextTab => Keystroke::parse("shift-cmd-}").ok(),
+        CustomAction::ActivatePreviousTab => Keystroke::parse("shift-cmd-{").ok(),
+        CustomAction::ActivateNextPane => Keystroke::parse("cmd-]").ok(),
+        CustomAction::ActivatePreviousPane => Keystroke::parse("cmd-[").ok(),
+        CustomAction::NavigationPalette => parse_keystroke("cmd-shift-P"),
+        CustomAction::LaunchConfigPalette => parse_keystroke("ctrl-cmd-l"),
         CustomAction::FilesPalette => Keystroke::parse(cmd_or_ctrl_shift("o")).ok(),
         CustomAction::ClearBlocks => Keystroke::parse(cmd_or_ctrl_shift("k")).ok(),
         CustomAction::SelectBlockAbove => Keystroke::parse("cmdorctrl-up").ok(),
         CustomAction::SelectBlockBelow => Keystroke::parse("cmdorctrl-down").ok(),
         CustomAction::ToggleBookmarkBlock => Keystroke::parse(cmd_or_ctrl_shift("b")).ok(),
         CustomAction::CopyBlockOutput => Keystroke::parse("cmdorctrl-alt-shift-C").ok(),
-        // Set this to mac-only. On Linux this conflicts with the general binding to copy.
-        CustomAction::CopyBlockCommand => mac_only_keystroke("cmd-shift-C"),
-        // Set this to mac-only. On Linux this conflicts with the cmd-enter keybindings
-        // (used for actions on the input suggestions menu, and for accepting passive code diffs).
-        CustomAction::ToggleMaximizePane => mac_only_keystroke("cmd-shift-enter"),
+        CustomAction::CopyBlockCommand => parse_keystroke("cmd-shift-C"),
+        CustomAction::ToggleMaximizePane => parse_keystroke("cmd-shift-enter"),
         // Note: The base character '/' is used instead of '?' as mac registers keybindings
         // differently compared to the app which saves the resulting character used with shift
         // TODO: resolve these keybinding differences
@@ -345,53 +293,21 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::ToggleSyncTerminalInputsInCurrentTab => {
             Keystroke::parse("alt-cmdorctrl-i").ok()
         }
-        CustomAction::ReopenClosedSession => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-shift-T").ok()
-            } else {
-                // Use a custom keybinding for linux/windows since the binding would otherwise
-                // conflict with the binding for creating a new tab.
-                Keystroke::parse("ctrl-alt-t").ok()
-            }
-        }
+        CustomAction::ReopenClosedSession => Keystroke::parse("cmd-shift-T").ok(),
 
         // This is one of the app's hardcoded keybindings.
         CustomAction::AddWindow => Keystroke::parse(cmd_or_ctrl_shift("n")).ok(),
-        CustomAction::CloseWindow => mac_only_keystroke("cmd-shift-W"),
+        CustomAction::CloseWindow => parse_keystroke("cmd-shift-W"),
         CustomAction::CloseCurrentSession => Keystroke::parse(cmd_or_ctrl_shift("w")).ok(),
         CustomAction::NewAgentModePane => Keystroke::parse("ctrl-space").ok(),
         CustomAction::AttachSelectionAsAgentModeContext => {
             Keystroke::parse("ctrl-shift-space").ok()
         }
-        CustomAction::ToggleProjectExplorer => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("ctrl-2").ok()
-            } else {
-                Keystroke::parse("ctrl-shift-2").ok()
-            }
-        }
-        CustomAction::OpenRepository => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("cmd-shift-O").ok()
-            } else {
-                Keystroke::parse("alt-shift-O").ok()
-            }
-        }
+        CustomAction::ToggleProjectExplorer => Keystroke::parse("ctrl-2").ok(),
+        CustomAction::OpenRepository => Keystroke::parse("cmd-shift-O").ok(),
         CustomAction::GoToLine => Keystroke::parse("ctrl-g").ok(),
-        CustomAction::ToggleGlobalSearch => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("ctrl-3").ok()
-            } else {
-                Keystroke::parse("alt-3").ok()
-            }
-        }
-        CustomAction::ToggleConversationListView => {
-            if OperatingSystem::get().is_mac() {
-                Keystroke::parse("ctrl-1").ok()
-            } else {
-                Keystroke::parse("alt-1").ok()
-            }
-        }
+        CustomAction::ToggleGlobalSearch => Keystroke::parse("ctrl-3").ok(),
+        CustomAction::ToggleConversationListView => Keystroke::parse("ctrl-1").ok(),
         CustomAction::NewTerminalTab
         | CustomAction::NewFile
         | CustomAction::ShowAboutWarp
@@ -779,56 +695,8 @@ impl BindingGroup {
     }
 }
 
-/// Constructs a keybinding that is the `cmd-key` on Mac or `ctrl-shift-key` otherwise. This is
-/// useful when constructing a binding that needs to be compliant with the PTY. The typical pattern
-/// of using `cmdorctrl-XX` to construct a platform agnostic keybinding does not work here because
-/// `ctrl-XX` would conflict with the PTY because it is reserved as a control character.
-///
-/// Bindings of the form `ctrl-[a-z@[\]^_?]` are reserved as control characters. We don't want to
-/// create bindings for in-app actions that would conflict with these control characters because we
-/// would end up preventing the user from sending these control characters to the PTY. To avoid
-/// this, we follow other terminals and use `ctrl-shift-XX` for in-app bindings if the binding would
-/// otherwise conflict with the PTY.
-///
-/// ## Panics
-/// Panics if debug assertions are enabled and a non "A-Z" key was passed in an environment where `ctrl-shift` would be
-/// used. This is because the passed key needs to modified by the shift character in order to be valid in our UI
-/// framework and we can't easily produce the shift-modified version of the key ourselves. In this case the recommended
-/// solution is to to create separate [`Keystroke`]s for the Mac and non-Mac cases. For example:
-/// ```
-/// use warpui::keymap::Keystroke;
-/// use warpui::platform::OperatingSystem;
-/// let keystroke = if OperatingSystem::get().is_mac() {
-///    Keystroke::parse("cmd-[")
-/// } else {
-///     Keystroke::parse("ctrl-shift-{")
-/// };
-/// ```
 pub fn cmd_or_ctrl_shift(key: &str) -> String {
-    if OperatingSystem::get().is_mac() {
-        format!("cmd-{key}")
-    } else {
-        let key = if Keystroke::is_valid_special_key(key) {
-            // Valid keys don't need to be uppercase (we don't want to create a binding that looks
-            // like `ctrl-shift-ENTER`).
-            Cow::Borrowed(key)
-        } else {
-            if cfg!(debug_assertions) {
-                let stroke = key.chars().next().expect("Character should exist");
-
-                if !stroke.is_ascii_lowercase() {
-                    panic!(
-                        "Tried to register a ctrl-shift-{key} shortcut which is invalid because the {key} character needs to be modified by the shift character."
-                    );
-                }
-            }
-            // The need to uppercase the key because of the addition of the `shift`.
-            // Keystroke::parse debug asserts if this the modifier is lowercase:
-            // https://github.com/warpdotdev/warp-internal/blob/c225b8cedd94fdba33e957cf1efb99d84768d193/ui/src/keymap.rs#L637/
-            key.to_ascii_uppercase().into()
-        };
-        format!("ctrl-shift-{key}")
-    }
+    format!("cmd-{key}")
 }
 
 /// Returns whether the given [`BindingLens`] is compliant with the PTY.
@@ -841,8 +709,7 @@ pub fn is_binding_pty_compliant(binding: BindingLens) -> IsBindingValid {
         return IsBindingValid::Yes;
     };
 
-    let is_binding_in_allowlist = (OperatingSystem::get().is_mac()
-        && MAC_PTY_NON_COMPLIANT_ACTIONS.contains(binding.name))
+    let is_binding_in_allowlist = MAC_PTY_NON_COMPLIANT_ACTIONS.contains(binding.name)
         || PTY_NON_COMPLIANT_KEYSTROKES.contains(&keystroke);
 
     if CONTROL_CHARACTER_KEY_REGEX.is_match(keystroke.normalized().as_str())
@@ -855,34 +722,12 @@ pub fn is_binding_pty_compliant(binding: BindingLens) -> IsBindingValid {
     }
 }
 
-/// Validates all that bindings are cross-platform by returning [`IsBindingValid::No`] if a `cmd-*`
-/// binding is used on non-mac platforms.
-pub fn is_binding_cross_platform(binding: BindingLens) -> IsBindingValid {
-    if OperatingSystem::get().is_mac() {
-        return IsBindingValid::Yes;
-    };
-
-    let trigger = binding.original_trigger.unwrap_or(binding.trigger);
-    let Some(keystroke) = trigger_to_keystroke(trigger) else {
-        return IsBindingValid::Yes;
-    };
-
-    if keystroke.cmd {
-        IsBindingValid::No
-    } else {
-        IsBindingValid::Yes
-    }
+pub fn is_binding_supported_on_mac(_binding: BindingLens) -> IsBindingValid {
+    IsBindingValid::Yes
 }
 
-/// Attempts to construct a [`Keystroke`] from the given source string if the current
-/// [`OperatingSystem`] is mac. Returns `None` if not on Mac or if a [`Keystroke`] was unable to be
-/// constructed from the source string.
-fn mac_only_keystroke(source: &str) -> Option<Keystroke> {
-    if OperatingSystem::get().is_mac() {
-        Keystroke::parse(source).ok()
-    } else {
-        None
-    }
+fn parse_keystroke(source: &str) -> Option<Keystroke> {
+    Keystroke::parse(source).ok()
 }
 
 #[cfg(test)]

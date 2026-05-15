@@ -213,7 +213,7 @@ use crate::root_view::{
     quake_mode_window_id, quake_mode_window_is_open, OpenFromRestoredArg, OpenPath,
 };
 use crate::ui_events::PaletteSource;
-use crate::util::bindings::is_binding_cross_platform;
+use crate::util::bindings::is_binding_supported_on_mac;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use warp_logging::LogDestination;
@@ -739,7 +739,7 @@ pub(crate) fn initialize_app(
 
     ctx.set_fallback_font_source_provider(|url| ::asset_cache::url_source(url));
 
-    ctx.set_default_binding_validator(is_binding_cross_platform);
+    ctx.set_default_binding_validator(is_binding_supported_on_mac);
 
     // Initialize timestamp for session id and last active event
     App::record_last_active_timestamp();
