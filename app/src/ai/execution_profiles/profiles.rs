@@ -52,34 +52,20 @@ impl AIExecutionProfileInfo {
 }
 
 #[derive(Clone, Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum DefaultProfileState {
-    Local {
-        id: ClientProfileId,
-        profile: AIExecutionProfile,
-    },
-    #[allow(dead_code)]
-    Cli {
-        id: ClientProfileId,
-        profile: AIExecutionProfile,
-    },
+pub struct DefaultProfileState {
+    id: ClientProfileId,
+    profile: AIExecutionProfile,
 }
 
 impl std::fmt::Display for DefaultProfileState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DefaultProfileState::Local { .. } => write!(f, "Local"),
-            DefaultProfileState::Cli { .. } => write!(f, "CLI"),
-        }
+        write!(f, "Local")
     }
 }
 
 impl DefaultProfileState {
     pub fn id(&self) -> ClientProfileId {
-        match self {
-            DefaultProfileState::Local { id, .. } => *id,
-            DefaultProfileState::Cli { id, .. } => *id,
-        }
+        self.id
     }
 }
 
@@ -89,31 +75,12 @@ pub struct AIExecutionProfilesModel {
 }
 
 impl AIExecutionProfilesModel {
-    pub fn new(launch_mode: &LaunchMode, ctx: &mut ModelContext<Self>) -> Self {
+    pub fn new(_launch_mode: &LaunchMode, ctx: &mut ModelContext<Self>) -> Self {
         let active_profiles_per_session: HashMap<EntityId, ClientProfileId> = HashMap::new();
 
-        let default_profile_state = match launch_mode {
-            LaunchMode::App { .. } | LaunchMode::Test { .. } => DefaultProfileState::Local {
-                id: ClientProfileId::new(),
-                profile: Self::read_local_default_profile(ctx),
-            },
-            LaunchMode::CommandLine {
-                is_sandboxed,
-                computer_use_override,
-                ..
-            } => DefaultProfileState::Cli {
-                profile: AIExecutionProfile::create_default_cli_profile(
-                    *is_sandboxed,
-                    *computer_use_override,
-                ),
-                id: ClientProfileId::new(),
-            },
-            LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => {
-                DefaultProfileState::Local {
-                    id: ClientProfileId::new(),
-                    profile: Self::read_local_default_profile(ctx),
-                }
-            }
+        let default_profile_state = DefaultProfileState {
+            id: ClientProfileId::new(),
+            profile: Self::read_local_default_profile(ctx),
         };
 
         log::info!("Initialized execution profile model with state: {default_profile_state}",);
@@ -134,11 +101,7 @@ impl AIExecutionProfilesModel {
     }
 
     fn persist_local_default_profile(&self, ctx: &mut ModelContext<Self>) {
-        let DefaultProfileState::Local { profile, .. } = &self.default_profile_state else {
-            return;
-        };
-
-        let Ok(value) = serde_json::to_string(profile) else {
+        let Ok(value) = serde_json::to_string(&self.default_profile_state.profile) else {
             log::error!("Failed to serialize local AI execution profile");
             return;
         };
@@ -181,15 +144,9 @@ impl AIExecutionProfilesModel {
     }
 
     pub fn default_profile(&self, _ctx: &AppContext) -> AIExecutionProfileInfo {
-        match &self.default_profile_state {
-            DefaultProfileState::Local { id, profile } => AIExecutionProfileInfo {
-                id: *id,
-                data: profile.clone(),
-            },
-            DefaultProfileState::Cli { id, profile } => AIExecutionProfileInfo {
-                id: *id,
-                data: profile.clone(),
-            },
+        AIExecutionProfileInfo {
+            id: self.default_profile_state.id,
+            data: self.default_profile_state.profile.clone(),
         }
     }
 
@@ -212,16 +169,11 @@ impl AIExecutionProfilesModel {
         profile_id: ClientProfileId,
         _ctx: &AppContext,
     ) -> Option<AIExecutionProfileInfo> {
-        match &self.default_profile_state {
-            DefaultProfileState::Local { id, profile }
-            | DefaultProfileState::Cli { id, profile } => {
-                if profile_id == *id {
-                    return Some(AIExecutionProfileInfo {
-                        id: *id,
-                        data: profile.clone(),
-                    });
-                }
-            }
+        if profile_id == self.default_profile_state.id {
+            return Some(AIExecutionProfileInfo {
+                id: self.default_profile_state.id,
+                data: self.default_profile_state.profile.clone(),
+            });
         }
         None
     }
@@ -504,29 +456,17 @@ impl AIExecutionProfilesModel {
         edit_fn: impl FnOnce(&mut AIExecutionProfile) -> bool,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
-        if let DefaultProfileState::Cli { id, .. } = &self.default_profile_state {
-            if *id == profile_id {
-                log::warn!("Attempted to edit CLI default profile.");
+        if self.default_profile_state.id == profile_id {
+            let mut new_profile = self.default_profile_state.profile.clone();
+            let value_changed = edit_fn(&mut new_profile);
+            if !value_changed {
                 return false;
             }
-        }
 
-        if let DefaultProfileState::Local { id, profile } = &self.default_profile_state {
-            if *id == profile_id {
-                let mut new_profile = profile.clone();
-                let value_changed = edit_fn(&mut new_profile);
-                if !value_changed {
-                    return false;
-                }
-
-                self.default_profile_state = DefaultProfileState::Local {
-                    id: profile_id,
-                    profile: new_profile,
-                };
-                self.persist_local_default_profile(ctx);
-                ctx.emit(AIExecutionProfilesModelEvent::ProfileUpdated(profile_id));
-                return true;
-            }
+            self.default_profile_state.profile = new_profile;
+            self.persist_local_default_profile(ctx);
+            ctx.emit(AIExecutionProfilesModelEvent::ProfileUpdated(profile_id));
+            return true;
         }
 
         false

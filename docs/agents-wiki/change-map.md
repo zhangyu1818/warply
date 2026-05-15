@@ -136,7 +136,6 @@ This map explains the large fork baseline change at a path level.
 - `script/prepare_bundled_resources` now generates bundle metadata, licenses, and settings schema only; it no longer copies skill directories or appends skill license files.
 - Removed `BundledSkills`, `PRCommentsSkill`, `ListSkills`, `PlatformSkills`, and `SkillArguments` feature flags and app feature declarations.
 - Removed app-side local skill parsing, file watching, manager singleton, `/skills` and `/open-skill` commands, AI context skill insertion, inline skill menu, `ReadSkill` executor/action/result, `InvokeSkill` input/output types, skill-specific file/diff open buttons, tab-config update skill CTA, and `warp_cli` skill spec parsing.
-- Renamed the leftover `warp_cli::agent` output-format module to `warp_cli::output_format`; the CLI output-format enum is shared CLI plumbing, not an old Agent CLI command surface.
 - ACP agents may still use their own skills or MCP servers internally. Warp does not manage, distribute, discover, invoke, or inject those skills into ACP prompts, and OpenAI-compatible Next Command/Prompt Suggestions do not use skill bundles.
 - ACP client capabilities remain in `app/src/ai/acp/` only to advertise implemented Warp host handlers, such as terminal and file read/write, to the ACP agent. They must not be treated as app-side MCP capability probing.
 - Retained local context references such as `<plan:...>`, `<block:...>`, and `<change:...>` remain Warp UI attachment syntax. They are parsed into ACP prompt context, not into app-managed skills or MCP calls.
@@ -158,6 +157,7 @@ This map explains the large fork baseline change at a path level.
 - Removed debug actions that wrote `opencode-warp` plugin entries into the user's global OpenCode config, including the `github:warpdotdev/opencode-warp-internal` installer path.
 - Removed execution-profile model selection UI: base model, coding model, full terminal use model, computer use model, and configurable context-window controls.
 - Removed profile-stored model fields and old `PreferredAgentModeLLMId` inheritance. Execution profiles now represent local permissions and profile naming, not model routing.
+- Removed the inert `warply model list` CLI parser, old CLI output-format plumbing, `LaunchMode::CommandLine`, and the non-interactive CLI default AI execution profile. Retained CLI parsing is limited to app launch arguments, worker subprocesses, and shell completions; do not restore old headless model/agent command surfaces.
 - Removed per-terminal LLM override snapshot/restore paths and the `llm_model_override` persistence migration/schema field.
 - ACP request flow still records the active ACP model on outbound request data; model/backend choice comes from ACP adapter configuration, not old Warp `/model` or profile selectors.
 - Removed old request-entrypoint metadata plumbing (`EntrypointType`, `RequestMetadata`, `query_metadata`, and unused resume-on-error request flags). ACP requests now flow through typed `AIAgentInput`/conversation state only; Warp does not attach old hosted-service analytics metadata to ACP sends.

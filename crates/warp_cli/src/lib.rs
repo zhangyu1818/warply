@@ -3,14 +3,11 @@ use std::{env, path::Path};
 use clap::{CommandFactory, Parser, Subcommand};
 use url::Url;
 
-use crate::output_format::OutputFormat;
 use warp_core::channel::ChannelState;
 
 pub mod completions;
 pub mod config_file;
 pub mod json_filter;
-pub mod model;
-pub mod output_format;
 
 /// Options related to the parent process that spawned this Warply instance.
 #[derive(Debug, Default, Clone, clap::Args)]
@@ -34,20 +31,6 @@ pub struct RemoteServerIdentityArgs {
     pub identity_key: String,
 }
 
-/// Global options that apply to all CLI commands.
-#[derive(Debug, Default, Clone, clap::Args)]
-pub struct GlobalOptions {
-    /// Set the output format.
-    #[arg(
-        long = "output-format",
-        global = true,
-        value_enum,
-        default_value_t = OutputFormat::Pretty,
-        env = "WARPLY_OUTPUT_FORMAT"
-    )]
-    pub output_format: OutputFormat,
-}
-
 /// Command-line argument parser for the main Warply binary.
 #[derive(Debug, Default, Parser, Clone)]
 #[command(
@@ -57,13 +40,6 @@ pub struct GlobalOptions {
 )]
 #[clap(args_conflicts_with_subcommands = true)]
 pub struct Args {
-    #[clap(flatten)]
-    global_options: GlobalOptions,
-
-    /// Enable debug mode.
-    #[arg(long = "debug", global = true, help = "Enable debug logging")]
-    debug: bool,
-
     #[command(subcommand)]
     command: Option<Command>,
 
@@ -112,7 +88,7 @@ impl Args {
         command = command.after_help(color_print::cformat!(
             r#"<bold><underline>Examples:</underline></bold>
 
-  <dim>$</dim> <bold>{bin_name} model list</bold>
+  <dim>$</dim> <bold>{bin_name} completions zsh</bold>
 
 <bold><underline>Learn more:</underline></bold>
 * Use <bold>{bin_name} help</bold> to learn more about each command
@@ -136,21 +112,6 @@ impl Args {
     /// Extract the main Warply application args.
     pub fn into_app_args(self) -> AppArgs {
         self.args
-    }
-
-    /// Returns the global options.
-    pub fn global_options(&self) -> &GlobalOptions {
-        &self.global_options
-    }
-
-    /// Returns the output format.
-    pub fn output_format(&self) -> OutputFormat {
-        self.global_options.output_format
-    }
-
-    /// Returns true if debug logging is enabled.
-    pub fn debug(&self) -> bool {
-        self.debug
     }
 }
 
@@ -199,24 +160,11 @@ pub enum WorkerCommand {
     },
 }
 
-/// CLI-related subcommands. The command-line interface to Warply isn't a full SDK (e.g. with language bindings),
-/// but it allows scripting some Warply functionality.
-#[derive(Debug, Clone, Subcommand)]
-pub enum CliCommand {
-    /// Manage available models.
-    #[command(subcommand)]
-    Model(crate::model::ModelCommand),
-}
-
 /// A subcommand of the main Warply application. This includes all [`WorkerCommand`]s as well as app-specific debugging tools.
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
     #[clap(flatten)]
     Worker(WorkerCommand),
-
-    /// Commands that make up the Warply CLI.
-    #[clap(flatten)]
-    CommandLine(Box<CliCommand>),
 
     /// Generate shell completions for your shell to stdout.
     ///
@@ -247,7 +195,6 @@ impl Command {
     pub fn prints_to_stdout(&self) -> bool {
         match self {
             Command::Worker(_) => false,
-            Command::CommandLine(_) => true,
             Command::Completions { .. } => true,
         }
     }

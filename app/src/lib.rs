@@ -119,7 +119,6 @@ use identity::local_identity::LocalIdentityProvider;
 use quit_warning::UnsavedStateSummary;
 #[cfg(feature = "local_fs")]
 use settings::import::model::ImportedConfigModel;
-use warp_cli::GlobalOptions;
 
 #[cfg(feature = "local_fs")]
 use repo_metadata::{
@@ -245,16 +244,6 @@ pub enum LaunchMode {
     /// Run the regular GUI application.
     App { args: warp_cli::AppArgs },
 
-    /// Run the Warp command-line SDK.
-    CommandLine {
-        command: warp_cli::CliCommand,
-        global_options: GlobalOptions,
-        debug: bool,
-        /// Whether this CLI invocation is running in a sandboxed environment.
-        is_sandboxed: bool,
-        /// Override for computer use permission from CLI flags. If None, uses default behavior.
-        computer_use_override: Option<bool>,
-    },
     /// Run a test - this may be an integration test or an eval.
     Test {
         driver: Box<Option<TestDriver>>,
@@ -278,8 +267,7 @@ impl LaunchMode {
     fn args(&self) -> Cow<'_, warp_cli::AppArgs> {
         match self {
             LaunchMode::App { args, .. } => Cow::Borrowed(args),
-            LaunchMode::CommandLine { .. }
-            | LaunchMode::Test { .. }
+            LaunchMode::Test { .. }
             | LaunchMode::RemoteServerProxy
             | LaunchMode::RemoteServerDaemon { .. } => Cow::Owned(warp_cli::AppArgs::default()),
         }
@@ -293,7 +281,6 @@ impl LaunchMode {
                 ..
             } => *is_integration_test,
             LaunchMode::App { .. }
-            | LaunchMode::CommandLine { .. }
             | LaunchMode::RemoteServerProxy
             | LaunchMode::RemoteServerDaemon { .. } => false,
         }
@@ -303,7 +290,6 @@ impl LaunchMode {
         match self {
             LaunchMode::Test { driver, .. } => driver.take(),
             LaunchMode::App { .. }
-            | LaunchMode::CommandLine { .. }
             | LaunchMode::RemoteServerProxy
             | LaunchMode::RemoteServerDaemon { .. } => None,
         }
@@ -320,7 +306,6 @@ impl LaunchMode {
     fn execution_mode(&self) -> ExecutionMode {
         match self {
             LaunchMode::App { .. } => ExecutionMode::App,
-            LaunchMode::CommandLine { .. } => ExecutionMode::CommandLine,
             LaunchMode::Test { .. } => ExecutionMode::App,
             // RemoteServerProxy and RemoteServerDaemon don't use execution
             // mode, but CommandLine is the closest match (headless, no GUI).
@@ -330,20 +315,9 @@ impl LaunchMode {
         }
     }
 
-    fn is_sandboxed(&self) -> bool {
-        match self {
-            LaunchMode::CommandLine { is_sandboxed, .. } => *is_sandboxed,
-            LaunchMode::App { .. }
-            | LaunchMode::Test { .. }
-            | LaunchMode::RemoteServerProxy
-            | LaunchMode::RemoteServerDaemon { .. } => false,
-        }
-    }
-
     /// Returns `true` if Warp should run headlessly, without a visible UI.
     fn is_headless(&self) -> bool {
         match self {
-            LaunchMode::CommandLine { .. } => true,
             LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => true,
             LaunchMode::App { .. } | LaunchMode::Test { .. } => false,
         }
@@ -353,7 +327,6 @@ impl LaunchMode {
     pub(crate) fn needs_profiling(&self) -> bool {
         match self {
             LaunchMode::App { .. }
-            | LaunchMode::CommandLine { .. }
             | LaunchMode::Test { .. }
             | LaunchMode::RemoteServerDaemon { .. }
             | LaunchMode::RemoteServerProxy => true,
@@ -363,13 +336,6 @@ impl LaunchMode {
     /// Log destination for this mode.
     fn log_destination(&self) -> Option<LogDestination> {
         match self {
-            LaunchMode::CommandLine { debug, .. } => {
-                if *debug {
-                    Some(LogDestination::Stderr)
-                } else {
-                    Some(LogDestination::File)
-                }
-            }
             // Proxy must log to stderr because stdout is the protocol channel.
             LaunchMode::RemoteServerProxy => Some(LogDestination::Stderr),
             LaunchMode::RemoteServerDaemon { .. } => Some(LogDestination::File),
@@ -491,17 +457,6 @@ pub fn run() -> Result<()> {
             }
             warp_cli::Command::Completions { shell } => {
                 return warp_cli::completions::generate_to_stdout(*shell);
-            }
-            warp_cli::Command::CommandLine(cmd) => {
-                return run_internal(LaunchMode::CommandLine {
-                    command: cmd.as_ref().clone(),
-                    global_options: GlobalOptions {
-                        output_format: args.output_format(),
-                    },
-                    debug: args.debug(),
-                    is_sandboxed: false,
-                    computer_use_override: None,
-                });
             }
         }
     }
@@ -641,11 +596,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             .detach();
 
         ctx.add_singleton_model(|ctx| {
-            AppExecutionMode::new(
-                launch_mode.execution_mode(),
-                launch_mode.is_sandboxed(),
-                ctx,
-            )
+            AppExecutionMode::new(launch_mode.execution_mode(), false, ctx)
         });
         // Add the terminal server singleton to the application.
         #[cfg(feature = "local_tty")]
@@ -1382,16 +1333,6 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 });
                 maybe_register_app_as_login_item(ctx);
             }
-        }
-        LaunchMode::CommandLine {
-            command,
-            global_options: _,
-            ..
-        } => {
-            eprintln!(
-                "Command-line agent command {command:?} is not available in the ACP-only build."
-            );
-            std::process::exit(1);
         }
         // Proxy should never reach launch() — it's a thin byte bridge.
         LaunchMode::RemoteServerProxy => {
