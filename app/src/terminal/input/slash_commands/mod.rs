@@ -613,10 +613,6 @@ impl Input {
                 self.open_rewind_menu(ctx);
             }
             pr_comments if command.name == commands::PR_COMMENTS.name => {
-                if !FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-                    return false;
-                }
-
                 let Some(repo_path) = self
                     .active_session_path_if_local(ctx)
                     .map(|path| path.to_path_buf())

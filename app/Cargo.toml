@@ -355,8 +355,6 @@ default = [
     "inline_menu_headers",
     "markdown_tables",
     "markdown_mermaid",
-    "pr_comments_slash_command",
-    "pr_comments_v2",
     "hoa_code_review",
     "configurable_toolbar",
     "vertical_tabs",
@@ -476,8 +474,6 @@ expand_edit_to_pane = []
 changed_lines_only_apply_diff_result = []
 tabbed_editor_view = []
 selection_as_context = []
-pr_comments_slash_command = []
-pr_comments_v2 = []
 projects = []
 vim_code_editor = []
 allow_opening_file_links_using_editor_env = []

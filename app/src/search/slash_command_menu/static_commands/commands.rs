@@ -377,9 +377,7 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
 
-    if FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-        commands.push(PR_COMMENTS);
-    }
+    commands.push(PR_COMMENTS);
 
     commands.push(REWIND);
 

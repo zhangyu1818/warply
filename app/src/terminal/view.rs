@@ -6,7 +6,6 @@ mod bookmarks;
 pub mod init;
 pub mod inline_banner;
 pub mod load_ai_conversation;
-use ai::agent::action::InsertReviewComment;
 pub use load_ai_conversation::ConversationRestorationInNewPaneType;
 // TODO(advait): if we align on prompt suggestions banner in Input, move code out of inline_banner mod.
 mod init_project;
@@ -98,9 +97,7 @@ use crate::ai::blocklist::block::{AIBlockAction, FinishReason};
 use crate::ai::blocklist::model::AIBlockOutputStatus;
 #[cfg(feature = "local_fs")]
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::code_review::comments::{
-    convert_insert_review_comments, AttachedReviewComment, PendingImportedReviewComment,
-};
+use crate::code_review::comments::AttachedReviewComment;
 #[cfg(feature = "local_fs")]
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::diff_state::{DiffMode, GitDeltaPreference};
@@ -1427,12 +1424,6 @@ pub enum Event {
     },
     OpenCodeReviewPane(CodeReviewPanelArg),
     ToggleCodeReviewPane(CodeReviewPanelArg),
-    InsertCodeReviewComments {
-        repo_path: PathBuf,
-        comments: Vec<PendingImportedReviewComment>,
-        diff_mode: DiffMode,
-        open_code_review: Option<CodeReviewPanelArg>,
-    },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
         comment: AttachedReviewComment,
@@ -4870,68 +4861,9 @@ impl TerminalView {
                     ctx,
                 );
             }
-            BlocklistAIActionEvent::InsertCodeReviewComments {
-                action_id: _,
-                repo_path,
-                comments,
-                base_branch,
-            } => {
-                if !FeatureFlag::PRCommentsV2.is_enabled() {
-                    self.handle_insert_code_review_comments_event(
-                        repo_path,
-                        comments,
-                        base_branch.as_deref(),
-                        ctx,
-                    );
-                }
-            }
+            BlocklistAIActionEvent::InsertCodeReviewComments { .. } => {}
             BlocklistAIActionEvent::QueuedAction(_) => {}
         }
-    }
-
-    fn handle_insert_code_review_comments_event(
-        &mut self,
-        repo_path: &Path,
-        comments: &[InsertReviewComment],
-        base_branch: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-            return;
-        }
-        let pending_comments = convert_insert_review_comments(comments);
-
-        if pending_comments.is_empty() {
-            log::warn!("No valid comments to insert");
-            return;
-        }
-
-        // Determine DiffMode from the base branch.
-        if self.current_repo_path.is_none() {
-            log::error!("Cannot insert PR comments: not in a git repository");
-            return;
-        }
-
-        let diff_mode = self.diff_mode_for_branch(base_branch, ctx);
-
-        let open_code_review = if FeatureFlag::PRCommentsV2.is_enabled() {
-            None
-        } else {
-            Some(CodeReviewPanelArg {
-                repo_path: Some(repo_path.to_path_buf()),
-                terminal_view: self.view_handle.clone(),
-                entrypoint: CodeReviewPaneEntrypoint::InvokedByAgent,
-                focus_new_pane: false,
-                cli_agent: None,
-            })
-        };
-
-        ctx.emit(Event::InsertCodeReviewComments {
-            repo_path: repo_path.to_path_buf(),
-            comments: pending_comments,
-            diff_mode,
-            open_code_review,
-        });
     }
 
     /// Gets the DiffMode for the given branch name by fetching the main branch name

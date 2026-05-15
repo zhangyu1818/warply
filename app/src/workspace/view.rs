@@ -9663,27 +9663,6 @@ impl Workspace {
                     });
                 }
             }
-            pane_group::Event::InsertCodeReviewComments {
-                repo_path,
-                comments,
-                diff_mode,
-                open_code_review,
-            } => {
-                if let Some(open_code_review) = open_code_review {
-                    self.open_code_review_panel_from_arg(open_code_review, pane_group.clone(), ctx);
-                }
-
-                self.working_directories_model
-                    .update(ctx, |working_directories, ctx| {
-                        working_directories.insert_code_review_comments(
-                            pane_group.id(),
-                            repo_path.as_path(),
-                            comments,
-                            diff_mode,
-                            ctx,
-                        )
-                    });
-            }
             pane_group::Event::OpenCodeReviewPaneAndScrollToComment {
                 open_code_review,
                 comment,

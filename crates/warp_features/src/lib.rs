@@ -119,12 +119,6 @@ pub enum FeatureFlag {
     /// Enables the tabbed file viewer
     TabbedEditorView,
 
-    /// Enables the /pr-comments slash command.
-    PRCommentsSlashCommand,
-
-    /// Enables displaying imported PR review comments in the blocklist.
-    PRCommentsV2,
-
     /// An entrypoint pane type to launch other pane types from a search palette. The default view
     /// when creating a tab.
     WelcomeTab,

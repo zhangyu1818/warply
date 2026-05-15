@@ -168,7 +168,7 @@ use vec1::Vec1;
 use super::{
     code_review_header::CodeReviewHeader,
     comment_list_view::{CommentListDebugState, CommentListEvent, CommentListView},
-    comments::{attach_pending_imported_comments, AttachedReviewComment, CommentOrigin},
+    comments::{AttachedReviewComment, CommentOrigin},
     diff_size_limits::DiffSize,
     file_invalidation_queue::FileInvalidationTask,
     git_dialog::{GitDialog, GitDialogEvent, GitDialogKind},
@@ -1067,8 +1067,7 @@ impl CodeReviewView {
         } = event
         {
             if self.all_editors_loaded() {
-                let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
-                self.reposition_comments_in_file(&diff_mode, ctx);
+                self.reposition_comments_in_file(ctx);
             }
         }
     }
@@ -2735,8 +2734,7 @@ impl CodeReviewView {
         self.recompute_merge_base_and_flush(ctx);
 
         if self.all_editors_loaded() {
-            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
-            self.reposition_comments_in_file(&diff_mode, ctx);
+            self.reposition_comments_in_file(ctx);
         }
 
         self.update_editor_comment_markers(ctx);
@@ -3514,8 +3512,7 @@ impl CodeReviewView {
         }
 
         if self.all_editors_loaded() {
-            let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
-            self.reposition_comments_in_file(&diff_mode, ctx);
+            self.reposition_comments_in_file(ctx);
         }
     }
 
@@ -3661,9 +3658,7 @@ impl CodeReviewView {
                 let Some(editor_view) = matching_editor else {
                     // If there's no matching editor, mark the comment as outdated.
                     // The comment retains its original content so it can still be displayed.
-                    if FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-                        comment.outdated = true;
-                    }
+                    comment.outdated = true;
                     return comment;
                 };
 
@@ -3688,9 +3683,7 @@ impl CodeReviewView {
 
                 if used_fallback {
                     fallback_count += 1;
-                    if FeatureFlag::PRCommentsSlashCommand.is_enabled() {
-                        comment.outdated = true;
-                    }
+                    comment.outdated = true;
                 } else {
                     comment.outdated = false;
                     comment.target = AttachedReviewCommentTarget::Line {
@@ -3714,7 +3707,7 @@ impl CodeReviewView {
         }
     }
 
-    fn reposition_comments_in_file(&mut self, diff_mode: &DiffMode, ctx: &mut ViewContext<Self>) {
+    fn reposition_comments_in_file(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(model) = &self.active_comment_model else {
             log::error!("Failed to relocate PR comments: CodeReviewView diff state not loaded",);
             return;
@@ -3730,14 +3723,7 @@ impl CodeReviewView {
             return;
         };
 
-        let mut comments = model.update(ctx, |batch, _| batch.take_comments());
-        let pending_imported = model.update(ctx, |batch, _| {
-            batch.take_pending_imported_comments_for_branch(diff_mode)
-        });
-
-        let newly_imported = attach_pending_imported_comments(pending_imported, repo_path);
-        let newly_imported_ids: HashSet<CommentId> = newly_imported.iter().map(|c| c.id).collect();
-        comments.extend(newly_imported);
+        let comments = model.update(ctx, |batch, _| batch.take_comments());
 
         if comments.is_empty() {
             return;
@@ -3747,19 +3733,6 @@ impl CodeReviewView {
             comments: relocated_comments,
             ..
         } = Self::relocate_comments(comments, state, repo_path, ctx);
-
-        if !newly_imported_ids.is_empty() {
-            let (_active_count, _outdated_count) = relocated_comments
-                .iter()
-                .filter(|c| newly_imported_ids.contains(&c.id))
-                .fold((0usize, 0usize), |(active, outdated), c| {
-                    if c.outdated {
-                        (active, outdated + 1)
-                    } else {
-                        (active + 1, outdated)
-                    }
-                });
-        }
 
         model.update(ctx, |batch, ctx| {
             batch.upsert_comments(relocated_comments, ctx);

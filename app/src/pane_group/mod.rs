@@ -10,7 +10,7 @@ use crate::ai::restored_conversations::RestoredAgentConversations;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code::view::CodeViewAction;
-use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
+use crate::code_review::comments::AttachedReviewComment;
 use crate::code_review::diff_state::DiffMode;
 use crate::env_vars::EnvVarCollectionType;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
@@ -605,12 +605,6 @@ pub enum Event {
     },
     OpenDirectoryInNewTab {
         path: PathBuf,
-    },
-    InsertCodeReviewComments {
-        repo_path: PathBuf,
-        comments: Vec<PendingImportedReviewComment>,
-        diff_mode: DiffMode,
-        open_code_review: Option<CodeReviewPanelArg>,
     },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
