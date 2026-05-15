@@ -3102,25 +3102,23 @@ impl TerminalView {
 
         let ssh_file_upload = ctx.add_typed_action_view(|_| FileUpload::new());
 
-        if FeatureFlag::SshDragAndDrop.is_enabled() {
-            ctx.subscribe_to_view(&ssh_file_upload, |_terminal, _file_upload, event, ctx| {
-                // Pass the file upload events up so they can be processed by the pane group.
-                match event {
-                    FileUploadEvent::CopyFileToRemote { command, upload_id } => {
-                        ctx.emit(Event::CopyFileToRemote {
-                            command: command.clone(),
-                            upload_id: *upload_id,
-                        });
-                    }
-                    FileUploadEvent::OpenUploadSession(upload_id) => {
-                        ctx.emit(Event::OpenFileUploadSession(*upload_id));
-                    }
-                    FileUploadEvent::TerminateUploadSession(upload_id) => {
-                        ctx.emit(Event::TerminateFileUploadSession(*upload_id));
-                    }
+        ctx.subscribe_to_view(&ssh_file_upload, |_terminal, _file_upload, event, ctx| {
+            // Pass the file upload events up so they can be processed by the pane group.
+            match event {
+                FileUploadEvent::CopyFileToRemote { command, upload_id } => {
+                    ctx.emit(Event::CopyFileToRemote {
+                        command: command.clone(),
+                        upload_id: *upload_id,
+                    });
                 }
-            });
-        }
+                FileUploadEvent::OpenUploadSession(upload_id) => {
+                    ctx.emit(Event::OpenFileUploadSession(*upload_id));
+                }
+                FileUploadEvent::TerminateUploadSession(upload_id) => {
+                    ctx.emit(Event::TerminateFileUploadSession(*upload_id));
+                }
+            }
+        });
 
         // Here we initialize the block list mouse states for block zero.
         // Afterwards, we initialize all block list mouse states for a block when the
@@ -18051,7 +18049,7 @@ impl TerminalView {
         };
 
         let sshed = self.model.lock().is_warpified_ssh() || session.is_legacy_ssh_session();
-        if sshed && !paths.is_empty() && FeatureFlag::SshDragAndDrop.is_enabled() {
+        if sshed && !paths.is_empty() {
             self.initiate_ssh_file_upload(paths, ctx);
         } else {
             if session.shell_family() == ShellFamily::Posix && is_in_long_running_command {
@@ -19652,8 +19650,7 @@ impl View for TerminalView {
             SavePosition::new(stack.finish(), &self.terminal_position_id()).finish()
         };
 
-        let final_element = if self.is_file_drop_target && FeatureFlag::SshDragAndDrop.is_enabled()
-        {
+        let final_element = if self.is_file_drop_target {
             Container::new(element)
                 .with_foreground_overlay(appearance.theme().accent_overlay())
                 .finish()

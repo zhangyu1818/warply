@@ -65,7 +65,6 @@ pub enum FeatureFlag {
     /// Adds aliases for executing workflows.
     WorkflowAliases,
 
-    SshDragAndDrop,
     DragTabsToWindows,
 
     ImeMarkedText,
@@ -183,7 +182,6 @@ pub const DEBUG_FLAGS: &[FeatureFlag] = &[FeatureFlag::DebugMode, FeatureFlag::R
 pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ToggleBootstrapBlock,
     FeatureFlag::ResizeFix,
-    FeatureFlag::SshDragAndDrop,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::Projects,
     FeatureFlag::EditableMarkdownMermaid,

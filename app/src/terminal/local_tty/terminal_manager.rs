@@ -30,7 +30,6 @@ use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::banner::BannerState;
 use crate::context_chips::current_prompt::CurrentPrompt;
 use crate::context_chips::prompt_type::PromptType;
-use crate::features::FeatureFlag;
 use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 
@@ -620,8 +619,8 @@ impl TerminalManager {
                         view_weak_handle_2.upgrade(ctx).is_some_and(|view| {
                             view.update(ctx, |terminal_view, _ctx| terminal_view.is_ssh_uploader())
                         });
-                    let should_poll_for_password_prompt = password_notification_setting_on
-                        || (pane_handling_ssh_upload && FeatureFlag::SshDragAndDrop.is_enabled());
+                    let should_poll_for_password_prompt =
+                        password_notification_setting_on || pane_handling_ssh_upload;
 
                     if should_poll_for_password_prompt {
                         poller.update(ctx, |model, ctx| {
@@ -674,11 +673,9 @@ impl TerminalManager {
                     && termios.local_flags.contains(LocalFlags::ICANON);
 
                 if might_be_password_prompt {
-                    if FeatureFlag::SshDragAndDrop.is_enabled() {
-                        view.update(ctx, |view, ctx| {
-                            view.propagate_password_request(ctx);
-                        });
-                    }
+                    view.update(ctx, |view, ctx| {
+                        view.propagate_password_request(ctx);
+                    });
 
                     // Only send the notification if the user is navigated away from the window
                     // when the password prompt appears. If the password prompt appears and they

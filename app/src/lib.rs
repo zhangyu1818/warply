@@ -1396,8 +1396,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::MinimalistUI,
         #[cfg(feature = "workflow_aliases")]
         FeatureFlag::WorkflowAliases,
-        #[cfg(feature = "ssh_drag_and_drop")]
-        FeatureFlag::SshDragAndDrop,
         #[cfg(feature = "ime_marked_text")]
         FeatureFlag::ImeMarkedText,
         #[cfg(feature = "iterm_images")]
