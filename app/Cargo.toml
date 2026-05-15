@@ -319,7 +319,6 @@ default = [
     "ligatures",
     "dynamic_workflow_enums",
     "rect_selection",
-    "ai_rules",
     "command_correction_key",
     "kitty_images",
     "validate_autosuggestions",
@@ -472,7 +471,6 @@ traces = []
 workflow_aliases = []
 rect_selection = []
 alacritty_settings_import = []
-ai_rules = []
 shell_selector = []
 blocklist_markdown_images = []
 minimalist_ui = []
