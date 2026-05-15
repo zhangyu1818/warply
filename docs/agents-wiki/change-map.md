@@ -142,6 +142,7 @@ This map explains the large fork baseline change at a path level.
 - ACP client capabilities remain in `app/src/ai/acp/` only to advertise implemented Warp host handlers, such as terminal and file read/write, to the ACP agent. They must not be treated as app-side MCP capability probing.
 - Retained local context references such as `<plan:...>`, `<block:...>`, and `<change:...>` remain Warp UI attachment syntax. They are parsed into ACP prompt context, not into app-managed skills or MCP calls.
 - Stale ACP implementation plans were updated to use generic file-read tool-call examples instead of old skill-file examples, and to reject any skill-specific read renderer. ACP tool calls render protocol fields generically; skill semantics are external to Warp.
+- Removed unused AI settings for per-host CLI agent plugin install/update chip dismissal. Retain CLI agent terminal session helpers only when they enhance local terminal interaction; do not restore app-managed plugin install/update prompt state as a Warp product surface.
 - Upstream specs that still described bundled Oz skills, `/skills`, channel-gated feedback skills, or cloud-harness skill docs were marked rejected for this fork. Retained tab config, attachment, and terminal suggestion behavior must use local config or ACP/OpenAI-compatible flows, not app-bundled skills.
 
 ## 2026-05 UI Source Metadata Cleanup
