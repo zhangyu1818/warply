@@ -350,6 +350,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `CodeReviewFind` rollout flag and Cargo feature. The code-review find bar and search refreshes are retained local AgentView/code-review UI behavior, not a cloud or legacy-agent path.
 - Removed the `CodeReviewSaveChanges` rollout flag and Cargo feature. Code-review bindings and editable buffers are retained local AgentView/code-review behavior and should not regain disabled read-only rollout fallbacks.
 - Removed the `DiscardPerFileAndAllChanges` rollout flag and Cargo feature. Per-file discard and discard-all actions are retained local code-review editing controls and should remain direct UI behavior.
+- Removed the `ContextLineReviewComments` rollout flag and Cargo feature. Context-line comment buttons are retained local code-review UI and should not be hidden behind old rollout state.
 
 ## Legacy Names Still Present
 

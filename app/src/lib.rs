@@ -1419,8 +1419,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::MarkdownMermaid,
         #[cfg(feature = "editable_markdown_mermaid")]
         FeatureFlag::EditableMarkdownMermaid,
-        #[cfg(feature = "context_line_review_comments")]
-        FeatureFlag::ContextLineReviewComments,
         #[cfg(feature = "code_find_replace")]
         FeatureFlag::CodeFindReplace,
         #[cfg(feature = "command_palette_file_search")]

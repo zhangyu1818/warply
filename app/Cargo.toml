@@ -303,7 +303,6 @@ warp_util.workspace = true
 [features]
 changelog = []
 clear_autosuggestion_on_escape = []
-context_line_review_comments = []
 completions_v2 = [
     "plugin_host",
     "warp_completer/v2",

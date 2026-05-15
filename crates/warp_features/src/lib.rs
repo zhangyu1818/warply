@@ -89,9 +89,6 @@ pub enum FeatureFlag {
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
-    /// Enables inline review comments on specific lines of code.
-    ContextLineReviewComments,
-
     /// Enables the find/replace in code editor
     CodeFindReplace,
 
@@ -205,7 +202,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ResizeFix,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::ImeMarkedText,
-    FeatureFlag::ContextLineReviewComments,
     FeatureFlag::Projects,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::VerticalTabsSummaryMode,
