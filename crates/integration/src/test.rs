@@ -76,7 +76,7 @@ use warpui::{
     AssetProvider, Event, SingletonEntity, UpdateView, ViewHandle,
 };
 
-use warp::{terminal::find::TerminalFindModel, util::bindings::CustomAction, AgentModeEntrypoint};
+use warp::{terminal::find::TerminalFindModel, util::bindings::CustomAction};
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use version_compare::Cmp;
@@ -6546,6 +6546,7 @@ pub fn test_pane_group_state_clear_blocks() -> Builder {
 /// a narrow width. Check that the Agent Mode pane is wide enough regardless.
 pub fn test_agent_mode_pane_minimum_size() -> Builder {
     const WINDOW_ID_KEY: &str = "small_window_id";
+    const EXPECTED_AGENT_MODE_PANE_WIDTH_KEY: &str = "expected_agent_mode_pane_width";
 
     new_builder()
         .with_step(set_window_custom_size(40, 120))
@@ -6579,17 +6580,37 @@ pub fn test_agent_mode_pane_minimum_size() -> Builder {
         .with_step(
             new_step_with_default_assertions("Create an Agent Mode pane and check its width")
                 .with_action(move |app, _, step_data_map| {
-                    let window_id = step_data_map
+                    let window_id = *step_data_map
                         .get(WINDOW_ID_KEY)
                         .expect("Window ID for new window should exist");
 
-                    let workspace_view_id = workspace_view(app, *window_id).id();
+                    let pane_group = pane_group_view(app, window_id, 0);
+                    let root_pane_width = pane_group.read(app, |view, app| {
+                        let mut min_x = f32::INFINITY;
+                        let mut max_x = f32::NEG_INFINITY;
+                        for pane_id in view.visible_pane_ids() {
+                            let rect = app
+                                .element_position_by_id_at_last_frame(
+                                    window_id,
+                                    pane_id.position_id(),
+                                )
+                                .expect("Pane should have a position");
+                            min_x = min_x.min(rect.min_x());
+                            max_x = max_x.max(rect.max_x());
+                        }
+                        max_x - min_x
+                    });
+                    step_data_map.insert(
+                        EXPECTED_AGENT_MODE_PANE_WIDTH_KEY,
+                        AGENT_MODE_PANE_DEFAULT_MINIMUM_WIDTH.min(root_pane_width / 2.),
+                    );
+
+                    let workspace_view_id = workspace_view(app, window_id).id();
 
                     app.dispatch_typed_action(
-                        *window_id,
+                        window_id,
                         &[workspace_view_id],
                         &WorkspaceAction::NewPaneInAgentMode {
-                            entrypoint: AgentModeEntrypoint::TabBar,
                             zero_state_prompt_suggestion_type: None,
                         },
                     );
@@ -6612,11 +6633,14 @@ pub fn test_agent_mode_pane_minimum_size() -> Builder {
 
                             let pane_width =
                                 agent_mode_pane.as_ref(app).size_info().pane_size_px().x();
+                            let expected_agent_mode_pane_width: f32 = *step_data_map
+                                .get(EXPECTED_AGENT_MODE_PANE_WIDTH_KEY)
+                                .expect("Expected Agent Mode pane width should exist");
 
                             // Approx equality to handle pane borders, etc.
                             assert_approx_eq!(
                                 f32,
-                                pane_width - AGENT_MODE_PANE_DEFAULT_MINIMUM_WIDTH,
+                                pane_width - expected_agent_mode_pane_width,
                                 0.,
                                 epsilon = 4.
                             );

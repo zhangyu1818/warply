@@ -213,7 +213,6 @@ use crate::root_view::{
     quake_mode_window_id, quake_mode_window_is_open, OpenFromRestoredArg, OpenPath,
 };
 use crate::ui_events::PaletteSource;
-pub use crate::ui_events::{AgentModeEntrypoint, AgentModeEntrypointSelectionType};
 use crate::util::bindings::is_binding_cross_platform;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspaces;

@@ -36,34 +36,6 @@ pub enum LaunchConfigUiLocation {
     Uri,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum AgentModeEntrypointSelectionType {
-    Text,
-    Block,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum AgentModeEntrypoint {
-    #[serde(rename = "tab_bar")]
-    TabBar,
-    #[serde(rename = "new_pane_binding")]
-    NewPaneBinding,
-    #[serde(rename = "block_toolbelt")]
-    BlockToolbelt,
-    #[serde(rename = "ai_command_search")]
-    AICommandSearch,
-    #[serde(rename = "context_menu")]
-    ContextMenu {
-        selection_type: AgentModeEntrypointSelectionType,
-    },
-    #[serde(rename = "prompt_chip")]
-    PromptChip,
-    #[serde(rename = "conversation_list_popup")]
-    ConversationListPopup,
-    #[serde(rename = "udi_terminal_input_switcher")]
-    UDITerminalInputSwitcher,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum AddTabWithShellSource {
     CommandPalette,

@@ -42,6 +42,9 @@ use crate::pane_group::pane::ActionOrigin;
 use crate::projects::ProjectManagementModel;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::session_settings::SessionSettings;
+use crate::terminal::view::inline_banner::{
+    ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
+};
 use crate::terminal::view::load_ai_conversation::{RestorationDirState, RestoredAIConversation};
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 #[cfg(feature = "local_fs")]
@@ -3727,7 +3730,11 @@ impl Workspace {
                 );
             }
             LeftPanelEvent::NewConversationInNewTab => {
-                self.add_terminal_tab_with_new_agent_view(ctx);
+                self.add_terminal_tab_with_new_agent_view(
+                    AgentViewEntryOrigin::ConversationListView,
+                    None,
+                    ctx,
+                );
             }
             LeftPanelEvent::ShowDeleteConfirmationDialog {
                 conversation_id,
@@ -7238,7 +7245,12 @@ impl Workspace {
         });
     }
 
-    fn add_terminal_tab_with_new_agent_view(&mut self, ctx: &mut ViewContext<Self>) {
+    fn add_terminal_tab_with_new_agent_view(
+        &mut self,
+        origin: AgentViewEntryOrigin,
+        zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let was_left_panel_open = self.active_tab_pane_group().as_ref(ctx).left_panel_open;
         self.add_new_session_tab_internal_with_default_session_mode_behavior(
             NewSessionSource::Tab,
@@ -7255,11 +7267,18 @@ impl Workspace {
             }
             if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                 terminal_view.update(ctx, |view, ctx| {
-                    view.enter_agent_view_for_new_conversation(
-                        None,
-                        AgentViewEntryOrigin::ConversationListView,
-                        ctx,
-                    );
+                    view.enter_agent_view_for_new_conversation(None, origin, ctx);
+                    if let Some(zero_state_prompt_suggestion_type) =
+                        zero_state_prompt_suggestion_type
+                    {
+                        view.input().update(ctx, |input, ctx| {
+                            input.insert_zero_state_prompt_suggestion(
+                                zero_state_prompt_suggestion_type,
+                                ZeroStatePromptSuggestionTriggeredFrom::ConversationListPopup,
+                                ctx,
+                            );
+                        });
+                    }
                 });
             }
         });
@@ -13370,7 +13389,11 @@ impl TypedActionView for Workspace {
             AddTabWithShell { shell, source } => {
                 self.add_tab_with_shell(shell.clone(), *source, ctx)
             }
-            AddAgentTab => {}
+            AddAgentTab => self.add_terminal_tab_with_new_agent_view(
+                AgentViewEntryOrigin::Keybinding,
+                None,
+                ctx,
+            ),
             AddDockerSandboxTab => self.add_docker_sandbox_tab(ctx),
             OpenNewSessionMenu { position } => self.open_new_session_dropdown_menu(*position, ctx),
             ToggleTabConfigsMenu => self.toggle_tab_configs_menu(ctx),
@@ -13743,7 +13766,25 @@ impl TypedActionView for Workspace {
             OpenFilePath { path } => {
                 ctx.open_file_path(path);
             }
-            NewTabInAgentMode { .. } | NewPaneInAgentMode { .. } => {}
+            NewTabInAgentMode {
+                zero_state_prompt_suggestion_type,
+            } => self.add_terminal_tab_with_new_agent_view(
+                AgentViewEntryOrigin::Keybinding,
+                *zero_state_prompt_suggestion_type,
+                ctx,
+            ),
+            NewPaneInAgentMode {
+                zero_state_prompt_suggestion_type,
+            } => {
+                let pane_group = self.active_tab_pane_group().clone();
+                pane_group.update(ctx, |pane_group, ctx| {
+                    pane_group.add_terminal_pane_in_agent_mode(
+                        None,
+                        *zero_state_prompt_suggestion_type,
+                        ctx,
+                    )
+                });
+            }
             DragTab {
                 tab_index,
                 tab_position,
@@ -13949,7 +13990,12 @@ impl TypedActionView for Workspace {
                 self.insert_in_input(content, *replace_buffer, false, *ensure_agent_mode, ctx);
                 ctx.notify();
             }
-            FixInAgentMode { .. } => {}
+            FixInAgentMode { query } => {
+                let pane_group = self.active_tab_pane_group().clone();
+                pane_group.update(ctx, |pane_group, ctx| {
+                    pane_group.add_terminal_pane_in_agent_mode(Some(query.as_str()), None, ctx)
+                });
+            }
             OpenAIFactCollection => {}
             ToggleAIDocumentPane {
                 document_id,

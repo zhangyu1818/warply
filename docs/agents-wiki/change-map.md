@@ -144,6 +144,7 @@ This map explains the large fork baseline change at a path level.
 ## 2026-05 UI Source Metadata Cleanup
 
 - Removed stale UI source-only metadata enums and no-op action/function parameters for link opening, notification agent variant, saved-workflow modal source, block-filter toggle source, prompt-suggestion interaction source, CLI-agent telemetry type, and rewind entrypoint. Retained actions now carry only the data required to perform local behavior.
+- Removed `AgentModeEntrypoint` source metadata from AgentView tab/pane actions. The retained actions now route directly to local ACP AgentView creation instead of carrying old analytics entrypoint labels.
 - These source labels were old telemetry/product analytics residue. Future upstream merges should not restore them unless a retained local behavior actually branches on the value.
 
 ## 2026-05 Test Harness Notes
