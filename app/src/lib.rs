@@ -1473,8 +1473,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewSaveChanges,
         #[cfg(feature = "file_tree")]
         FeatureFlag::FileTree,
-        #[cfg(feature = "allow_ignoring_input_suggestions")]
-        FeatureFlag::AllowIgnoringInputSuggestions,
         #[cfg(feature = "diff_set_as_context")]
         FeatureFlag::DiffSetAsContext,
         #[cfg(feature = "discard_per_file_and_all_changes")]

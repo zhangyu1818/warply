@@ -337,7 +337,6 @@ default = [
     "create_project_flow",
     "file_tree",
     "vim_code_editor",
-    "allow_ignoring_input_suggestions",
     "expand_edit_to_pane",
     "ui_zoom",
     "discard_per_file_and_all_changes",
@@ -391,7 +390,6 @@ gui = []
 welcome_tab = []
 github_pr_prompt_chip = []
 create_project_flow = []
-allow_ignoring_input_suggestions = []
 inline_slash_commands = []
 
 # Enable this feature to track heap usage and automatically produce a heap

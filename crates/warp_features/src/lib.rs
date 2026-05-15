@@ -162,9 +162,6 @@ pub enum FeatureFlag {
     /// Enables the file tree (with an entrypoint through code mode).
     FileTree,
 
-    /// Enables ignoring input suggestions.
-    AllowIgnoringInputSuggestions,
-
     /// Enables attaching diff sets (multiple hunks from multiple files) as context in Agent Mode.
     DiffSetAsContext,
 

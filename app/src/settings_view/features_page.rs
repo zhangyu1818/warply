@@ -1774,9 +1774,7 @@ impl FeaturesPageView {
 
         editor_widgets.push(Box::new(AutosuggestionKeybindingHintWidget::default()));
 
-        if FeatureFlag::AllowIgnoringInputSuggestions.is_enabled() {
-            editor_widgets.push(Box::new(AutosuggestionIgnoreButtonWidget::default()));
-        }
+        editor_widgets.push(Box::new(AutosuggestionIgnoreButtonWidget::default()));
 
         if input_settings
             .at_context_menu_in_terminal_mode

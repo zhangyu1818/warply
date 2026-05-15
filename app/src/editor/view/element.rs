@@ -22,7 +22,6 @@ use pathfinder_geometry::{
     vector::{vec2f, Vector2F},
 };
 use vim::vim::{MotionType, VimMode};
-use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::DEFAULT_UI_FONT_SIZE;
 use warp_util::user_input::UserInput;
 use warpui::event::KeyState;
@@ -1421,9 +1420,7 @@ impl EditorElement {
                 self.autosuggestion_shortcut_icon =
                     Some(ChildView::new(accept_autosuggestion_keybinding).finish());
             }
-            if show_autosuggestion_ignore_button
-                && FeatureFlag::AllowIgnoringInputSuggestions.is_enabled()
-            {
+            if show_autosuggestion_ignore_button {
                 self.autosuggestion_ignore_icon =
                     Some(ChildView::new(autosuggestion_ignore).finish());
             }
