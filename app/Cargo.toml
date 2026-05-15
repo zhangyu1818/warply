@@ -333,7 +333,6 @@ default = [
     "undo_closed_panes",
     "revert_diff_hunk",
     "code_review_save_changes",
-    "create_project_flow",
     "file_tree",
     "vim_code_editor",
     "expand_edit_to_pane",
@@ -379,7 +378,6 @@ full_screen_zen_mode = []
 # for things that pull in external dependencies.
 gui = []
 welcome_tab = []
-create_project_flow = []
 inline_slash_commands = []
 
 # Enable this feature to track heap usage and automatically produce a heap
