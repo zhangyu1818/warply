@@ -75,9 +75,6 @@ pub enum FeatureFlag {
     SshDragAndDrop,
     DragTabsToWindows,
 
-    /// Enables multi-workspace selection.
-    MultiWorkspace,
-
     ImeMarkedText,
 
     /// Enables iTerm image rendering
@@ -199,9 +196,6 @@ pub enum FeatureFlag {
     /// adopt the configured color when their working directory matches.
     DirectoryTabColors,
 
-    /// Enables the new settings to control visibility of work surface features.
-    OpenWarpNewSettingsModes,
-
     /// Enables vertical tab layout as an alternative to the horizontal tab bar.
     VerticalTabs,
 
@@ -253,7 +247,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::RemoveAutosuggestionDuringTabCompletions,
     FeatureFlag::ResizeFix,
     FeatureFlag::SshDragAndDrop,
-    FeatureFlag::MultiWorkspace,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::ContextLineReviewComments,
     FeatureFlag::Projects,

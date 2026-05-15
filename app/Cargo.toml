@@ -357,7 +357,6 @@ default = [
     "vertical_tabs",
     "tab_configs",
     "trim_trailing_blank_lines",
-    "open_warp_new_settings_modes",
     "settings_file",
     "directory_tab_colors",
 ]
@@ -456,7 +455,6 @@ alacritty_settings_import = []
 shell_selector = []
 minimalist_ui = []
 ssh_drag_and_drop = []
-multi_workspace = []
 ime_marked_text = []
 iterm_images = []
 validate_autosuggestions = []
@@ -488,7 +486,6 @@ new_tab_styling = []
 incremental_auto_reload = []
 inline_menu_headers = []
 directory_tab_colors = []
-open_warp_new_settings_modes = []
 hoa_code_review = []
 vertical_tabs = []
 vertical_tabs_summary_mode = []
