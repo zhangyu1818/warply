@@ -141,6 +141,11 @@ This map explains the large fork baseline change at a path level.
 - Retained local context references such as `<plan:...>`, `<block:...>`, and `<change:...>` remain Warp UI attachment syntax. They are parsed into ACP prompt context, not into app-managed skills or MCP calls.
 - Stale ACP implementation plans were updated to use generic file-read tool-call examples instead of old skill-file examples, and to reject any skill-specific read renderer. ACP tool calls render protocol fields generically; skill semantics are external to Warp.
 
+## 2026-05 UI Source Metadata Cleanup
+
+- Removed stale UI source-only metadata enums and no-op action/function parameters for link opening, notification agent variant, saved-workflow modal source, block-filter toggle source, prompt-suggestion interaction source, CLI-agent telemetry type, and rewind entrypoint. Retained actions now carry only the data required to perform local behavior.
+- These source labels were old telemetry/product analytics residue. Future upstream merges should not restore them unless a retained local behavior actually branches on the value.
+
 ## 2026-05 Test Harness Notes
 
 - Workspace and pane-group tests that can construct `WelcomePane` must register `ProjectManagementModel`, matching production app initialization.

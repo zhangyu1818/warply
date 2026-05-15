@@ -1,12 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum LinkOpenMethod {
-    CmdClick,
-    ToolTip,
-    MiddleClick,
-}
-
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CommandXRayTrigger {
     Hover,
@@ -28,30 +21,6 @@ pub enum PaletteSource {
     TitleBarSearchBar,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum CLIAgentType {
-    Claude,
-    Gemini,
-    Codex,
-    Amp,
-    Droid,
-    OpenCode,
-    Copilot,
-    Pi,
-    Auggie,
-    Cursor,
-    Goose,
-    Vibe,
-    Unknown,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationAgentVariant {
-    Agent,
-    CLIAgent(CLIAgentType),
-}
-
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum PtySpawnMode {
     TerminalServer,
@@ -60,25 +29,11 @@ pub enum PtySpawnMode {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum SaveAsWorkflowModalSource {
-    Block,
-    Input,
-    AgentWorkflowCard,
-    AgentPanel,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum LaunchConfigUiLocation {
     CommandPalette,
     AppMenu,
     TabMenu,
     Uri,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum ToggleBlockFilterSource {
-    Binding,
-    ContextMenu,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,19 +62,6 @@ pub enum AgentModeEntrypoint {
     ConversationListPopup,
     #[serde(rename = "udi_terminal_input_switcher")]
     UDITerminalInputSwitcher,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum InteractionSource {
-    Button,
-    Keybinding,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum AgentModeRewindEntrypoint {
-    Button,
-    ContextMenu,
-    SlashCommand,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

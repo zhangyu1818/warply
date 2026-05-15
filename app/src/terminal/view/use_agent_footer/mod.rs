@@ -62,7 +62,6 @@ use crate::{
         TerminalModel,
     },
     ui_components::{blended_colors, icons::Icon},
-    ui_events::CLIAgentType,
     view_components::action_button::{
         ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, TooltipAlignment,
     },
@@ -473,11 +472,6 @@ impl TerminalView {
             sessions_model.close_input(view_id, should_auto_toggle_input, ctx);
         });
 
-        let cli_agent_type: Option<CLIAgentType> = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent.into());
-        if let Some(_cli_agent) = cli_agent_type {}
-
         self.redetermine_terminal_focus(ctx);
         ctx.notify();
     }
@@ -519,12 +513,6 @@ impl TerminalView {
         if text.trim().is_empty() {
             return;
         }
-
-        let _prompt_length = text.chars().count();
-        let cli_agent: Option<CLIAgentType> = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent.into());
-        if let Some(_cli_agent) = cli_agent {}
 
         // Clear any saved draft so submitted text isn't restored on the next open.
         let view_id = self.view_id;

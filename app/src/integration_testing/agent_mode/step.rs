@@ -134,7 +134,6 @@ pub fn submit_ai_query(query: &str, timeout: Duration) -> TestStep {
 }
 
 /// Returns an assertion that prints the conversation ID to stdout once available.
-/// This assertion will poll until the conversation token is received from the server.
 fn print_conversation_id_assertion(
 ) -> impl FnMut(&mut warpui::App, warpui::WindowId) -> warpui::integration::AssertionOutcome {
     |app, window_id| {

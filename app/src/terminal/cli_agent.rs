@@ -21,7 +21,6 @@ use crate::ai::blocklist::CLAUDE_ORANGE;
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::AttachedReviewCommentTarget;
 use crate::ui_components::icons::Icon;
-use crate::ui_events::CLIAgentType;
 use warp_completer::parsers::simple::top_level_command;
 use warp_util::path::EscapeChar;
 
@@ -457,26 +456,6 @@ pub fn build_selection_line_range_prompt(
     end_line: usize,
 ) -> String {
     format!("{file_path} L{start_line}-L{end_line}")
-}
-
-impl From<CLIAgent> for CLIAgentType {
-    fn from(agent: CLIAgent) -> Self {
-        match agent {
-            CLIAgent::Claude => CLIAgentType::Claude,
-            CLIAgent::Gemini => CLIAgentType::Gemini,
-            CLIAgent::Codex => CLIAgentType::Codex,
-            CLIAgent::Amp => CLIAgentType::Amp,
-            CLIAgent::Droid => CLIAgentType::Droid,
-            CLIAgent::OpenCode => CLIAgentType::OpenCode,
-            CLIAgent::Copilot => CLIAgentType::Copilot,
-            CLIAgent::Pi => CLIAgentType::Pi,
-            CLIAgent::Auggie => CLIAgentType::Auggie,
-            CLIAgent::CursorCli => CLIAgentType::Cursor,
-            CLIAgent::Goose => CLIAgentType::Goose,
-            CLIAgent::Vibe => CLIAgentType::Vibe,
-            CLIAgent::Unknown => CLIAgentType::Unknown,
-        }
-    }
 }
 
 #[cfg(test)]

@@ -406,10 +406,7 @@ use crate::terminal::{
     terminal_size_element::TerminalSizeElement,
     TerminalModel,
 };
-use crate::ui_events::{
-    AgentModeRewindEntrypoint, InteractionSource, LinkOpenMethod, NotificationAgentVariant,
-    PaletteSource, SaveAsWorkflowModalSource, ToggleBlockFilterSource,
-};
+use crate::ui_events::PaletteSource;
 use crate::view_components::find::{Event as FindEvent, Find, FindDirection, FindWithinBlockState};
 use settings::Setting;
 use warp_core::semantic_selection::SemanticSelection;
@@ -7164,8 +7161,8 @@ impl TerminalView {
         resolution: PromptSuggestionResolution,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        let _interaction_source = match resolution {
-            PromptSuggestionResolution::Accept { interaction_source } => interaction_source,
+        match resolution {
+            PromptSuggestionResolution::Accept => {}
             PromptSuggestionResolution::Reject { ctrl_c } => {
                 // ctrl-c shouldn't clear prompt suggestions, but all other rejections should.
                 if !ctrl_c {
@@ -9265,13 +9262,7 @@ impl TerminalView {
         } else {
             NotificationsTrigger::AgentTaskCompleted(true)
         };
-        self.send_agent_desktop_notification_or_show_banner(
-            trigger,
-            title,
-            description,
-            Some(NotificationAgentVariant::CLIAgent((*agent).into())),
-            ctx,
-        );
+        self.send_agent_desktop_notification_or_show_banner(trigger, title, description, ctx);
     }
 
     /// Handles the initialization of a session within this terminal pane.
@@ -10394,7 +10385,6 @@ impl TerminalView {
             trigger,
             block_summary.title,
             block_summary.description,
-            Some(NotificationAgentVariant::Agent),
             ctx,
         );
     }
@@ -10406,7 +10396,6 @@ impl TerminalView {
         trigger: NotificationsTrigger,
         title: String,
         description: String,
-        _agent_variant: Option<NotificationAgentVariant>,
         ctx: &mut ViewContext<Self>,
     ) {
         let notification_settings = SessionSettings::as_ref(ctx).notifications.value().clone();
@@ -11188,9 +11177,7 @@ impl TerminalView {
                         .into_item(),
                 ]);
                 items.append(&mut vec![MenuItemFields::new("Toggle block filter")
-                    .with_on_select_action(TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
-                        ToggleBlockFilterSource::ContextMenu,
-                    ))
+                    .with_on_select_action(TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock)
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         TOGGLE_BLOCK_FILTER_KEYBINDING,
                         ctx,
@@ -11290,7 +11277,6 @@ impl TerminalView {
                                         ai_block_view_id: *rich_content_view_id,
                                         exchange_id: ai_metadata.exchange_id,
                                         conversation_id: ai_metadata.conversation_id,
-                                        entrypoint: AgentModeRewindEntrypoint::ContextMenu,
                                     })
                                     .into_item(),
                             );
@@ -11681,11 +11667,7 @@ impl TerminalView {
         let selected_block_contents =
             self.selected_block_contents_as_string(BlockEntity::Command, " &&\n", ctx);
 
-        self.open_workflow_modal_with_command(
-            selected_block_contents,
-            SaveAsWorkflowModalSource::Block,
-            ctx,
-        );
+        self.open_workflow_modal_with_command(selected_block_contents, ctx);
     }
 
     fn open_block_filter_editor(
@@ -12123,7 +12105,6 @@ impl TerminalView {
                         ai_block_view_id,
                         exchange_id: ai_exchange_id,
                         conversation_id: ai_conversation_id,
-                        entrypoint: AgentModeRewindEntrypoint::ContextMenu,
                     })
                     .into_item(),
             );
@@ -12614,7 +12595,7 @@ impl TerminalView {
         }
 
         if should_directly_open_link {
-            self.maybe_open_link(LinkOpenMethod::CmdClick, position, ctx);
+            self.maybe_open_link(position, ctx);
         }
     }
 
@@ -12653,12 +12634,7 @@ impl TerminalView {
         });
     }
 
-    fn maybe_open_link(
-        &mut self,
-        _link_open_method: LinkOpenMethod,
-        position: &WithinModel<Point>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn maybe_open_link(&mut self, position: &WithinModel<Point>, ctx: &mut ViewContext<Self>) {
         let Some(link) = self.highlighted_link.as_ref() else {
             return;
         };
@@ -12693,7 +12669,7 @@ impl TerminalView {
         if self.highlighted_link.is_some() {
             // Middle click should open a highlighted link if there is one.
             if let Some(position) = position {
-                self.maybe_open_link(LinkOpenMethod::MiddleClick, position, ctx);
+                self.maybe_open_link(position, ctx);
             }
         } else {
             // Otherwise, assume that the user wants to middle-click paste.
@@ -13367,7 +13343,7 @@ impl TerminalView {
             selected_input_text
         };
 
-        self.open_workflow_modal_with_command(command, SaveAsWorkflowModalSource::Input, ctx);
+        self.open_workflow_modal_with_command(command, ctx);
     }
 
     fn toggle_input_hint_text(&mut self, ctx: &mut ViewContext<Self>) {
@@ -13375,12 +13351,7 @@ impl TerminalView {
             .update(ctx, |input_settings, _ctx| *input_settings.show_hint_text);
     }
 
-    fn open_workflow_modal_with_command(
-        &mut self,
-        command: String,
-        _source: SaveAsWorkflowModalSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn open_workflow_modal_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
         ctx.emit(Event::OpenWorkflowModalWithCommand(command));
     }
 
@@ -15029,22 +15000,12 @@ impl TerminalView {
             }
             InputEvent::UnhandledCmdEnter => {
                 if is_accept_prompt_suggestion_bound_to_cmd_enter(ctx) {
-                    self.resolve_passive_suggestion(
-                        PromptSuggestionResolution::Accept {
-                            interaction_source: InteractionSource::Keybinding,
-                        },
-                        ctx,
-                    );
+                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::CtrlEnter => {
                 if is_accept_prompt_suggestion_bound_to_ctrl_enter(ctx) {
-                    self.resolve_passive_suggestion(
-                        PromptSuggestionResolution::Accept {
-                            interaction_source: InteractionSource::Keybinding,
-                        },
-                        ctx,
-                    );
+                    self.resolve_passive_suggestion(PromptSuggestionResolution::Accept, ctx);
                 }
             }
             InputEvent::EnterAgentView {
@@ -17811,7 +17772,6 @@ impl TerminalView {
         ai_block_view_id: EntityId,
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
-        _entrypoint: AgentModeRewindEntrypoint,
         ctx: &mut ViewContext<Self>,
     ) {
         ctx.dispatch_typed_action(&WorkspaceAction::ShowRewindConfirmationDialog {
@@ -18089,11 +18049,7 @@ impl TerminalView {
     /// When a filter is toggled off, it is set as inactive but the query remains
     /// saved on the block. It can be reactivated by toggling on. If there is no
     /// inactive query, toggling on a filter will simply open the filter editor.
-    fn toggle_block_filter_on_selected_or_last_block(
-        &mut self,
-        _source: ToggleBlockFilterSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn toggle_block_filter_on_selected_or_last_block(&mut self, ctx: &mut ViewContext<Self>) {
         let model = self.model.lock();
         let Some(selected_or_last_block_index) = self
             .selected_blocks
@@ -18998,7 +18954,7 @@ impl TypedActionView for TerminalView {
             | DragAndDropFiles(_)
             | WarpifySSHSession
             | NotifySshErrorBlock(_)
-            | ToggleBlockFilterOnSelectedOrLastBlock(_)
+            | ToggleBlockFilterOnSelectedOrLastBlock
             | SetMarkedText { .. }
             | ResumeConversation
             | ForkConversationFromLastKnownGoodState
@@ -19169,13 +19125,11 @@ impl TypedActionView for TerminalView {
                 ai_block_view_id,
                 exchange_id,
                 conversation_id,
-                entrypoint,
             } => {
                 self.show_rewind_confirmation_dialog(
                     *ai_block_view_id,
                     *exchange_id,
                     *conversation_id,
-                    *entrypoint,
                     ctx,
                 );
             }
@@ -19208,7 +19162,6 @@ impl TypedActionView for TerminalView {
                         ai_block_view_id,
                         *exchange_id,
                         *conversation_id,
-                        AgentModeRewindEntrypoint::SlashCommand,
                         ctx,
                     );
                 } else {
@@ -19422,8 +19375,8 @@ impl TypedActionView for TerminalView {
                 self.open_block_filter_editor(*block_index, OpenedFromClick::Yes, ctx)
             }
             VimModeBanner(action) => self.handle_vim_banner_action(*action, ctx),
-            ToggleBlockFilterOnSelectedOrLastBlock(source) => {
-                self.toggle_block_filter_on_selected_or_last_block(*source, ctx);
+            ToggleBlockFilterOnSelectedOrLastBlock => {
+                self.toggle_block_filter_on_selected_or_last_block(ctx);
             }
             ToggleSnackbarInActivePane => self.toggle_snackbar_in_active_pane(ctx),
             MiddleClickOnGrid { position } => self.middle_click_on_grid(position, ctx),

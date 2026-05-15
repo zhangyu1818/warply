@@ -75,7 +75,6 @@ use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::settings::InputSettings;
 use crate::terminal::view::{CodeDiffAction, TerminalAction};
 use crate::ui_components::icons::Icon;
-use crate::ui_events::AgentModeRewindEntrypoint;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{is_supported_image_file, FileTarget};
 use crate::view_components::action_button::ActionButton;
@@ -1108,7 +1107,6 @@ impl AIBlock {
                         ai_block_view_id,
                         exchange_id,
                         conversation_id,
-                        entrypoint: AgentModeRewindEntrypoint::Button,
                     });
                 })
         });

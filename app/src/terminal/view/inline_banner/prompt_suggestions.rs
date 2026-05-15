@@ -5,7 +5,6 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
-use crate::ui_events::InteractionSource;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Empty, Fill, Flex,
@@ -264,9 +263,7 @@ impl View for PromptSuggestionsView {
                     banner_state.accept_button_mouse_state.clone(),
                     Rc::new(move |ctx: &mut warpui::EventContext<'_>| {
                         ctx.dispatch_typed_action(TerminalAction::ResolvePromptSuggestion(
-                            PromptSuggestionResolution::Accept {
-                                interaction_source: InteractionSource::Button,
-                            },
+                            PromptSuggestionResolution::Accept,
                         ));
                     }),
                     true, // should_shrink

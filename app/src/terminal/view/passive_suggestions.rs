@@ -1,23 +1,19 @@
 use warpui::ViewContext;
 
-use crate::{terminal::view::CodeDiffAction, ui_events::InteractionSource};
+use crate::terminal::view::CodeDiffAction;
 
 use super::TerminalView;
 
 #[derive(Copy, Clone, Debug)]
 pub enum PromptSuggestionResolution {
-    Accept {
-        interaction_source: InteractionSource,
-    },
-    Reject {
-        ctrl_c: bool,
-    },
+    Accept,
+    Reject { ctrl_c: bool },
 }
 
 impl From<PromptSuggestionResolution> for CodeDiffAction {
     fn from(value: PromptSuggestionResolution) -> Self {
         match value {
-            PromptSuggestionResolution::Accept { .. } => CodeDiffAction::Accept,
+            PromptSuggestionResolution::Accept => CodeDiffAction::Accept,
             PromptSuggestionResolution::Reject { .. } => CodeDiffAction::Reject,
         }
     }

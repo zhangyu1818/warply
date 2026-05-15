@@ -1,7 +1,6 @@
 use super::{AskAISource, ContextMenuAction, TerminalAction};
 
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
-use crate::ui_events::ToggleBlockFilterSource;
 
 use crate::settings_view::flags;
 use crate::terminal::input::{
@@ -13,7 +12,6 @@ use crate::terminal::view::{
     LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY,
     LONG_RUNNING_AGENT_REQUESTED_COMMAND_USER_TOOK_OVER_CONTEXT_KEY,
 };
-use crate::ui_events::InteractionSource;
 use crate::util::bindings;
 use crate::util::bindings::{cmd_or_ctrl_shift, is_binding_pty_compliant};
 use crate::{
@@ -315,9 +313,7 @@ pub fn init(app: &mut AppContext) {
         EditableBinding::new(
             ACCEPT_PROMPT_SUGGESTION_KEYBINDING,
             "Accept Prompt Suggestion",
-            TerminalAction::ResolvePromptSuggestion(PromptSuggestionResolution::Accept {
-                interaction_source: InteractionSource::Keybinding,
-            }),
+            TerminalAction::ResolvePromptSuggestion(PromptSuggestionResolution::Accept),
         )
         .with_mac_key_binding(if FeatureFlag::AgentView.is_enabled() {
             "ctrl-enter"
@@ -744,7 +740,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
         TOGGLE_BLOCK_FILTER_KEYBINDING,
         "Toggle block filter on selected or last block",
-        TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(ToggleBlockFilterSource::Binding),
+        TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock,
     )
     .with_mac_key_binding("shift-alt-F")
     .with_context_predicate(id!("Terminal") & !id!("IMEOpen") & !id!("AltScreen"))]);

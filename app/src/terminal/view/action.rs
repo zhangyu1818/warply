@@ -20,7 +20,7 @@ use crate::terminal::ssh::error::SshErrorBlockAction;
 use crate::terminal::view::inline_banner::AgentModeSetupSpeedbumpBannerAction;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 use crate::terminal::view::RichContentSecretTooltipInfo;
-use crate::ui_events::{AgentModeRewindEntrypoint, PaletteSource, ToggleBlockFilterSource};
+use crate::ui_events::PaletteSource;
 use crate::workflows::workflow::Workflow;
 use crate::{
     object_ids::SyncId,
@@ -209,8 +209,6 @@ pub enum TerminalAction {
         ai_block_view_id: EntityId,
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
-        /// The entrypoint from which this action was triggered.
-        entrypoint: AgentModeRewindEntrypoint,
     },
     /// Actually execute the rewind (called after user confirms in the dialog)
     ExecuteRewindAIConversation {
@@ -266,7 +264,7 @@ pub enum TerminalAction {
     AliasExpansionBanner(AliasExpansionBannerAction),
     OpenInWarpBanner(OpenInWarpBannerAction),
     OpenBlockFilterEditor(BlockIndex),
-    ToggleBlockFilterOnSelectedOrLastBlock(ToggleBlockFilterSource),
+    ToggleBlockFilterOnSelectedOrLastBlock,
     VimModeBanner(VimModeBannerAction),
     ToggleSnackbarInActivePane,
     /// User selected a block inside an AI block's attached block menu so we jump to it and select
@@ -481,7 +479,7 @@ impl fmt::Debug for TerminalAction {
             OpenBlockFilterEditor(block_index) => {
                 write!(f, "OpenBlockFilterEditor({block_index:?})")
             }
-            ToggleBlockFilterOnSelectedOrLastBlock(_) => {
+            ToggleBlockFilterOnSelectedOrLastBlock => {
                 f.write_str("ToggleBlockFilterOnSelectedOrLastBlock")
             }
             VimModeBanner(action) => write!(f, "VimModeBanner({action:?})"),
