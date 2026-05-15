@@ -315,11 +315,7 @@ pub fn init(app: &mut AppContext) {
             "Accept Prompt Suggestion",
             TerminalAction::ResolvePromptSuggestion(PromptSuggestionResolution::Accept),
         )
-        .with_mac_key_binding(if FeatureFlag::AgentView.is_enabled() {
-            "ctrl-enter"
-        } else {
-            "cmd-enter"
-        })
+        .with_mac_key_binding("ctrl-enter")
         .with_context_predicate(
             id!("Terminal") & !id!("IMEOpen") & id!(flags::HAS_PENDING_PROMPT_SUGGESTION),
         ),
@@ -827,15 +823,9 @@ fn register_input_mode_bindings(app: &mut AppContext) {
             )),
         );
 
-    // A context predicate that is active when the user could switch input to shell mode.
-    // This matches when in AI mode AND either:
-    // - AgentView feature is disabled, OR
-    // - In an active agent view, OR
-    // - Input is unlocked (autodetected) (implying the input is autodetected as AI in terminal mode)
     let terminal_mode_predicate = base_context.clone()
         & id!(flags::AGENT_MODE_INPUT)
-        & (!id!(flags::AGENT_VIEW_ENABLED)
-            | id!(flags::ACTIVE_AGENT_VIEW)
+        & (id!(flags::ACTIVE_AGENT_VIEW)
             | id!(flags::ACTIVE_INLINE_AGENT_VIEW)
             | !id!(flags::LOCKED_INPUT));
 
@@ -846,8 +836,7 @@ fn register_input_mode_bindings(app: &mut AppContext) {
             & !id!("Input")
             & !id!(flags::HAS_PENDING_PROMPT_SUGGESTION)
             & !id!(SSH_ERROR_BLOCK_VISIBLE_KEY),
-    )
-    .with_enabled(|| FeatureFlag::AgentView.is_enabled())]);
+    )]);
 
     app.register_editable_bindings([
         EditableBinding::new(
