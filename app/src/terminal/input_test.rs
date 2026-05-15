@@ -26,6 +26,7 @@ use crate::cloud_object::update_manager::UpdateManager;
 use crate::editor::{EditorAction, TextStyleOperation};
 use crate::http_api::HttpApiProvider;
 use crate::input_suggestions::{HistoryOrder, Item};
+use crate::remote_server::manager::RemoteServerManager;
 
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::{AliasExpansionSettings, AppEditorSettings, InputBoxType};
@@ -111,6 +112,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
+    app.add_singleton_model(RemoteServerManager::new);
     app.add_singleton_model(|_| crate::code_review::git_status_update::GitStatusUpdateModel::new());
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(FileSearchModel::new);

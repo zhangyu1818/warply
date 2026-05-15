@@ -71,7 +71,6 @@ use crate::ai::blocklist::inline_action::search_codebase::{
 use crate::ai::blocklist::inline_action::web_fetch::WebFetchView;
 use crate::ai::blocklist::inline_action::web_search::WebSearchView;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
-use crate::settings::InputSettings;
 use crate::terminal::view::{CodeDiffAction, TerminalAction};
 use crate::ui_components::icons::Icon;
 #[cfg(feature = "local_fs")]
@@ -87,12 +86,11 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::{cell::OnceCell, sync::Arc};
+use std::sync::Arc;
 use warp_util::path::ShellFamily;
 use warpui::elements::SecretRange;
 
 use crate::util::link_detection::*;
-use chrono::Duration;
 use itertools::Itertools;
 use secret_redaction::*;
 #[cfg(feature = "local_fs")]
@@ -760,9 +758,6 @@ pub struct AIBlock {
     /// non-[`View`] inline actions.
     auto_expand_requested_command_timer_handle: Option<SpawnedFutureHandle>,
 
-    time_to_first_token: OnceCell<Duration>,
-    time_to_last_token: Option<Duration>,
-
     /// The number of blocks that were attached as context to this AI block's query.
     num_attached_context_blocks: usize,
 
@@ -1088,8 +1083,6 @@ impl AIBlock {
             auto_expand_requested_command_timer_handle: None,
             selected_text: Arc::new(RwLock::new(None)),
             state_handles: Default::default(),
-            time_to_first_token: OnceCell::new(),
-            time_to_last_token: None,
             num_attached_context_blocks,
             has_attached_context_selected_text,
             finish_reason: None,
@@ -1428,33 +1421,7 @@ impl AIBlock {
     }
 
     fn on_output_status_update(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(latency) = self.model.time_since_request_start(ctx) {
-            // Since this is a OnceCell, we'll only set time_to_first_token to the
-            // latency of the first output received.
-            if self.time_to_first_token.set(latency).is_ok() {
-                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, _ctx| {
-                    history.set_exchange_time_to_first_token(
-                        self.client_ids.conversation_id,
-                        self.client_ids.client_exchange_id,
-                        latency.num_milliseconds(),
-                    );
-                });
-            }
-            self.time_to_last_token = Some(latency);
-        }
-
-        let _was_autodetected_ai_query = self.model.was_autodetected_ai_query(ctx);
-        let _client_exchange_id = self.client_ids.client_exchange_id.to_string();
-        let _conversation_id = self.client_ids.conversation_id;
-        let _time_to_first_token_ms = self
-            .time_to_first_token
-            .get()
-            .map(|duration| duration.num_milliseconds() as u128);
-        let _time_to_last_token_ms = self
-            .time_to_last_token
-            .map(|duration| duration.num_milliseconds() as u128);
         let status = self.model.status(ctx);
-        let _is_udi_enabled = InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
 
         match status {
             AIBlockOutputStatus::Pending => {

@@ -998,19 +998,6 @@ impl BlocklistAIHistoryModel {
         }
     }
 
-    pub fn set_exchange_time_to_first_token(
-        &mut self,
-        conversation_id: AIConversationId,
-        exchange_id: AIAgentExchangeId,
-        time_to_first_token_ms: i64,
-    ) {
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            if let Ok(exchange) = conversation.get_exchange_to_update(exchange_id) {
-                exchange.time_to_first_token_ms = Some(time_to_first_token_ms);
-            }
-        }
-    }
-
     pub fn mark_response_stream_cancelled(
         &mut self,
         stream_id: &ResponseStreamId,

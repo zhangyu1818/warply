@@ -2203,9 +2203,6 @@ pub struct AIAgentExchange {
     /// The time the exchange's output finished streaming, if known.
     pub finish_time: Option<DateTime<Local>>,
 
-    /// Time to first token for this exchange in milliseconds.
-    pub time_to_first_token_ms: Option<i64>,
-
     // TODO(CORE-3546): add shell launch data when the input was submitted.
     /// The current working directory when the input was submitted.
     pub working_directory: Option<String>,

@@ -118,7 +118,6 @@ struct AcpTranscriptExchange {
     output: AcpTranscriptOutput,
     start_time: DateTime<Local>,
     finish_time: Option<DateTime<Local>>,
-    time_to_first_token_ms: Option<i64>,
     working_directory: Option<String>,
     model_id: LLMId,
     coding_model_id: LLMId,
@@ -145,7 +144,6 @@ impl AcpTranscriptExchange {
                 output,
                 start_time: exchange.start_time,
                 finish_time: exchange.finish_time,
-                time_to_first_token_ms: exchange.time_to_first_token_ms,
                 working_directory: exchange.working_directory.clone(),
                 model_id: exchange.model_id.clone(),
                 coding_model_id: exchange.coding_model_id.clone(),
@@ -172,7 +170,6 @@ impl AcpTranscriptExchange {
             added_message_ids,
             start_time: self.start_time,
             finish_time: self.finish_time,
-            time_to_first_token_ms: self.time_to_first_token_ms,
             working_directory: self.working_directory,
             model_id: self.model_id,
             coding_model_id: self.coding_model_id,
@@ -507,29 +504,6 @@ impl AIConversation {
                 task.reassign_exchange_ids();
             });
         }
-    }
-
-    /// Time to first token for the last completed set of agent responses
-    /// since the most recent user query
-    pub fn time_to_first_token_for_last_user_query_ms(&self) -> i64 {
-        let exchanges = self.all_exchanges();
-        if exchanges.is_empty() {
-            return 0;
-        }
-
-        // Walk backwards from the end to find all exchanges in the last block
-        // (everything since the last user query).
-        for exchange in exchanges.iter().rev() {
-            if exchange.has_user_query() {
-                return exchange.time_to_first_token_ms.unwrap_or(0);
-            }
-        }
-
-        // If we never found a user query, return the time_to_first_token_ms from the first exchange
-        exchanges
-            .first()
-            .and_then(|ex| ex.time_to_first_token_ms)
-            .unwrap_or(0)
     }
 
     /// Derive the conversation status from the root task's exchanges.
@@ -1080,7 +1054,6 @@ impl AIConversation {
                 added_message_ids: HashSet::new(),
                 start_time: request_start_ts,
                 finish_time: None,
-                time_to_first_token_ms: None,
                 working_directory: working_directory.clone(),
                 // TODO(CORE-3546): fetch shell launch data from active session
                 model_id: model_id.clone(),
@@ -1325,14 +1298,6 @@ impl AIConversation {
                 exchange.added_message_ids.insert(message_id);
             }
 
-            if exchange.time_to_first_token_ms.is_none() {
-                exchange.time_to_first_token_ms = Some(
-                    Local::now()
-                        .signed_duration_since(exchange.start_time)
-                        .num_milliseconds(),
-                );
-            }
-
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                 exchange_id: new_exchange_info.exchange_id,
                 terminal_view_id,
@@ -1410,14 +1375,6 @@ impl AIConversation {
                 exchange.added_message_ids.insert(message_id);
             }
 
-            if exchange.time_to_first_token_ms.is_none() {
-                exchange.time_to_first_token_ms = Some(
-                    Local::now()
-                        .signed_duration_since(exchange.start_time)
-                        .num_milliseconds(),
-                );
-            }
-
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                 exchange_id: new_exchange_info.exchange_id,
                 terminal_view_id,
@@ -1478,13 +1435,6 @@ impl AIConversation {
             }
 
             exchange.added_message_ids.insert(message_id.clone());
-            if exchange.time_to_first_token_ms.is_none() {
-                exchange.time_to_first_token_ms = Some(
-                    Local::now()
-                        .signed_duration_since(exchange.start_time)
-                        .num_milliseconds(),
-                );
-            }
 
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                 exchange_id: new_exchange_info.exchange_id,
@@ -1649,13 +1599,6 @@ impl AIConversation {
             }
 
             exchange.added_message_ids.insert(message_id.clone());
-            if exchange.time_to_first_token_ms.is_none() {
-                exchange.time_to_first_token_ms = Some(
-                    Local::now()
-                        .signed_duration_since(exchange.start_time)
-                        .num_milliseconds(),
-                );
-            }
 
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                 exchange_id: new_exchange_info.exchange_id,
@@ -1720,13 +1663,6 @@ impl AIConversation {
             }
 
             exchange.added_message_ids.insert(message_id.clone());
-            if exchange.time_to_first_token_ms.is_none() {
-                exchange.time_to_first_token_ms = Some(
-                    Local::now()
-                        .signed_duration_since(exchange.start_time)
-                        .num_milliseconds(),
-                );
-            }
 
             ctx.emit(BlocklistAIHistoryEvent::UpdatedStreamingExchange {
                 exchange_id: new_exchange_info.exchange_id,

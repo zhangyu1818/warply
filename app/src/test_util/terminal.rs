@@ -22,6 +22,7 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
 use crate::identity::LocalIdentityProvider;
+use crate::remote_server::manager::RemoteServerManager;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 use crate::undo_close::UndoCloseStack;
 use crate::workspace::WorkspaceRegistry;
@@ -74,6 +75,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());
     app.add_singleton_model(DirectoryWatcher::new);
     app.add_singleton_model(|_| DetectedRepositories::default());
+    app.add_singleton_model(RemoteServerManager::new);
     #[cfg(feature = "local_fs")]
     app.add_singleton_model(RepoMetadataModel::new);
     app.add_singleton_model(FileSearchModel::new);

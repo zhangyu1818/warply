@@ -75,7 +75,6 @@ fn create_exchange_with_query(
         added_message_ids: HashSet::new(),
         start_time,
         finish_time: None,
-        time_to_first_token_ms: None,
         working_directory,
         model_id: LLMId::from("test-model"),
         coding_model_id: LLMId::from("test-coding-model"),

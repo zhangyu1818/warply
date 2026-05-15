@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
-use chrono::{Local, TimeDelta};
 use history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use warpui::{AppContext, SingletonEntity, View, ViewContext};
 
@@ -135,17 +134,6 @@ where
                     error: error.clone(),
                 },
             },
-        }
-    }
-
-    fn time_since_request_start(&self, app: &AppContext) -> Option<TimeDelta> {
-        let exchange = self.exchange(app);
-        match exchange {
-            Ok(exchange) => Some(Local::now().signed_duration_since(exchange.start_time)),
-            Err(err) => {
-                log::error!("Failed to get time since request start. {err}");
-                None
-            }
         }
     }
 
