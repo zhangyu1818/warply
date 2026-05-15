@@ -134,9 +134,6 @@ pub enum FeatureFlag {
     /// Enables global search
     GlobalSearch,
 
-    /// Enables embedded code review comments.
-    EmbeddedCodeReviewComments,
-
     /// Enables the inline history menu for quickly accessing previous commands and conversations.
     InlineHistoryMenu,
 

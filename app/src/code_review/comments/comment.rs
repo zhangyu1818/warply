@@ -72,10 +72,6 @@ impl CommentId {
     pub(crate) fn new() -> Self {
         CommentId(uuid::Uuid::new_v4())
     }
-
-    pub(crate) fn from_uuid(uuid: uuid::Uuid) -> Self {
-        Self(uuid)
-    }
 }
 
 impl Display for CommentId {

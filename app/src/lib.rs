@@ -1443,8 +1443,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::UIZoom,
         #[cfg(feature = "global_search")]
         FeatureFlag::GlobalSearch,
-        #[cfg(feature = "embedded_code_review_comments")]
-        FeatureFlag::EmbeddedCodeReviewComments,
         #[cfg(feature = "configurable_toolbar")]
         FeatureFlag::ConfigurableToolbar,
         #[cfg(feature = "classic_completions")]
