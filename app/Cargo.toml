@@ -465,7 +465,6 @@ vertical_tabs = []
 vertical_tabs_summary_mode = []
 tab_configs = []
 configurable_toolbar = []
-git_operations_in_code_review = []
 
 [package.metadata.bundle.bin.warply]
 category = "public.app-category.developer-tools"

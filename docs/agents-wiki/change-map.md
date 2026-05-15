@@ -352,6 +352,7 @@ This map explains the large fork baseline change at a path level.
 - Removed the `DiscardPerFileAndAllChanges` rollout flag and Cargo feature. Per-file discard and discard-all actions are retained local code-review editing controls and should remain direct UI behavior.
 - Removed the `ContextLineReviewComments` rollout flag and Cargo feature. Context-line comment buttons are retained local code-review UI and should not be hidden behind old rollout state.
 - Removed the unused `EmbeddedCodeReviewComments` rollout flag, Cargo feature, and unconnected embedded-comment prototype. The retained code-review comment editor renders directly; do not restore hidden embedded-comment rollout branches without a working local UI path.
+- Removed the `GitOperationsInCodeReview` rollout flag and Cargo feature. Local code-review commit, push, publish, and create/view PR actions are retained direct git/GitHub CLI UI, while the old non-git-operations header/sidebar fallback was removed.
 
 ## Legacy Names Still Present
 

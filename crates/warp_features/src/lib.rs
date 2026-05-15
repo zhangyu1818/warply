@@ -166,9 +166,6 @@ pub enum FeatureFlag {
     /// Enables tab configs — user-definable TOML templates for launching custom tab layouts.
     TabConfigs,
 
-    /// Enables commit, push, and create-PR actions in the code review panel.
-    GitOperationsInCodeReview,
-
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
@@ -207,10 +204,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
 
 /// Features enabled for feature preview build users (e.g.: Friends of Warp).
 /// All PREVIEW_FLAGS are also automatically added to dogfood builds (WarpDev).
-pub const PREVIEW_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::MarkdownTables,
-    FeatureFlag::GitOperationsInCodeReview,
-];
+pub const PREVIEW_FLAGS: &[FeatureFlag] = &[FeatureFlag::MarkdownTables];
 
 /// Features enabled for all release builds (i.e.: everything but WarpLocal).
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
@@ -284,9 +278,6 @@ impl FeatureFlag {
             MarkdownTables => {
                 Some("Enables rendering and interaction support for markdown tables in notebooks.")
             }
-            GitOperationsInCodeReview => Some(
-                "Enables commit, push, and create-PR actions directly from the code review panel.",
-            ),
             _ => None,
         }
     }

@@ -1469,8 +1469,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::VerticalTabsSummaryMode,
         #[cfg(feature = "tab_configs")]
         FeatureFlag::TabConfigs,
-        #[cfg(feature = "git_operations_in_code_review")]
-        FeatureFlag::GitOperationsInCodeReview,
     ]);
 
     flags
