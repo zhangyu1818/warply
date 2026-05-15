@@ -168,9 +168,6 @@ pub enum FeatureFlag {
     /// Enables find/search in code review pane
     CodeReviewFind,
 
-    /// Enables inline code review functionality
-    InlineCodeReview,
-
     /// Enables the local docker sandbox entrypoints in the client.
     LocalDockerSandbox,
 
