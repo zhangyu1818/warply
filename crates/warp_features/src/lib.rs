@@ -193,10 +193,6 @@ pub enum FeatureFlag {
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
 
-    /// Trims trailing blank rows from CLI agent block output so unused vertical
-    /// space is not rendered while the agent is running.
-    TrimTrailingBlankLines,
-
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,

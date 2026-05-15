@@ -351,7 +351,6 @@ default = [
     "configurable_toolbar",
     "vertical_tabs",
     "tab_configs",
-    "trim_trailing_blank_lines",
     "directory_tab_colors",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
@@ -386,7 +385,6 @@ jemalloc_pprof = ["jemalloc_with_profiling", "dep:jemalloc_pprof"]
 kitty_images = []
 kitty_keyboard_protocol = []
 ligatures = []
-trim_trailing_blank_lines = []
 # This feature is enabled in build.rs when compiling for platforms which
 # support having a local tty/shell session.  It can be used to conditionally
 # include dependencies that should only exist in such environments.

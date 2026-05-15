@@ -1485,8 +1485,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TabConfigs,
         #[cfg(feature = "git_operations_in_code_review")]
         FeatureFlag::GitOperationsInCodeReview,
-        #[cfg(feature = "trim_trailing_blank_lines")]
-        FeatureFlag::TrimTrailingBlankLines,
     ]);
 
     flags
