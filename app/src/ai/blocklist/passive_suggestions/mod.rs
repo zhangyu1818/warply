@@ -1,4 +1,3 @@
-mod static_prompt_suggestions;
 mod terminal;
 
 use warpui::ModelHandle;

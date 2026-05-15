@@ -849,9 +849,6 @@ pub struct PromptSuggestion {
     /// If this is some, we eagerly pre-fetch the Agent Mode response for this query.
     pub coding_query_context: Option<Vec<FileLocations>>,
 
-    /// If this is a static prompt suggestion, we store the name of the suggestion type here.
-    pub static_prompt_suggestion_name: Option<String>,
-
     // Whether or not accepting this prompt suggestion should start a new conversation or continue
     // the existing one. Only applies when in agent view; in terminal view, prompt suggestions
     // always start a new conversation.
@@ -867,10 +864,6 @@ impl PromptSuggestion {
     /// (which is considered to be the "default" label).
     pub fn label(&self) -> &String {
         self.label.as_ref().unwrap_or(&self.prompt)
-    }
-
-    pub fn is_static_prompt_suggestion(&self) -> bool {
-        self.static_prompt_suggestion_name.is_some()
     }
 }
 
@@ -3710,7 +3703,6 @@ impl TerminalView {
                         label: Some("Execute this plan".to_string()),
                         prompt: "Execute this plan".to_string(),
                         coding_query_context: None,
-                        static_prompt_suggestion_name: Some("EXECUTE_CREATED_PLAN".to_string()),
                         should_start_new_conversation: false,
                     });
 
@@ -9885,8 +9877,6 @@ impl TerminalView {
                 // Don't show banner if is coding query
                 let is_coding_query =
                     suggestion.is_coding_query() && Self::passive_code_diffs_enabled(ctx);
-                let static_prompt_suggestion_name =
-                    suggestion.static_prompt_suggestion_name.clone();
                 let _suggestion_id = suggestion.id.clone();
 
                 let trigger = {
@@ -9918,8 +9908,6 @@ impl TerminalView {
                     input.set_prompt_suggestions_banner_state(Some(banner_state), ctx);
                     input.notify_and_notify_children(ctx);
                 });
-
-                if let Some(_static_name) = static_prompt_suggestion_name {}
 
                 ctx.notify();
             }

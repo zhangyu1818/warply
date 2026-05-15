@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use super::static_prompt_suggestions::static_suggested_query;
 use crate::ai::blocklist::controller::{
     response_stream::ResponseStreamId, BlocklistAIController, BlocklistAIControllerEvent,
 };
@@ -133,16 +132,6 @@ impl PassiveSuggestionsModel {
         let command = block_completed.command.clone();
         let start_ts_ms = Utc::now().timestamp_millis();
 
-        if let Some(suggestion) = fetch_static_prompt_suggestion(&block_completed) {
-            ctx.emit(PassiveSuggestionsEvent::PromptSuggestionsGenerated {
-                prompt_suggestion: suggestion.clone(),
-                block_id: block_id.clone(),
-                command,
-                request_duration_ms: 0,
-            });
-            return;
-        }
-
         let Some(execution_context) = self
             .active_session
             .as_ref(ctx)
@@ -224,13 +213,6 @@ fn should_generate_terminal_prompt_suggestions(command: &str, settings: &AISetti
     !command.trim().is_empty() && settings.is_terminal_prompt_suggestions_enabled()
 }
 
-fn fetch_static_prompt_suggestion(block: &UserBlockCompleted) -> Option<AgentModePromptSuggestion> {
-    if !block.serialized_block.exit_code.was_successful() {
-        return None;
-    }
-    static_suggested_query(&block.command).map(AgentModePromptSuggestion::Success)
-}
-
 fn build_prompt_suggestions_request(
     block: &UserBlockCompleted,
     execution_context: AiExecutionContext,
@@ -290,7 +272,6 @@ fn map_prompt_suggestions_response(
                         .map(Into::into)
                         .collect::<Vec<_>>(),
                 ),
-                static_prompt_suggestion_name: None,
                 should_start_new_conversation: true,
             })
         }
@@ -300,7 +281,6 @@ fn map_prompt_suggestions_response(
                 label: None,
                 prompt: simple_query.query,
                 coding_query_context: None,
-                static_prompt_suggestion_name: None,
                 should_start_new_conversation: true,
             })
         }
