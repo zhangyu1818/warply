@@ -15,11 +15,8 @@ pub struct AgentConversationEntry {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentConversationDisplayData {
     pub title: String,
-    pub initial_query: Option<String>,
-    pub created_at: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
-    pub run_time: Option<String>,
     pub working_directory: Option<String>,
 }
 
@@ -65,11 +62,8 @@ fn entry_for_conversation_parts(
         conversation_id,
         display: AgentConversationDisplayData {
             title,
-            initial_query: nav_data.initial_query.clone(),
-            created_at: nav_data.last_updated.into(),
             last_updated: nav_data.last_updated.into(),
             status: status.clone(),
-            run_time: None,
             working_directory: nav_data
                 .latest_working_directory
                 .clone()
