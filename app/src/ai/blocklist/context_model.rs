@@ -266,24 +266,13 @@ impl BlocklistAIContextModel {
             }
         });
 
-        // In sandboxed/autonomous command-line mode with --sandboxed flag, automatically set
-        // conversations to RunToCompletion mode so they don't wait for user confirmation.
-        let pending_query_state =
-            if warp_core::execution_mode::AppExecutionMode::as_ref(ctx).is_sandboxed() {
-                PendingQueryState::New {
-                    autoexecute_override: AIConversationAutoexecuteMode::RunToCompletion,
-                }
-            } else {
-                Default::default()
-            };
-
         Self {
             terminal_model,
             directory_context: Default::default(),
             pending_context_block_ids: HashSet::new(),
             pending_context_selected_text: None,
             pending_attachments: Default::default(),
-            pending_query_state,
+            pending_query_state: Default::default(),
             terminal_view_id,
             agent_view_controller,
             pending_inline_diff_hunk_attachments: Default::default(),

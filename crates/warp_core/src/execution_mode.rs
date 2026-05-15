@@ -15,13 +15,12 @@ pub enum ExecutionMode {
 #[derive(Clone, Debug)]
 pub struct AppExecutionMode {
     mode: ExecutionMode,
-    is_sandboxed: bool,
 }
 
 impl AppExecutionMode {
     /// Create an `AppExecutionMode` model with the execution mode set.
-    pub fn new(mode: ExecutionMode, is_sandboxed: bool, _ctx: &mut ModelContext<Self>) -> Self {
-        Self { mode, is_sandboxed }
+    pub fn new(mode: ExecutionMode, _ctx: &mut ModelContext<Self>) -> Self {
+        Self { mode }
     }
 
     /// True if running as the full desktop app.
@@ -45,12 +44,6 @@ impl AppExecutionMode {
     /// If true, the app is running autonomously, without a user present.
     pub fn is_autonomous(&self) -> bool {
         matches!(self.mode, ExecutionMode::Headless)
-    }
-
-    /// If true, Warp is running in a sandbox like a Docker container or VM, rather than directly
-    /// on a user machine.
-    pub fn is_sandboxed(&self) -> bool {
-        self.is_sandboxed
     }
 }
 

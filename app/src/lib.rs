@@ -593,9 +593,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             .spawn(warp_logging::rotate_log_files())
             .detach();
 
-        ctx.add_singleton_model(|ctx| {
-            AppExecutionMode::new(launch_mode.execution_mode(), false, ctx)
-        });
+        ctx.add_singleton_model(|ctx| AppExecutionMode::new(launch_mode.execution_mode(), ctx));
         // Add the terminal server singleton to the application.
         #[cfg(feature = "local_tty")]
         ctx.add_singleton_model(move |_ctx| pty_spawner);
