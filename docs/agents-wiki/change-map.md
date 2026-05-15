@@ -407,6 +407,7 @@ This map explains the large fork baseline change at a path level.
 - Removed a stale vertical-tabs icon/status spec that still depended on Oz/ambient agent rows, deleted agent-management notification models, and cloud-synced tab settings. Retained vertical-tabs behavior should use current local `TabSettings`, ACP AgentView titles, and CLI-agent session metadata.
 - Removed stale agent-notification and shared-session remote-control specs that depended on deleted `agent_management` notification/mailbox models, `hoa_notifications`, shared-session link services, and cloud remote-control semantics. Generic terminal notifications, local AgentView conversation navigation, CLI agent footer UI, SSH remote-server, and Warpify remain separate retained areas.
 - Updated retained vertical-tabs and unified-new-tab-menu specs to use local settings, ACP AgentView/CLI agent titles, macOS-only Terminal menu behavior, direct tab-config TOML creation, and Worktree sidecars. Do not restore Cloud Oz menu items, ambient-agent icons, cloud-synced tab settings, app-bundled tab-config skills, or local Windows/Linux shell-selector sidecars from older specs.
+- Updated retained remote-server and tab-config close-hook specs to remove app-managed MCP manager precedents and bundled `tab-configs` skill work. SSH remote-server management and local tab-config templates remain retained; MCP and skills stay owned by the ACP agent process.
 
 ## Legacy Names Still Present
 

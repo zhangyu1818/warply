@@ -47,7 +47,6 @@ This spec covers three pieces:
 
 ### Singleton model precedents
 - `app/src/terminal/cli_agent_sessions/mod.rs (234-462)` — `CLIAgentSessionsModel` singleton with `HashMap<EntityId, CLIAgentSession>`, event emission, session lifecycle
-- `app/src/ai/mcp/templatable_manager.rs (41-78)` — `TemplatableMCPServerManager` singleton with per-server state tracking, spawn/abort handles
 
 ## 3. Current State
 
@@ -266,7 +265,7 @@ impl RemoteServerManager {
 }
 ```
 
-**Registration**: The manager is registered as a singleton during app initialization in `app/src/lib.rs`, alongside other global models. It stores a `ModelSpawner<Self>` at construction time (same pattern as `TemplatableMCPServerManager`) for use by background tasks.
+**Registration**: The manager is registered as a singleton during app initialization in `app/src/lib.rs`, alongside other global models. It stores a `ModelSpawner<Self>` at construction time for use by background tasks.
 
 ### 4.4. `connect_session` internal workflow
 
