@@ -1111,17 +1111,18 @@ impl DiffStateModel {
             }
         }
 
-        let new_repository_root = new_repository.as_ref(ctx).root_dir().to_local_path_lossy();
         ctx.emit(DiffStateModelEvent::RepositoryChanged);
 
         if let Some(handle) = self.computing_metadata_abort_handle.take() {
             handle.abort();
         }
 
-        // Always include base branch metadata since only code review uses this model now.
-        let include_base_branch = true;
-        let abort_handle =
-            ctx.spawn(
+        self.repository = Some(new_repository.clone());
+
+        if self.metadata_refresh_enabled {
+            let new_repository_root = new_repository.as_ref(ctx).root_dir().to_local_path_lossy();
+            let include_base_branch = true;
+            let abort_handle = ctx.spawn(
                 async move {
                     Self::load_metadata_for_repo(new_repository_root, include_base_branch).await
                 },
@@ -1134,13 +1135,9 @@ impl DiffStateModel {
                 },
             );
 
-        self.computing_metadata_abort_handle = Some(abort_handle);
-        self.state = InternalDiffState::Loading;
-
-        // Assign the repository handle before spawning the registration future.
-        // `registration_future` may resolve immediately (e.g. watcher already active), and
-        // `handle_repository_updated` relies on `self.repository` being available for cleanup.
-        self.repository = Some(new_repository.clone());
+            self.computing_metadata_abort_handle = Some(abort_handle);
+            self.state = InternalDiffState::Loading;
+        }
 
         let (repository_update_tx, repository_update_rx) = async_channel::unbounded();
         let (throttled_repository_update_tx, throttled_repository_update_rx) =
@@ -1205,6 +1202,10 @@ impl DiffStateModel {
     ) -> bool {
         // Refresh if there are file changes or if commit state has been updated
         if update.is_empty() {
+            return false;
+        }
+
+        if !self.metadata_refresh_enabled {
             return false;
         }
 
