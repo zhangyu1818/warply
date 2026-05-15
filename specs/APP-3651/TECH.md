@@ -8,7 +8,7 @@ The vertical tabs panel pane rows need restructuring to improve information hier
 
 - `app/src/workspace/view/vertical_tabs.rs` — all pane row rendering; `VerticalTabsPanelState`, `PaneProps`, `TypedPane`, `render_pane_row`, `render_terminal_row_content`, `render_terminal_primary_line`, `render_terminal_secondary_line`, `render_group_header`, `render_kind_badge`
 - `app/src/terminal/view/tab_metadata.rs` — `terminal_title_from_shell()`, `display_working_directory()`, `current_git_branch()`
-- `app/src/terminal/view/pane_impl.rs:962-973` — `selected_conversation_status()`, `selected_conversation_display_title()`, `is_ambient_agent_session()`
+- `app/src/terminal/view/pane_impl.rs` — `selected_conversation_status_for_display()`, `selected_conversation_display_title()`, and CLI-agent title helpers
 - `app/src/terminal/model/blocks.rs:1708` — `BlockList::blocks()` returns `&Vec<Block>`
 - `app/src/terminal/model/block.rs:2143` — `Block::command_to_string()`, `Block::finished()`, `BlockState`
 - `app/src/code/view.rs:222-231` — `CodeView::tab_group` (private), `CodeView::set_title` (sets PaneConfiguration title/secondary)
@@ -23,7 +23,7 @@ The vertical tabs panel pane rows need restructuring to improve information hier
 `render_terminal_row_content` builds three lines:
 1. **Primary** (`render_terminal_primary_line`): working directory + git branch, main text color
 2. **Secondary** (`render_terminal_secondary_line`): conversation title/status, or terminal title if it differs from working directory; sub text color. Returns `None` if terminal title matches working directory.
-3. **Tertiary** (`render_terminal_tertiary_line`): kind badge (Terminal/Oz icon + label) + right badges (diff stats, PR)
+3. **Tertiary** (`render_terminal_tertiary_line`): kind badge (Terminal, Agent, or CLI agent label) + right badges (diff stats, PR)
 
 ### Non-terminal pane rows
 `render_pane_row` builds the content in the `else` branch (line 739-774):

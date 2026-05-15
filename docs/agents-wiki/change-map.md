@@ -420,6 +420,7 @@ This map explains the large fork baseline change at a path level.
 - Reworded retained CLI-agent composer, file-tree, directory-color, and standardized-path specs away from cloud sync/cloud UI verification and local Windows/WSL/MSYS2 platform assumptions. Remote Linux/macOS SSH server behavior remains retained as SSH functionality.
 - Rewrote the retained SSH remote-server initialization and version-skew specs to remove Warp service/CDN downloads, Oz CLI naming, feature-flag rollout compatibility, and telemetry requirements. SSH remote server, Warpify, ControlMaster bootstrap, remote Linux/macOS host detection, versioned binary paths, handshake version checks, and `remote-server-proxy` remain terminal functionality; future install work must use local packaging/deployment rather than Warp hosted endpoints.
 - Rewrote the retained unsupported-glibc remote-server spec to describe the current preinstall check as SSH terminal capability-gate logic rather than Oz/prebuilt CLI/cloud install behavior. Unsupported Linux remote hosts should continue through retained ControlMaster-backed SSH without hosted downloads, telemetry, or local Linux app implications.
+- Reworded retained vertical-tabs pane-row and hover-sidecar specs to use current `Terminal`, `Agent`, and CLI-agent labels instead of old Oz pane naming or ambient-agent helpers. ACP AgentView and CLI-agent terminal panes remain retained UI surfaces.
 
 ## Legacy Names Still Present
 
