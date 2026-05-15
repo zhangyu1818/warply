@@ -19,7 +19,6 @@ use crate::{
 pub struct PendingUserQueryBlock {
     prompt: String,
     user_display_name: String,
-    profile_image_path: Option<String>,
     close_button: Option<ViewHandle<ActionButton>>,
     send_now_button: Option<ViewHandle<ActionButton>>,
 }
@@ -28,7 +27,6 @@ impl PendingUserQueryBlock {
     pub fn new(
         prompt: String,
         user_display_name: String,
-        profile_image_path: Option<String>,
         show_close_button: bool,
         show_send_now_button: bool,
         ctx: &mut ViewContext<Self>,
@@ -56,7 +54,6 @@ impl PendingUserQueryBlock {
         Self {
             prompt,
             user_display_name,
-            profile_image_path,
             close_button,
             send_now_button,
         }
@@ -103,14 +100,9 @@ impl View for PendingUserQueryBlock {
         let theme = appearance.theme();
         let dimmed_color = blended_colors::text_sub(theme, theme.surface_1());
 
-        let avatar = Container::new(render_user_avatar(
-            &self.user_display_name,
-            self.profile_image_path.as_ref(),
-            None,
-            app,
-        ))
-        .with_margin_right(16.)
-        .finish();
+        let avatar = Container::new(render_user_avatar(&self.user_display_name, None, app))
+            .with_margin_right(16.)
+            .finish();
 
         let properties = Properties {
             style: Style::Normal,

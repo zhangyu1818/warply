@@ -37,14 +37,12 @@ impl TerminalView {
         self.pending_user_query_kind = Some(kind);
         let local_identity = LocalIdentityProvider::as_ref(ctx).get().clone();
         let user_display_name = local_identity.username_for_display();
-        let profile_image_path = None;
 
         let prompt_for_send_now = prompt.clone();
         let handle = ctx.add_typed_action_view(|ctx| {
             PendingUserQueryBlock::new(
                 prompt,
                 user_display_name,
-                profile_image_path,
                 show_close_button,
                 show_send_now_button,
                 ctx,

@@ -696,7 +696,6 @@ pub struct AIBlock {
     model: Rc<dyn AIBlockModel<View = AIBlock>>,
     terminal_model: Arc<FairMutex<TerminalModel>>,
     client_ids: ClientIdentifiers,
-    profile_image_path: Option<String>,
     user_display_name: String,
 
     /// Only applies to text selections made at the `AIBlock` level. Child views of the `AIBlock`
@@ -1064,7 +1063,6 @@ impl AIBlock {
             model,
             terminal_model,
             client_ids,
-            profile_image_path: None,
             user_display_name,
             controller,
             action_model,

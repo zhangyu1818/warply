@@ -5,7 +5,6 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Duration, Local};
 use instant::Instant;
 use parking_lot::RwLock;
-use pathfinder_color::ColorU;
 use warp_core::ui::color::coloru_with_opacity;
 use warpui::{
     clipboard::ClipboardContent,
@@ -30,12 +29,11 @@ use crate::ai::conversation_details_action_buttons::{
     ActionButtonsConfig, AgentDetailsButtonEvent, ConversationActionButtonsRow,
 };
 use crate::appearance::Appearance;
-use crate::ui_components::avatar::{Avatar, AvatarContent};
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
-use crate::util::time_format::{format_approx_duration_from_now, human_readable_precise_duration};
+use crate::util::time_format::human_readable_precise_duration;
 use crate::view_components::copyable_text_field::{
     render_copyable_text_field, CopyableTextFieldConfig, COPY_FEEDBACK_DURATION,
 };
@@ -89,23 +87,12 @@ enum CopyButtonKind {
     ConversationId,
 }
 
-/// Information about the creator of a conversation.
-#[derive(Debug, Clone)]
-struct CreatorInfo {
-    /// Display name of the creator (or fallback identifier).
-    pub display_name: String,
-    /// Optional photo URL for the avatar.
-    pub photo_url: Option<String>,
-}
-
 /// Data model for the conversation details panel.
 /// Any field that is left as None will not be rendered.
 #[derive(Debug, Clone, Default)]
 pub struct ConversationDetailsData {
     mode: PanelMode,
     title: String,
-    /// Information about the creator.
-    creator: Option<CreatorInfo>,
     /// When the conversation was created.
     created_at: Option<DateTime<Local>>,
     /// Total duration of the conversation.
@@ -122,7 +109,6 @@ impl ConversationDetailsData {
     pub fn from_conversation(conversation: &AIConversation, _app: &AppContext) -> Self {
         let mut directory = None;
         let conversation_id = Some(conversation.id().to_string());
-        let creator = None;
 
         let first_exchange = conversation.first_exchange();
         let last_exchange = conversation.latest_exchange();
@@ -152,7 +138,6 @@ impl ConversationDetailsData {
             title: conversation
                 .title()
                 .unwrap_or_else(|| "Conversation".to_string()),
-            creator,
             created_at,
             run_time,
             artifacts: conversation.artifacts().to_vec(),
@@ -324,67 +309,6 @@ impl ConversationDetailsPanel {
                 });
             }
         }
-    }
-
-    fn render_creator_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
-        let creator = self.data.creator.as_ref()?;
-        let created_at = self.data.created_at?;
-        let theme = appearance.theme();
-
-        let ui_font_size = appearance.ui_font_size();
-        let small_font_size = ui_font_size - 2.;
-
-        let avatar_content = creator
-            .photo_url
-            .as_ref()
-            .map(|url| AvatarContent::Image {
-                url: url.clone(),
-                display_name: creator.display_name.clone(),
-            })
-            .unwrap_or_else(|| AvatarContent::DisplayName(creator.display_name.clone()));
-        let avatar = Avatar::new(
-            avatar_content,
-            warpui::ui_components::components::UiComponentStyles {
-                width: Some(20.),
-                height: Some(20.),
-                border_radius: Some(warpui::elements::CornerRadius::with_all(
-                    warpui::elements::Radius::Percentage(50.),
-                )),
-                background: Some(blended_colors::accent(theme).into()),
-                font_color: Some(ColorU::black()),
-                font_family_id: Some(appearance.ui_font_family()),
-                font_weight: Some(warpui::fonts::Weight::Bold),
-                font_size: Some(small_font_size),
-                ..Default::default()
-            },
-        )
-        .build()
-        .finish();
-
-        let created_text = Text::new(
-            format!(
-                "Created by {} • {}",
-                creator.display_name,
-                format_approx_duration_from_now(created_at)
-            ),
-            appearance.ui_font_family(),
-            ui_font_size,
-        )
-        .with_color(blended_colors::text_sub(theme, theme.surface_1()))
-        .with_selectable(true)
-        .finish();
-
-        Some(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Container::new(avatar)
-                        .with_margin_right(LABEL_VALUE_GAP)
-                        .finish(),
-                )
-                .with_child(Expanded::new(1., created_text).finish())
-                .finish(),
-        )
     }
 
     fn render_status_section(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -649,15 +573,6 @@ impl View for ConversationDetailsPanel {
                 .with_margin_bottom(HEADER_SPACING)
                 .finish(),
         );
-
-        // Creator section
-        if let Some(creator_section) = self.render_creator_section(appearance) {
-            content.add_child(
-                Container::new(creator_section)
-                    .with_margin_bottom(FIELD_SPACING)
-                    .finish(),
-            );
-        }
 
         // Divider
         content.add_child(

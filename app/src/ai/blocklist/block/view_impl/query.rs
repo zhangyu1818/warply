@@ -31,7 +31,6 @@ use super::common::{render_query_text, render_user_avatar, FindContext};
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Props<'a> {
     pub(super) user_display_name: &'a String,
-    pub(super) profile_image_path: Option<&'a String>,
     pub(super) avatar_color: Option<ColorU>,
     pub(super) query_and_index: Option<(&'a str, usize)>,
     pub(super) query_prefix_highlight_len: Option<usize>,
@@ -48,7 +47,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
         render_query(
             query,
             props.user_display_name,
-            props.profile_image_path,
             props.avatar_color,
             props.detected_links_state,
             props.secret_redaction_state,
@@ -67,7 +65,6 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
 pub(crate) fn render_query(
     query: &str,
     user_display_name: &str,
-    profile_image_path: Option<&String>,
     avatar_color: Option<ColorU>,
     detected_links_state: &DetectedLinksState,
     secret_redaction_state: &SecretRedactionState,
@@ -79,14 +76,9 @@ pub(crate) fn render_query(
     find_context: Option<FindContext>,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let avatar = Container::new(render_user_avatar(
-        user_display_name,
-        profile_image_path,
-        avatar_color,
-        app,
-    ))
-    .with_margin_right(16.)
-    .finish();
+    let avatar = Container::new(render_user_avatar(user_display_name, avatar_color, app))
+        .with_margin_right(16.)
+        .finish();
 
     let properties = Properties {
         style: Style::Normal,
