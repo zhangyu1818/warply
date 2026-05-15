@@ -22,7 +22,7 @@ pub enum RepoContent<'a> {
 use warp_util::standardized_path::StandardizedPath;
 
 use crate::{
-    entry::{Entry, FileId, IgnoredPathStrategy},
+    entry::{BuildTreeError, Entry, FileId, IgnoredPathStrategy},
     gitignores_for_directory, matches_gitignores,
     repository::Repository,
     RepoMetadataError,
@@ -885,10 +885,11 @@ impl LocalRepoMetadataModel {
             async move {
                 let mut files: Vec<crate::entry::FileMetadata> = Vec::new();
                 let mut gitignores_for_build = gitignores_for_build;
+                let initial_gitignores = gitignores_for_build.clone();
 
                 let mut file_limit = MAX_FILES_PER_REPO;
 
-                let build_result = Entry::build_tree(
+                let mut build_result = Entry::build_tree(
                     &repo_path_for_build,
                     &mut files,
                     &mut gitignores_for_build,
@@ -897,6 +898,25 @@ impl LocalRepoMetadataModel {
                     0,                 // current_depth
                     &IgnoredPathStrategy::IncludeLazy,
                 );
+
+                let mut indexed_with_limit = false;
+                if matches!(build_result, Err(BuildTreeError::ExceededMaxFileLimit)) {
+                    files.clear();
+                    gitignores_for_build = initial_gitignores;
+                    build_result = Entry::build_tree(
+                        &repo_path_for_build,
+                        &mut files,
+                        &mut gitignores_for_build,
+                        None,
+                        1,
+                        0,
+                        &IgnoredPathStrategy::IncludeLazy,
+                    );
+                    if build_result.is_ok() {
+                        indexed_with_limit = true;
+                    }
+                }
+
                 (
                     build_result,
                     files,
@@ -904,6 +924,7 @@ impl LocalRepoMetadataModel {
                     repo_path_str_for_log,
                     std_path_for_completion,
                     repository_handle_for_completion,
+                    indexed_with_limit,
                 )
             },
             move |model: &mut LocalRepoMetadataModel,
@@ -914,7 +935,8 @@ impl LocalRepoMetadataModel {
                       repo_path_str,
                       std_repo_path,
                       repository_handle,
-                  ): (Result<Entry, _>, Vec<crate::entry::FileMetadata>, _, String, StandardizedPath, ModelHandle<Repository>),
+                      indexed_with_limit,
+                  ): (Result<Entry, _>, Vec<crate::entry::FileMetadata>, _, String, StandardizedPath, ModelHandle<Repository>, bool),
                   ctx| {
                 match build_result {
                     Ok(root_entry) => {
@@ -935,6 +957,12 @@ impl LocalRepoMetadataModel {
                                 repo_path_str,
                                 files.len()
                             );
+                            if indexed_with_limit {
+                                safe_warn!(
+                                    safe: ("Repository exceeded max file limit; indexed in degraded mode"),
+                                    full: ("Repository {repo_path_str} exceeded max file limit ({MAX_FILES_PER_REPO}); indexed only first level")
+                                );
+                            }
                         }
                     }
                     Err(e) => {
