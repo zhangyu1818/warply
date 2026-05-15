@@ -338,6 +338,7 @@ This map explains the large fork baseline change at a path level.
 - `handoff` source hits were local cross-window tab drag transfer or AgentView long-running-command control transfer. Keep these when they remain local terminal UI or ACP-routed AgentView behavior; do not reinterpret them as old cloud handoff/orchestration.
 - `harness`, `remote control`, `GraphQL`, `billing`, `credits`, `marketplace`, and `template` hits were test harnesses, keyboard documentation, file-type fixtures, tokenizer vocabulary, retained tab/workflow templates, or docs. They are not live Warp cloud product paths.
 - Reworded the retained remote terminal daemon model away from orchestration wording. `remote_server` remains SSH/remote terminal functionality, not Warp service-client behavior.
+- Removed the unused `remote_tty` Web/network-backed PTY feature, its websocket PTY client, and the dedicated `crates/websocket` wrapper. This old `ssh-proxy-server`/Warp-on-Web path is not the retained SSH remote server: keep `remote_server`, `RemoteServerManager`, SSH remote-server workers, ControlMaster fallback, and Warpify.
 
 ## Legacy Names Still Present
 

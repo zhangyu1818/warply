@@ -2031,7 +2031,6 @@ impl PaneGroup {
                             }
                         });
                 }
-                // TODO: Potentially handle remote_tty and mock TerminalManager cases here as well?
             });
     }
 
@@ -3865,16 +3864,7 @@ impl PaneGroup {
         ModelHandle<Box<dyn TerminalManager>>,
     ) {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "remote_tty")] {
-                let terminal_manager: ModelHandle<Box<dyn TerminalManager>> = crate::terminal::remote_tty::TerminalManager::create_model(
-                    resources,
-                    initial_size,
-                    model_event_sender,
-                    ctx.window_id(),
-                    initial_input_config,
-                    ctx,
-                );
-            } else if #[cfg(feature = "local_tty")] {
+            if #[cfg(feature = "local_tty")] {
                 let terminal_manager: ModelHandle<Box<dyn TerminalManager>> = crate::terminal::local_tty::TerminalManager::create_model(
                     startup_directory,
                     env_vars,

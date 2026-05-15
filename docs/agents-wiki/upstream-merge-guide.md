@@ -55,6 +55,7 @@ Port the behavior manually when upstream touches retained but forked areas:
 | `crates/persistence/` | Accept migrations/schema only for retained local data. |
 | `crates/remote_server/` | Keep local/SSH terminal behavior; reject account-auth token requirements. |
 | SSH/subshell Warpify | Preserve command blocks, completions, input editor behavior, syntax highlighting, file tree/code diff integration, and other full Warp terminal features inside nested or remote sessions. Do not remove Warpify as cloud cleanup. Do not restore Warp-hosted portable tmux download/install paths; remote package-manager install scripts are the retained Linux path. |
+| Web/network-backed PTY (`remote_tty`, `ssh-proxy-server`, websocket PTY client) | Reject. This fork keeps SSH remote server and Warpify, not the old Warp-on-Web remote PTY path. |
 
 ## Reject
 

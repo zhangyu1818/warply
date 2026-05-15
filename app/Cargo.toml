@@ -200,7 +200,6 @@ warpui_extras = { workspace = true, features = ["default", "user_preferences-tom
 syntax_tree.workspace = true
 languages.workspace = true
 warp_terminal.workspace = true
-websocket.workspace = true
 natural_language_detection.workspace = true
 aho-corasick = "1.1.3"
 strum.workspace = true
@@ -406,8 +405,6 @@ local_fs = [
 ]
 markdown_tables = []
 markdown_mermaid = []
-# Remote-backed tty that connects to a PTY-like interface via a server.
-remote_tty = []
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 resize_fix = []
 pluggable_notifications = []
