@@ -1,5 +1,4 @@
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::history_model::{AIConversationMetadata, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use chrono::{DateTime, Utc};
@@ -22,7 +21,6 @@ pub struct AgentConversationDisplayData {
     pub status: AgentRunDisplayStatus,
     pub run_time: Option<String>,
     pub working_directory: Option<String>,
-    pub artifacts: Vec<Artifact>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,9 +74,6 @@ fn entry_for_conversation_parts(
                 .latest_working_directory
                 .clone()
                 .or_else(|| nav_data.initial_working_directory.clone()),
-            artifacts: conversation
-                .map(|conversation| conversation.artifacts().to_vec())
-                .unwrap_or_default(),
         },
         capabilities: AgentConversationCapabilities {
             can_open: has_local_persisted_data,
