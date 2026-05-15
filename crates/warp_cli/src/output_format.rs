@@ -2,7 +2,7 @@ use std::fmt;
 
 use clap::ValueEnum;
 
-/// Output format for agent results.
+/// Output format for CLI results.
 #[derive(Debug, Copy, Clone, ValueEnum, Eq, PartialEq, Default)]
 pub enum OutputFormat {
     /// Output as JSON.

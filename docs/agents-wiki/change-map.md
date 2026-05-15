@@ -136,6 +136,7 @@ This map explains the large fork baseline change at a path level.
 - `script/prepare_bundled_resources` now generates bundle metadata, licenses, and settings schema only; it no longer copies skill directories or appends skill license files.
 - Removed `BundledSkills`, `PRCommentsSkill`, `ListSkills`, `PlatformSkills`, and `SkillArguments` feature flags and app feature declarations.
 - Removed app-side local skill parsing, file watching, manager singleton, `/skills` and `/open-skill` commands, AI context skill insertion, inline skill menu, `ReadSkill` executor/action/result, `InvokeSkill` input/output types, skill-specific file/diff open buttons, tab-config update skill CTA, and `warp_cli` skill spec parsing.
+- Renamed the leftover `warp_cli::agent` output-format module to `warp_cli::output_format`; the CLI output-format enum is shared CLI plumbing, not an old Agent CLI command surface.
 - ACP agents may still use their own skills or MCP servers internally. Warp does not manage, distribute, discover, invoke, or inject those skills into ACP prompts, and OpenAI-compatible Next Command/Prompt Suggestions do not use skill bundles.
 - ACP client capabilities remain in `app/src/ai/acp/` only to advertise implemented Warp host handlers, such as terminal and file read/write, to the ACP agent. They must not be treated as app-side MCP capability probing.
 - Retained local context references such as `<plan:...>`, `<block:...>`, and `<change:...>` remain Warp UI attachment syntax. They are parsed into ACP prompt context, not into app-managed skills or MCP calls.

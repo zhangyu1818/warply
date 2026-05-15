@@ -3,14 +3,14 @@ use std::{env, path::Path};
 use clap::{CommandFactory, Parser, Subcommand};
 use url::Url;
 
-use crate::agent::OutputFormat;
+use crate::output_format::OutputFormat;
 use warp_core::channel::ChannelState;
 
-pub mod agent;
 pub mod completions;
 pub mod config_file;
 pub mod json_filter;
 pub mod model;
+pub mod output_format;
 
 /// Options related to the parent process that spawned this Warply instance.
 #[derive(Debug, Default, Clone, clap::Args)]
