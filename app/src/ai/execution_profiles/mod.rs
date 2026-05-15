@@ -1,12 +1,7 @@
 use std::path::PathBuf;
 
-use crate::settings::AISettings;
-use crate::settings::{
-    AgentModeCommandExecutionPredicate, DEFAULT_COMMAND_EXECUTION_ALLOWLIST,
-    DEFAULT_COMMAND_EXECUTION_DENYLIST,
-};
+use crate::settings::{AgentModeCommandExecutionPredicate, DEFAULT_COMMAND_EXECUTION_DENYLIST};
 use serde::{Deserialize, Serialize};
-use warpui::{AppContext, SingletonEntity};
 
 pub const PROFILE_NAME_MAX_LENGTH: usize = 50;
 
@@ -177,19 +172,10 @@ impl Default for AIExecutionProfile {
 }
 
 impl AIExecutionProfile {
-    pub fn create_default_from_settings(app: &AppContext) -> Self {
-        let ai_settings = AISettings::as_ref(app);
+    pub fn default_profile() -> Self {
         Self {
             name: "Default".to_string(),
             is_default_profile: true,
-            command_denylist: ai_settings.agent_mode_command_execution_denylist.clone(),
-            command_allowlist: ai_settings
-                .agent_mode_command_execution_allowlist
-                .iter()
-                .filter(|cmd| !DEFAULT_COMMAND_EXECUTION_ALLOWLIST.contains(cmd))
-                .cloned()
-                .collect(),
-            directory_allowlist: ai_settings.agent_mode_coding_file_read_allowlist.clone(),
             ..Default::default()
         }
     }

@@ -143,10 +143,7 @@ use agent_client_protocol::schema::{Diff as AcpDiff, ToolCallContent};
 use ai::agent::action::{AskUserQuestionItem, InsertReviewComment};
 
 use crate::editor::InteractionState;
-use crate::settings::{
-    AISettingsChangedEvent, AgentModeCodingPermissionsType, FontSettings, InputModeSettings,
-    InputModeSettingsChangedEvent,
-};
+use crate::settings::{FontSettings, InputModeSettings, InputModeSettingsChangedEvent};
 use crate::view_components::find::FindEvent;
 
 use crate::terminal::{
@@ -392,17 +389,6 @@ pub enum AutonomySettingSpeedbump {
     /// There's no speedbump to show.
     #[default]
     None,
-    /// Show a checkbox-based speedbump for auto-executing read-only commands.
-    ShouldShowForAutoexecutingReadonlyCommands {
-        /// Which action this corresponds to.
-        action_id: AIAgentActionId,
-        /// Whether the setting in the speedbump is checked or not.
-        checked: bool,
-        /// Whether or not the speedbump is actually shown.
-        ///
-        /// Set at render-time.
-        shown: Arc<Mutex<bool>>,
-    },
     /// Show a checkbox-based speedbump for file access.
     ShouldShowForFileAccess {
         /// Which action this corresponds to.
@@ -902,52 +888,6 @@ impl AIBlock {
         ctx.subscribe_to_model(&font_settings_handle, |_, _, _, ctx| {
             ctx.notify();
         });
-
-        ctx.subscribe_to_model(
-            &AISettings::handle(ctx),
-            move |me, settings_model, event, ctx| match event {
-                AISettingsChangedEvent::AgentModeExecuteReadonlyCommands { .. } => {
-                    if let AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                        checked,
-                        ..
-                    } = &mut me.autonomy_setting_speedbump
-                    {
-                        *checked = *settings_model
-                            .as_ref(ctx)
-                            .agent_mode_execute_read_only_commands;
-                    } else {
-                        me.autonomy_setting_speedbump = AutonomySettingSpeedbump::None;
-                    }
-                    ctx.notify();
-                }
-                AISettingsChangedEvent::AgentModeCodingPermissions { .. } => {
-                    match &mut me.autonomy_setting_speedbump {
-                        AutonomySettingSpeedbump::ShouldShowForFileAccess { checked, .. } => {
-                            *checked = matches!(
-                                *settings_model.as_ref(ctx).agent_mode_coding_permissions,
-                                AgentModeCodingPermissionsType::AlwaysAllowReading
-                            );
-                        }
-                        AutonomySettingSpeedbump::ShouldShowForCodebaseSearchFileAccess {
-                            selected_option,
-                            ..
-                        } => {
-                            *selected_option =
-                                match *settings_model.as_ref(ctx).agent_mode_coding_permissions {
-                                    AgentModeCodingPermissionsType::AlwaysAllowReading => Some(0),
-                                    AgentModeCodingPermissionsType::AllowReadingSpecificFiles => {
-                                        Some(1)
-                                    }
-                                    AgentModeCodingPermissionsType::AlwaysAskBeforeReading => None,
-                                };
-                        }
-                        _ => {}
-                    }
-                    ctx.notify();
-                }
-                _ => {}
-            },
-        );
 
         let safe_mode_settings = SafeModeSettings::handle(ctx);
         ctx.subscribe_to_model(&safe_mode_settings, |me, _, event, ctx| {
@@ -1881,34 +1821,6 @@ impl AIBlock {
                             .update(ctx, |ai_settings, ctx| {
                                 if let Err(err) = ai_settings.has_shown_agent_mode_profile_command_autoexecution_speedbump.set_value(true, ctx) {
                                     log::warn!("Could not mark profile command autoexecution speedbump as shown {err}");
-                                }
-                            }
-                        )
-                    }
-                    Some(CommandExecutionPermission::Denied(
-                        CommandExecutionPermissionDeniedReason::Inconclusive,
-                    )) if *AISettings::as_ref(ctx)
-                        .should_show_agent_mode_autoexecute_readonly_commands_speedbump
-                        && is_read_only =>
-                    {
-                        // Try to show the speedbump for the readonly command setting
-                        // if we haven't shown it enough before and this command is
-                        // considered readonly.
-                        self.autonomy_setting_speedbump =
-                            AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                                action_id: requested_command_action_id.clone(),
-                                checked: true,
-                                shown: Arc::new(Mutex::new(false)),
-                            };
-                        self.update_requested_command_autonomy_speedbump(
-                            requested_command_action_id.clone(),
-                            ctx,
-                        );
-                        // Mark the speedbump as shown in settings so that we do not render it again.
-                        AISettings::handle(ctx)
-                            .update(ctx, |ai_settings, ctx| {
-                                if let Err(err) = ai_settings.should_show_agent_mode_autoexecute_readonly_commands_speedbump.set_value(false, ctx) {
-                                    log::warn!("Could not mark autoexecute read-only commands speedbump as shown {err}");
                                 }
                             }
                         )
@@ -3092,28 +3004,23 @@ impl AIBlock {
             match event {
                 BlocklistAIActionEvent::ExecutingAction(..) => {
                     match &me.autonomy_setting_speedbump {
-                        AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                            action_id: speedbump_action_id,
-                            shown,
-                            checked,
-                            ..
-                        } if speedbump_action_id == action_id && *shown.lock() => {
-                            BlocklistAIPermissions::handle(ctx)
-                                .update(ctx, |_permissions, _ctx| {});
-                        }
                         AutonomySettingSpeedbump::ShouldShowForFileAccess {
                             action_id: speedbump_action_id,
                             shown,
                             checked,
                             ..
                         } if speedbump_action_id == action_id && *shown.lock() => {
-                            let _permission = if *checked {
-                                AgentModeCodingPermissionsType::AlwaysAllowReading
-                            } else {
-                                AgentModeCodingPermissionsType::AlwaysAskBeforeReading
-                            };
-                            BlocklistAIPermissions::handle(ctx)
-                                .update(ctx, |_permissions, _ctx| {});
+                            BlocklistAIPermissions::handle(ctx).update(ctx, |permissions, ctx| {
+                                if let Err(err) = permissions.set_always_allow_read_files(
+                                    *checked,
+                                    me.terminal_view_id,
+                                    ctx,
+                                ) {
+                                    log::warn!(
+                                        "Failed to update file-read execution profile: {err:#}"
+                                    );
+                                }
+                            });
                         }
                         AutonomySettingSpeedbump::ShouldShowForCodebaseSearchFileAccess {
                             action_id: speedbump_action_id,
@@ -3121,7 +3028,7 @@ impl AIBlock {
                             selected_option,
                             ..
                         } if speedbump_action_id == action_id && *shown.lock() => {
-                            let Some(_root_repo_path) = me
+                            let Some(root_repo_path) = me
                                 .action_model
                                 .as_ref(ctx)
                                 .search_codebase_executor(ctx)
@@ -3132,22 +3039,31 @@ impl AIBlock {
                                 return;
                             };
 
-                            let permission = match selected_option {
-                                Some(0) => AgentModeCodingPermissionsType::AlwaysAllowReading,
-                                Some(1) => {
-                                    AgentModeCodingPermissionsType::AllowReadingSpecificFiles
+                            let selected_option = *selected_option;
+                            BlocklistAIPermissions::handle(ctx).update(ctx, |permissions, ctx| {
+                                let result = match selected_option {
+                                    Some(0) => permissions.set_always_allow_read_files(
+                                        true,
+                                        me.terminal_view_id,
+                                        ctx,
+                                    ),
+                                    Some(1) => permissions.allow_read_files_for_directory(
+                                        root_repo_path,
+                                        me.terminal_view_id,
+                                        ctx,
+                                    ),
+                                    _ => permissions.set_always_allow_read_files(
+                                        false,
+                                        me.terminal_view_id,
+                                        ctx,
+                                    ),
+                                };
+                                if let Err(err) = result {
+                                    log::warn!(
+                                        "Failed to update file-read execution profile: {err:#}"
+                                    );
                                 }
-                                _ => AgentModeCodingPermissionsType::AlwaysAskBeforeReading,
-                            };
-                            BlocklistAIPermissions::handle(ctx).update(
-                                ctx,
-                                |_permissions, _ctx| {
-                                    if matches!(
-                                        permission,
-                                        AgentModeCodingPermissionsType::AllowReadingSpecificFiles
-                                    ) {}
-                                },
-                            );
+                            });
                         }
                         _ => {}
                     }
@@ -4504,7 +4420,6 @@ pub enum AIBlockAction {
     },
     OpenCitation(AIAgentCitation),
     ToggleReferencesSection,
-    ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
     ToggleAutoreadFilesSpeedbumpCheckbox,
     ToggleCodebaseSearchSpeedbump(Option<usize>),
     /// Clear the selections of all other views **except** for the source view that dispatched the event.
@@ -4714,64 +4629,70 @@ impl TypedActionView for AIBlock {
 
                 ctx.notify()
             }
-            AIBlockAction::ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox => {
-                if let AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                    checked,
-                    ..
-                } = &mut self.autonomy_setting_speedbump
-                {
-                    *checked = !*checked;
-                    BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                        match model.set_should_autoexecute_readonly_commands(*checked, ctx) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::warn!("Failed to update readonly auto-execute setting: {e:#}");
-                            }
-                        }
-                    });
-                }
-            }
             AIBlockAction::ToggleAutoreadFilesSpeedbumpCheckbox => {
                 if let AutonomySettingSpeedbump::ShouldShowForFileAccess { checked, .. } =
                     &mut self.autonomy_setting_speedbump
                 {
                     *checked = !*checked;
-                    let permission = if *checked {
-                        AgentModeCodingPermissionsType::AlwaysAllowReading
-                    } else {
-                        AgentModeCodingPermissionsType::AlwaysAskBeforeReading
-                    };
                     BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                        match model.set_coding_permissions(permission, ctx) {
+                        match model.set_always_allow_read_files(
+                            *checked,
+                            self.terminal_view_id,
+                            ctx,
+                        ) {
                             Ok(_) => {}
                             Err(e) => {
-                                log::warn!("Failed to update coding permissions: {e:#}");
+                                log::warn!("Failed to update file-read execution profile: {e:#}");
                             }
                         }
                     });
                 }
             }
             AIBlockAction::ToggleCodebaseSearchSpeedbump(new) => {
-                if let AutonomySettingSpeedbump::ShouldShowForCodebaseSearchFileAccess {
-                    selected_option,
-                    ..
-                } = &mut self.autonomy_setting_speedbump
-                {
-                    *selected_option = *new;
-                    let permission = match new {
-                        Some(0) => AgentModeCodingPermissionsType::AlwaysAllowReading,
-                        Some(1) => AgentModeCodingPermissionsType::AllowReadingSpecificFiles,
-                        _ => AgentModeCodingPermissionsType::AlwaysAskBeforeReading,
-                    };
-                    BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
-                        match model.set_coding_permissions(permission, ctx) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::warn!("Failed to update coding permissions: {e:#}");
-                            }
+                let Some((action_id, selected_option)) =
+                    (if let AutonomySettingSpeedbump::ShouldShowForCodebaseSearchFileAccess {
+                        action_id,
+                        selected_option,
+                        ..
+                    } = &mut self.autonomy_setting_speedbump
+                    {
+                        *selected_option = *new;
+                        Some((action_id.clone(), *new))
+                    } else {
+                        None
+                    })
+                else {
+                    return;
+                };
+
+                let root_repo_path = self
+                    .action_model
+                    .as_ref(ctx)
+                    .search_codebase_executor(ctx)
+                    .as_ref(ctx)
+                    .root_repo_for_action(&action_id)
+                    .map(Path::to_owned);
+
+                BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
+                    let result = match selected_option {
+                        Some(0) => {
+                            model.set_always_allow_read_files(true, self.terminal_view_id, ctx)
                         }
-                    });
-                }
+                        Some(1) => root_repo_path
+                            .map(|path| {
+                                model.allow_read_files_for_directory(
+                                    path,
+                                    self.terminal_view_id,
+                                    ctx,
+                                )
+                            })
+                            .unwrap_or(Ok(())),
+                        _ => model.set_always_allow_read_files(false, self.terminal_view_id, ctx),
+                    };
+                    if let Err(e) = result {
+                        log::warn!("Failed to update file-read execution profile: {e:#}");
+                    }
+                });
             }
             AIBlockAction::ClearOtherSelections {
                 source_view_id,

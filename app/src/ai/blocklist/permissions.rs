@@ -11,13 +11,12 @@ use crate::{
             AIExecutionProfile, ActionPermission, AskUserQuestionPermission, WriteToPtyPermission,
         },
     },
-    settings::{AISettings, AgentModeCodingPermissionsType, AgentModeCommandExecutionPredicate},
+    settings::AgentModeCommandExecutionPredicate,
 };
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use warp_completer::parsers::simple::decompose_command;
-use warp_core::settings::Setting;
 use warp_util::path::EscapeChar;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity};
 
@@ -48,7 +47,6 @@ pub enum CommandExecutionPermissionDeniedReason {
     AlwaysAskEnabled,
     ExplicitlyDenylisted,
     ContainsRedirection,
-    Inconclusive,
     AgentDecided,
 }
 
@@ -81,7 +79,6 @@ pub enum FileReadPermissionAllowedReason {
 pub enum FileReadPermissionDeniedReason {
     AutonomyForceDisabled,
     AlwaysAskEnabled,
-    Inconclusive,
     AgentDecided,
 }
 
@@ -118,11 +115,9 @@ pub enum FileWritePermissionAllowedReason {
 pub enum FileWritePermissionDeniedReason {
     AutonomyForceDisabled,
     AlwaysAskEnabled,
-    Inconclusive,
     AgentDecided,
 }
 
-/// Describes permissions that Agent Mode has, backed by [`AISettings`].
 pub struct BlocklistAIPermissions {
     /// A set of one-off files that the user has allowed Agent Mode
     /// to read for the duration of a given conversation.
@@ -603,32 +598,6 @@ impl BlocklistAIPermissions {
         }
     }
 
-    /// Sets whether or not readonly commands can be auto-executed by Agent Mode.
-    pub fn set_should_autoexecute_readonly_commands(
-        &mut self,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<()> {
-        AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings
-                .agent_mode_execute_read_only_commands
-                .set_value(enabled, ctx)
-                .map(|_| ())?;
-
-            // If enabling, no need to show the file speedbump since
-            // that setting will be superseded by this setting.
-            if enabled {
-                settings
-                    .should_show_agent_mode_autoread_files_speedbump
-                    .set_value(false, ctx)?;
-            }
-
-            settings
-                .should_show_agent_mode_autoexecute_readonly_commands_speedbump
-                .set_value(false, ctx)
-        })
-    }
-
     /// Sets whether or not we should always allow writing to the PTY.
     pub fn set_always_allow_write_to_pty(
         &mut self,
@@ -670,22 +639,19 @@ impl BlocklistAIPermissions {
         Ok(())
     }
 
-    /// Sets permissions that Agent Mode has for coding tasks.
-    pub fn set_coding_permissions(
+    pub fn allow_read_files_for_directory(
         &mut self,
-        permissions: AgentModeCodingPermissionsType,
+        path: PathBuf,
+        terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Result<()> {
-        AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            settings
-                .agent_mode_coding_permissions
-                .set_value(permissions, ctx)
-                .map(|_| ())?;
-
-            settings
-                .should_show_agent_mode_autoread_files_speedbump
-                .set_value(false, ctx)
-        })
+        let active_profile =
+            AIExecutionProfilesModel::as_ref(ctx).active_profile(Some(terminal_view_id), ctx);
+        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
+            profiles_model.set_read_files(*active_profile.id(), &ActionPermission::AlwaysAsk, ctx);
+            profiles_model.add_to_directory_allowlist(*active_profile.id(), &path, ctx);
+        });
+        Ok(())
     }
 
     /// Gives Agent Mode temporary access to the provided `files`.

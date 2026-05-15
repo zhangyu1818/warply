@@ -97,7 +97,7 @@ impl AIExecutionProfilesModel {
             .ok()
             .flatten()
             .and_then(|value| serde_json::from_str::<AIExecutionProfile>(&value).ok())
-            .unwrap_or_else(|| AIExecutionProfile::create_default_from_settings(ctx))
+            .unwrap_or_else(AIExecutionProfile::default_profile)
     }
 
     fn persist_local_default_profile(&self, ctx: &mut ModelContext<Self>) {

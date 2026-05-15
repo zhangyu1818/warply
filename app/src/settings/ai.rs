@@ -226,35 +226,6 @@ impl ThinkingDisplayMode {
     }
 }
 
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    EnumIter,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(
-    description = "File read permission level for the agent.",
-    rename_all = "snake_case"
-)]
-pub enum AgentModeCodingPermissionsType {
-    /// Agent Mode must ask for explicit permission for any type of file read.
-    #[default]
-    AlwaysAskBeforeReading,
-    /// Agent Mode can always read files without explicit consent.
-    AlwaysAllowReading,
-    /// Agent Mode can only read certain files without explicit consent.
-    ///
-    /// The specific filepaths are backed by the
-    /// [`AISettings::agent_mode_coding_file_read_allowlist`] setting.
-    AllowReadingSpecificFiles,
-}
-
 /// Predicate types to match commands that can be executed by Agent Mode.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 enum AgentModeCommandExecutionPredicateType {
@@ -355,24 +326,14 @@ lazy_static! {
 }
 
 cfg_if! {
-    // Compiling the regexes for the default command execution allowlist/denylist can be slow
+    // Compiling the regexes for the default command execution denylist can be slow
     // in an unoptimized build, so we use empty lists in unit tests.
     if #[cfg(test)] {
         lazy_static! {
-            pub static ref DEFAULT_COMMAND_EXECUTION_ALLOWLIST: Vec<AgentModeCommandExecutionPredicate> = vec![];
             pub static ref DEFAULT_COMMAND_EXECUTION_DENYLIST: Vec<AgentModeCommandExecutionPredicate> = vec![];
         }
     } else {
         lazy_static! {
-            pub static ref DEFAULT_COMMAND_EXECUTION_ALLOWLIST: Vec<AgentModeCommandExecutionPredicate> = vec![
-                AgentModeCommandExecutionPredicate::new_regex(&format!("cat{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default cat rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("echo{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default echo rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex("find .*").expect("Can parse default find rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("grep{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default grep rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex(&format!("ls{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default ls rule into regex"),
-                AgentModeCommandExecutionPredicate::new_regex("which .*").expect("Can parse default which rule into regex"),
-            ];
-
             pub static ref DEFAULT_COMMAND_EXECUTION_DENYLIST: Vec<AgentModeCommandExecutionPredicate> = vec![
                 AgentModeCommandExecutionPredicate::new_regex(&format!("bash{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default bash rule into regex"),
                 AgentModeCommandExecutionPredicate::new_regex(&format!("fish{}", OPTIONAL_ARGS_REGEX.as_str())).expect("Can parse default fish rule into regex"),
@@ -555,86 +516,12 @@ define_settings_group!(AISettings, settings: [
         toml_path: "ai.active.code_suggestions_enabled",
         description: "Controls whether AI code suggestions are enabled.",
     }
-    // Predicates that Agent Mode can use to decide if it can execute
-    // a command without explicit user consent.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this allowlist.
-    agent_mode_command_execution_allowlist: AgentModeCommandExecutionAllowlist {
-        type: Vec<AgentModeCommandExecutionPredicate>,
-        default: DEFAULT_COMMAND_EXECUTION_ALLOWLIST.clone(),
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_command_execution_allowlist",
-        description: "Commands that the agent can execute without explicit permission.",
-    },
-    // Predicates that Agent Mode can use to decide if a command must
-    // be executed by the user.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this denylist.
-    agent_mode_command_execution_denylist: AgentModeCommandExecutionDenylist {
-        type: Vec<AgentModeCommandExecutionPredicate>,
-        default: DEFAULT_COMMAND_EXECUTION_DENYLIST.clone(),
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_command_execution_denylist",
-        description: "Commands that the agent must always ask before executing.",
-    },
-    // Enabled iff Agent Mode can execute readonly commands without explicit user consent.
-    //
-    // Prefer [`BlocklistAIPermissions::can_autoexecute_command`] to
-    // interpret this setting.
-    agent_mode_execute_read_only_commands: AgentModeExecuteReadonlyCommands {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_execute_readonly_commands",
-        description: "Whether the agent can auto-execute read-only commands without asking.",
-    },
-    // Determines coding permissions that Agent Mode has.
-    // Note that if Agent Mode has permissions to execute readonly commands,
-    // that automatically gives Agent Mode the ability to also _read_ files for coding
-    // tasks, including codebase search.
-    //
-    // Prefer [`BlocklistAIPermissions::can_read_file`] to interpret this setting.
-    agent_mode_coding_permissions: AgentModeCodingPermissions {
-        type: AgentModeCodingPermissionsType,
-        default: AgentModeCodingPermissionsType::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_coding_permissions",
-        description: "The file read permission level for the agent.",
-    }
-    // Specific filepaths that Agent Mode can read without asking for additional permissions.
-    // These should be persisted as absolute filepaths to avoid ambiguity.
-    //
-    // This is used in conjunction with [`AgentModeCodingPermissionsType::AllowReadingSpecificFiles`].
-    // Prefer [`BlocklistAIPermissions::can_read_file`] to interpret this setting.
-    agent_mode_coding_file_read_allowlist: AgentModeCodingFileReadAllowlist {
-        type: Vec<PathBuf>,
-        default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.profiles.agent_mode_coding_file_read_allowlist",
-        description: "File paths the agent can read without asking for permission.",
-    }
     // Whether or not the profile-level command autoexecution speedbump has been shown.
     //
     // Not a user-visible setting - persisted locally so the prompt is only shown once.
     has_shown_agent_mode_profile_command_autoexecution_speedbump: HasShownAgentModeProfileCommandAutoexecutionSpeedbump {
         type: bool,
         default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: true,
-    }
-    // Whether or not we should show the speedbump for auto-executing readonly cmds.
-    //
-    // Not a user-visible setting - persisted locally so the prompt is only shown once.
-    should_show_agent_mode_autoexecute_readonly_commands_speedbump: ShouldShowAgentModeModelExecuteReadonlyCommandsSpeedbump {
-        type: bool,
-        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         private: true,
     }

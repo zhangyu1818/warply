@@ -42,8 +42,8 @@ use crate::ai::{
         action_model::AIActionStatus,
         block::{
             view_impl::{
-                render_autonomy_checkbox_setting_speedbump_footer, render_citation,
-                render_citation_chips, CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN,
+                render_citation, render_citation_chips, CONTENT_HORIZONTAL_PADDING,
+                CONTENT_ITEM_VERTICAL_MARGIN,
             },
             AIBlockAction, AutonomySettingSpeedbump,
         },
@@ -237,7 +237,6 @@ pub struct RequestedCommandView {
     derived_from_citations: Vec<AIAgentCitation>,
     citation_state_handles: HashMap<AIAgentCitation, MouseStateHandle>,
 
-    autoexecute_readonly_commands_speedbump_checkbox_handle: MouseStateHandle,
     manage_autonomy_settings_link_handle: MouseStateHandle,
 }
 
@@ -434,7 +433,6 @@ impl RequestedCommandView {
             copied_from_citation: None,
             derived_from_citations: Default::default(),
             citation_state_handles: Default::default(),
-            autoexecute_readonly_commands_speedbump_checkbox_handle: Default::default(),
             manage_autonomy_settings_link_handle,
             block_model,
             action_model: action_model.clone(),
@@ -653,25 +651,6 @@ impl RequestedCommandView {
         match (citations_footer, &self.autonomy_setting_speedbump) {
             // If there's a citation footer, prefer showing that instead of the speedbump.
             (Some(citations_footer), _) => Some(citations_footer),
-            (
-                _,
-                AutonomySettingSpeedbump::ShouldShowForAutoexecutingReadonlyCommands {
-                    action_id: show_for_action_id,
-                    checked,
-                    shown,
-                },
-            ) if show_for_action_id == &self.action_id => {
-                *shown.lock() = true;
-                Some(render_autonomy_checkbox_setting_speedbump_footer(
-                    "Always allow the agent to execute read-only commands",
-                    *checked,
-                    AIBlockAction::ToggleAutoexecuteReadonlyCommandsSpeedbumpCheckbox,
-                    self.autoexecute_readonly_commands_speedbump_checkbox_handle
-                        .clone(),
-                    self.manage_autonomy_settings_link_handle.clone(),
-                    app,
-                ))
-            }
             (
                 _,
                 AutonomySettingSpeedbump::ShouldShowForProfileCommandAutoexecution {
