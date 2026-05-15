@@ -854,9 +854,8 @@ impl WorkflowModal {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            CloudModelEvent::ObjectMoved { type_and_id, .. }
-            | CloudModelEvent::ObjectPermissionsUpdated { type_and_id, .. } => {
-                // Update breadcrumbs if the workflow has moved elsewhere, or if it's been shared.
+            CloudModelEvent::ObjectMoved { type_and_id, .. } => {
+                // Update breadcrumbs if the workflow has moved elsewhere.
                 if let Some(workflow_id) = self.workflow_id {
                     // Check that it's the currently active/open workflow
                     if *type_and_id

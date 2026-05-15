@@ -71,11 +71,6 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
         false
     }
 
-    /// Returns whether this model can be shared via a link
-    fn supports_linking(&self) -> bool {
-        false
-    }
-
     /// Sets the display name for this model
     fn set_display_name(&mut self, _name: &str) {}
 
@@ -185,10 +180,6 @@ where
         ModelEvent::UpsertGenericStringObject {
             object: CloudStringObject::clone_box(object),
         }
-    }
-
-    fn supports_linking(&self) -> bool {
-        self.string_model.supports_linking()
     }
 
     fn should_show_activity_toasts(&self) -> bool {

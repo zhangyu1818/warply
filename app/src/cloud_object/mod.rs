@@ -326,10 +326,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
         false
     }
 
-    /// Returns whether this model type supports web links
-    fn supports_linking(&self) -> bool {
-        true
-    }
     /// Whether this model type can be exported.
     fn can_export(&self) -> bool {
         false

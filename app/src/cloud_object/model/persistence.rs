@@ -43,10 +43,6 @@ pub enum CloudModelEvent {
         /// The parent folder of this object, since it's no longer in the model.
         folder_id: Option<SyncId>,
     },
-    /// An object's permissioned were changed.
-    ObjectPermissionsUpdated {
-        type_and_id: CloudObjectTypeAndId,
-    },
     /// An object identified by `id` was force expanded.
     ObjectForceExpanded {
         id: String,

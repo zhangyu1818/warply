@@ -190,10 +190,6 @@ impl StringModel for EnvVarCollection {
         true
     }
 
-    fn supports_linking(&self) -> bool {
-        true
-    }
-
     fn to_local_object_item(
         &self,
         id: SyncId,

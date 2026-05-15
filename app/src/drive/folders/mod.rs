@@ -67,10 +67,6 @@ impl CloudModelType for CloudFolderModel {
         current_space == new_space
     }
 
-    fn supports_linking(&self) -> bool {
-        true
-    }
-
     fn renders_as_local_object(&self) -> bool {
         true
     }
