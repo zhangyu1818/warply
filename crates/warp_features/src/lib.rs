@@ -197,9 +197,6 @@ pub enum FeatureFlag {
     /// Enables rendering markdown tables in notebooks.
     MarkdownTables,
 
-    /// Enables rendering markdown images inline in AI block list responses.
-    BlocklistMarkdownImages,
-
     /// Enables the /fork-from slash command.
     ForkFromCommand,
 
@@ -387,9 +384,6 @@ impl FeatureFlag {
         // ** ONLY Preview-exclusive features should be added to this list! **
         match self {
             CodeReviewFind => Some("Enables the find bar in the code review pane."),
-            BlocklistMarkdownImages => {
-                Some("Enables rendering markdown images inline in AI block list responses.")
-            }
             GlobalSearch => Some("Enables global search in the left panel"),
             MarkdownTables => {
                 Some("Enables rendering and interaction support for markdown tables in notebooks.")

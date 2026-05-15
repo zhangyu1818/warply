@@ -361,7 +361,6 @@ default = [
     "github_pr_prompt_chip",
     "markdown_tables",
     "markdown_mermaid",
-    "blocklist_markdown_images",
     "pr_comments_slash_command",
     "pr_comments_v2",
     "hoa_code_review",
@@ -471,7 +470,6 @@ workflow_aliases = []
 rect_selection = []
 alacritty_settings_import = []
 shell_selector = []
-blocklist_markdown_images = []
 minimalist_ui = []
 ssh_drag_and_drop = []
 multi_workspace = []
