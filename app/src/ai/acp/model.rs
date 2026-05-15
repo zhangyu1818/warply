@@ -12,7 +12,7 @@ use agent_client_protocol::schema::{
     SelectedPermissionOutcome, SessionConfigId, SessionConfigKind, SessionConfigOption,
     SessionConfigSelectOptions, SessionConfigValueId, SessionNotification,
     SetSessionConfigOptionRequest, StopReason, TerminalExitStatus, TerminalId,
-    TerminalOutputRequest, TerminalOutputResponse, TextContent, WaitForTerminalExitRequest,
+    TerminalOutputRequest, TerminalOutputResponse, WaitForTerminalExitRequest,
     WaitForTerminalExitResponse, WriteTextFileRequest, WriteTextFileResponse,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -53,8 +53,6 @@ pub enum AcpAgentState {
 
 pub struct AcpAgentModel {
     state: AcpAgentState,
-    #[allow(dead_code)]
-    events: Vec<AcpEvent>,
     session_state_by_conversation: HashMap<AIConversationId, AcpSessionState>,
     pending_permission_responses: HashMap<String, oneshot::Sender<AcpPermissionSelection>>,
     pending_session_cancels: HashMap<AIConversationId, UnboundedSender<()>>,
@@ -94,7 +92,6 @@ impl AcpAgentModel {
     pub fn new(_: &mut ModelContext<Self>) -> Self {
         Self {
             state: AcpAgentState::Idle,
-            events: Vec::new(),
             session_state_by_conversation: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
@@ -106,7 +103,6 @@ impl AcpAgentModel {
     pub fn new_for_test(_: &mut ModelContext<Self>) -> Self {
         Self {
             state: AcpAgentState::Idle,
-            events: Vec::new(),
             session_state_by_conversation: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
@@ -117,11 +113,6 @@ impl AcpAgentModel {
     #[cfg(test)]
     pub fn state(&self) -> AcpAgentState {
         self.state.clone()
-    }
-
-    #[allow(dead_code)]
-    pub fn events(&self) -> &[AcpEvent] {
-        &self.events
     }
 
     pub(crate) fn session_state(
@@ -191,17 +182,6 @@ impl AcpAgentModel {
         cancel.unbounded_send(()).is_ok()
     }
 
-    #[allow(dead_code)]
-    pub fn submit_prompt(&mut self, prompt: String, cwd: PathBuf, ctx: &mut ModelContext<Self>) {
-        self.submit_prompt_internal(
-            prompt.clone(),
-            vec![ContentBlock::Text(TextContent::new(prompt))],
-            cwd,
-            None,
-            ctx,
-        );
-    }
-
     pub(crate) fn submit_prompt_for_run_target(
         &mut self,
         display_prompt: String,
@@ -210,7 +190,7 @@ impl AcpAgentModel {
         target: AcpRunTarget,
         ctx: &mut ModelContext<Self>,
     ) {
-        self.submit_prompt_internal(display_prompt, content_blocks, cwd, Some(target), ctx);
+        self.submit_prompt_internal(display_prompt, content_blocks, cwd, target, ctx);
     }
 
     fn submit_prompt_internal(
@@ -218,7 +198,7 @@ impl AcpAgentModel {
         display_prompt: String,
         content_blocks: Vec<ContentBlock>,
         cwd: PathBuf,
-        target: Option<AcpRunTarget>,
+        target: AcpRunTarget,
         ctx: &mut ModelContext<Self>,
     ) {
         let settings = AISettings::as_ref(ctx);
@@ -230,12 +210,12 @@ impl AcpAgentModel {
             backend.adapter_command(),
             cwd.display(),
             display_prompt.len(),
-            target_summary(target.as_ref()),
+            target_summary(&target),
             default_config_options.len(),
         );
         if !self.allow_adapter_execution {
             log::info!("ACP: adapter execution disabled; simulating session start");
-            self.handle_event(AcpEvent::SessionStarted, target.as_ref(), ctx);
+            self.handle_event(AcpEvent::SessionStarted, &target, ctx);
             return;
         }
 
@@ -250,7 +230,7 @@ impl AcpAgentModel {
                     command: backend.adapter_command().to_string(),
                     install_command: backend.install_command().to_string(),
                 },
-                target.as_ref(),
+                &target,
                 ctx,
             );
             return;
@@ -259,15 +239,13 @@ impl AcpAgentModel {
         self.state = AcpAgentState::Starting;
         let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
         let (cancel_tx, cancel_rx) = futures::channel::mpsc::unbounded();
-        if let Some(target) = target.as_ref() {
-            self.pending_session_cancels
-                .insert(target.conversation_id, cancel_tx);
-        }
+        self.pending_session_cancels
+            .insert(target.conversation_id, cancel_tx);
         let stream_target = target.clone();
         ctx.spawn_stream_local(
             events_rx,
             move |me, event, ctx| {
-                me.handle_runtime_event(event, stream_target.as_ref(), ctx);
+                me.handle_runtime_event(event, &stream_target, ctx);
             },
             |_, _| {},
         );
@@ -298,7 +276,7 @@ impl AcpAgentModel {
                         AcpEvent::Failed {
                             message: err.to_string(),
                         },
-                        completion_target.as_ref(),
+                        &completion_target,
                         ctx,
                     );
                 }
@@ -309,7 +287,7 @@ impl AcpAgentModel {
     fn handle_event(
         &mut self,
         event: AcpEvent,
-        target: Option<&AcpRunTarget>,
+        target: &AcpRunTarget,
         ctx: &mut ModelContext<Self>,
     ) {
         let event_summary = acp_event_summary(&event);
@@ -340,19 +318,16 @@ impl AcpAgentModel {
             self.state,
         );
 
-        if let Some(target) = target {
-            self.apply_session_event_to_state(&event, target.conversation_id);
-            self.apply_event_to_history(&event, target, ctx);
-            if matches!(
-                event,
-                AcpEvent::Completed | AcpEvent::Cancelled | AcpEvent::Failed { .. }
-            ) {
-                self.pending_session_cancels.remove(&target.conversation_id);
-            }
+        self.apply_session_event_to_state(&event, target.conversation_id);
+        self.apply_event_to_history(&event, target, ctx);
+        if matches!(
+            event,
+            AcpEvent::Completed | AcpEvent::Cancelled | AcpEvent::Failed { .. }
+        ) {
+            self.pending_session_cancels.remove(&target.conversation_id);
         }
 
-        ctx.emit(event.clone());
-        self.events.push(event);
+        ctx.emit(event);
     }
 
     fn apply_session_event_to_state(
@@ -394,7 +369,7 @@ impl AcpAgentModel {
     fn handle_runtime_event(
         &mut self,
         event: AcpRuntimeEvent,
-        target: Option<&AcpRunTarget>,
+        target: &AcpRunTarget,
         ctx: &mut ModelContext<Self>,
     ) {
         match event {
@@ -687,7 +662,6 @@ impl AcpAgentModel {
     }
 }
 
-#[allow(dead_code)]
 async fn run_one_prompt(
     backend: AcpAgentBackend,
     default_config_options: HashMap<String, String>,
@@ -1068,15 +1042,10 @@ fn select_option_contains_value(config_option: &SessionConfigOption, value: &str
     }
 }
 
-fn target_summary(target: Option<&AcpRunTarget>) -> String {
-    target.map_or_else(
-        || "none".to_owned(),
-        |target| {
-            format!(
-                "conversation={:?} stream={:?} terminal={:?}",
-                target.conversation_id, target.response_stream_id, target.terminal_view_id,
-            )
-        },
+fn target_summary(target: &AcpRunTarget) -> String {
+    format!(
+        "conversation={:?} stream={:?} terminal={:?}",
+        target.conversation_id, target.response_stream_id, target.terminal_view_id,
     )
 }
 
@@ -1433,7 +1402,6 @@ mod tests {
         let (tx, rx) = oneshot::channel();
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
-            events: Vec::new(),
             session_state_by_conversation: HashMap::new(),
             pending_permission_responses: HashMap::from([("request-1".to_string(), tx)]),
             pending_session_cancels: HashMap::new(),
@@ -1457,7 +1425,6 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded();
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
-            events: Vec::new(),
             session_state_by_conversation: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::from([(conversation_id, tx)]),
@@ -1479,7 +1446,6 @@ mod tests {
         let conversation_id = AIConversationId::new();
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
-            events: Vec::new(),
             session_state_by_conversation: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
