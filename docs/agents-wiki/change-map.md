@@ -216,6 +216,7 @@ This map explains the large fork baseline change at a path level.
 - Collapsed remaining local macOS dependency gates in `app`, `command`, `prevent_sleep`, and `computer_use` into direct dependencies/modules. Test-only noop behavior remains feature-driven, not platform fallback-driven.
 - Removed the `HoaCodeReview` rollout flag and `hoa_code_review` Cargo feature. Code review selection-as-context and active CLI-agent routing are retained local AgentView/ACP UI behavior, not a House Of Agents compatibility branch.
 - Removed the `TrimTrailingBlankLines` rollout flag and `trim_trailing_blank_lines` Cargo feature. CLI-agent block blank-row trimming is current retained terminal/AgentView behavior and should not be restored as an optional old branch.
+- Removed the `SelectionAsContext` rollout flag and `selection_as_context` Cargo feature. Code editor and code review selection-to-context affordances are retained local ACP context attachment behavior and remain controlled by current AI enablement, not by an old rollout gate.
 
 ## 2026-05 Local Object Cloud Gate Cleanup
 

@@ -1439,8 +1439,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::WelcomeTab,
         #[cfg(feature = "projects")]
         FeatureFlag::Projects,
-        #[cfg(feature = "selection_as_context")]
-        FeatureFlag::SelectionAsContext,
         #[cfg(feature = "vim_code_editor")]
         FeatureFlag::VimCodeEditor,
         #[cfg(feature = "revert_diff_hunk")]

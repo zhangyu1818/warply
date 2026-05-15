@@ -117,9 +117,6 @@ pub enum FeatureFlag {
     /// Enables Projects and Project management
     Projects,
 
-    /// Enables selection-as-context functionality in the code editor.
-    SelectionAsContext,
-
     /// Enables vim keybindings in the code editor.
     VimCodeEditor,
 

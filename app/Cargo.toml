@@ -326,7 +326,6 @@ default = [
     "tab_close_button_on_left",
     "code_find_replace",
     "tabbed_editor_view",
-    "selection_as_context",
     "undo_closed_panes",
     "revert_diff_hunk",
     "code_review_save_changes",
@@ -454,7 +453,6 @@ code_find_replace = []
 command_palette_file_search = []
 expand_edit_to_pane = []
 tabbed_editor_view = []
-selection_as_context = []
 projects = []
 vim_code_editor = []
 undo_closed_panes = []
