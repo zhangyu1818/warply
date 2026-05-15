@@ -327,13 +327,11 @@ default = [
     "tab_close_button_on_left",
     "code_find_replace",
     "tabbed_editor_view",
-    "allow_opening_file_links_using_editor_env",
     "selection_as_context",
     "changed_lines_only_apply_diff_result",
     "undo_closed_panes",
     "revert_diff_hunk",
     "code_review_save_changes",
-    "file_tree",
     "vim_code_editor",
     "expand_edit_to_pane",
     "ui_zoom",
@@ -470,11 +468,9 @@ tabbed_editor_view = []
 selection_as_context = []
 projects = []
 vim_code_editor = []
-allow_opening_file_links_using_editor_env = []
 undo_closed_panes = []
 revert_diff_hunk = []
 code_review_save_changes = []
-file_tree = []
 discard_per_file_and_all_changes = []
 ui_zoom = []
 code_review_find = []

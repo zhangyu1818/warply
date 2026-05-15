@@ -1453,14 +1453,10 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SelectionAsContext,
         #[cfg(feature = "vim_code_editor")]
         FeatureFlag::VimCodeEditor,
-        #[cfg(feature = "allow_opening_file_links_using_editor_env")]
-        FeatureFlag::AllowOpeningFileLinksUsingEditorEnv,
         #[cfg(feature = "revert_diff_hunk")]
         FeatureFlag::RevertDiffHunk,
         #[cfg(feature = "code_review_save_changes")]
         FeatureFlag::CodeReviewSaveChanges,
-        #[cfg(feature = "file_tree")]
-        FeatureFlag::FileTree,
         #[cfg(feature = "discard_per_file_and_all_changes")]
         FeatureFlag::DiscardPerFileAndAllChanges,
         #[cfg(feature = "code_review_find")]

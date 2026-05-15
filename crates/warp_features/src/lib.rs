@@ -129,9 +129,6 @@ pub enum FeatureFlag {
     /// Enables vim keybindings in the code editor.
     VimCodeEditor,
 
-    /// Allows opening file links using the $EDITOR environment variable.
-    AllowOpeningFileLinksUsingEditorEnv,
-
     /// Enables the ability to undo closed panes.
     UndoClosedPanes,
 
@@ -140,9 +137,6 @@ pub enum FeatureFlag {
 
     /// Enables saving code review pane changes
     CodeReviewSaveChanges,
-
-    /// Enables the file tree (with an entrypoint through code mode).
-    FileTree,
 
     /// Enables discarding per-file and discarding all changes
     DiscardPerFileAndAllChanges,
