@@ -9,7 +9,7 @@ use super::{AgentRunDisplayStatus, ConversationMetadata};
 pub struct AgentConversationEntry {
     pub conversation_id: AIConversationId,
     pub display: AgentConversationDisplayData,
-    pub capabilities: AgentConversationCapabilities,
+    pub is_available_locally: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -18,13 +18,6 @@ pub struct AgentConversationDisplayData {
     pub last_updated: DateTime<Utc>,
     pub status: AgentRunDisplayStatus,
     pub working_directory: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AgentConversationCapabilities {
-    pub can_open: bool,
-    pub can_delete: bool,
-    pub can_fork_locally: bool,
 }
 
 pub(super) fn entry_for_conversation(
@@ -50,7 +43,7 @@ fn entry_for_conversation_parts(
         .map(|conversation| AgentRunDisplayStatus::from_conversation_status(conversation.status()))
         .unwrap_or(AgentRunDisplayStatus::ConversationSucceeded);
     let has_loaded_conversation = conversation.is_some();
-    let has_local_persisted_data = conversation_metadata
+    let is_available_locally = conversation_metadata
         .is_some_and(|metadata| metadata.has_local_data)
         || has_loaded_conversation;
     let title = conversation
@@ -68,10 +61,6 @@ fn entry_for_conversation_parts(
                 .clone()
                 .or_else(|| nav_data.initial_working_directory.clone()),
         },
-        capabilities: AgentConversationCapabilities {
-            can_open: has_local_persisted_data,
-            can_delete: has_local_persisted_data,
-            can_fork_locally: has_local_persisted_data,
-        },
+        is_available_locally,
     }
 }

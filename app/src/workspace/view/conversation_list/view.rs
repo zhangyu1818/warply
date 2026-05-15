@@ -855,14 +855,14 @@ impl TypedActionView for ConversationListView {
                         .with_on_select_action(ConversationListViewAction::DeleteFromOverflowMenu {
                             conversation_id,
                         })
-                        .with_disabled(!entry.capabilities.can_delete);
-                    if !entry.capabilities.can_delete {
+                        .with_disabled(!entry.is_available_locally);
+                    if !entry.is_available_locally {
                         delete_item =
                             delete_item.with_tooltip("This conversation cannot be deleted");
                     }
 
                     let fork_items: Option<[MenuItem<ConversationListViewAction>; 2]> =
-                        if entry.capabilities.can_fork_locally {
+                        if entry.is_available_locally {
                             Some([
                                 MenuItemFields::new("Fork in new pane")
                                     .with_on_select_action(
@@ -909,7 +909,7 @@ impl TypedActionView for ConversationListView {
                     return;
                 };
                 let ai_conversation_id = entry.conversation_id;
-                if !entry.capabilities.can_delete {
+                if !entry.is_available_locally {
                     return;
                 };
 
@@ -1013,7 +1013,7 @@ impl TypedActionView for ConversationListView {
                     .view_model
                     .as_ref(ctx)
                     .get_item_by_id(conversation_id, ctx)
-                    .filter(|entry| entry.capabilities.can_fork_locally)
+                    .filter(|entry| entry.is_available_locally)
                     .map(|entry| entry.conversation_id)
                 else {
                     return;

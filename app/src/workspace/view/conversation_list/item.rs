@@ -249,7 +249,7 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         .with_child(bottom_row)
         .finish();
 
-    let can_open = conversation.capabilities.can_open;
+    let is_available_locally = conversation.is_available_locally;
     let tooltip_text = truncate_from_end(&conversation.display.title, MAX_TOOLTIP_LENGTH);
     let overflow_button_state = state.overflow_button_state.clone();
     let hoverable = Hoverable::new(state.mouse_state.clone(), move |_| {
@@ -341,7 +341,7 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
     })
     .with_defer_events_to_children();
 
-    let hoverable_element = if can_open {
+    let hoverable_element = if is_available_locally {
         hoverable
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {

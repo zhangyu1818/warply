@@ -53,7 +53,7 @@ impl ConversationListViewModel {
         self.cached_conversation_ids = model
             .get_entries(ctx)
             .into_iter()
-            .filter(|entry| entry.capabilities.can_open)
+            .filter(|entry| entry.is_available_locally)
             .map(|entry| entry.conversation_id)
             .collect();
 
