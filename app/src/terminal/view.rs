@@ -277,7 +277,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::hash::Hash;
 use std::ops::Range;
@@ -1962,6 +1962,7 @@ pub struct TerminalView {
     /// next `AfterBlockCompleted`, at which point `Event::PendingCommandCompleted`
     /// is emitted so subscribers know the command has finished.
     awaiting_pending_command_completion: bool,
+    pending_command_queue: VecDeque<String>,
     /// When true, enter agent view after pending setup commands complete
     /// (i.e. after `PendingCommandCompleted` is emitted). Set by
     /// `pane_tree_from_template_recursive` when a tab config has both
@@ -3236,6 +3237,7 @@ impl TerminalView {
             last_hover_fragment_boundary: None,
             is_login_shell_bootstrapped: false,
             awaiting_pending_command_completion: false,
+            pending_command_queue: Default::default(),
             enter_agent_view_after_pending_commands: false,
             slow_bootstrap_banner,
             is_slow_bootstrap_banner_open: false,
@@ -5987,6 +5989,28 @@ impl TerminalView {
         })
     }
 
+    pub fn set_pending_command_queue(
+        &mut self,
+        commands: Vec<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.pending_command_queue = commands.into_iter().collect();
+        self.set_next_pending_command_from_queue(ctx);
+    }
+
+    fn set_next_pending_command_from_queue(&mut self, ctx: &mut ViewContext<Self>) -> bool {
+        if self.input.as_ref(ctx).has_pending_command() {
+            return false;
+        }
+
+        let Some(command) = self.pending_command_queue.pop_front() else {
+            return false;
+        };
+
+        self.set_pending_command(&command, ctx);
+        true
+    }
+
     fn alt_scroll_cmd_sequence(&self, lines_to_scroll: i32) -> Vec<u8> {
         let cmd = if lines_to_scroll > 0 {
             EscCodes::ARROW_UP
@@ -7867,23 +7891,42 @@ impl TerminalView {
                     ctx,
                 );
 
+                let pending_command_succeeded = match &block_type {
+                    BlockType::User(UserBlockCompleted {
+                        serialized_block, ..
+                    }) => Some(serialized_block.exit_code.was_successful()),
+                    BlockType::BootstrapHidden
+                    | BlockType::BootstrapVisible(_)
+                    | BlockType::Restored
+                    | BlockType::InBandCommand
+                    | BlockType::Background(_)
+                    | BlockType::Static => None,
+                };
+
                 // Emit PendingCommandCompleted when a pending command's block
                 // finishes (e.g. tab config setup commands like `git worktree add`).
                 if self.awaiting_pending_command_completion {
-                    self.awaiting_pending_command_completion = false;
-                    ctx.emit(Event::PendingCommandCompleted);
+                    if let Some(command_succeeded) = pending_command_succeeded {
+                        self.awaiting_pending_command_completion = false;
+                        if !(command_succeeded && self.set_next_pending_command_from_queue(ctx)) {
+                            if !command_succeeded {
+                                self.pending_command_queue.clear();
+                            }
+                            ctx.emit(Event::PendingCommandCompleted);
 
-                    // If agent view entry was deferred until setup commands
-                    // finished, enter it now.
-                    if self.enter_agent_view_after_pending_commands {
-                        self.enter_agent_view_after_pending_commands = false;
-                        self.enter_agent_view_for_new_conversation(
-                            None,
-                            AgentViewEntryOrigin::Input {
-                                was_prompt_autodetected: false,
-                            },
-                            ctx,
-                        );
+                            // If agent view entry was deferred until setup commands
+                            // finished, enter it now.
+                            if self.enter_agent_view_after_pending_commands {
+                                self.enter_agent_view_after_pending_commands = false;
+                                self.enter_agent_view_for_new_conversation(
+                                    None,
+                                    AgentViewEntryOrigin::Input {
+                                        was_prompt_autodetected: false,
+                                    },
+                                    ctx,
+                                );
+                            }
+                        }
                     }
                 }
 
@@ -10176,7 +10219,9 @@ impl TerminalView {
         self.is_login_shell_bootstrapped
     }
     pub fn has_pending_command_or_awaiting_completion(&self, ctx: &AppContext) -> bool {
-        self.awaiting_pending_command_completion || self.input.as_ref(ctx).has_pending_command()
+        self.awaiting_pending_command_completion
+            || !self.pending_command_queue.is_empty()
+            || self.input.as_ref(ctx).has_pending_command()
     }
 
     /// Marks this terminal to enter agent view once pending setup commands
@@ -11005,6 +11050,21 @@ impl TerminalView {
                 | BlockListMenuSource::RichContentTextRightClick { .. }
                 | BlockListMenuSource::OutsideBlockRightClick { .. }
         ) {
+            let clear_menu_item = matches!(
+                menu_source,
+                BlockListMenuSource::RegularBlockRightClick { .. }
+                    | BlockListMenuSource::RichContentBlockRightClick { .. }
+                    | BlockListMenuSource::OutsideBlockRightClick { .. }
+            )
+            .then(|| self.clear_buffer_menu_item(&model, ctx))
+            .flatten();
+            if let Some(clear_menu_item) = clear_menu_item {
+                if !items.is_empty() {
+                    items.push(MenuItem::Separator);
+                }
+                items.push(clear_menu_item);
+            }
+
             let current_shell = model.shell_launch_state().available_shell();
             let pane_context_menu_items = self.pane_context_menu_items(current_shell, ctx);
             // Only add the separator if there's something before and after it.
@@ -11017,6 +11077,26 @@ impl TerminalView {
         }
 
         items
+    }
+
+    fn clear_buffer_menu_item(
+        &self,
+        model: &TerminalModel,
+        ctx: &AppContext,
+    ) -> Option<MenuItem<TerminalAction>> {
+        if model.is_block_list_empty() {
+            return None;
+        }
+
+        Some(
+            MenuItemFields::new("Clear Blocks")
+                .with_on_select_action(TerminalAction::ClearBuffer)
+                .with_key_shortcut_label(keybinding_name_to_display_string(
+                    "terminal:clear_blocks",
+                    ctx,
+                ))
+                .into_item(),
+        )
     }
 
     fn copy_prompt_menu_items(

@@ -38,6 +38,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{mpsc::SyncSender, Arc};
 
+#[cfg(test)]
 use itertools::Itertools;
 use lazy_static::lazy_static;
 
@@ -1138,10 +1139,12 @@ impl PaneGroup {
                     ctx,
                 );
 
-                if !commands.is_empty() {
-                    let exec = commands.iter().map(|cmd| &cmd.exec).join(" && ");
+                let has_commands = !commands.is_empty();
+
+                if has_commands {
+                    let command_queue = commands.into_iter().map(|cmd| cmd.exec).collect();
                     view.update(ctx, |terminal, ctx| {
-                        terminal.set_pending_command(exec.as_str(), ctx);
+                        terminal.set_pending_command_queue(command_queue, ctx);
                     });
                 }
 
@@ -1149,7 +1152,7 @@ impl PaneGroup {
                 // pending (e.g. worktree creation), defer entry until they
                 // complete so they run in terminal mode.
                 if matches!(pane_mode, PaneMode::Agent) {
-                    if commands.is_empty() {
+                    if !has_commands {
                         view.update(ctx, |terminal_view, ctx| {
                             terminal_view.enter_agent_view_for_new_conversation(
                                 None,
