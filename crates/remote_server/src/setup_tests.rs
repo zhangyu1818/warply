@@ -8,6 +8,13 @@ fn parse_uname_linux_x86_64() {
 }
 
 #[test]
+fn parse_uname_linux_amd64() {
+    let platform = parse_uname_output("Linux amd64").unwrap();
+    assert_eq!(platform.os, RemoteOs::Linux);
+    assert_eq!(platform.arch, RemoteArch::X86_64);
+}
+
+#[test]
 fn parse_uname_linux_aarch64() {
     let platform = parse_uname_output("Linux aarch64").unwrap();
     assert_eq!(platform.os, RemoteOs::Linux);
@@ -29,10 +36,25 @@ fn parse_uname_darwin_x86_64() {
 }
 
 #[test]
-fn parse_uname_linux_armv8l() {
-    let platform = parse_uname_output("Linux armv8l").unwrap();
-    assert_eq!(platform.os, RemoteOs::Linux);
-    assert_eq!(platform.arch, RemoteArch::Aarch64);
+fn parse_uname_unsupported_armv8l() {
+    let result = parse_uname_output("Linux armv8l");
+    match result {
+        Err(crate::transport::Error::UnsupportedArch { arch }) => {
+            assert_eq!(arch, "armv8l");
+        }
+        other => panic!("expected UnsupportedArch, got {other:?}"),
+    }
+}
+
+#[test]
+fn parse_uname_unsupported_armv7l() {
+    let result = parse_uname_output("Linux armv7l");
+    match result {
+        Err(crate::transport::Error::UnsupportedArch { arch }) => {
+            assert_eq!(arch, "armv7l");
+        }
+        other => panic!("expected UnsupportedArch, got {other:?}"),
+    }
 }
 
 #[test]

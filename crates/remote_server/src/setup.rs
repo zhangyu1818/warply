@@ -99,9 +99,39 @@ pub enum UnsupportedReason {
     NonGlibc {
         name: String,
     },
+    UnsupportedOs {
+        os: String,
+    },
+    UnsupportedArch {
+        arch: String,
+    },
+}
+
+impl UnsupportedReason {
+    pub fn from_transport_error(error: &crate::transport::Error) -> Option<Self> {
+        match error {
+            crate::transport::Error::UnsupportedOs { os } => {
+                Some(Self::UnsupportedOs { os: os.clone() })
+            }
+            crate::transport::Error::UnsupportedArch { arch } => {
+                Some(Self::UnsupportedArch { arch: arch.clone() })
+            }
+            crate::transport::Error::TimedOut
+            | crate::transport::Error::ScriptFailed { .. }
+            | crate::transport::Error::Other(_) => None,
+        }
+    }
 }
 
 impl PreinstallCheckResult {
+    pub fn unsupported(reason: UnsupportedReason) -> Self {
+        Self {
+            status: PreinstallStatus::Unsupported { reason },
+            libc: RemoteLibc::Unknown,
+            raw: String::new(),
+        }
+    }
+
     /// Whether the host is supported. Both `Supported` and `Unknown`
     /// return true — only positive detection of an incompatible libc
     /// triggers the silent fall-back.
@@ -269,8 +299,8 @@ pub fn parse_uname_output(
     };
 
     let arch = match arch_str {
-        "x86_64" => RemoteArch::X86_64,
-        "aarch64" | "arm64" | "armv8l" => RemoteArch::Aarch64,
+        "x86_64" | "amd64" => RemoteArch::X86_64,
+        "aarch64" | "arm64" => RemoteArch::Aarch64,
         other => {
             return Err(Error::UnsupportedArch {
                 arch: other.to_string(),

@@ -56,13 +56,13 @@ Reviewed commits 25 through 44 in chronological order. Compatible local UI, code
 - `cda1694eb` Don't run code review git operations on startup when panel is closed: ported to the retained monolithic `DiffStateModel`. Repository watching still initializes, but metadata/diff loading and watcher-triggered invalidations wait until metadata refresh is enabled.
 - `35d951cdc` Make queued prompt text selectable: ported to retained AgentView/terminal pending-query blocks. Queued prompt text now participates in selection, copy-on-select, right-click copy, and selection clearing.
 - `152d62c8c` Don't run repo menu git stats on startup: ported by removing the eager repo menu query during inline repo menu construction.
+- `095fe37b1` Skip SSH extension install on unsupported remote platforms: ported to retained SSH remote-server setup without telemetry. Unsupported OS/arch detection now maps to `Unsupported`, `armv8l` is no longer treated as `aarch64`, and setup skips install/prompt decisions for positively unsupported hosts.
 - `1679cf4d0` Set the minimum window size in AppKit: ported for the retained macOS host path.
 - `207f9d5eb` Add `warp://tab_config/<name>` deeplink: ported for retained local tab configs. The handler reuses `Workspace::open_tab_config`; the old WASM stub from upstream was not ported.
 
 ## Batch 2 Deferred
 
 - `ae69bd4c7` Cache remote-server tarballs for SCP fallback: deferred to the SSH remote-server pass. Remote server install reliability is retained scope, but this patch is large and should be reviewed with install/download ownership rules.
-- `095fe37b1` Skip SSH extension install on unsupported remote platforms: deferred with the remote-server batch. Remote OS/arch gating is retained SSH behavior, but upstream telemetry pieces must be stripped or reduced.
 - `9600cde9d` Remove dead command palette fixed filters: deferred to a command-palette cleanup pass. It is local UI, but it touches stale conversation/repo filter modes and telemetry-adjacent code.
 
 ## Batch 2 Rejected Or Not Applicable

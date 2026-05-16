@@ -1,11 +1,11 @@
 use crate::client::ClientEvent;
 use crate::client::RemoteServerClient;
 use crate::identity::RemoteServerIdentityContext;
-use crate::setup::PreinstallCheckResult;
 use crate::setup::RemoteOs;
 use crate::setup::RemotePlatform;
 use crate::setup::RemoteServerSetupState;
 use crate::setup::UnsupportedReason;
+use crate::setup::{PreinstallCheckResult, PreinstallStatus};
 use crate::transport::Connection;
 use crate::transport::{Error, RemoteTransport};
 use crate::HostId;
@@ -410,22 +410,30 @@ impl RemoteServerManager {
                     // versioned binary present), so it can skip the
                     // install prompt in the update case.
                     let platform_result = transport.detect_platform().await;
-                    let check_result = transport.check_binary().await;
-                    let old_binary_result = transport.check_has_old_binary().await;
                     let platform = match platform_result {
                         Ok(p) => Some(p),
                         Err(e) => {
+                            if let Some(reason) = UnsupportedReason::from_transport_error(&e) {
+                                let preinstall = PreinstallCheckResult::unsupported(reason.clone());
+                                let _ = spawner
+                                    .spawn(move |_me, ctx| {
+                                        ctx.emit(RemoteServerManagerEvent::SetupStateChanged {
+                                            session_id,
+                                            state: RemoteServerSetupState::Unsupported { reason },
+                                        });
+                                        ctx.emit(RemoteServerManagerEvent::BinaryCheckComplete {
+                                            session_id,
+                                            result: Ok(false),
+                                            remote_platform: None,
+                                            preinstall_check: Some(preinstall),
+                                            has_old_binary: false,
+                                        });
+                                    })
+                                    .await;
+                                return;
+                            }
                             log::warn!("Remote server platform detection failed: session={session_id:?} error={e}");
                             None
-                        }
-                    };
-                    let has_old_binary = match old_binary_result {
-                        Ok(has) => has,
-                        Err(e) => {
-                            log::warn!(
-                                "Remote server old-binary detection failed, treating as fresh install: session={session_id:?} error={e}"
-                            );
-                            false
                         }
                     };
                     // Run the preinstall check after platform detection
@@ -447,6 +455,76 @@ impl RemoteServerManager {
                         }
                         _ => None,
                     };
+                    if let Some(preinstall) = preinstall {
+                        if let PreinstallStatus::Unsupported { reason } = &preinstall.status {
+                            let reason = reason.clone();
+                            let _ = spawner
+                                .spawn(move |me, ctx| {
+                                    if let Some(p) = &platform {
+                                        me.session_platforms.insert(session_id, p.clone());
+                                    }
+                                    ctx.emit(RemoteServerManagerEvent::SetupStateChanged {
+                                        session_id,
+                                        state: RemoteServerSetupState::Unsupported { reason },
+                                    });
+                                    ctx.emit(RemoteServerManagerEvent::BinaryCheckComplete {
+                                        session_id,
+                                        result: Ok(false),
+                                        remote_platform: platform,
+                                        preinstall_check: Some(preinstall),
+                                        has_old_binary: false,
+                                    });
+                                })
+                                .await;
+                            return;
+                        }
+                        let check_result = transport.check_binary().await;
+                        let old_binary_result = transport.check_has_old_binary().await;
+                        let has_old_binary = match old_binary_result {
+                            Ok(has) => has,
+                            Err(e) => {
+                                log::warn!(
+                                    "Remote server old-binary detection failed, treating as fresh install: session={session_id:?} error={e}"
+                                );
+                                false
+                            }
+                        };
+                        let _ = spawner
+                            .spawn(move |me, ctx| {
+                                if let Some(p) = &platform {
+                                    me.session_platforms.insert(session_id, p.clone());
+                                }
+                                if let Err(error) = &check_result {
+                                    ctx.emit(RemoteServerManagerEvent::SetupStateChanged {
+                                        session_id,
+                                        state: RemoteServerSetupState::Failed {
+                                            error: error.to_string(),
+                                        },
+                                    });
+                                }
+                                ctx.emit(RemoteServerManagerEvent::BinaryCheckComplete {
+                                    session_id,
+                                    result: check_result.map_err(Arc::new),
+                                    remote_platform: platform,
+                                    preinstall_check: Some(preinstall),
+                                    has_old_binary,
+                                });
+                            })
+                            .await;
+                        return;
+                    }
+
+                    let check_result = transport.check_binary().await;
+                    let old_binary_result = transport.check_has_old_binary().await;
+                    let has_old_binary = match old_binary_result {
+                        Ok(has) => has,
+                        Err(e) => {
+                            log::warn!(
+                                "Remote server old-binary detection failed, treating as fresh install: session={session_id:?} error={e}"
+                            );
+                            false
+                        }
+                    };
                     let _ = spawner
                         .spawn(move |me, ctx| {
                             if let Some(p) = &platform {
@@ -464,7 +542,7 @@ impl RemoteServerManager {
                                 session_id,
                                 result: check_result.map_err(Arc::new),
                                 remote_platform: platform,
-                                preinstall_check: preinstall,
+                                preinstall_check: None,
                                 has_old_binary,
                             });
                         })
