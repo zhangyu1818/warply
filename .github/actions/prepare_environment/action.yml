@@ -49,14 +49,5 @@ runs:
         brew install fish bash || true
 
     - name: Install protoc
-      id: install_protoc
-      continue-on-error: true
-      uses: arduino/setup-protoc@f4d589e4bdf2cc4829fe24f73d894d8f8194c0bf
-      with:
-        version: "31.1"
-
-    - name: Install protoc fallback
-      if: ${{ steps.install_protoc.outcome == 'failure' }}
       shell: bash
-      run: |
-        brew install protobuf
+      run: brew install protobuf

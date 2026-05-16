@@ -179,6 +179,7 @@ This map explains the large fork baseline change at a path level.
 - Prompt context chips should not run shell-command generators until the current prompt has an active session context. Session environment-variable updates should refresh chips only for the active context session, so startup events do not enter shell execution without an active block/session.
 - Block filter updates now carry the target `BlockIndex` in the editor event. Do not restore reliance on `TerminalView.active_filter_editor_block_index` for already-emitted updates, because close/focus event ordering can clear the active editor before a queued update is delivered.
 - Terminal/input focus changes should flow through the owning terminal pane event subscription into `PaneGroup` focus handling. Do not dispatch pane-group focus actions from child focus paths that may not have a `PaneGroup` responder.
+- The simplified Warply CI runs on macOS only. Environment setup should install protobuf through Homebrew directly instead of pinning an external setup-protoc action that can break workflow resolution.
 
 ## 2026-05 Old Warp Model Surface Cleanup
 
