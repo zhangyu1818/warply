@@ -82,6 +82,7 @@ Reject or strip these upstream changes unless they can be reduced to a retained 
 - Linux/Windows native host platform implementations, WSL/MSYS2 local host executors, Linux packaging, Windows packaging, and Linux/Windows-only build dependencies.
 - Web/WASM app, CLI, search/menu, code review, terminal, plugin-host, and remote-server compile branches or no-op stubs. This fork keeps a native macOS host path; remote OS detection may remain only when required by retained SSH/remote-server behavior.
 - Shell bootstrap hooks that only support Warp app/package updates on non-macOS hosts, such as `FinishUpdate` and Linux apt-source repair helpers.
+- Upstream spec and planning documents, including `specs/**`, standalone `PRODUCT.md` or `TECH.md` files, and `docs/superpowers/plans/**`. Do not merge them as future fork work; keep fork-specific decisions and retained-behavior notes in `docs/agents-wiki/` instead.
 
 ## Conflict Examples
 

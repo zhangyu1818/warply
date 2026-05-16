@@ -1,8 +1,18 @@
-# Warp Local ACP Fork Guide
+# Warp ACP-Only macOS Fork Agent Guide
 
-This file is the repository-level entry point for agents working on this fork. It documents the fork delta from upstream Warp and the rules for merging future upstream commits.
+This is the repository-level entry point for agents working in this fork. It defines what must stay true after local changes or future upstream merges from Warp.
 
-## Baseline
+## Core Contract
+
+This fork is a macOS terminal client with ACP-backed AI surfaces.
+
+- The maintained app target is macOS only.
+- Warp-hosted Agent, Warp cloud accounts, and Warp server APIs are removed.
+- AgentView remains the UI shell, but all agent backend behavior is ACP-only.
+- Next Command and Prompt Suggestions remain OpenAI-compatible terminal suggestion flows, not Warp-hosted AI APIs.
+- SSH remote terminal, SSH remote server, and Warpify are retained terminal features.
+- MCP and skills belong to the ACP agent process, not the Warp app bundle or app settings.
+- Do not add backward-compatibility shims for deleted product areas, deleted settings, old persisted formats, or removed platform branches.
 
 Fork baseline:
 
@@ -10,59 +20,82 @@ Fork baseline:
 19659d12 refactor: create local ACP-only Warp fork
 ```
 
-Compare future upstream merges against that commit when deciding whether a change should be accepted, adapted, or rejected.
+Use that baseline, plus the current `docs/agents-wiki/` records, when deciding whether future upstream changes should be accepted, adapted, or rejected.
 
-## Fork Delta
+## Merge Discipline
 
-This fork keeps Warp as a local terminal GUI and changes the AI/product surface:
+Every upstream commit must be reviewed before it is applied.
 
-- Warp-hosted Agent is replaced by ACP.
-- `/agent` and natural-language terminal input enter the existing AgentView shell, but the backend is ACP-only.
-- ACP events are rendered in Warp UI as protocol-native assistant text, reasoning, tool calls, tool updates, plans, permissions, commands, session info, modes, and config options.
-- Next Command and Prompt Suggestions use user-configured OpenAI-compatible endpoints.
-- AI settings contain only ACP and terminal suggestions configuration.
-- The app runs without Warp login or Warp access tokens.
+- Inspect the commit and its touched paths.
+- Classify each change as accept, adapt, reject, or not applicable.
+- If only part of a commit fits this fork, port only that part.
+- If a retained feature is involved, adapt it to the current fork architecture instead of restoring upstream dependency chains.
+- Record meaningful merge decisions and cleanup rationale in `docs/agents-wiki/`.
+- Do not treat passing tests as proof that product boundaries are preserved; inspect the actual code paths.
 
-## Deleted Product Areas
+## Retained Areas
 
-Do not restore these systems when merging upstream:
+These are part of the fork and should receive compatible upstream fixes:
 
-- Account auth, anonymous user creation, access token retrieval, SSO, paste-token login.
-- Billing, usage credits, referrals, upgrade, invite, Teams, workspace discovery.
-- Cloud Warp Drive sharing/sync/import/export UI.
-- Old Warp Agent SDK, cloud agents, ambient agents, scheduled agents, orchestration, handoff, and cloud remote-control semantics.
-- Warp cloud GraphQL client/schema, managed secrets, hosted isolation/cloud environments.
-- Voice input and hosted transcription.
-- Onboarding, cloud marketing surfaces, Oz/cloud-agent assets.
-- External telemetry, crash reporting, Sentry release/upload scripts, app focus telemetry, event queues.
-- Old Warp AI `/model` and `/profile` selector flows.
-
-## Retained Local Areas
-
-These remain part of the fork and should receive applicable upstream fixes:
-
-- Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions, and Warpify for subshell/SSH sessions.
+- Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions.
 - Natural language detection and input classification.
 - AgentView shell, conversation navigation, help shortcuts, code review side panel, context chips, local attachments.
 - ACP implementation under `app/src/ai/acp/`.
 - OpenAI-compatible Next Command and Prompt Suggestions under `app/src/ai/terminal_suggestions/` and `app/src/ai/predict/terminal_*`.
-- ACP tool-call rendering. MCP server configuration belongs to the ACP agent process, not the Warp app.
-- Local persistence for conversations, workflows, prompts, AI facts, and retained object data.
-- OS launch-at-login settings.
-- SSH/remote terminal behavior that does not require Warp account auth.
+- ACP protocol rendering for assistant text, reasoning, plans, permissions, commands, diffs, and generic tool-call updates.
+- Local persistence for conversations, workflows, prompts, AI facts, terminal sessions, and retained local object data.
+- macOS host integration, AppKit/windowing, local preferences, secure storage, signing, launch-at-login.
+- SSH remote terminal, SSH remote server, ControlMaster transport, remote file tree, remote command execution, and Warpify for subshell and SSH sessions.
+
+SSH/Warpify must not be removed just because remote hosts can be Linux or Windows. Remote host platform checks are retained when they support SSH terminal capability detection or remote-server setup.
+
+## Removed Areas
+
+Do not restore these systems from upstream:
+
+- Account auth, anonymous user creation, access token retrieval, SSO, paste-token login.
+- Billing, usage credits, referrals, upgrade, invite, Teams, workspace discovery.
+- Cloud Warp Drive sharing, sync, import, export, and cloud sharing UI.
+- Old Warp Agent SDK, cloud agents, ambient agents, scheduled agents, orchestration, handoff, and cloud remote-control semantics.
+- Warp cloud GraphQL clients/schema, server API clients, managed secrets, hosted isolation, cloud environments.
+- App-managed MCP configuration, MCP capability probing, MCP server startup, MCP persistence, MCP permissions, or MCP settings panes.
+- App-bundled skills, bundled MCP skills, channel-gated skills, local skill scanners/managers, `/skills`, `/open-skill`, `ReadSkill`, or `InvokeSkill`.
+- Voice input and hosted transcription.
+- Onboarding, cloud marketing surfaces, Oz/cloud-agent assets.
+- External telemetry, crash reporting, Sentry release/upload scripts, app focus telemetry, event queues.
+- Old Warp AI `/model` and `/profile` selector flows.
+- Native Linux/Windows client platform code, WSL/MSYS2 local host executors, Linux packaging, Windows packaging, Web/WASM app targets, and platform no-op stubs.
+- Upstream specs and planning docs such as `specs/**`, standalone `PRODUCT.md` or `TECH.md`, and `docs/superpowers/plans/**`.
 
 ## Upstream Merge Decision Table
 
 | Upstream change area | Decision |
 | --- | --- |
-| Terminal, shell integration, PTY, blocks, editor, completions | Usually accept or cherry-pick directly. |
-| GPUI/Warp UI framework, platform windowing, rendering | Usually accept if it does not depend on removed product surfaces. |
+| Terminal, shell integration, PTY, blocks, editor, completions | Usually accept or port directly after review. |
+| GPUI/Warp UI framework, macOS windowing, rendering | Usually accept if it does not depend on removed product surfaces. |
 | ACP, AgentView, `blocklist`, conversation history, AI settings | Port manually and preserve ACP-only backend behavior. |
-| Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep OpenAI-compatible provider. |
-| Persistence and migrations | Accept only if needed by retained local data. Reject account/team/billing/cloud-only migrations. |
-| `CloudObject`, `server_id`, `local_object_model` naming | Inspect data flow before deciding. Some names remain for local schema compatibility. |
+| Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep the OpenAI-compatible provider. |
+| SSH, remote terminal, remote server, Warpify | Keep when it supports terminal behavior without Warp account auth. Reject Warp-hosted downloads, token auth, and cloud remote-control semantics. |
+| Persistence and migrations | Accept only for retained local data. Reject account/team/billing/cloud/MCP/skills compatibility migrations. |
+| `CloudObject`, `server_id`, `local_object_model` naming | Inspect data flow before deciding. Some names remain for local schema compatibility, not cloud behavior. |
+| MCP or skills | Reject app-side config, discovery, capability probing, invocation, or bundled resources. Keep only ACP protocol event rendering and ACP client capabilities for retained host handlers. |
+| Linux/Windows/Web platform code | Reject local client platform implementation and packaging code. Keep remote-host detection only for retained SSH/remote-server behavior. |
+| Upstream specs, product/tech plans, process planning docs | Reject by default. Keep fork-owned merge records in `docs/agents-wiki/` instead. |
 | Auth, billing, Teams, Warp Drive cloud, GraphQL, managed secrets, telemetry, crash reporting, onboarding | Reject unless the change can be reduced to a retained local utility without restoring the product area. |
-| Cargo dependencies | Keep removals unless a retained local feature needs the crate. Be skeptical of reintroduced cloud/API/reporting crates. |
+| Cargo dependencies | Keep removals unless a retained macOS or SSH/remote-terminal feature needs the crate. Be skeptical of reintroduced cloud/API/reporting crates. |
+
+## Ambiguous Names
+
+Names alone are not enough to decide merge behavior.
+
+- `remote` may mean retained SSH remote terminal or removed cloud remote-control.
+- `server` may mean retained SSH remote-server daemon or removed Warp server API.
+- `CloudObject`, `server_id`, and `SyncId` can be legacy local schema names.
+- `MCP capability` in ACP code can mean retained ACP client capabilities; app-side MCP probing is still rejected.
+- `skills` in upstream code usually means app-managed or bundled skills and should be rejected.
+- `Linux` or `Windows` may be retained remote host metadata, not local client platform support.
+
+Inspect call sites, persistence usage, settings, and runtime ownership before accepting or deleting code.
 
 ## Required Reading For Merge Work
 
@@ -71,6 +104,7 @@ These remain part of the fork and should receive applicable upstream fixes:
 - `docs/agents-wiki/fork-contract.md`
 - `docs/agents-wiki/upstream-merge-guide.md`
 - `docs/agents-wiki/change-map.md`
+- The latest `docs/agents-wiki/upstream-master-audit-*.md` file for the upstream range being reviewed.
 
 ## Verification
 
@@ -82,3 +116,13 @@ cargo check --workspace --all-targets --message-format short
 cargo fmt -- --check
 cargo nextest run -p warp -E 'test(slash_command) | test(acp) | test(terminal_suggestions)'
 ```
+
+Before finishing a major upstream merge, also scan for restored deleted surfaces:
+
+```bash
+rg -n "access token|AuthState|billing|credits|referral|upgrade|Teams|Warp Drive|GraphQL|Sentry|telemetry|crash reporting|agent_sdk|ambient_agents|managed secret|cloud environment" app crates script Cargo.toml
+rg -n "mcp.*capab|capab.*mcp|mcp_server|mcpServers|bundled skills|channel-gated-skills|ReadSkill|InvokeSkill" app crates
+rg -n "target_os = \"linux\"|target_os = \"windows\"|cfg\\(windows\\)|WSL|MSYS2|ConPTY|Wayland|X11|winreg|x11rb" app crates Cargo.toml
+```
+
+Allowed hits must be documentation, tests, retained remote-terminal behavior, retained local-object schema names, or retained ACP protocol code.
