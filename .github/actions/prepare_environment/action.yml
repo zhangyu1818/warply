@@ -42,6 +42,15 @@ runs:
           ./script/install_cargo_build_deps
         fi
 
+    - name: Install Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: 20.9.0
+
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+
     - name: Install test dependencies
       if: ${{ inputs.install_test_deps == 'true' }}
       shell: bash
