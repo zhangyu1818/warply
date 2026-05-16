@@ -180,6 +180,7 @@ This map explains the large fork baseline change at a path level.
 - Block filter updates now carry the target `BlockIndex` in the editor event. Do not restore reliance on `TerminalView.active_filter_editor_block_index` for already-emitted updates, because close/focus event ordering can clear the active editor before a queued update is delivered.
 - Terminal/input focus changes should flow through the owning terminal pane event subscription into `PaneGroup` focus handling. Do not dispatch pane-group focus actions from child focus paths that may not have a `PaneGroup` responder.
 - The simplified Warply CI runs on macOS only. Environment setup should install protobuf through Homebrew directly instead of pinning an external setup-protoc action that can break workflow resolution.
+- macOS build dependency setup should treat `xcodebuild -downloadComponent MetalToolchain` as optional because GitHub macOS runner Xcode versions may not expose that flag.
 
 ## 2026-05 Old Warp Model Surface Cleanup
 
