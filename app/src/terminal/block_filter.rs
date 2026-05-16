@@ -66,6 +66,7 @@ pub struct BlockFilterEditor {
     case_sensitivity_enabled: bool,
     invert_filter_enabled: bool,
     context_line_editor: ViewHandle<EditorView>,
+    active_block_index: Option<BlockIndex>,
     mouse_state_handles: MouseStateHandles,
     /// This keeps track of whether the previous editor event was select_all
     /// before any user edits were made.
@@ -136,7 +137,10 @@ impl BlockFilterQuery {
 }
 
 pub enum BlockFilterEditorEvent {
-    UpdateFilter(BlockFilterQuery),
+    UpdateFilter {
+        block_index: BlockIndex,
+        query: BlockFilterQuery,
+    },
     Close,
 }
 
@@ -222,6 +226,7 @@ impl BlockFilterEditor {
             regex_enabled: false,
             case_sensitivity_enabled: false,
             invert_filter_enabled: false,
+            active_block_index: None,
             mouse_state_handles: Default::default(),
             previous_editor_event_was_select_all: false,
             num_matched_lines: None,
@@ -232,10 +237,12 @@ impl BlockFilterEditor {
 
     pub fn open_and_set_filter(
         &mut self,
+        block_index: BlockIndex,
         active_filter_query: Option<BlockFilterQuery>,
         num_matched_lines: Option<usize>,
         ctx: &mut ViewContext<Self>,
     ) {
+        self.active_block_index = Some(block_index);
         if let Some(active_filter) = &active_filter_query {
             self.regex_enabled = active_filter.regex_enabled;
             self.case_sensitivity_enabled = active_filter.case_sensitivity_enabled;
@@ -281,6 +288,7 @@ impl BlockFilterEditor {
     }
 
     pub fn reset(&mut self, ctx: &mut ViewContext<Self>) {
+        self.active_block_index = None;
         self.query_editor.update(ctx, |editor, ctx| {
             editor.system_clear_buffer(true, ctx);
         });
@@ -307,6 +315,10 @@ impl BlockFilterEditor {
 
     /// Sends a block filter query update.
     fn update_query(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(block_index) = self.active_block_index else {
+            return;
+        };
+
         let num_context_lines = self
             .context_line_editor
             .as_ref(ctx)
@@ -314,14 +326,17 @@ impl BlockFilterEditor {
             .parse()
             .unwrap_or(DEFAULT_CONTEXT_LINES_VALUE);
 
-        ctx.emit(BlockFilterEditorEvent::UpdateFilter(BlockFilterQuery {
-            query: self.query_editor_text(ctx),
-            num_context_lines,
-            regex_enabled: self.regex_enabled,
-            case_sensitivity_enabled: self.case_sensitivity_enabled,
-            invert_filter_enabled: self.invert_filter_enabled,
-            is_active: true,
-        }));
+        ctx.emit(BlockFilterEditorEvent::UpdateFilter {
+            block_index,
+            query: BlockFilterQuery {
+                query: self.query_editor_text(ctx),
+                num_context_lines,
+                regex_enabled: self.regex_enabled,
+                case_sensitivity_enabled: self.case_sensitivity_enabled,
+                invert_filter_enabled: self.invert_filter_enabled,
+                is_active: true,
+            },
+        });
 
         if num_context_lines != self.prev_num_context_lines {
             self.prev_num_context_lines = num_context_lines;

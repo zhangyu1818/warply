@@ -173,6 +173,13 @@ This map explains the large fork baseline change at a path level.
 - Workspace and pane-group tests that can construct `WelcomePane` must register `ProjectManagementModel`, matching production app initialization.
 - Tests that need a terminal-backed initial workspace should keep `WelcomeTab` disabled while creating the workspace, then enable it only around explicit welcome-pane snapshot construction.
 
+## 2026-05 Runtime Warning Cleanup
+
+- A stale local dev SQLite database whose schema predates the current fork should be backed up and cleared instead of preserved through compatibility migrations. The current local object metadata column is `stable_object_id`; old `server_id` local rows are not a schema contract for this fork.
+- Prompt context chips should not run shell-command generators until the current prompt has an active session context. Session environment-variable updates should refresh chips only for the active context session, so startup events do not enter shell execution without an active block/session.
+- Block filter updates now carry the target `BlockIndex` in the editor event. Do not restore reliance on `TerminalView.active_filter_editor_block_index` for already-emitted updates, because close/focus event ordering can clear the active editor before a queued update is delivered.
+- Terminal/input focus changes should flow through the owning terminal pane event subscription into `PaneGroup` focus handling. Do not dispatch pane-group focus actions from child focus paths that may not have a `PaneGroup` responder.
+
 ## 2026-05 Old Warp Model Surface Cleanup
 
 - Removed the Codex integration modal, `codex` custom URI host, related root/workspace actions, and the unused Codex integration image asset.

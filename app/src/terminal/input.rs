@@ -125,7 +125,6 @@ use crate::{
         TabCompletionsPreselectOption,
     },
     object_ids::SyncId,
-    pane_group::PaneGroupAction,
     prefix::longest_common_prefix,
     resource_center::{
         mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipHint, TipsCompleted,
@@ -11015,7 +11014,7 @@ impl View for Input {
                 ctx.focus(&self.editor);
                 ctx.notify();
             }
-            ctx.dispatch_typed_action(&PaneGroupAction::HandleFocusChange);
+            ctx.emit(Event::EditorFocused);
         }
     }
 

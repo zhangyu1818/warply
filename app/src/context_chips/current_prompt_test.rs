@@ -222,6 +222,44 @@ fn test_fingerprint_skips_contextual_chip_recompute_when_context_is_unchanged() 
 }
 
 #[test]
+fn test_shell_chip_without_execution_context_is_idle() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| {
+            Prompt::mock_with(
+                [ContextChipKind::GitDiffStats],
+                false,
+                WarpPromptSeparator::None,
+            )
+        });
+        app.add_singleton_model(SessionSettings::new_with_defaults);
+        app.add_singleton_model(|_ctx| {
+            settings::PublicPreferences::new(
+                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+            )
+        });
+        app.add_singleton_model(|_| {
+            settings::PrivatePreferences::new(
+                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+            )
+        });
+
+        let sessions = app.add_model(|_| Sessions::new_for_test());
+        let current_prompt = app.add_model(move |ctx| CurrentPrompt::new(sessions, ctx));
+
+        current_prompt.update(&mut app, |current_prompt, ctx| {
+            current_prompt.update_states_with_new_context(ctx);
+
+            let state = current_prompt
+                .states
+                .get(&ContextChipKind::GitDiffStats)
+                .expect("expected git diff stats state");
+            assert_eq!(state.update_status, ChipUpdateStatus::Idle);
+            assert_eq!(state.last_computed_value, None);
+        });
+    });
+}
+
+#[test]
 fn test_shell_chip_is_disabled_when_required_executable_is_missing() {
     App::test((), |mut app| async move {
         let session_id = SessionId::from(456);

@@ -61,6 +61,8 @@ The fork removes:
 - ACP tool-call diffs may render read-only, but shared-session viewer action sync, cloud action-result replay, resize sync, and input peer-edit sync should not return.
 - SSH/subshell Warpify remains retained terminal functionality. Cleanup may update Warpify payload field names to the current schema, but must not remove tmux checks, SSH warpification, subshell bootstrap, or the UI states that keep remote/nested sessions in full Warp mode.
 - App/CLI/remote-server Web/WASM compile branches and no-op fallbacks are removed for the macOS-only host target. Remote host platform parsing remains only where SSH/remote-server setup needs it; it is not permission to restore local Linux/Windows packaging or host implementations.
+- Local dev SQLite data can be backed up and cleared when it predates the current fork schema. Do not add backward-compatibility migrations solely to preserve stale local fork data.
+- Runtime warning cleanup should fix the state boundary that emits the warning. Expected no-context startup states should be gated before execution; stale UI events should carry enough identity to be handled after focus/close ordering changes.
 
 ## Wiki Files
 

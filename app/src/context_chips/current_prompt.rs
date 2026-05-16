@@ -22,7 +22,7 @@ use futures::{pin_mut, FutureExt as _};
 use itertools::Itertools;
 use settings::Setting as _;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
-use warp_core::user_preferences::GetUserPreferences;
+use warp_core::{user_preferences::GetUserPreferences, SessionId};
 
 use super::ChipResult;
 use super::{
@@ -217,8 +217,10 @@ impl CurrentPrompt {
             Self::handle_session_settings_changed,
         );
         ctx.subscribe_to_model(&sessions, |me, event, ctx| {
-            if let SessionsEvent::EnvironmentVariablesUpdated { .. } = event {
-                me.update_states_with_new_context(ctx);
+            if let SessionsEvent::EnvironmentVariablesUpdated { session_id } = event {
+                if me.active_context_session_id() == Some(*session_id) {
+                    me.update_states_with_new_context(ctx);
+                }
             }
         });
 
@@ -589,6 +591,18 @@ impl CurrentPrompt {
         })
     }
 
+    fn active_context_session_id(&self) -> Option<SessionId> {
+        self.latest_context
+            .as_ref()
+            .and_then(|context| context.active_block_metadata.session_id())
+    }
+
+    fn has_active_shell_context(&self, ctx: &AppContext) -> bool {
+        self.active_context_session_id()
+            .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id))
+            .is_some()
+    }
+
     /// Races command execution against a timeout.
     ///
     /// On timeout we drop the in-flight `execute_command` future, which is the only per-command
@@ -718,6 +732,13 @@ impl CurrentPrompt {
 
         match generator {
             PromptGenerator::ShellCommand(cmd) => {
+                if !self.has_active_shell_context(ctx) {
+                    self.update_chip_value(chip_kind, None);
+                    self.update_on_click_value(chip_kind, None);
+                    self.set_chip_update_status(chip_kind, ChipUpdateStatus::Idle);
+                    return;
+                }
+
                 let Some(exec_ctx) = self.prepare_shell_command_context(cmd, ctx) else {
                     log::warn!("Generator for {chip_kind:?}: could not prepare execution context");
                     self.update_chip_value(chip_kind, None);

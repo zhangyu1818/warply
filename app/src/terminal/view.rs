@@ -348,8 +348,7 @@ use crate::editor::{AutosuggestionType, EditorAction};
 use crate::features::FeatureFlag;
 use crate::pane_group::SplitPaneState;
 use crate::pane_group::{
-    CodeReviewPanelArg, PaneConfiguration, PaneEvent, PaneGroupAction, PaneHeaderAction,
-    TerminalViewResources,
+    CodeReviewPanelArg, PaneConfiguration, PaneEvent, PaneHeaderAction, TerminalViewResources,
 };
 use crate::resource_center::{
     mark_feature_used_and_write_to_user_defaults, Tip, TipHint, TipsCompleted,
@@ -1351,6 +1350,7 @@ pub enum Event {
     /// Event used to propagate a state change for one of the terminal views
     /// inside this pane group.
     TerminalViewStateChanged,
+    FocusChanged,
     ShowCommandSearch(CommandSearchOptions),
     // Tell the pane group to open the workflow modal.
     OpenWorkflowModalWithCommand(String),
@@ -11480,6 +11480,7 @@ impl TerminalView {
             self.block_filter_editor
                 .update(ctx, |block_filter_editor, ctx| {
                     block_filter_editor.open_and_set_filter(
+                        block_index,
                         active_filter_query,
                         num_matched_lines,
                         ctx,
@@ -14871,7 +14872,7 @@ impl TerminalView {
                 self.focus_input_box(ctx);
             }
             InputEvent::EditorFocused => {
-                ctx.dispatch_typed_action(&PaneGroupAction::HandleFocusChange);
+                ctx.emit(Event::FocusChanged);
                 ctx.notify();
             }
             InputEvent::OpenSettings(section) => {
@@ -15069,25 +15070,6 @@ impl TerminalView {
         })
     }
 
-    fn update_block_filter_for_block_with_active_editor(
-        &mut self,
-        block_filter_query: &BlockFilterQuery,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(active_filter_editor_block_index) = self.active_filter_editor_block_index else {
-            log::warn!(
-                "Tried to update block filter query without active_filter_editor_block_index set"
-            );
-            return;
-        };
-
-        self.update_block_filter_for_block(
-            active_filter_editor_block_index,
-            block_filter_query,
-            ctx,
-        );
-    }
-
     /// Caches the scroll position before a filter is applied, if the filter is
     /// being applied from a zero-state. This cached scroll position is used to
     /// return users to their original scroll position when the filter is removed.
@@ -15223,8 +15205,8 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            BlockFilterEditorEvent::UpdateFilter(block_filter_state) => {
-                self.update_block_filter_for_block_with_active_editor(block_filter_state, ctx);
+            BlockFilterEditorEvent::UpdateFilter { block_index, query } => {
+                self.update_block_filter_for_block(*block_index, query, ctx);
             }
             BlockFilterEditorEvent::Close => {
                 self.close_block_filter_editor(ctx);
@@ -19804,7 +19786,7 @@ impl View for TerminalView {
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
         if focus_ctx.is_self_focused() {
             self.maybe_report_focus_in(ctx);
-            ctx.dispatch_typed_action(&PaneGroupAction::HandleFocusChange);
+            ctx.emit(Event::FocusChanged);
 
             // Forward focus to the active SSH remote-server choice block so
             // its keyboard-navigable buttons stay interactive.
