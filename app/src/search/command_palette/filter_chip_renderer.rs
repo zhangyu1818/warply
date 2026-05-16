@@ -115,7 +115,7 @@ impl FilterChipRenderer for QueryFilter {
                 .theme()
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
-            QueryFilter::Conversations | QueryFilter::HistoricalConversations => appearance
+            QueryFilter::Conversations => appearance
                 .theme()
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),

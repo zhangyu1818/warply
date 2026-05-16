@@ -28,7 +28,6 @@ pub struct DataSourceStore {
     sessions_data_source: ModelHandle<navigation::DataSource>,
     launch_config_data_source: ModelHandle<launch_config::DataSource>,
     new_session_data_source: Option<ModelHandle<NewSessionDataSource>>,
-    historical_conversation_data_source: ModelHandle<conversations::DataSource>,
     all_conversation_data_source: ModelHandle<conversations::DataSource>,
     repo_data_source: ModelHandle<RepoDataSource>,
     tabs_data_source: Option<ModelHandle<tabs::DataSource>>,
@@ -52,9 +51,6 @@ impl DataSourceStore {
             && cfg!(feature = "local_tty"))
         .then_some(ctx.add_model(|ctx| NewSessionDataSource::new(binding_source, ctx)));
 
-        let historical_conversation_data_source: ModelHandle<conversations::DataSource> =
-            ctx.add_model(|_| conversations::DataSource::historical());
-
         let all_conversation_data_source: ModelHandle<conversations::DataSource> =
             ctx.add_model(|_| conversations::DataSource::new());
 
@@ -65,7 +61,6 @@ impl DataSourceStore {
             sessions_data_source,
             launch_config_data_source,
             new_session_data_source,
-            historical_conversation_data_source,
             all_conversation_data_source,
             repo_data_source,
             tabs_data_source: None,
@@ -132,11 +127,6 @@ impl DataSourceStore {
                 mixer.add_sync_source(
                     self.all_conversation_data_source.clone(),
                     HashSet::from([QueryFilter::Conversations]),
-                );
-
-                mixer.add_sync_source(
-                    self.historical_conversation_data_source.clone(),
-                    HashSet::from([QueryFilter::HistoricalConversations]),
                 );
             }
 

@@ -59,11 +59,11 @@ Reviewed commits 25 through 44 in chronological order. Compatible local UI, code
 - `095fe37b1` Skip SSH extension install on unsupported remote platforms: ported to retained SSH remote-server setup without telemetry. Unsupported OS/arch detection now maps to `Unsupported`, `armv8l` is no longer treated as `aarch64`, and setup skips install/prompt decisions for positively unsupported hosts.
 - `1679cf4d0` Set the minimum window size in AppKit: ported for the retained macOS host path.
 - `207f9d5eb` Add `warp://tab_config/<name>` deeplink: ported for retained local tab configs. The handler reuses `Workspace::open_tab_config`; the old WASM stub from upstream was not ported.
+- `9600cde9d` Remove dead command palette fixed filters: ported as local search UI cleanup. The stale hidden recent repos/conversations fixed filter path and `HistoricalConversations` query filter were removed, while upstream telemetry and app-side skill/model filters were not restored.
 
 ## Batch 2 Deferred
 
 - `ae69bd4c7` Cache remote-server tarballs for SCP fallback: deferred to the SSH remote-server pass. Remote server install reliability is retained scope, but this patch is large and should be reviewed with install/download ownership rules.
-- `9600cde9d` Remove dead command palette fixed filters: deferred to a command-palette cleanup pass. It is local UI, but it touches stale conversation/repo filter modes and telemetry-adjacent code.
 
 ## Batch 2 Rejected Or Not Applicable
 

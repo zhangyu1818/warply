@@ -153,9 +153,6 @@ pub enum QueryFilter {
     /// Filter results for all conversations.
     Conversations,
 
-    /// Filter results for only historical conversations. Used in the "View All" palette on new tabs
-    HistoricalConversations,
-
     /// Filter results for launch configurations.
     LaunchConfigurations,
 
@@ -210,7 +207,6 @@ impl QueryFilter {
             QueryFilter::Sessions => "Search sessions",
             QueryFilter::Tabs => "Search tabs",
             QueryFilter::Conversations => "Search conversations",
-            QueryFilter::HistoricalConversations => "Search historical conversations",
             QueryFilter::LaunchConfigurations => "Search launch configurations",
             QueryFilter::EnvironmentVariables => "Search environment variables",
             QueryFilter::PromptHistory => "Search prompt history",
@@ -250,7 +246,6 @@ impl QueryFilter {
             QueryFilter::Repos => &REPOS_FILTER_ATOM,
             QueryFilter::DiffSets => &DIFFSETS_FILTER_ATOM,
             QueryFilter::StaticSlashCommands => &STATIC_SLASH_COMMANDS_FILTER_ATOM,
-            QueryFilter::HistoricalConversations => &NO_FILTER_ATOM,
             QueryFilter::CurrentDirectoryConversations => &NO_FILTER_ATOM,
         }
     }
@@ -277,7 +272,6 @@ impl QueryFilter {
             QueryFilter::Repos => "repos",
             QueryFilter::DiffSets => "diff sets",
             QueryFilter::StaticSlashCommands => "slash commands",
-            QueryFilter::HistoricalConversations => "historical conversations",
             QueryFilter::CurrentDirectoryConversations => "current directory conversations",
         }
     }
@@ -291,9 +285,7 @@ impl QueryFilter {
             QueryFilter::Actions => None,
             QueryFilter::Sessions => Some("bundled/svg/terminal-input.svg"),
             QueryFilter::Tabs => Some("bundled/svg/terminal-input.svg"),
-            QueryFilter::Conversations | QueryFilter::HistoricalConversations => {
-                Some("bundled/svg/conversation.svg")
-            }
+            QueryFilter::Conversations => Some("bundled/svg/conversation.svg"),
             QueryFilter::LaunchConfigurations => Some("bundled/svg/navigation.svg"),
             QueryFilter::EnvironmentVariables => Some("bundled/svg/env-var-collection.svg"),
             QueryFilter::AgentModeWorkflows | QueryFilter::PromptHistory => {

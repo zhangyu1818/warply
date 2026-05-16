@@ -314,10 +314,7 @@ impl CommandSearchView {
 
     fn close(&self, ctx: &mut ViewContext<Self>) {
         let query = self.search_bar.as_ref(ctx).query(ctx);
-        let filter = self
-            .search_bar_state
-            .as_ref(ctx)
-            .active_visible_query_filter();
+        let filter = self.search_bar_state.as_ref(ctx).active_query_filter();
         ctx.emit(CommandSearchEvent::Close { query, filter });
     }
 
@@ -365,7 +362,7 @@ impl CommandSearchView {
         ctx: &mut ViewContext<Self>,
     ) {
         self.search_bar.update(ctx, |search_bar, ctx| {
-            search_bar.set_visible_query_filter(filter_and_atom_text, ctx);
+            search_bar.set_query_filter(filter_and_atom_text, ctx);
         });
     }
 

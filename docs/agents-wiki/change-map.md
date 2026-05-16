@@ -90,8 +90,9 @@ This map explains the large fork baseline change at a path level.
 - Ported local startup performance fixes for retained code review and repo menus: code review diff metadata waits until the panel enables refresh, and inline repo menu git stats are no longer queried during terminal startup.
 - Ported queued prompt text selection for retained AgentView terminal blocks, including copy-on-select and right-click copy integration with the existing terminal selection clearing model.
 - Ported the macOS AppKit minimum-window-size fix and the local `warp://tab_config/<name>` deeplink for retained tab config workflows. The upstream WASM tab-config stub was not ported.
+- Ported command palette fixed-filter cleanup by removing the stale hidden recent repos/conversations palette path and `HistoricalConversations` search filter. Do not restore upstream telemetry or app-side skill/model filters while keeping normal conversation and repo search filters.
 - Deferred upstream remote file-location and remote diff-state commits for a separate SSH remote-server/code review pass. They are relevant to retained SSH behavior, but the current fork lacks upstream's global buffer-location module layout.
-- Deferred remote-server SCP tarball cache, unsupported-platform preinstall gating, and command-palette fixed-filter cleanup into separate follow-up passes because each touches broader retained subsystems.
+- Deferred upstream remote-server SCP tarball cache into a separate SSH remote-server installer review because it touches Warp-hosted binary download ownership.
 
 ## 2026-05 macOS-Only Host Cleanup
 

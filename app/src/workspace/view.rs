@@ -8394,17 +8394,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    fn open_recent_repos_and_convos_palette(&mut self, ctx: &mut ViewContext<Self>) {
-        self.palette.update(ctx, |view, ctx| {
-            view.reset(ctx);
-            view.set_fixed_query_filters(
-                "Search recent repos and conversations".to_string(),
-                vec![QueryFilter::HistoricalConversations, QueryFilter::Repos],
-                ctx,
-            );
-        });
-    }
-
     fn open_conversations_palette(&mut self, ctx: &mut ViewContext<Self>) {
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
@@ -8608,7 +8597,6 @@ impl Workspace {
             PaletteMode::LaunchConfig => self.open_launch_config_palette(ctx),
             PaletteMode::Files => self.open_files_palette(ctx),
             PaletteMode::Conversations => self.open_conversations_palette(ctx),
-            PaletteMode::ConversationsAndRepos => self.open_recent_repos_and_convos_palette(ctx),
         }
 
         ctx.focus(&self.palette);
