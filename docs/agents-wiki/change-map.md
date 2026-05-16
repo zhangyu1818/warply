@@ -437,6 +437,11 @@ This map explains the large fork baseline change at a path level.
 - Renamed retained file-tree and vertical-tabs test fixture directories away from `warp-server` to neutral local repo names. These tests cover local UI selection and summary behavior only; they should not imply Warp service dependencies.
 - Rewrote the retained SSH initialization UX spec around current remote-server controller, ControlMaster, and Warpify behavior. The spec no longer describes rollout flags, hosted downloads, old Oz/Agent SDK paths, or legacy fallback branches.
 - Reworded the retained code-review header refactor spec to match the current single render path. Do not restore `GitOperationsInCodeReview`, disabled branches, or old header render compatibility when merging upstream code-review UI changes.
+- Ported the retained NLD heuristic tightening from upstream without upstream rollout features. `is_likely_shell_command` now requires completion-described tokens to meet a `1.0` threshold and does not count shell-syntax-only tokens as command evidence. Do not restore `nld_heuristic_v1/v2` compatibility flags or Linux/Windows bundle branches.
+- Added the retained terminal right-click `Clear Blocks` action around the existing `ClearBuffer` behavior. Keep the item out of text-selection menus and empty block-list menus.
+- Shortened retained SSH remote-server daemon identity directories and versioned socket/PID names with deterministic 8-character hashes, and added a `sun_path` length guard in `remote-server-proxy`. Keep this as SSH remote terminal reliability work, not telemetry or cloud remote environment behavior.
+- Restored SSH command-history correctness by excluding restored `DoneWithNoExecution` blocks from restored command history after SSH close.
+- Changed retained tab-config command execution from a single `&&` command string to a pending-command queue. Each configured command should run as its own block, and Agent mode entry should wait until the full queue completes.
 
 ## Legacy Names Still Present
 

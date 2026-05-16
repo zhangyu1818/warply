@@ -1,14 +1,14 @@
 # Upstream Master Audit 2026-05-16
 
-Range under review: `1ca5496d8..0d6f1d6c6`
+Range under review: `1ca5496d8..fa732953d`
 
 Previous audited upstream tip: `1ca5496d8 docs: clarify bug readiness wording (#10866)`
 
-Current upstream tip fetched: `0d6f1d6c6 fix: allow non-owner cloud conversation continuation (#11051)`
+Current upstream tip fetched: `fa732953d add better logging for replay skipping (#11069)`
 
-Total upstream commits in this incremental range: 81
+Total upstream commits in this incremental range: 84
 
-Status: in progress. This file records the incremental audit after the 2026-05-14 audit. Do not treat the full range as complete until all 81 commits have a decision.
+Status: in progress. This file records the incremental audit after the 2026-05-14 audit. Do not treat the full range as complete until all 84 commits have a decision.
 
 ## Batch 1 Reviewed
 
@@ -86,3 +86,66 @@ Reviewed commits 25 through 44 in chronological order. Compatible local UI, code
 - `cargo nextest run -E 'test(test_autolink) | test(test_parse_url_preserves_non_escaped_backslash) | test(test_url_link_display_text_round_trip_is_stable) | test(test_pointer_opened_tab_configs_menu_does_not_select_top_item)'`
 - `cargo nextest run -p repo_metadata`
 - `cargo nextest run -p warp -E 'test(test_find_matching_tab_config) | test(test_pointer_opened_tab_configs_menu_does_not_select_top_item)'`
+
+## Batch 3 Reviewed
+
+Reviewed commits 45 through 84 in chronological order. Compatible retained terminal, SSH remote-server, NLD, and tab-config changes were manually adapted. Cloud handoff, shared-session cloud viewer, app-managed MCP, old Agent SDK harness, billing/team, and native Linux/Windows platform changes were rejected.
+
+## Batch 3 Ported Or Adapted
+
+- `48ac96fa2` NLD heuristic v2: ported as the fork's direct behavior instead of upstream's v1/v2 rollout flags. Shell-syntax tokens no longer vote by themselves in `is_likely_shell_command`, and the described-token threshold is pinned to `1.0`. Upstream feature flags and Linux/Windows bundle edits were not ported.
+- `f004f4172` Clear action in terminal right-click menu: ported to retained terminal UI as `Clear Blocks`, reusing `TerminalAction::ClearBuffer` and hiding the item for empty block lists or text-selection menus.
+- `18baecd45` Remote server socket path limit: ported to retained SSH remote-server/proxy. Daemon identity directories and versioned socket/PID filenames now use short deterministic hashes, and `remote-server-proxy` fails fast when a socket path exceeds the `sun_path` budget.
+- `83df17dcb` Restored command history after SSH close: ported by excluding restored `DoneWithNoExecution` blocks from restored command history.
+- `a017b9a6a` Tab config sequential commands: ported to retained tab configs. Tab-config command lists now run as a pending-command queue, so each command becomes its own block and Agent mode entry waits until the queue completes.
+
+## Batch 3 Deferred
+
+- `14205aa35` DetectedRepositories remote backing repos: deferred. The retained SSH remote/code path may need parts of this, but upstream mixes remote repo state with old Agent SDK, MCP, skills, and broader buffer-location changes.
+- `3f0337de1` RPC for fetching branches: deferred to the retained remote-server/code-review/tab-config branch picker pass. The RPC may be useful, but the current fork needs a narrower port without cloud/server assumptions.
+- `6d5128b8d` Remote envs codebase indexing persistence: deferred for ACP-context review. It may contain reusable remote-server indexing pieces, but the upstream commit is tied to old Agent SDK action execution, auth-token indexing, and remote environment semantics.
+- `aa9f9084d` Remote envs codebase indexing UI: deferred with `6d5128b8d`. Do not port the UI unless the underlying remote codebase indexing path is proven useful for the ACP/local terminal fork.
+
+## Batch 3 Rejected Or Not Applicable
+
+- `036b5d61a` Cloud mode task status reporting: rejected as cloud/ambient conversation status.
+- `4542e8d3c` Hide handoff hint in cloud conversation: rejected as cloud handoff.
+- `898f4b8b7` Handoff pane conversation content: rejected as cloud handoff/shared-session surface.
+- `a4e639c5a` Release tag branch script ordering: rejected as upstream release process.
+- `e6837332e` MCP OAuth authenticated client refresh: rejected as app-managed MCP/OAuth.
+- `f78edb7f7` Null upload target fields: rejected as old server API/upload target plumbing.
+- `b2fc07075` Handoff for child agents: rejected as cloud handoff/child-agent behavior.
+- `203f34a4a` Local-to-cloud handoff telemetry: rejected as telemetry/cloud handoff.
+- `3efab9aba` Conversation details run API error state: rejected as old server run API/cloud conversation details.
+- `0634a5e8c` Branch chip during handoff: rejected as cloud handoff.
+- `2e8dcc7e8` Create environment modal: rejected as cloud/remote environment product UI.
+- `81cc895d1` Local repo session detection: not applicable to the current fork. The current repo detection path does not have upstream's `RepoDetectionSessionType` branch and already derives detection input from the incoming block metadata/session.
+- `723bdf148` Cloud agent tombstone/follow-up visibility: rejected as cloud agent conversation UI.
+- `b816f9d21` Orchestration message previews collapsed by default: rejected as old orchestration/child-agent UI.
+- `efc1b4cbf` Common skill script resolution: rejected as bundled/common skills.
+- `fb9718c6d` WASM bindgens for secret types: rejected as managed secrets/WASM.
+- `252afbd62` Server quota display message: rejected as server quota/billing/cloud API behavior.
+- `ed92a44c1` Revert Linux/Wayland IME: rejected as native Linux host platform code.
+- `a99252686` Local-to-cloud handoff errors: rejected as cloud handoff.
+- `8ce7d14a9` File-based MCP wait behavior: rejected as app-managed MCP/file-based server orchestration. ACP owns MCP/tool configuration for this fork.
+- `fda540595` Gate DetectedRepositories usage for WASM: rejected as WASM platform gating.
+- `4c3c95a7c` Retry Cloud Mode after GitHub auth: rejected as cloud mode/GitHub auth flow.
+- `b930996b8` Named agent feature flags: rejected as old agent feature rollout.
+- `2abb851e0` Multi-harness flag promotion: rejected as old harness/agent SDK rollout.
+- `d6788cbe5` Team full alert: rejected as Teams/billing product UI.
+- `032750bd3` Hide handoff details panel: rejected as cloud handoff/shared-session viewer UI.
+- `127161b2d` Broadcom V3D Vulkan driver downrank: rejected as native Linux rendering/platform workaround.
+- `ed01fe452` Inno Setup minidump shutdown: rejected as Windows installer/crash-reporting path.
+- `0d6f1d6c6` Non-owner cloud conversation continuation: rejected as cloud conversation permissions.
+- `6b1e57e27` Do not fork in cloud for fork-from: rejected as cloud forking behavior.
+- `fa732953d` Replay skipping logging in shared session: rejected as cloud/shared-session replay diagnostics.
+
+## Verification For Batch 3 So Far
+
+- `cargo fmt`
+- `cargo fmt -- --check`
+- `git diff --check`
+- `cargo nextest run -p input_classifier`
+- `cargo nextest run -p remote_server`
+- `cargo nextest run -p warp -E 'test(test_context_menu_includes_clear_when_block_list_non_empty) | test(test_context_menu_omits_clear_when_block_list_empty) | test(test_context_menu_omits_clear_for_text_right_click) | test(test_clear_buffer)'`
+- `cargo check -p warp --all-targets --message-format short`
