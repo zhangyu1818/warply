@@ -4,14 +4,6 @@ use lazy_static::lazy_static;
 use natural_language_detection::check_if_token_has_shell_syntax;
 use warp_completer::ParsedTokensSnapshot;
 
-/// The percentage of input tokens that can be described by our completion engine before
-/// we consider the input as a shell command. This could be tuned.
-const DETECT_AS_COMMAND_THRESHOLD: f32 = 0.5;
-
-/// Threshold for the case when we have a low number of input tokens and require a higher
-/// confidence level. This could be tuned.
-const DETECT_AS_COMMAND_LOW_TOKEN_THRESHOLD: f32 = 0.7;
-
 lazy_static! {
     /// One-off commands / keywords that should trigger a shell command classification.
     ///
@@ -99,9 +91,7 @@ pub async fn is_likely_shell_command(
             return true;
         }
 
-        if token.token_description.is_some()
-            || check_if_token_has_shell_syntax(token.token.as_str())
-        {
+        if token.token_description.is_some() {
             likely_command_token_count += 1;
         }
 
@@ -110,15 +100,7 @@ pub async fn is_likely_shell_command(
         }
     }
 
-    // When token count is lower than 2, we should make sure all tokens
-    // are matching the target classification category.
-    let command_threshold = if total_token_count <= 2 {
-        1.0
-    } else if total_token_count <= 4 {
-        DETECT_AS_COMMAND_LOW_TOKEN_THRESHOLD
-    } else {
-        DETECT_AS_COMMAND_THRESHOLD
-    };
+    let command_threshold = 1.0;
 
     // Classify as shell if:
     // 1) We hit significant threshold of likely shell command tokens.
@@ -140,3 +122,7 @@ pub fn is_installed_binary(input: &ParsedTokensSnapshot) -> bool {
         .map(|token| token.token_description.is_some())
         .unwrap_or(false)
 }
+
+#[cfg(test)]
+#[path = "util_tests.rs"]
+mod tests;
