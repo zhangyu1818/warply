@@ -11,6 +11,7 @@
 //!    the existing 4-byte length-prefixed frame format.
 
 use std::fs::Permissions;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
@@ -18,6 +19,8 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use super::super::setup;
+
+const SUN_PATH_MAX: usize = 103;
 
 /// Path to the daemon's Unix domain socket.
 pub(super) fn socket_path(identity_key: &str) -> PathBuf {
@@ -84,6 +87,14 @@ pub(super) fn ensure_private_daemon_dir(path: &std::path::Path) -> anyhow::Resul
 pub fn run(identity_key: &str) -> anyhow::Result<()> {
     let socket_path = socket_path(identity_key);
     let pid_path = pid_path(identity_key);
+
+    let path_len = socket_path.as_os_str().as_bytes().len();
+    if path_len > SUN_PATH_MAX {
+        anyhow::bail!(
+            "daemon socket path is {path_len} bytes, which exceeds the sun_path limit of {SUN_PATH_MAX} bytes: {}",
+            socket_path.display()
+        );
+    }
 
     // Ensure the parent directory exists.
     if let Some(parent) = socket_path.parent() {

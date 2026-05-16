@@ -293,26 +293,20 @@ pub fn remote_server_dir() -> String {
     format!("~/{warp_dir}/remote-server")
 }
 
-/// Returns a filesystem-safe directory name for a remote-server identity key.
-///
-/// The identity key is not secret, but it can contain bytes that are unsafe or
-/// ambiguous in paths. Keep ASCII alphanumeric characters plus `-` and `_`;
-/// percent-encode all other UTF-8 bytes.
 pub fn remote_server_identity_dir_name(identity_key: &str) -> String {
     if identity_key.is_empty() {
         return "empty".to_string();
     }
 
-    let mut encoded = String::with_capacity(identity_key.len());
-    for byte in identity_key.bytes() {
-        match byte {
-            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' => {
-                encoded.push(byte as char);
-            }
-            _ => encoded.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    encoded
+    hash8(&identity_key)
+}
+
+fn hash8<T: std::hash::Hash + ?Sized>(value: &T) -> String {
+    use std::hash::Hasher;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())[..8].to_string()
 }
 
 /// Returns the identity-scoped remote directory used for the daemon socket
@@ -325,15 +319,19 @@ pub fn remote_server_daemon_dir(identity_key: &str) -> String {
     )
 }
 
+pub fn version_hash() -> Option<String> {
+    ChannelState::app_version().map(hash8)
+}
+
 pub fn daemon_socket_name() -> String {
-    match ChannelState::app_version() {
+    match version_hash() {
         Some(version) => format!("server-{version}.sock"),
         None => "server.sock".to_string(),
     }
 }
 
 pub fn daemon_pid_name() -> String {
-    match ChannelState::app_version() {
+    match version_hash() {
         Some(version) => format!("server-{version}.pid"),
         None => "server.pid".to_string(),
     }
