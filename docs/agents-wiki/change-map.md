@@ -91,8 +91,9 @@ This map explains the large fork baseline change at a path level.
 - Ported queued prompt text selection for retained AgentView terminal blocks, including copy-on-select and right-click copy integration with the existing terminal selection clearing model.
 - Ported the macOS AppKit minimum-window-size fix and the local `warp://tab_config/<name>` deeplink for retained tab config workflows. The upstream WASM tab-config stub was not ported.
 - Ported command palette fixed-filter cleanup by removing the stale hidden recent repos/conversations palette path and `HistoricalConversations` search filter. Do not restore upstream telemetry or app-side skill/model filters while keeping normal conversation and repo search filters.
-- Deferred upstream remote file-location and remote diff-state commits for a separate SSH remote-server/code review pass. They are relevant to retained SSH behavior, but the current fork lacks upstream's global buffer-location module layout.
-- Deferred upstream remote-server SCP tarball cache into a separate SSH remote-server installer review because it touches Warp-hosted binary download ownership.
+- Rejected upstream remote file-location, `LocalOrRemotePath`, and `RemoteDiffStateModel` commits after review because the fork lacks upstream's buffer-location/split-diff-state architecture. Existing code-pane selection-as-context remains retained and continues to feed file/line/text context into the terminal/ACP input path.
+- Rejected upstream remote-server SCP tarball caching because it depends on Warp-hosted remote-server tarball downloads. The fork keeps SSH/remote-server behavior but intentionally does not restore app-managed auto-install downloads.
+- Rejected upstream remote DetectedRepositories, branch RPC, and remote codebase-indexing commits where they would add unused protocol plumbing or old remote-environment/Agent SDK/MCP/skills dependencies. The retained remote file tree continues through `RemoteRepositoryIdentifier`, `RemoteRepoMetadataModel`, and remote file-context RPCs; future remote code review or ACP code search should be implemented from the retained callsite outward.
 
 ## 2026-05 macOS-Only Host Cleanup
 
