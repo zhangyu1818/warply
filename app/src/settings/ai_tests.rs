@@ -1,4 +1,5 @@
 use super::*;
+use crate::ai::acp::registry::DEFAULT_AGENT_ID;
 use crate::test_util::settings::initialize_settings_for_tests;
 use warpui::{App, SingletonEntity};
 
@@ -58,7 +59,7 @@ fn test_terminal_suggestions_settings_defaults() {
         initialize_settings_for_tests(&mut app);
 
         AISettings::handle(&app).read(&app, |settings, _ctx| {
-            assert_eq!(*settings.acp_agent_backend, AcpAgentBackend::Codex);
+            assert_eq!(settings.acp_agent_backend.as_str(), DEFAULT_AGENT_ID);
             assert!(settings.acp_default_config_options.is_empty());
             assert_eq!(settings.terminal_suggestions_endpoint.as_str(), "");
             assert_eq!(settings.terminal_suggestions_api_key.as_str(), "");
@@ -81,7 +82,7 @@ fn test_terminal_suggestions_getters_do_not_require_auth() {
         AISettings::handle(&app).read(&app, |settings, _ctx| {
             assert!(settings.is_terminal_next_command_enabled());
             assert!(settings.is_terminal_prompt_suggestions_enabled());
-            assert_eq!(settings.acp_agent_backend.adapter_command(), "codex-acp");
+            assert_eq!(settings.acp_agent_backend.as_str(), DEFAULT_AGENT_ID);
         });
     });
 }

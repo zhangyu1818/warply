@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use indexmap::IndexMap;
 
+use crate::ai::acp::registry::DEFAULT_AGENT_ID;
 use crate::terminal::CLIAgent;
 use cfg_if::cfg_if;
 use lazy_static::lazy_static;
@@ -66,48 +67,6 @@ impl DefaultSessionMode {
             DefaultSessionMode::Agent => "Agent",
             DefaultSessionMode::TabConfig => "Tab Config",
             DefaultSessionMode::DockerSandbox => "Local Docker Sandbox",
-        }
-    }
-}
-
-#[derive(
-    Default,
-    Debug,
-    serde::Serialize,
-    serde::Deserialize,
-    PartialEq,
-    Copy,
-    Clone,
-    EnumIter,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(description = "ACP agent backend.", rename_all = "snake_case")]
-pub enum AcpAgentBackend {
-    #[default]
-    Codex,
-    Claude,
-}
-
-impl AcpAgentBackend {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            AcpAgentBackend::Codex => "Codex",
-            AcpAgentBackend::Claude => "Claude",
-        }
-    }
-
-    pub fn adapter_command(&self) -> &'static str {
-        match self {
-            AcpAgentBackend::Codex => "codex-acp",
-            AcpAgentBackend::Claude => "claude-agent-acp",
-        }
-    }
-
-    pub fn install_command(&self) -> &'static str {
-        match self {
-            AcpAgentBackend::Codex => "npm i -g @zed-industries/codex-acp",
-            AcpAgentBackend::Claude => "npm i -g @agentclientprotocol/claude-agent-acp",
         }
     }
 }
@@ -404,8 +363,8 @@ impl settings_value::SettingsValue for ToolbarCommandMap {
 
 define_settings_group!(AISettings, settings: [
     acp_agent_backend: AcpAgentBackendSetting {
-        type: AcpAgentBackend,
-        default: AcpAgentBackend::Codex,
+        type: String,
+        default: DEFAULT_AGENT_ID.to_string(),
         supported_platforms: SupportedPlatforms::ALL,
         private: false,
         toml_path: "ai.acp.agent_backend",

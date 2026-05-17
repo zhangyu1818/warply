@@ -1,7 +1,9 @@
 use crate::ai::acp::config_options::{probe_config_options, AcpConfigOption};
+use crate::ai::acp::registry::AcpRegistryModel;
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors};
-use crate::settings::{AISettings, AcpAgentBackend, TerminalSuggestionEffort};
+use crate::settings::{AISettings, TerminalSuggestionEffort};
+use crate::terminal::local_shell::LocalShellState;
 use crate::view_components::{Dropdown, DropdownItem};
 use agent_client_protocol::schema::SessionConfigOptionCategory;
 use settings::{Setting, ToggleableSetting};
@@ -71,13 +73,8 @@ fn acp_config_option_dropdown_items(
         .values
         .iter()
         .map(|value| {
-            let label = if option.current_value == value.id {
-                value.name.clone()
-            } else {
-                format!("{} (override)", value.name)
-            };
             DropdownItem::new(
-                label,
+                value.name.clone(),
                 AISettingsPageAction::SetAcpDefaultConfigOption {
                     config_id: option.id.clone(),
                     value_id: value.id.clone(),
@@ -100,6 +97,43 @@ fn acp_config_option_description(option: &AcpConfigOption) -> Option<Cow<'_, str
             Some(Cow::Borrowed("Default approval mode for new sessions."))
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ai::acp::config_options::AcpConfigOptionValue;
+
+    #[test]
+    fn acp_config_option_dropdown_items_do_not_mark_overrides_in_labels() {
+        let option = AcpConfigOption {
+            id: "model".to_string(),
+            name: "Model".to_string(),
+            description: None,
+            category: None,
+            current_value: "default".to_string(),
+            values: vec![
+                AcpConfigOptionValue {
+                    id: "default".to_string(),
+                    name: "Default".to_string(),
+                },
+                AcpConfigOptionValue {
+                    id: "other".to_string(),
+                    name: "Other".to_string(),
+                },
+            ],
+        };
+
+        let items = acp_config_option_dropdown_items(&option);
+
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.display_text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Default", "Other"]
+        );
     }
 }
 
@@ -189,6 +223,12 @@ impl AISettingsPageView {
         let terminal_suggestions_effort_dropdown =
             Self::create_terminal_suggestions_effort_dropdown(ctx);
 
+        ctx.subscribe_to_model(&AcpRegistryModel::handle(ctx), |me, _, _, ctx| {
+            me.refresh_acp_agent_backend_dropdown(ctx);
+            me.refresh_acp_config_options(ctx);
+            ctx.notify();
+        });
+
         let mut view = Self {
             page: Self::build_page(ctx),
             acp_agent_backend_dropdown,
@@ -236,25 +276,46 @@ impl AISettingsPageView {
     fn create_acp_agent_backend_dropdown(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
-        let current = *AISettings::as_ref(ctx).acp_agent_backend;
+        let current = AISettings::as_ref(ctx).acp_agent_backend.to_string();
         ctx.add_typed_action_view(move |ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
             dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
-            dropdown.add_items(
-                AcpAgentBackend::iter()
-                    .map(|backend| {
-                        DropdownItem::new(
-                            backend.display_name(),
-                            AISettingsPageAction::SetAcpAgentBackend(backend),
-                        )
-                    })
-                    .collect(),
+            dropdown.set_items(Self::acp_agent_backend_dropdown_items(ctx), ctx);
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetAcpAgentBackend(current.clone()),
                 ctx,
             );
-            dropdown.set_selected_by_action(AISettingsPageAction::SetAcpAgentBackend(current), ctx);
             dropdown
         })
+    }
+
+    fn acp_agent_backend_dropdown_items(
+        ctx: &mut ViewContext<Dropdown<AISettingsPageAction>>,
+    ) -> Vec<DropdownItem<AISettingsPageAction>> {
+        let registry = AcpRegistryModel::as_ref(ctx).registry();
+        registry
+            .selectable_agents()
+            .into_iter()
+            .map(|agent| {
+                DropdownItem::new(
+                    agent.name.clone(),
+                    AISettingsPageAction::SetAcpAgentBackend(agent.id.clone()),
+                )
+            })
+            .collect()
+    }
+
+    fn refresh_acp_agent_backend_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
+        let current = AISettings::as_ref(ctx).acp_agent_backend.to_string();
+        self.acp_agent_backend_dropdown
+            .update(ctx, |dropdown, ctx| {
+                dropdown.set_items(Self::acp_agent_backend_dropdown_items(ctx), ctx);
+                dropdown.set_selected_by_action(
+                    AISettingsPageAction::SetAcpAgentBackend(current.clone()),
+                    ctx,
+                );
+            });
     }
 
     fn create_acp_config_option_dropdown(
@@ -296,7 +357,7 @@ impl AISettingsPageView {
     }
 
     fn refresh_acp_config_options(&mut self, ctx: &mut ViewContext<Self>) {
-        let backend = *AISettings::as_ref(ctx).acp_agent_backend;
+        let backend_id = AISettings::as_ref(ctx).acp_agent_backend.to_string();
         self.acp_config_options.clear();
         self.acp_config_option_dropdowns.clear();
 
@@ -305,15 +366,32 @@ impl AISettingsPageView {
             return;
         }
 
-        self.acp_config_options_status =
-            Some(format!("Loading {} options...", backend.display_name()));
+        let Some(launch) = AcpRegistryModel::as_ref(ctx)
+            .registry()
+            .launch_for_agent(&backend_id)
+        else {
+            self.acp_config_options_status = Some(format!(
+                "No ACP registry launch configuration for {backend_id}."
+            ));
+            ctx.notify();
+            return;
+        };
+        let display_name = launch.display_name.clone();
+        let install_command = launch.install_command.clone();
+        self.acp_config_options_status = Some(format!("Loading {} options...", display_name));
         ctx.notify();
 
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+        let adapter_path_env = LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
+            shell_state.get_interactive_path_env_var(ctx)
+        });
         let _ = ctx.spawn(
-            probe_config_options(backend, cwd),
+            async move {
+                let adapter_path_env = adapter_path_env.await;
+                probe_config_options(launch, cwd, adapter_path_env).await
+            },
             move |me, result, ctx| {
-                if *AISettings::as_ref(ctx).acp_agent_backend != backend {
+                if AISettings::as_ref(ctx).acp_agent_backend.as_str() != backend_id {
                     return;
                 }
 
@@ -332,9 +410,7 @@ impl AISettingsPageView {
                         me.acp_config_option_dropdowns.clear();
                         me.acp_config_options_status = Some(format!(
                             "{} options unavailable: {}. Install with {}.",
-                            backend.display_name(),
-                            err,
-                            backend.install_command()
+                            display_name, err, install_command
                         ));
                     }
                 }
@@ -395,7 +471,7 @@ impl Entity for AISettingsPageView {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AISettingsPageAction {
-    SetAcpAgentBackend(AcpAgentBackend),
+    SetAcpAgentBackend(String),
     SetAcpDefaultConfigOption { config_id: String, value_id: String },
     SetTerminalSuggestionsEffort(TerminalSuggestionEffort),
     ToggleTerminalNextCommand,
@@ -409,7 +485,7 @@ impl TypedActionView for AISettingsPageView {
         match action {
             AISettingsPageAction::SetAcpAgentBackend(backend) => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    if let Err(err) = settings.acp_agent_backend.set_value(*backend, ctx) {
+                    if let Err(err) = settings.acp_agent_backend.set_value(backend.clone(), ctx) {
                         log::warn!("Failed to set ACP agent backend: {err:?}");
                     }
                 });

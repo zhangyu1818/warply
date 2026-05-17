@@ -7,28 +7,61 @@ use agent_client_protocol::schema::{
     SessionInfoUpdate, SessionUpdate, TextContent, ToolCall, ToolCallUpdate, ToolCallUpdateFields,
 };
 
-use crate::settings::AcpAgentBackend;
-
+use super::backend::adapter_args;
 use super::config_options::flatten_config_options;
 use super::events::AcpEvent;
 use super::mapping::map_session_update;
 use super::model::default_config_options_to_apply;
+use super::registry::AcpAgentLaunch;
 use super::AcpToolCall;
 
+fn test_launch() -> AcpAgentLaunch {
+    AcpAgentLaunch {
+        agent_id: "test-agent".to_string(),
+        display_name: "Test Agent".to_string(),
+        command_line: vec![
+            "npx".to_string(),
+            "-y".to_string(),
+            "@example/test-agent".to_string(),
+        ],
+        env: vec![("TEST_AGENT_ENV".to_string(), "1".to_string())],
+        install_command: "npm i -g @example/test-agent".to_string(),
+    }
+}
+
 #[test]
-fn test_backend_commands_are_fixed() {
-    assert_eq!(AcpAgentBackend::Codex.adapter_command(), "codex-acp");
+fn test_adapter_args_include_shell_path() {
     assert_eq!(
-        AcpAgentBackend::Claude.adapter_command(),
-        "claude-agent-acp"
+        adapter_args(&test_launch(), Some("/custom/bin:/usr/bin")),
+        vec![
+            "PATH=/custom/bin:/usr/bin".to_string(),
+            "TEST_AGENT_ENV=1".to_string(),
+            "npx".to_string(),
+            "-y".to_string(),
+            "@example/test-agent".to_string()
+        ]
+    );
+}
+
+#[test]
+fn test_adapter_args_omit_empty_shell_path() {
+    assert_eq!(
+        adapter_args(&test_launch(), Some("")),
+        vec![
+            "TEST_AGENT_ENV=1".to_string(),
+            "npx".to_string(),
+            "-y".to_string(),
+            "@example/test-agent".to_string()
+        ]
     );
     assert_eq!(
-        AcpAgentBackend::Codex.install_command(),
-        "npm i -g @zed-industries/codex-acp"
-    );
-    assert_eq!(
-        AcpAgentBackend::Claude.install_command(),
-        "npm i -g @agentclientprotocol/claude-agent-acp"
+        adapter_args(&test_launch(), None),
+        vec![
+            "TEST_AGENT_ENV=1".to_string(),
+            "npx".to_string(),
+            "-y".to_string(),
+            "@example/test-agent".to_string()
+        ]
     );
 }
 

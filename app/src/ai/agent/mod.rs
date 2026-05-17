@@ -1826,7 +1826,7 @@ pub fn extract_user_query_mode(query: String) -> (String, UserQueryMode) {
 pub fn display_user_query_with_mode(mode: UserQueryMode, query: &str) -> String {
     match mode {
         UserQueryMode::Normal => query.to_owned(),
-        UserQueryMode::Plan => format!("{} {query}", commands::PLAN.name),
+        UserQueryMode::Plan => format!("{} {query}", commands::PLAN_NAME),
     }
 }
 
@@ -1973,7 +1973,7 @@ impl AIAgentInput {
             } => Some(url.query.clone()),
             Self::InitProjectRules { display_query, .. } => display_query.clone(),
             Self::CodeReview { .. } => Some("Address these comments".to_string()),
-            Self::FetchReviewComments { .. } => Some(commands::PR_COMMENTS.name.to_string()),
+            Self::FetchReviewComments { .. } => Some(commands::PR_COMMENTS_NAME.to_string()),
             Self::AutoCodeDiffQuery { .. }
             | Self::ActionResult { .. }
             | Self::ResumeConversation { .. } => None,

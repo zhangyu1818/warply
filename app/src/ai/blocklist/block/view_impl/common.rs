@@ -2708,7 +2708,7 @@ pub struct UserQueryProps<'a> {
 pub(crate) fn user_query_mode_prefix_highlight_len(mode: UserQueryMode) -> Option<usize> {
     match mode {
         UserQueryMode::Normal => None,
-        UserQueryMode::Plan => Some(commands::PLAN.name.len()),
+        UserQueryMode::Plan => Some(commands::PLAN_NAME.len()),
     }
 }
 

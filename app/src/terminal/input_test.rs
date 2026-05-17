@@ -103,6 +103,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
+    app.add_singleton_model(crate::ai::acp::registry::AcpRegistryModel::new_for_test);
     app.add_singleton_model(AcpAgentModel::new_for_test);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
@@ -2193,7 +2194,7 @@ fn test_completions_while_typing_doesnt_hide_autosuggestion() {
 }
 
 #[test]
-fn test_slash_command_composition_does_not_force_agent_mode() {
+fn test_removed_plan_slash_command_does_not_force_agent_mode() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -2228,15 +2229,15 @@ fn test_slash_command_composition_does_not_force_agent_mode() {
         input.read(&app, |input, ctx| {
             assert!(matches!(
                 input.suggestions_mode_model.as_ref(ctx).mode(),
-                InputSuggestionsMode::Closed
+                InputSuggestionsMode::SlashCommands
             ));
-            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert!(!input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
         });
     });
 }
 
 #[test]
-fn test_plan_slash_command_argument_with_slash_does_not_disable_slash_command_parsing() {
+fn test_slash_command_argument_with_slash_does_not_disable_slash_command_parsing() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -2249,7 +2250,7 @@ fn test_plan_slash_command_argument_with_slash_does_not_disable_slash_command_pa
 
         input.update(&mut app, |input, ctx| {
             input.set_input_mode_natural_language_detection(ctx);
-            input.user_insert("/plan investigate app/src/main.rs", ctx);
+            input.user_insert("/agent investigate app/src/main.rs", ctx);
         });
 
         input.read(&app, |input, ctx| {
@@ -2485,7 +2486,7 @@ fn test_open_slash_command_expands_tilde() {
 }
 
 #[test]
-fn test_auto_enter_slash_command_enters_agent_mode_from_locked_shell() {
+fn test_removed_plan_slash_command_does_not_enter_agent_mode_from_locked_shell() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 
@@ -2512,7 +2513,7 @@ fn test_auto_enter_slash_command_enters_agent_mode_from_locked_shell() {
 
         input.read(&app, |input, ctx| {
             let ai_model = input.ai_input_model.as_ref(ctx);
-            assert!(ai_model.is_ai_input_enabled());
+            assert!(!ai_model.is_ai_input_enabled());
             assert!(ai_model.is_input_type_locked());
         });
     });

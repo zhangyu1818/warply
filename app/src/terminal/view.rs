@@ -2429,7 +2429,7 @@ impl TerminalView {
                                         AgentViewZeroStateEvent::ClickedInitCallout => {
                                             me.input.update(ctx, |input, ctx| {
                                                 input.replace_buffer_content(
-                                                    commands::INIT.name,
+                                                    commands::INIT_NAME,
                                                     ctx,
                                                 );
                                             });

@@ -2,6 +2,7 @@ use crate::ai::acp::model::AcpAgentModel;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::search::data_source::Query;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
+use crate::search::slash_command_menu::static_commands::commands;
 use crate::search::SyncDataSource;
 use crate::terminal::input::tests::{add_window_with_bootstrapped_terminal, initialize_app};
 use warpui::SingletonEntity;
@@ -63,6 +64,54 @@ fn short_prefix_match_ranks_above_longer_fuzzy_match() {
         short_score > long_score,
         "/new score ({short_score}) should be greater than /figma-create-new-file score ({long_score})"
     );
+}
+
+#[test]
+fn retained_terminal_static_commands_are_active() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let input = terminal.read(&app, |view, _| view.input().clone());
+        let slash_command_data_source =
+            input.read(&app, |input, _| input.slash_command_data_source.clone());
+
+        slash_command_data_source.read(&app, |data_source, _| {
+            let names = active_static_command_names(data_source);
+
+            for command in [
+                commands::AGENT.name,
+                commands::NEW.name,
+                commands::CONVERSATIONS.name,
+                commands::PROMPTS.name,
+                commands::ADD_PROMPT.name,
+                commands::ADD_RULE.name,
+                commands::OPEN_RULES.name,
+                commands::RENAME_TAB.name,
+                commands::SET_TAB_COLOR.name,
+                commands::EDIT.name,
+                commands::CREATE_DOCKER_SANDBOX.name,
+                commands::OPEN_REPO.name,
+            ] {
+                assert!(
+                    names.contains(&command),
+                    "{command} should remain available as a local app slash command"
+                );
+            }
+
+            for removed in [
+                commands::PLAN_NAME,
+                commands::INIT_NAME,
+                "/create-new-project",
+                commands::PR_COMMENTS_NAME,
+            ] {
+                assert!(
+                    !names.contains(&removed),
+                    "{removed} should be supplied by ACP available commands instead"
+                );
+            }
+        });
+    });
 }
 
 #[test]
@@ -143,6 +192,13 @@ fn acp_available_commands_are_visible_only_for_active_acp_conversation() {
             assert_eq!(acp_command_names(data_source, ctx, "beta"), vec!["beta"]);
         });
     });
+}
+
+fn active_static_command_names(data_source: &super::SlashCommandDataSource) -> Vec<&'static str> {
+    data_source
+        .active_commands()
+        .map(|(_, command)| command.name)
+        .collect()
 }
 
 fn acp_command_names(

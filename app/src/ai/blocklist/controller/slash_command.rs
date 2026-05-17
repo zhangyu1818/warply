@@ -24,17 +24,6 @@ pub enum SlashCommandRequest {
 }
 
 impl SlashCommandRequest {
-    /// Parses user input into a SlashCommandRequest for slash commands that are handled
-    /// via the AI query flow (as opposed to action-based slash commands handled in input.rs).
-    pub fn from_query(query: &str) -> Option<SlashCommandRequest> {
-        // Check if this is an exact /init query and route it to InitProjectRules instead
-        if query == "/init" {
-            return Some(Self::InitProjectRules);
-        }
-
-        None
-    }
-
     pub(super) fn send_request(
         self,
         controller: &mut BlocklistAIController,

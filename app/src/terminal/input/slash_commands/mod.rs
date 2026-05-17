@@ -15,7 +15,7 @@ use warpui::clipboard::ClipboardContent;
 use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, InputType, SlashCommandRequest};
+use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, InputType};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::object_ids::SyncId;
@@ -356,17 +356,9 @@ impl Input {
             return true;
         }
 
-        let is_supported_ai_command = command.name == commands::AGENT.name
-            || command.name == commands::CONVERSATIONS.name
-            || command.name == commands::CREATE_DOCKER_SANDBOX.name
-            || command.name == commands::PLAN.name;
-        if command.availability.contains(Availability::AI_ENABLED) && !is_supported_ai_command {
-            return false;
-        }
-
         // Handle the slash command action based on its kind
         match command.name {
-            agent if command.name == commands::AGENT.name => {
+            agent if command.name == commands::AGENT.name || command.name == commands::NEW.name => {
                 let prompt = argument.and_then(|argument| {
                     let trimmed = argument.trim();
                     if trimmed.is_empty() {
@@ -459,19 +451,6 @@ impl Input {
                 };
 
                 ctx.dispatch_typed_action(&WorkspaceAction::SetActiveTabColor(color));
-            }
-            create_project if command.name == commands::CREATE_NEW_PROJECT.name => {
-                if argument.is_none_or(|args| args.is_empty()) {
-                    show_error_toast(
-                        "Please describe the project you want to create after /create-new-project"
-                            .to_owned(),
-                        ctx,
-                    );
-                    return true;
-                }
-
-                let args = argument.expect("args are Some()");
-                self.initiate_create_new_project(args.to_owned(), ctx);
             }
             edit if command.name == commands::EDIT.name => {
                 #[cfg(feature = "local_fs")]
@@ -585,9 +564,6 @@ impl Input {
             export_to_file if command.name == commands::EXPORT_TO_FILE.name => {
                 self.export_conversation_to_file(argument.map(|filename| filename.to_owned()), ctx);
             }
-            init if command.name == commands::INIT.name => {
-                ctx.dispatch_typed_action(&TerminalAction::InitProject);
-            }
             open_code_review if command.name == commands::OPEN_CODE_REVIEW.name => {
                 ctx.dispatch_typed_action(&TerminalAction::ToggleCodeReviewPane {
                     entrypoint: CodeReviewPaneEntrypoint::SlashCommand,
@@ -610,25 +586,6 @@ impl Input {
             }
             rewind if command.name == commands::REWIND.name => {
                 self.open_rewind_menu(ctx);
-            }
-            pr_comments if command.name == commands::PR_COMMENTS.name => {
-                let Some(repo_path) = self
-                    .active_session_path_if_local(ctx)
-                    .map(|path| path.to_path_buf())
-                    .map(|path| path.to_string_lossy().to_string())
-                else {
-                    log::error!(
-                        "Expected a valid working directory since /pr-comments is only available from the terminal"
-                    );
-                    return false;
-                };
-
-                self.ai_controller.update(ctx, move |controller, ctx| {
-                    controller.send_slash_command_request(
-                        SlashCommandRequest::FetchReviewComments { repo_path },
-                        ctx,
-                    )
-                });
             }
             fork if command.name == commands::FORK.name => {
                 let Some(conversation_id) = self
@@ -688,14 +645,6 @@ impl Input {
             }
             open_repo if command.name == commands::OPEN_REPO.name => {
                 self.open_repos_menu(ctx);
-            }
-            command_that_just_sends_ai_request_with_prefix
-                if command.name == commands::PLAN.name =>
-            {
-                // These slash commands just send AI requests with the slash command text as a
-                // prefix, and special handling is done downstream as an implementation detail
-                // of handling user queries with specific slash command prefixes.
-                return false;
             }
             _ => {
                 debug_assert!(

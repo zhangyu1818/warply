@@ -17,32 +17,14 @@ pub static AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: Some(Argument::optional().with_execute_on_selection()),
 });
 
-pub const PR_COMMENTS: StaticCommand = StaticCommand {
-    name: "/pr-comments",
-    description: "Pull GitHub PR review comments",
-    icon_path: "bundled/svg/github.svg",
-    availability: Availability::REPOSITORY.union(Availability::AI_ENABLED),
-    auto_enter_ai_mode: true,
-    argument: None,
-};
-
 pub const CREATE_DOCKER_SANDBOX: StaticCommand = StaticCommand {
     name: "/docker-sandbox",
     description: "Create a new docker sandbox terminal session",
     icon_path: "bundled/svg/docker.svg",
-    availability: Availability::LOCAL.union(Availability::AI_ENABLED),
+    availability: Availability::LOCAL,
     auto_enter_ai_mode: false,
     argument: None,
 };
-
-pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/create-new-project",
-    description: "Have the agent walk you through creating a new coding project",
-    icon_path: "bundled/svg/plus.svg",
-    availability: Availability::LOCAL | Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: Some(Argument::required().with_hint_text("<describe what you want to build>")),
-});
 
 pub static ADD_PROMPT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/add-prompt",
@@ -125,16 +107,7 @@ pub const OPEN_CODE_REVIEW: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const INIT: StaticCommand = StaticCommand {
-    name: "/init",
-    description: "Generate an AGENTS.md file",
-    icon_path: "bundled/svg/warp-2.svg",
-    availability: Availability::REPOSITORY
-        .union(Availability::AGENT_VIEW)
-        .union(Availability::AI_ENABLED),
-    auto_enter_ai_mode: true,
-    argument: None,
-};
+pub const INIT_NAME: &str = "/init";
 
 pub const OPEN_PROJECT_RULES: StaticCommand = StaticCommand {
     name: "/open-project-rules",
@@ -158,7 +131,7 @@ pub const OPEN_REPO: StaticCommand = StaticCommand {
     name: "/open-repo",
     description: "Switch to another indexed repository",
     icon_path: "bundled/svg/folder.svg",
-    availability: Availability::LOCAL.union(Availability::AI_ENABLED),
+    availability: Availability::LOCAL,
     auto_enter_ai_mode: false,
     argument: None,
 };
@@ -182,15 +155,7 @@ pub static NEW: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
 });
 
 pub const PLAN_NAME: &str = "/plan";
-
-pub static PLAN: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: PLAN_NAME,
-    description: "Prompt the agent to do some research and create a plan for a task",
-    icon_path: "bundled/svg/file-06.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: true,
-    argument: Some(Argument::optional().with_hint_text("<describe your task>")),
-});
+pub const PR_COMMENTS_NAME: &str = "/pr-comments";
 
 /// If `query` starts with the given command `name` followed by a space,
 /// returns the remainder of the query. Otherwise returns `None`.
@@ -342,12 +307,10 @@ fn all_commands() -> Vec<StaticCommand> {
     let mut commands = vec![
         ADD_PROMPT.clone(),
         ADD_RULE,
-        INIT,
         OPEN_PROJECT_RULES,
         OPEN_RULES,
         AGENT.clone(),
         NEW.clone(),
-        PLAN.clone(),
         RENAME_TAB.clone(),
         SET_TAB_COLOR.clone(),
         CONVERSATIONS,
@@ -360,8 +323,6 @@ fn all_commands() -> Vec<StaticCommand> {
 
     commands.push(OPEN_CODE_REVIEW);
 
-    commands.push(CREATE_NEW_PROJECT.clone());
-
     commands.push(QUEUE.clone());
 
     commands.push(FORK.clone());
@@ -369,8 +330,6 @@ fn all_commands() -> Vec<StaticCommand> {
     commands.push(FORK_FROM);
 
     commands.extend([EDIT.clone(), EXPORT_TO_FILE.clone()]);
-
-    commands.push(PR_COMMENTS);
 
     commands.push(REWIND);
 
@@ -395,6 +354,16 @@ mod tests {
         let mut seen = HashSet::new();
         for name in names {
             assert!(seen.insert(name), "duplicate slash command name: {name}");
+        }
+    }
+
+    #[test]
+    fn agent_semantic_commands_are_not_registered_as_static_commands() {
+        for name in [PLAN_NAME, INIT_NAME, "/create-new-project", "/pr-comments"] {
+            assert!(
+                COMMAND_REGISTRY.get_command_with_name(name).is_none(),
+                "{name} should come from ACP available commands instead of the app static registry"
+            );
         }
     }
 

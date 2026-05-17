@@ -392,11 +392,6 @@ impl BlocklistAIController {
             self.cancel_conversation_progress(active_conversation_id, cancellation_reason, ctx);
         }
 
-        if let Some(slash_command_request) = SlashCommandRequest::from_query(query.as_str()) {
-            slash_command_request.send_request(self, is_queued_prompt, ctx);
-            return;
-        }
-
         let (query, user_query_mode) = extract_user_query_mode(query);
 
         let should_prepend_finished_action_results = matches!(
@@ -1067,12 +1062,18 @@ impl BlocklistAIController {
 
     fn acp_model_info(app: &AppContext) -> (LLMId, String) {
         let settings = AISettings::as_ref(app);
-        let backend = *settings.acp_agent_backend;
+        let backend_id = settings.acp_agent_backend.as_str();
         let display_name = settings
             .acp_default_config_options
             .get("model")
             .cloned()
-            .unwrap_or_else(|| backend.display_name().to_string());
+            .unwrap_or_else(|| {
+                crate::ai::acp::registry::AcpRegistryModel::as_ref(app)
+                    .registry()
+                    .launch_for_agent(backend_id)
+                    .map(|launch| launch.display_name)
+                    .unwrap_or_else(|| backend_id.to_string())
+            });
         (LLMId::from(display_name.clone()), display_name)
     }
 

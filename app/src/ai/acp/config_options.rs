@@ -7,7 +7,8 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use agent_client_protocol_tokio::AcpAgent;
 
-use crate::settings::AcpAgentBackend;
+use super::backend::adapter_args;
+use super::registry::AcpAgentLaunch;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AcpConfigOption {
@@ -67,10 +68,11 @@ pub fn flatten_config_options(options: &[SessionConfigOption]) -> Vec<AcpConfigO
 }
 
 pub async fn probe_config_options(
-    backend: AcpAgentBackend,
+    launch: AcpAgentLaunch,
     cwd: PathBuf,
+    path_env_var: Option<String>,
 ) -> anyhow::Result<Vec<AcpConfigOption>> {
-    let agent = AcpAgent::from_args([backend.adapter_command()])?;
+    let agent = AcpAgent::from_args(adapter_args(&launch, path_env_var.as_deref()))?;
 
     let config_options = Client
         .builder()

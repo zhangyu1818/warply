@@ -216,7 +216,7 @@ impl MessageProvider<TerminalMessageArgs<'_>> for PlanMessageProducer {
             current_input, app, ..
         } = args;
 
-        if !current_input.trim_start().starts_with(commands::PLAN.name) {
+        if !current_input.trim_start().starts_with(commands::PLAN_NAME) {
             return None;
         }
 

@@ -32,8 +32,7 @@ use crate::{
     },
     search::{
         slash_command_menu::{
-            static_commands::commands::{self, COMMAND_REGISTRY},
-            SlashCommandId, StaticCommand,
+            static_commands::commands::COMMAND_REGISTRY, SlashCommandId, StaticCommand,
         },
         SyncDataSource,
     },
@@ -188,13 +187,6 @@ impl SlashCommandDataSource {
         self.active_commands_by_id = HashMap::from_iter(
             COMMAND_REGISTRY
                 .all_commands_by_id()
-                .filter(|(_, command)| {
-                    command.name == commands::AGENT.name
-                        || command.name == commands::CONVERSATIONS.name
-                        || command.name == commands::CREATE_DOCKER_SANDBOX.name
-                        || command.name == commands::PLAN.name
-                        || !command.availability.contains(Availability::AI_ENABLED)
-                })
                 .filter(|(_, command)| command.is_active(session_context))
                 // When CLI agent input is open, restrict to the explicit allowlist.
                 .filter(|(_, command)| {

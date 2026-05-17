@@ -31,11 +31,13 @@ use crate::ai::agent::CancellationReason;
 use crate::ai::agent::RenderableAIError;
 use crate::ai::blocklist::{AcpResponseStreamTarget, BlocklistAIHistoryModel, ResponseStreamId};
 use crate::ai::llms::LLMId;
-use crate::settings::{AISettings, AcpAgentBackend};
+use crate::settings::AISettings;
+use crate::terminal::local_shell::LocalShellState;
 
-use super::backend::adapter_is_available;
+use super::backend::{adapter_args, adapter_is_available};
 use super::events::AcpEvent;
 use super::mapping::{map_session_update, session_update_label};
+use super::registry::{AcpAgentLaunch, AcpRegistryModel};
 use super::{
     AcpCommands, AcpPermissionRequest, AcpPermissionSelection, AcpPlan, AcpSessionInfo,
     AcpSessionState, AcpTerminalTrace,
@@ -191,12 +193,26 @@ impl AcpAgentModel {
         ctx: &mut ModelContext<Self>,
     ) {
         let settings = AISettings::as_ref(ctx);
-        let backend = *settings.acp_agent_backend;
+        let backend_id = settings.acp_agent_backend.to_string();
         let default_config_options = settings.acp_default_config_options.clone();
+        let Some(launch) = AcpRegistryModel::as_ref(ctx)
+            .registry()
+            .launch_for_agent(&backend_id)
+        else {
+            self.handle_event(
+                AcpEvent::Failed {
+                    message: format!("No ACP registry launch configuration for {backend_id}"),
+                },
+                &target,
+                ctx,
+            );
+            return;
+        };
+        let command = launch.command_line.join(" ");
         log::info!(
             "ACP: submit requested backend={} command={} cwd={} prompt_bytes={} target={} default_config_options={}",
-            backend.display_name(),
-            backend.adapter_command(),
+            launch.display_name,
+            command,
             cwd.display(),
             display_prompt.len(),
             target_summary(&target),
@@ -208,22 +224,9 @@ impl AcpAgentModel {
             return;
         }
 
-        if !adapter_is_available(backend) {
-            log::warn!(
-                "ACP: adapter missing command={} install_command={}",
-                backend.adapter_command(),
-                backend.install_command(),
-            );
-            self.handle_event(
-                AcpEvent::AdapterMissing {
-                    command: backend.adapter_command().to_string(),
-                    install_command: backend.install_command().to_string(),
-                },
-                &target,
-                ctx,
-            );
-            return;
-        }
+        let adapter_path_env = LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
+            shell_state.get_interactive_path_env_var(ctx)
+        });
 
         self.state = AcpAgentState::Starting;
         let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
@@ -242,18 +245,19 @@ impl AcpAgentModel {
         let completion_target = target;
         log::info!(
             "ACP: spawning adapter task backend={} command={}",
-            backend.display_name(),
-            backend.adapter_command(),
+            launch.display_name,
+            command,
         );
         ctx.spawn(
             run_one_prompt(
-                backend,
+                launch,
                 default_config_options,
                 display_prompt,
                 content_blocks,
                 cwd,
                 events_tx,
                 cancel_rx,
+                adapter_path_env,
             ),
             move |me, result, ctx| match result {
                 Ok(()) => {
@@ -311,7 +315,10 @@ impl AcpAgentModel {
         self.apply_event_to_history(&event, target, ctx);
         if matches!(
             event,
-            AcpEvent::Completed | AcpEvent::Cancelled | AcpEvent::Failed { .. }
+            AcpEvent::Completed
+                | AcpEvent::Cancelled
+                | AcpEvent::Failed { .. }
+                | AcpEvent::AdapterMissing { .. }
         ) {
             self.pending_session_cancels.remove(&target.conversation_id);
         }
@@ -652,27 +659,46 @@ impl AcpAgentModel {
 }
 
 async fn run_one_prompt(
-    backend: AcpAgentBackend,
+    launch: AcpAgentLaunch,
     default_config_options: HashMap<String, String>,
     display_prompt: String,
     content_blocks: Vec<ContentBlock>,
     cwd: PathBuf,
     events: UnboundedSender<AcpRuntimeEvent>,
     mut cancel_rx: mpsc::UnboundedReceiver<()>,
+    adapter_path_env: impl std::future::Future<Output = Option<String>>,
 ) -> anyhow::Result<()> {
+    let adapter_path_env = adapter_path_env.await;
+    let command = launch.command_line.first().cloned().unwrap_or_default();
+    let command_line = launch.command_line.join(" ");
     log::info!(
-        "ACP: starting adapter backend={} command={} cwd={} prompt_bytes={} default_config_options={}",
-        backend.display_name(),
-        backend.adapter_command(),
+        "ACP: starting adapter backend={} command={} cwd={} prompt_bytes={} default_config_options={} has_path_env={}",
+        launch.display_name,
+        command_line,
         cwd.display(),
         display_prompt.len(),
         default_config_options.len(),
+        adapter_path_env.is_some(),
     );
-    let agent = AcpAgent::from_args([backend.adapter_command()])?;
-    log::info!(
-        "ACP: adapter process configured command={}",
-        backend.adapter_command(),
-    );
+    if !adapter_is_available(&launch, adapter_path_env.as_deref()) {
+        log::warn!(
+            "ACP: adapter missing command={} install_command={}",
+            command,
+            launch.install_command,
+        );
+        if events
+            .unbounded_send(AcpRuntimeEvent::Event(AcpEvent::AdapterMissing {
+                command,
+                install_command: launch.install_command.clone(),
+            }))
+            .is_err()
+        {
+            log::warn!("ACP: failed to publish adapter missing event");
+        }
+        return Ok(());
+    }
+    let agent = AcpAgent::from_args(adapter_args(&launch, adapter_path_env.as_deref()))?;
+    log::info!("ACP: adapter process configured command={}", command_line,);
     if events
         .unbounded_send(AcpRuntimeEvent::Event(AcpEvent::SessionStarted))
         .is_err()

@@ -54,7 +54,7 @@ fn query_prefix_highlight_len_keeps_existing_plan_highlighting() {
 
     assert_eq!(
         query_prefix_highlight_len(&input, "/plan write tests"),
-        Some(commands::PLAN.name.len())
+        Some(commands::PLAN_NAME.len())
     );
 }
 
