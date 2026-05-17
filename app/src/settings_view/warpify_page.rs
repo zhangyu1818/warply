@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use regex::Regex;
-use settings::Setting;
+use settings::{Setting, ToggleableSetting};
 use strum::IntoEnumIterator;
 use warpui::elements::{FormattedTextElement, HighlightedHyperlink};
 use warpui::keymap::ContextPredicate;
@@ -21,6 +21,7 @@ use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySetting
 use crate::ui_components::blended_colors;
 use crate::{
     appearance::Appearance,
+    settings::log_setting_result,
     terminal::warpify::settings::WarpifySettings,
     view_components::{SubmittableTextInput, SubmittableTextInputEvent},
 };
@@ -417,7 +418,14 @@ impl TypedActionView for WarpifyPageView {
             RemoveDenylistedCommand(index) => self.remove_denylisted_command(*index, ctx),
             RemoveAddedCommand(index) => self.remove_added_command(*index, ctx),
             ToggleSshWarpification => {
-                WarpifySettings::handle(ctx).update(ctx, |_ssh_settings, _ctx| {});
+                WarpifySettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
+                    log_setting_result(
+                        ssh_settings
+                            .enable_ssh_warpification
+                            .toggle_and_save_value(ctx),
+                        "enable_ssh_warpification",
+                    );
+                });
                 let enabled = *WarpifySettings::as_ref(ctx)
                     .enable_ssh_warpification
                     .value();
@@ -431,10 +439,22 @@ impl TypedActionView for WarpifyPageView {
                     });
             }
             ToggleTmuxWarpification => {
-                WarpifySettings::handle(ctx).update(ctx, |_ssh_settings, _ctx| {});
+                WarpifySettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
+                    log_setting_result(
+                        ssh_settings.use_ssh_tmux_wrapper.toggle_and_save_value(ctx),
+                        "use_ssh_tmux_wrapper",
+                    );
+                });
             }
-            SetSshExtensionInstallMode(_mode) => {
-                WarpifySettings::handle(ctx).update(ctx, |_warpify_settings, _ctx| {});
+            SetSshExtensionInstallMode(mode) => {
+                WarpifySettings::handle(ctx).update(ctx, |warpify_settings, ctx| {
+                    log_setting_result(
+                        warpify_settings
+                            .ssh_extension_install_mode
+                            .set_value(*mode, ctx),
+                        "ssh_extension_install_mode",
+                    );
+                });
             }
             WarpifyPageAction::RemoveDenylistedSshHost(index) => {
                 self.remove_denylisted_ssh_host(*index, ctx);

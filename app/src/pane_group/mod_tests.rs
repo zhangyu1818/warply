@@ -278,6 +278,28 @@ fn test_pane_focus_on_close() {
 }
 
 #[test]
+fn test_prev_pane_id_skips_hidden_positional_candidate() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let pane_group = mock_pane_group(&mut app, Default::default());
+
+        pane_group.update(&mut app, |panes, ctx| {
+            panes.add_terminal_pane(Direction::Right, None, ctx);
+            panes.add_terminal_pane(Direction::Right, None, ctx);
+
+            let a = panes.pane_id_by_index(0).expect("pane 0 exists");
+            let b = panes.pane_id_by_index(1).expect("pane 1 exists");
+            let c = panes.pane_id_by_index(2).expect("pane 2 exists");
+
+            panes.panes.hide_closed_pane(b);
+            panes.pane_history = vec![c];
+
+            assert_eq!(panes.prev_pane_id(c), Some(a));
+        })
+    });
+}
+
+#[test]
 fn test_active_session_id_reset_on_last_pane_close() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);

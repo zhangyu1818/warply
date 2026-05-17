@@ -25,13 +25,14 @@ use crate::{
             config::{Config, SettingType},
             model::{ImportedConfigModel, TerminalTypeAndProfile},
         },
-        AppEditorSettings, FontSettings, GlobalHotkeyMode, SelectionSettings, ThemeSettings,
+        log_setting_result, AppEditorSettings, CursorBlink, FontSettings, GlobalHotkeyMode,
+        SelectionSettings, ThemeSettings,
     },
     terminal::{
         alt_screen_reporting::AltScreenReporting, keys_settings::KeysSettings,
         session_settings::SessionSettings,
     },
-    themes::theme::{CustomTheme, ThemeKind},
+    themes::theme::{CustomTheme, SelectedSystemThemes, ThemeKind},
     ui_components::blended_colors,
     user_config::{self, WarpConfig},
     window_settings::WindowSettings,
@@ -570,26 +571,72 @@ impl SettingsImportView {
                 return;
             };
 
-            KeysSettings::handle(ctx).update(ctx, |_keys_settings, _ctx| {
-                if let Some(_extra_meta_keys) = config.option_as_meta.importable_value() {}
+            KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
+                if let Some(extra_meta_keys) = config.option_as_meta.importable_value() {
+                    log_setting_result(
+                        keys_settings
+                            .extra_meta_keys
+                            .set_value(extra_meta_keys, ctx),
+                        "extra_meta_keys",
+                    );
+                }
             });
-            if let Some(Some(_mouse_and_scroll_reporting)) =
+            if let Some(Some(mouse_and_scroll_reporting)) =
                 config.mouse_and_scroll_reporting.importable_value()
             {
-                AltScreenReporting::handle(ctx).update(ctx, |_reporting, _ctx| {});
-            }
-            if let Some(font) = config.font.importable_value() {
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {
-                    if let Some(_font_size) = font.size {}
-                    if let Some(_font_family) = font.family {}
+                AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
+                    log_setting_result(
+                        reporting
+                            .mouse_reporting_enabled
+                            .set_value(mouse_and_scroll_reporting.mouse_reporting, ctx),
+                        "mouse_reporting_enabled",
+                    );
+                    log_setting_result(
+                        reporting
+                            .scroll_reporting_enabled
+                            .set_value(mouse_and_scroll_reporting.scroll_reporting, ctx),
+                        "scroll_reporting_enabled",
+                    );
                 });
             }
-            if let Some(Some(_default_shell)) = config.default_shell.importable_value() {
-                SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            if let Some(font) = config.font.importable_value() {
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    if let Some(font_size) = font.size {
+                        log_setting_result(
+                            font_settings.monospace_font_size.set_value(font_size, ctx),
+                            "monospace_font_size",
+                        );
+                    }
+                    if let Some(font_family) = font.family {
+                        log_setting_result(
+                            font_settings
+                                .monospace_font_name
+                                .set_value(font_family, ctx),
+                            "monospace_font_name",
+                        );
+                    }
+                });
+            }
+            if let Some(Some(default_shell)) = config.default_shell.importable_value() {
+                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .startup_shell_override
+                            .set_value(default_shell, ctx),
+                        "startup_shell_override",
+                    );
+                });
             }
 
-            if let Some(Some(_working_directory)) = config.working_directory.importable_value() {
-                SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            if let Some(Some(working_directory)) = config.working_directory.importable_value() {
+                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .working_directory_config
+                            .set_value(working_directory, ctx),
+                        "working_directory_config",
+                    );
+                });
             }
             if let Some(Ok(hotkey_mode)) = config.hotkey_mode.importable_value() {
                 match hotkey_mode {
@@ -608,22 +655,74 @@ impl SettingsImportView {
                 }
             }
 
-            WindowSettings::handle(ctx).update(ctx, |_window_settings, ctx| {
+            WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+                if let Some((cols, rows)) = config.window_size.importable_value() {
+                    if cols.is_some() || rows.is_some() {
+                        log_setting_result(
+                            window_settings
+                                .open_windows_at_custom_size
+                                .set_value(true, ctx),
+                            "open_windows_at_custom_size",
+                        );
+                    }
+                    if let Some(cols) = cols {
+                        log_setting_result(
+                            window_settings.new_windows_num_columns.set_value(cols, ctx),
+                            "new_windows_num_columns",
+                        );
+                    }
+                    if let Some(rows) = rows {
+                        log_setting_result(
+                            window_settings.new_windows_num_rows.set_value(rows, ctx),
+                            "new_windows_num_rows",
+                        );
+                    }
+                }
                 if let Some(opacity_settings) = config.opacity.importable_value() {
-                    if let Some(_opacity) = opacity_settings.opacity {}
+                    if let Some(opacity) = opacity_settings.opacity {
+                        log_setting_result(
+                            window_settings.background_opacity.set_value(opacity, ctx),
+                            "background_opacity",
+                        );
+                    }
                     if let Some(blur_radius) = opacity_settings.blur_radius {
                         ctx.windows()
                             .set_all_windows_background_blur_radius(blur_radius);
+                        log_setting_result(
+                            window_settings
+                                .background_blur_radius
+                                .set_value(blur_radius, ctx),
+                            "background_blur_radius",
+                        );
                     }
                 }
             });
 
-            if let Some(Some(_copy_on_select)) = config.copy_on_select.importable_value() {
-                SelectionSettings::handle(ctx).update(ctx, |_selection_settings, _ctx| {});
+            if let Some(Some(copy_on_select)) = config.copy_on_select.importable_value() {
+                SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+                    log_setting_result(
+                        selection_settings
+                            .copy_on_select
+                            .set_value(copy_on_select, ctx),
+                        "copy_on_select",
+                    );
+                });
             }
 
-            if let Some(Some(_cursor_blinking)) = config.cursor_blinking.importable_value() {
-                AppEditorSettings::handle(ctx).update(ctx, |_me, _ctx| {});
+            if let Some(Some(cursor_blinking)) = config.cursor_blinking.importable_value() {
+                AppEditorSettings::handle(ctx).update(ctx, |me, ctx| {
+                    log_setting_result(
+                        me.cursor_blink.set_value(
+                            if cursor_blinking {
+                                CursorBlink::Enabled
+                            } else {
+                                CursorBlink::Disabled
+                            },
+                            ctx,
+                        ),
+                        "cursor_blink",
+                    );
+                });
             }
         });
 
@@ -631,10 +730,52 @@ impl SettingsImportView {
     }
 
     fn reset_preferences(&self, ctx: &mut ViewContext<SettingsImportView>) {
-        ThemeSettings::handle(ctx).update(ctx, |_theme_settings, _ctx| {});
-        AltScreenReporting::handle(ctx).update(ctx, |_reporting, _ctx| {});
-        FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
-        SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+        ThemeSettings::handle(ctx).update(ctx, |theme_settings, ctx| {
+            log_setting_result(
+                theme_settings
+                    .selected_system_themes
+                    .set_value_to_default(ctx),
+                "selected_system_themes",
+            );
+            log_setting_result(
+                theme_settings.theme_kind.set_value_to_default(ctx),
+                "theme_kind",
+            );
+            log_setting_result(
+                theme_settings.use_system_theme.set_value_to_default(ctx),
+                "use_system_theme",
+            );
+        });
+        AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
+            log_setting_result(
+                reporting.mouse_reporting_enabled.set_value_to_default(ctx),
+                "mouse_reporting_enabled",
+            );
+            log_setting_result(
+                reporting.scroll_reporting_enabled.set_value_to_default(ctx),
+                "scroll_reporting_enabled",
+            );
+        });
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings.monospace_font_size.set_value_to_default(ctx),
+                "monospace_font_size",
+            );
+            log_setting_result(
+                font_settings.monospace_font_name.set_value_to_default(ctx),
+                "monospace_font_name",
+            );
+        });
+        SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings.startup_shell_override.set_value_to_default(ctx),
+                "startup_shell_override",
+            );
+            log_setting_result(
+                settings.working_directory_config.set_value_to_default(ctx),
+                "working_directory_config",
+            );
+        });
 
         KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
             self.remove_old_keybindings(ctx, keys_settings);
@@ -642,13 +783,41 @@ impl SettingsImportView {
                 &GlobalHotkeyMode::Disabled,
                 ctx,
             );
+            log_setting_result(
+                keys_settings.extra_meta_keys.set_value_to_default(ctx),
+                "extra_meta_keys",
+            );
         });
 
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .open_windows_at_custom_size
+                    .set_value_to_default(ctx),
+                "open_windows_at_custom_size",
+            );
+            log_setting_result(
+                window_settings.background_opacity.set_value_to_default(ctx),
+                "background_opacity",
+            );
+            log_setting_result(
+                window_settings
+                    .background_blur_radius
+                    .set_value_to_default(ctx),
+                "background_blur_radius",
+            );
+        });
 
-        SelectionSettings::handle(ctx).update(ctx, |_selection_settings, _ctx| {});
+        SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+            log_setting_result(
+                selection_settings.copy_on_select.set_value_to_default(ctx),
+                "copy_on_select",
+            );
+        });
 
-        AppEditorSettings::handle(ctx).update(ctx, |_me, _ctx| {});
+        AppEditorSettings::handle(ctx).update(ctx, |me, ctx| {
+            log_setting_result(me.cursor_blink.set_value_to_default(ctx), "cursor_blink");
+        });
 
         ctx.notify();
     }
@@ -672,7 +841,22 @@ impl SettingsImportView {
 
                 let dark_kind =
                     ThemeKind::Custom(CustomTheme::new(dark.name().unwrap_or_default(), dark_path));
-                ThemeSettings::handle(ctx).update(ctx, |_theme_settings, _ctx| {});
+                ThemeSettings::handle(ctx).update(ctx, |theme_settings, ctx| {
+                    log_setting_result(
+                        theme_settings.selected_system_themes.set_value(
+                            SelectedSystemThemes {
+                                light: light_kind.clone(),
+                                dark: dark_kind.clone(),
+                            },
+                            ctx,
+                        ),
+                        "selected_system_themes",
+                    );
+                    log_setting_result(
+                        theme_settings.use_system_theme.set_value(true, ctx),
+                        "use_system_theme",
+                    );
+                });
                 WarpConfig::handle(ctx).update(ctx, |config, ctx| {
                     config.add_new_theme_to_config(dark_kind, dark, ctx)
                 });
@@ -687,7 +871,16 @@ impl SettingsImportView {
                     theme.name().unwrap_or_default(),
                     theme_path,
                 ));
-                ThemeSettings::handle(ctx).update(ctx, |_theme_settings, _ctx| {});
+                ThemeSettings::handle(ctx).update(ctx, |theme_settings, ctx| {
+                    log_setting_result(
+                        theme_settings.theme_kind.set_value(theme_kind.clone(), ctx),
+                        "theme_kind",
+                    );
+                    log_setting_result(
+                        theme_settings.use_system_theme.set_value(false, ctx),
+                        "use_system_theme",
+                    );
+                });
                 WarpConfig::handle(ctx).update(ctx, |config, ctx| {
                     config.add_new_theme_to_config(theme_kind, theme, ctx)
                 });

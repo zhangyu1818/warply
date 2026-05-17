@@ -58,6 +58,15 @@ use warp_editor::editor::NavigationKey;
 use warpui::AddSingletonModel;
 use warpui::{platform::WindowStyle, App, ViewHandle};
 
+#[cfg(feature = "local_fs")]
+#[test]
+fn markdown_viewer_file_target_routes_to_file_notebook() {
+    assert_eq!(
+        workspace_file_target_route(&FileTarget::MarkdownViewer(EditorLayout::SplitPane)),
+        WorkspaceFileTargetRoute::FileNotebook(EditorLayout::SplitPane)
+    );
+}
+
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 

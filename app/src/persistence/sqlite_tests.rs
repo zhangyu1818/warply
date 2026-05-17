@@ -17,8 +17,24 @@ use crate::{
 
 use super::{
     decode_path, deduplicate_events, encode_path, handle_model_event, read_sqlite_data,
-    save_app_state, setup_database,
+    save_app_state, setup_database, sqlite_log_level,
 };
+
+#[test]
+fn sqlite_wal_recovery_notice_logs_at_debug() {
+    assert_eq!(
+        sqlite_log_level(libsqlite3_sys::SQLITE_NOTICE_RECOVER_WAL),
+        log::Level::Debug
+    );
+}
+
+#[test]
+fn sqlite_autoindex_warning_stays_warn() {
+    assert_eq!(
+        sqlite_log_level(libsqlite3_sys::SQLITE_WARNING_AUTOINDEX),
+        log::Level::Warn
+    );
+}
 
 #[test]
 fn test_deduplicate_snapshots() {

@@ -183,24 +183,7 @@ unsafe fn init_logging() {
     use std::ptr;
 
     extern "C-unwind" fn log_callback(_data: *mut c_void, err_code: c_int, msg: *const c_char) {
-        // `err_code` is an extended error code (https://www.sqlite.org/rescode.html#primary_result_codes_versus_extended_result_codes).
-        // In general, the least-significant byte of an extended error code is the primary error
-        // code it belongs to. Each primary error code can also be used where an extended error
-        // code is expected (for example, `SQLITE_SCHEMA` has no extended error codes).
-        let primary_error_code = err_code & 0xFF;
-        let level = match (primary_error_code, err_code) {
-            // This usually means that a schema change invalidated a prepared statement.
-            (sqlite3::SQLITE_SCHEMA, _) => log::Level::Debug,
-            // These are used with sqlite3_log, in extensions.
-            (sqlite3::SQLITE_NOTICE | sqlite3::SQLITE_WARNING, _) => log::Level::Warn,
-            // According to the docs, this error means that the database file was moved (or deleted),
-            // so SQLite can't safely modify it and the rollback journal:
-            //     https://www.sqlite.org/rescode.html#readonly_dbmoved
-            // This is mostly outside of Warp's control (e.g. the user or some system program is
-            // moving around files in the user data directory), so downgrade to a warning.
-            (_, sqlite3::SQLITE_READONLY_DBMOVED) => log::Level::Warn,
-            _ => log::Level::Error,
-        };
+        let level = sqlite_log_level(err_code);
 
         // Safety: the message pointer came from the SQLite library, which promises that it's a
         // valid C string pointer.
@@ -234,6 +217,19 @@ unsafe fn init_logging() {
             );
         }
     });
+}
+
+fn sqlite_log_level(err_code: i32) -> log::Level {
+    let primary_error_code = err_code & 0xFF;
+    match (primary_error_code, err_code) {
+        (_, sqlite3::SQLITE_NOTICE_RECOVER_WAL | sqlite3::SQLITE_NOTICE_RECOVER_ROLLBACK) => {
+            log::Level::Debug
+        }
+        (sqlite3::SQLITE_SCHEMA, _) => log::Level::Debug,
+        (sqlite3::SQLITE_NOTICE | sqlite3::SQLITE_WARNING, _) => log::Level::Warn,
+        (_, sqlite3::SQLITE_READONLY_DBMOVED) => log::Level::Warn,
+        _ => log::Level::Error,
+    }
 }
 
 /// Determines the db path, establishes a connection and runs any migrations.

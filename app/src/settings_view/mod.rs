@@ -9,7 +9,7 @@ use crate::{
     pane_group::{
         pane::view, BackingView, Direction, PaneConfiguration, PaneEvent, SplitPaneState,
     },
-    settings::{BlockVisibilitySettings, SettingsFileError},
+    settings::{log_setting_result, BlockVisibilitySettings, SettingsFileError},
     terminal::{model::blockgrid::BlockGrid, SizeInfo},
     ui_components::icons,
     util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction},
@@ -1304,9 +1304,12 @@ impl SettingsView {
                 BlockVisibilitySettings::handle(ctx).update(
                     ctx,
                     |block_visibility_settings, ctx| {
-                        let _ = block_visibility_settings
-                            .should_show_bootstrap_block
-                            .toggle_and_save_value(ctx);
+                        log_setting_result(
+                            block_visibility_settings
+                                .should_show_bootstrap_block
+                                .toggle_and_save_value(ctx),
+                            "should_show_bootstrap_block",
+                        );
                     },
                 );
             }
@@ -1314,9 +1317,12 @@ impl SettingsView {
                 BlockVisibilitySettings::handle(ctx).update(
                     ctx,
                     |block_visibility_settings, ctx| {
-                        let _ = block_visibility_settings
-                            .should_show_in_band_command_blocks
-                            .toggle_and_save_value(ctx);
+                        log_setting_result(
+                            block_visibility_settings
+                                .should_show_in_band_command_blocks
+                                .toggle_and_save_value(ctx),
+                            "should_show_in_band_command_blocks",
+                        );
                     },
                 );
             }

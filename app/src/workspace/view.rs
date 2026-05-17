@@ -88,7 +88,7 @@ use crate::code::editor_management::CodeSource;
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::pane_group::{
     AIFactPane, CodeReviewPanelArg, Direction as PaneGroupDirection, ExecutionProfileEditorPane,
-    PaneGroup, PaneId, TerminalPaneId,
+    FilePane, PaneGroup, PaneId, TerminalPaneId,
 };
 use crate::quit_warning::UnsavedStateSummary;
 use crate::search::command_palette::view::NavigationMode;
@@ -333,6 +333,29 @@ use warpui::{
 };
 
 use crate::terminal::view::LeftPanelTargetView;
+
+#[cfg(feature = "local_fs")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspaceFileTargetRoute {
+    FileNotebook(EditorLayout),
+    CodeEditor(EditorLayout),
+    EnvEditor,
+    ExternalEditor,
+    SystemDefault,
+    SystemGeneric,
+}
+
+#[cfg(feature = "local_fs")]
+fn workspace_file_target_route(target: &FileTarget) -> WorkspaceFileTargetRoute {
+    match target {
+        FileTarget::MarkdownViewer(layout) => WorkspaceFileTargetRoute::FileNotebook(*layout),
+        FileTarget::CodeEditor(layout) => WorkspaceFileTargetRoute::CodeEditor(*layout),
+        FileTarget::EnvEditor => WorkspaceFileTargetRoute::EnvEditor,
+        FileTarget::ExternalEditor(_) => WorkspaceFileTargetRoute::ExternalEditor,
+        FileTarget::SystemDefault => WorkspaceFileTargetRoute::SystemDefault,
+        FileTarget::SystemGeneric => WorkspaceFileTargetRoute::SystemGeneric,
+    }
+}
 
 /// The padding that should be applied to the workspace as a whole.
 pub const WORKSPACE_PADDING: f32 = 1.0;
@@ -3613,22 +3636,12 @@ impl Workspace {
             return;
         }
 
-        match target {
-            FileTarget::MarkdownViewer(layout) => {
-                self.open_code(
-                    CodeSource::Link {
-                        path: path.clone(),
-                        range_start: None,
-                        range_end: None,
-                    },
-                    layout,
-                    None,
-                    false,
-                    &[],
-                    ctx,
-                );
+        match workspace_file_target_route(&target) {
+            WorkspaceFileTargetRoute::FileNotebook(layout) => {
+                let session = self.get_active_session(ctx);
+                self.open_file_notebook(path.clone(), session, layout, ctx);
             }
-            FileTarget::EnvEditor => {
+            WorkspaceFileTargetRoute::EnvEditor => {
                 let editor_value: Option<String> = self
                     .get_active_session(ctx)
                     .and_then(|session| session.editor().map(|s| s.to_string()));
@@ -3680,22 +3693,24 @@ impl Workspace {
 
                 crate::util::file::open_file_path_in_external_editor(line_col, path.clone(), ctx);
             }
-            FileTarget::CodeEditor(layout) => {
+            WorkspaceFileTargetRoute::CodeEditor(layout) => {
                 let open_as_preview = false;
                 self.open_code(code_source, layout, line_col, open_as_preview, &[], ctx);
             }
-            FileTarget::ExternalEditor(editor) => {
-                crate::util::file::open_file_path_with_editor(
-                    line_col,
-                    path.clone(),
-                    Some(editor),
-                    ctx,
-                );
+            WorkspaceFileTargetRoute::ExternalEditor => {
+                if let FileTarget::ExternalEditor(editor) = target {
+                    crate::util::file::open_file_path_with_editor(
+                        line_col,
+                        path.clone(),
+                        Some(editor),
+                        ctx,
+                    );
+                }
             }
-            FileTarget::SystemDefault => {
+            WorkspaceFileTargetRoute::SystemDefault => {
                 crate::util::file::open_file_path_with_editor(line_col, path.clone(), None, ctx);
             }
-            FileTarget::SystemGeneric => {
+            WorkspaceFileTargetRoute::SystemGeneric => {
                 ctx.open_file_path(&path);
             }
         }
@@ -4515,6 +4530,33 @@ impl Workspace {
             Some("Settings".to_owned()),
             ctx,
         );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn open_file_notebook(
+        &mut self,
+        path: PathBuf,
+        session: Option<Arc<Session>>,
+        layout: EditorLayout,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let pane = FilePane::new(Some(path), session, None, ctx);
+
+        match layout {
+            EditorLayout::NewTab => {
+                let new_tab_placement_setting = TabSettings::as_ref(ctx).new_tab_placement;
+                let new_idx = match new_tab_placement_setting {
+                    NewTabPlacement::AfterAllTabs => self.tab_count(),
+                    NewTabPlacement::AfterCurrentTab => self.active_tab_index + 1,
+                };
+                self.add_tab_from_existing_pane(Box::new(pane), new_idx, ctx);
+            }
+            EditorLayout::SplitPane => {
+                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                    pane_group.add_pane_with_direction(Direction::Right, pane, true, ctx);
+                });
+            }
+        }
     }
 
     fn attach_path_as_context(&mut self, path: PathBuf, ctx: &mut ViewContext<Self>) {
@@ -8967,22 +9009,11 @@ impl Workspace {
                 );
             }
             #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-            pane_group::Event::OpenFileInWarp { path, session: _ } => {
+            pane_group::Event::OpenFileInWarp { path, session } => {
                 #[cfg(feature = "local_fs")]
                 {
                     let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
-                    self.open_code(
-                        CodeSource::Link {
-                            path: path.clone(),
-                            range_start: None,
-                            range_end: None,
-                        },
-                        layout,
-                        None,
-                        false,
-                        &[],
-                        ctx,
-                    );
+                    self.open_file_notebook(path.clone(), Some(session.clone()), layout, ctx);
                 }
             }
             #[cfg(feature = "local_fs")]

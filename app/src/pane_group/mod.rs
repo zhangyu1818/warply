@@ -132,6 +132,7 @@ pub use pane::code_diff_pane::CodeDiffPane;
 pub use pane::code_pane::CodePane;
 pub use pane::env_var_collection_pane::EnvVarCollectionPane;
 pub use pane::execution_profile_editor_pane::ExecutionProfileEditorPane;
+pub use pane::file_pane::FilePane;
 pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
 pub use pane::welcome_pane::WelcomePane;
@@ -3131,6 +3132,24 @@ impl PaneGroup {
         }
     }
 
+    #[cfg(feature = "local_fs")]
+    fn replace_code_pane_with_file_pane(
+        &mut self,
+        code_pane_id: PaneId,
+        path: std::path::PathBuf,
+        source: Option<crate::code::editor_management::CodeSource>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        use crate::pane_group::FilePane;
+
+        let file_pane = FilePane::new(Some(path), None, source, ctx);
+        let success = self.replace_pane(code_pane_id, file_pane, false, ctx);
+
+        if !success {
+            log::error!("Failed to replace code pane {code_pane_id:?} with file pane");
+        }
+    }
+
     /// Handle a common pane event, such as splitting off another pane.
     fn handle_pane_event(
         &mut self,
@@ -3177,6 +3196,10 @@ impl PaneGroup {
             #[cfg(feature = "local_fs")]
             PaneEvent::ReplaceWithCodePane { path, source } => {
                 self.replace_file_pane_with_code_pane(pane_id, path.clone(), source.clone(), ctx);
+            }
+            #[cfg(feature = "local_fs")]
+            PaneEvent::ReplaceWithFilePane { path, source } => {
+                self.replace_code_pane_with_file_pane(pane_id, path.clone(), source.clone(), ctx);
             }
             PaneEvent::RepoChanged => {
                 ctx.emit(Event::RepoChanged);
@@ -3487,13 +3510,21 @@ impl PaneGroup {
             }
         }
 
-        // Fall back to the most recently focused pane that still exists and is visible.
-        self.pane_history
+        if let Some(id) = self
+            .pane_history
             .iter()
             .rfind(|&&id| {
                 id != current_pane && self.has_pane_id(id) && !self.is_pane_hidden_for_close(id)
             })
             .copied()
+        {
+            return Some(id);
+        }
+
+        self.panes
+            .visible_pane_ids()
+            .into_iter()
+            .find(|&id| id != current_pane && self.has_pane_id(id))
     }
 
     /// Returns of the ID of the previous pane, like iTerm does

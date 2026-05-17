@@ -41,6 +41,13 @@ pub use scroll::*;
 pub use select::*;
 pub use theme::*;
 pub use vim_banner::*;
+
+pub(crate) fn log_setting_result<T, E: std::fmt::Display>(result: Result<T, E>, setting: &str) {
+    if let Err(error) = result {
+        log::error!("Failed to persist setting change for {setting}: {error}");
+    }
+}
+
 /// Describes errors encountered when loading settings from `settings.toml`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SettingsFileError {

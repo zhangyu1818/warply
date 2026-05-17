@@ -8,6 +8,7 @@ use warpui::{
 use crate::{
     appearance::Appearance,
     editor::{EditorView, Event, SingleLineEditorOptions, TextOptions},
+    settings::log_setting_result,
     terminal::{
         available_shells::{AvailableShell, AvailableShells},
         local_tty::shell::is_valid_path_or_command_for_supported_shell,
@@ -242,7 +243,12 @@ impl TypedActionView for StartupShellView {
                     self.should_display_editor = false;
                     ctx.notify();
                 }
-                AvailableShells::handle(ctx).update(ctx, |_shells, _ctx| {});
+                AvailableShells::handle(ctx).update(ctx, |shells, ctx| {
+                    log_setting_result(
+                        shells.set_user_preferred_shell(shell.clone(), ctx),
+                        "startup_shell_override",
+                    );
+                });
             }
         }
     }

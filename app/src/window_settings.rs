@@ -11,15 +11,6 @@ define_settings_group!(WindowSettings, settings: [
         toml_path: "appearance.window.override_blur",
         description: "The blur radius applied to the window background.",
     },
-    background_blur_texture: BackgroundBlurTexture {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::MAC,
-        private: false,
-        storage_key: "OverrideBlurTexture",
-        toml_path: "appearance.window.override_blur_texture",
-        description: "Whether to apply a blur texture to the window background.",
-    }
     background_opacity: BackgroundOpacity {
         type: u8,
         default: 100,

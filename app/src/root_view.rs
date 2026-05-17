@@ -378,7 +378,7 @@ pub fn create_transferred_window(
             window_bounds,
             title: Some(WINDOW_TITLE.to_owned()),
             background_blur_radius_pixels: Some(*window_settings.background_blur_radius),
-            background_blur_texture: *window_settings.background_blur_texture,
+            background_blur_texture: false,
             on_gpu_driver_selected: on_gpu_driver_selected_callback(),
             ..Default::default()
         },
@@ -429,12 +429,9 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
     if let Some(app_state) = &arg.app_state {
         maybe_register_global_window_shortcuts(global_resource_handles.clone(), ctx);
 
-        let (background_blur_radius_pixels, background_blur_texture) = {
+        let background_blur_radius_pixels = {
             let window_settings = WindowSettings::as_ref(ctx);
-            (
-                Some(*window_settings.background_blur_radius),
-                *window_settings.background_blur_texture,
-            )
+            Some(*window_settings.background_blur_radius)
         };
 
         // Check whether user has enabled session restoration.
@@ -459,7 +456,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                             title: Some("Warply".to_owned()),
                             fullscreen_state: window.fullscreen_state,
                             background_blur_radius_pixels,
-                            background_blur_texture,
+                            background_blur_texture: false,
                             // Don't use the quake window for positioning new windows.
                             anchor_new_windows_from_closed_position:
                                 NextNewWindowsHasThisWindowsBoundsUponClose::No,
@@ -501,7 +498,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                                 title: Some("Warply".to_owned()),
                                 fullscreen_state: window.fullscreen_state,
                                 background_blur_radius_pixels,
-                                background_blur_texture,
+                                background_blur_texture: false,
                                 on_gpu_driver_selected: on_gpu_driver_selected_callback(),
                                 ..Default::default()
                             },
@@ -553,7 +550,7 @@ fn open_from_restored(arg: &OpenFromRestoredArg, ctx: &mut AppContext) {
                         title: Some("Warply".to_owned()),
                         fullscreen_state: window.fullscreen_state,
                         background_blur_radius_pixels,
-                        background_blur_texture,
+                        background_blur_texture: false,
                         on_gpu_driver_selected: on_gpu_driver_selected_callback(),
                         ..Default::default()
                     },
@@ -703,7 +700,7 @@ fn default_window_options(window_settings: &WindowSettings, ctx: &AppContext) ->
         window_bounds: next_bounds,
         title: Some("Warply".to_owned()),
         background_blur_radius_pixels: Some(*window_settings.background_blur_radius),
-        background_blur_texture: *window_settings.background_blur_texture,
+        background_blur_texture: false,
         on_gpu_driver_selected: on_gpu_driver_selected_callback(),
         ..Default::default()
     }
@@ -886,7 +883,7 @@ fn toggle_quake_mode_window(global_resource_handles: &GlobalResourceHandles, ctx
                     window_bounds: WindowBounds::ExactPosition(config.window_bounds),
                     title: Some("Warply".to_owned()),
                     background_blur_radius_pixels: Some(*window_settings.background_blur_radius),
-                    background_blur_texture: *window_settings.background_blur_texture,
+                    background_blur_texture: false,
                     // Ignore the quake window for positioning the next window
                     anchor_new_windows_from_closed_position:
                         warpui::NextNewWindowsHasThisWindowsBoundsUponClose::No,

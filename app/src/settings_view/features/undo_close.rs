@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use settings::{Setting, ToggleableSetting};
 use warpui::{
     elements::{Container, CrossAxisAlignment, Flex, MainAxisAlignment, ParentElement, Text},
     ui_components::{
@@ -12,6 +13,7 @@ use warpui::{
 use crate::{
     appearance::Appearance,
     editor::{self, EditorView, SingleLineEditorOptions, TextOptions},
+    settings::log_setting_result,
     settings_view::{
         features_page::render_group,
         settings_page::{render_body_item, ToggleState},
@@ -202,19 +204,26 @@ impl TypedActionView for UndoCloseView {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut warpui::ViewContext<Self>) {
         match action {
             Action::ToggleUndoCloseEnabled => {
-                UndoCloseSettings::handle(ctx).update(ctx, |_settings, _ctx| {})
+                UndoCloseSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(settings.enabled.toggle_and_save_value(ctx), "enabled");
+                })
             }
             Action::UpdateGracePeriod => {
                 let grace_period_secs = self
                     .grace_period_editor
                     .read(ctx, |editor, ctx| editor.buffer_text(ctx));
-                let Some(_grace_period) = Self::parse_grace_period(&grace_period_secs) else {
+                let Some(grace_period) = Self::parse_grace_period(&grace_period_secs) else {
                     self.is_grace_period_valid = false;
                     return;
                 };
 
                 self.is_grace_period_valid = true;
-                UndoCloseSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                UndoCloseSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.grace_period.set_value(grace_period, ctx),
+                        "grace_period",
+                    );
+                });
             }
         }
     }

@@ -2,6 +2,7 @@
 
 use warpui::{
     elements::{Hoverable, MouseStateHandle},
+    fonts,
     platform::Cursor,
     ui_components::components::UiComponent as _,
     Element,
@@ -9,8 +10,58 @@ use warpui::{
 
 use crate::{
     appearance::Appearance,
+    settings::{derived_notebook_font_size, FontSettings},
+    themes::theme::Fill,
     ui_components::{buttons::icon_button, icons::Icon},
 };
+
+use warpui::{
+    elements::{Container, CrossAxisAlignment, Flex, MainAxisAlignment, ParentElement},
+    units::{IntoPixels, Pixels},
+};
+
+const TITLE_FONT_MULTIPLIER: f32 = 1.4;
+const EDITOR_MAX_WIDTH: f32 = 640.;
+const TITLE_MARGIN: f32 = 16.;
+const EDITOR_PADDING_LEFT: f32 = 4.;
+const EDITOR_PADDING_TOP: f32 = 4.;
+
+pub fn title_font_size(font_settings: &FontSettings) -> f32 {
+    derived_notebook_font_size(font_settings) * TITLE_FONT_MULTIPLIER
+}
+
+pub const TITLE_FONT_PROPERTIES: fonts::Properties = fonts::Properties {
+    style: fonts::Style::Normal,
+    weight: fonts::Weight::Bold,
+};
+
+pub fn wrap_title(title: Box<dyn Element>, details: Option<Box<dyn Element>>) -> Box<dyn Element> {
+    let mut contents = Flex::column()
+        .with_cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_main_axis_alignment(MainAxisAlignment::Center);
+
+    if let Some(details) = details {
+        contents.add_child(Container::new(details).with_padding_bottom(4.).finish())
+    };
+
+    contents.add_child(title);
+
+    Container::new(contents.finish())
+        .with_uniform_margin(TITLE_MARGIN)
+        .finish()
+}
+
+pub fn wrap_body(body: Box<dyn Element>) -> Box<dyn Element> {
+    Container::new(body)
+        .with_padding_left(EDITOR_PADDING_LEFT)
+        .with_padding_top(EDITOR_PADDING_TOP)
+        .finish()
+}
+
+pub fn title_text_fill(appearance: &Appearance) -> Fill {
+    let theme = appearance.theme();
+    theme.sub_text_color(theme.background())
+}
 
 /// Builds an action button for a block's footer (such as the button to run a command or embedded
 /// workflow).
@@ -33,4 +84,8 @@ pub(super) fn block_footer_action_button(
         .build()
         // Revert to the default cursor instead of the editor I-beam
         .with_cursor(Cursor::Arrow)
+}
+
+pub fn notebook_editor_max_width() -> Pixels {
+    EDITOR_MAX_WIDTH.into_pixels()
 }

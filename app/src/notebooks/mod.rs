@@ -1,5 +1,6 @@
 pub mod editor;
 pub mod events;
+pub mod file;
 pub mod link;
 mod styles;
 
@@ -16,6 +17,7 @@ pub enum NotebookLocation {
 /// Initialize notebooks-related keybindings.
 pub fn init(app: &mut AppContext) {
     self::editor::view::init(app);
+    self::file::init(app);
 }
 
 /// Post process a notebook's content read from an external system. This cleans up extra

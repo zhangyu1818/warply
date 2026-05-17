@@ -22,13 +22,13 @@ use crate::editor::{
 };
 use crate::search::command_search::settings::CommandSearchSettings;
 use crate::settings::ai::AISettings;
-use crate::settings::{AISettingsChangedEvent, ScrollSettingsChangedEvent};
 use crate::settings::{
-    AliasExpansionSettings, AppEditorSettings, CodeSettings, CtrlTabBehavior, DefaultSessionMode,
-    ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
-    QuakeModeSettings, ScrollSettings, SelectionSettings, TabBehavior,
+    log_setting_result, AliasExpansionSettings, AppEditorSettings, CodeSettings, CtrlTabBehavior,
+    DefaultSessionMode, ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings,
+    InputSettingsChangedEvent, QuakeModeSettings, ScrollSettings, SelectionSettings, TabBehavior,
     DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, QUAKE_WINDOW_AUTOHIDE_SUPPORTED,
 };
+use crate::settings::{AISettingsChangedEvent, ScrollSettingsChangedEvent};
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::{KeysSettings, KeysSettingsChangedEvent};
@@ -683,29 +683,74 @@ impl TypedActionView for FeaturesPageView {
         use FeaturesPageAction::*;
 
         match action {
-            SetCtrlTabBehavior(_ctrl_tab_behavior) => {
-                KeysSettings::handle(ctx).update(ctx, |_keys_settings, _ctx| {});
+            SetCtrlTabBehavior(ctrl_tab_behavior) => {
+                KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
+                    log_setting_result(
+                        keys_settings
+                            .ctrl_tab_behavior
+                            .set_value(*ctrl_tab_behavior, ctx),
+                        "ctrl_tab_behavior",
+                    );
+                });
             }
             ToggleCopyOnSelect => {
-                SelectionSettings::handle(ctx).update(ctx, |_selection_settings, _ctx| {});
+                SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+                    log_setting_result(
+                        selection_settings.copy_on_select.toggle_and_save_value(ctx),
+                        "copy_on_select",
+                    );
+                });
             }
             ToggleSnackbar => {
-                BlockListSettings::handle(ctx).update(ctx, |_blocklist_settings, _ctx| {});
+                BlockListSettings::handle(ctx).update(ctx, |blocklist_settings, ctx| {
+                    log_setting_result(
+                        blocklist_settings
+                            .snackbar_enabled
+                            .toggle_and_save_value(ctx),
+                        "snackbar_enabled",
+                    );
+                });
             }
             ToggleGlobalWorkflowsInUniversalSearch => {
-                CommandSearchSettings::handle(ctx).update(ctx, |_workflow_settings, _ctx| {});
+                CommandSearchSettings::handle(ctx).update(ctx, |workflow_settings, ctx| {
+                    log_setting_result(
+                        workflow_settings
+                            .show_global_workflows_in_universal_search
+                            .toggle_and_save_value(ctx),
+                        "show_global_workflows_in_universal_search",
+                    );
+                });
             }
             ToggleCodeAsDefaultEditor => {
-                CodeSettings::handle(ctx).update(ctx, |_code_settings, _ctx| {})
+                CodeSettings::handle(ctx).update(ctx, |code_settings, ctx| {
+                    log_setting_result(
+                        code_settings
+                            .code_as_default_editor
+                            .toggle_and_save_value(ctx),
+                        "code_as_default_editor",
+                    );
+                })
             }
             ToggleNotifications => {
                 ctx.dispatch_typed_action(&WorkspaceAction::ToggleNotifications);
             }
             ToggleRestoreSession => {
-                GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {})
+                GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+                    log_setting_result(
+                        general_settings.restore_session.toggle_and_save_value(ctx),
+                        "restore_session",
+                    );
+                })
             }
             ToggleAutocompleteSymbols => {
-                AppEditorSettings::handle(ctx).update(ctx, |_editor_settings, _ctx| {})
+                AppEditorSettings::handle(ctx).update(ctx, |editor_settings, ctx| {
+                    log_setting_result(
+                        editor_settings
+                            .autocomplete_symbols
+                            .toggle_and_save_value(ctx),
+                        "autocomplete_symbols",
+                    );
+                })
             }
             OpenUrl(url) => {
                 ctx.open_url(url.as_str());
@@ -829,16 +874,37 @@ impl TypedActionView for FeaturesPageView {
                         )
                 });
             }
-            SetExtraMetaKeys(_extra_meta_keys) => {
-                KeysSettings::handle(ctx).update(ctx, |_keys_settings, _ctx| {});
+            SetExtraMetaKeys(extra_meta_keys) => {
+                KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
+                    log_setting_result(
+                        keys_settings
+                            .extra_meta_keys
+                            .set_value(*extra_meta_keys, ctx),
+                        "extra_meta_keys",
+                    );
+                });
             }
             ToggleLeftMetaKey => {
-                let _current_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
-                KeysSettings::handle(ctx).update(ctx, |_keys_settings, _ctx| {});
+                let current_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
+                KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
+                    log_setting_result(
+                        keys_settings
+                            .extra_meta_keys
+                            .set_value(current_meta_keys.toggle_left_key(), ctx),
+                        "extra_meta_keys",
+                    );
+                });
             }
             ToggleRightMetaKey => {
-                let _current_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
-                KeysSettings::handle(ctx).update(ctx, |_keys_settings, _ctx| {});
+                let current_meta_keys = *KeysSettings::as_ref(ctx).extra_meta_keys;
+                KeysSettings::handle(ctx).update(ctx, |keys_settings, ctx| {
+                    log_setting_result(
+                        keys_settings
+                            .extra_meta_keys
+                            .set_value(current_meta_keys.toggle_right_key(), ctx),
+                        "extra_meta_keys",
+                    );
+                });
             }
             ToggleMouseReporting => {
                 AltScreenReporting::handle(ctx).update(ctx, |reporting, ctx| {
@@ -971,51 +1037,138 @@ impl TypedActionView for FeaturesPageView {
                 ctx.notify();
             }
             ToggleCompletionsOpenWhileTyping => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .completions_open_while_typing
+                            .toggle_and_save_value(ctx),
+                        "completions_open_while_typing",
+                    );
+                });
             }
             ToggleCommandCorrections => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .command_corrections
+                            .toggle_and_save_value(ctx),
+                        "command_corrections",
+                    );
+                });
             }
             ToggleErrorUnderlining => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings.error_underlining.toggle_and_save_value(ctx),
+                        "error_underlining",
+                    );
+                });
             }
             ToggleSyntaxHighlighting => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .syntax_highlighting
+                            .toggle_and_save_value(ctx),
+                        "syntax_highlighting",
+                    );
+                });
             }
             ToggleAliasExpansion => {
-                AliasExpansionSettings::handle(ctx)
-                    .update(ctx, |_alias_expansion_settings, _ctx| {});
+                AliasExpansionSettings::handle(ctx).update(ctx, |alias_expansion_settings, ctx| {
+                    log_setting_result(
+                        alias_expansion_settings
+                            .alias_expansion_enabled
+                            .toggle_and_save_value(ctx),
+                        "alias_expansion_enabled",
+                    );
+                });
             }
             ToggleMiddleClickPaste => {
-                SelectionSettings::handle(ctx).update(ctx, |_selection_settings, _ctx| {});
+                SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+                    log_setting_result(
+                        selection_settings
+                            .middle_click_paste_enabled
+                            .toggle_and_save_value(ctx),
+                        "middle_click_paste_enabled",
+                    );
+                });
             }
             ToggleShowInputHintText => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings.show_hint_text.toggle_and_save_value(ctx),
+                        "show_hint_text",
+                    );
+                });
             }
             ToggleShowTerminalInputMessageLine => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .show_terminal_input_message_bar
+                            .toggle_and_save_value(ctx),
+                        "show_terminal_input_message_bar",
+                    );
+                });
             }
             ToggleLinkTooltip => {
-                GeneralSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.link_tooltip.toggle_and_save_value(ctx),
+                        "link_tooltip",
+                    );
+                });
             }
             ToggleShowWarningBeforeQuitting => {
-                GeneralSettings::handle(ctx).update(ctx, |_warning_settings, _ctx| {})
+                GeneralSettings::handle(ctx).update(ctx, |warning_settings, ctx| {
+                    log_setting_result(
+                        warning_settings
+                            .show_warning_before_quitting
+                            .toggle_and_save_value(ctx),
+                        "show_warning_before_quitting",
+                    );
+                })
             }
             ToggleSmartSelection => {
-                SemanticSelection::handle(ctx).update(ctx, |_selection, _ctx| {});
+                SemanticSelection::handle(ctx).update(ctx, |selection, ctx| {
+                    log_setting_result(
+                        selection.smart_select_enabled.toggle_and_save_value(ctx),
+                        "smart_select_enabled",
+                    );
+                });
             }
             SetWordCharAllowlist => {
-                let _word_boundary_allowlist = self
+                let word_boundary_allowlist = self
                     .word_boundary_editor
                     .read(ctx, |editor, ctx| editor.buffer_text(ctx));
 
-                SemanticSelection::handle(ctx).update(ctx, |_selection, _ctx| {});
+                SemanticSelection::handle(ctx).update(ctx, |selection, ctx| {
+                    log_setting_result(
+                        selection
+                            .word_char_allowlist
+                            .set_value(word_boundary_allowlist, ctx),
+                        "word_char_allowlist",
+                    );
+                });
             }
             ResetWordCharAllowlist => {
-                SemanticSelection::handle(ctx).update(ctx, |_selection, _ctx| {});
+                SemanticSelection::handle(ctx).update(ctx, |selection, ctx| {
+                    log_setting_result(
+                        selection.word_char_allowlist.set_value_to_default(ctx),
+                        "word_char_allowlist",
+                    );
+                });
             }
             ToggleUseAudibleBell => {
-                TerminalSettings::handle(ctx).update(ctx, |_terminal_settings, _ctx| {})
+                TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+                    log_setting_result(
+                        terminal_settings
+                            .use_audible_bell
+                            .toggle_and_save_value(ctx),
+                        "use_audible_bell",
+                    );
+                })
             }
             ToggleVimMode => AppEditorSettings::handle(ctx).update(ctx, |editor_settings, ctx| {
                 editor_settings
@@ -1047,8 +1200,21 @@ impl TypedActionView for FeaturesPageView {
                 self.set_new_tab_placement(new_tab_placement, ctx)
             }
             SetDefaultSessionMode(mode) => self.set_default_session_mode(mode, ctx),
-            SetDefaultTabConfig(_path) => {
-                AISettings::handle(ctx).update(ctx, |_ai_settings, _ctx| {});
+            SetDefaultTabConfig(path) => {
+                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
+                    log_setting_result(
+                        ai_settings
+                            .default_session_mode_internal
+                            .set_value(DefaultSessionMode::TabConfig, ctx),
+                        "default_session_mode_internal",
+                    );
+                    log_setting_result(
+                        ai_settings
+                            .default_tab_config_path
+                            .set_value(path.clone(), ctx),
+                        "default_tab_config_path",
+                    );
+                });
             }
             SearchForKeybinding(query) => {
                 ctx.emit(FeaturesSettingsPageEvent::SearchForKeybinding(
@@ -1084,7 +1250,11 @@ impl TypedActionView for FeaturesPageView {
                 })
             }
             TogglePreferLowPowerGPU => {
-                let new_value = GPUSettings::handle(ctx).update(ctx, |gpu_settings, _ctx| {
+                let new_value = GPUSettings::handle(ctx).update(ctx, |gpu_settings, ctx| {
+                    log_setting_result(
+                        gpu_settings.prefer_low_power_gpu.toggle_and_save_value(ctx),
+                        "prefer_low_power_gpu",
+                    );
                     *gpu_settings.prefer_low_power_gpu.value()
                 });
                 ctx.update_rendering_config(|config| {
@@ -1097,20 +1267,60 @@ impl TypedActionView for FeaturesPageView {
                 self.gpu_power_preference_changed = true;
             }
             ToggleShowTerminalZeroStateBlock => {
-                TerminalSettings::handle(ctx).update(ctx, |_terminal_settings, _ctx| {});
+                TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+                    log_setting_result(
+                        terminal_settings
+                            .show_terminal_zero_state_block
+                            .toggle_and_save_value(ctx),
+                        "show_terminal_zero_state_block",
+                    );
+                });
             }
             ToggleQuitOnLastWindowClosed => {
-                GeneralSettings::handle(ctx).update(ctx, |_settings, _ctx| {})
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .quit_on_last_window_closed
+                            .toggle_and_save_value(ctx),
+                        "quit_on_last_window_closed",
+                    );
+                })
             }
-            ToggleLoginItem => GeneralSettings::handle(ctx).update(ctx, |_settings, _ctx| {}),
+            ToggleLoginItem => GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings.add_app_as_login_item.toggle_and_save_value(ctx),
+                    "add_app_as_login_item",
+                );
+            }),
             ToggleAtContextMenuInTerminalMode => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .at_context_menu_in_terminal_mode
+                            .toggle_and_save_value(ctx),
+                        "at_context_menu_in_terminal_mode",
+                    );
+                });
             }
             ToggleSlashCommandsInTerminalMode => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .enable_slash_commands_in_terminal
+                            .toggle_and_save_value(ctx),
+                        "enable_slash_commands_in_terminal",
+                    );
+                });
             }
             ToggleOutlineCodebaseSymbolsForAtContextMenu => {
-                InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .outline_codebase_symbols_for_at_context_menu
+                            .toggle_and_save_value(ctx),
+                        "outline_codebase_symbols_for_at_context_menu",
+                    );
+                });
             }
             MakeWarpDefaultTerminal => {
                 DefaultTerminal::handle(ctx).update(ctx, |default_terminal, ctx| {
@@ -2026,7 +2236,12 @@ impl FeaturesPageView {
                 return;
             }
 
-            TerminalSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            TerminalSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings.maximum_grid_size.set_value(new_size, ctx),
+                    "maximum_grid_size",
+                );
+            });
         } else {
             // Any invalid input should reset the input back to the last known value
             self.max_block_size_input_editor.update(ctx, |editor, ctx| {
@@ -2091,9 +2306,12 @@ impl FeaturesPageView {
             }
 
             scroll_settings.update(ctx, |settings, ctx| {
-                let _ = settings
-                    .mouse_scroll_multiplier
-                    .set_value(constrained_multiplier, ctx);
+                log_setting_result(
+                    settings
+                        .mouse_scroll_multiplier
+                        .set_value(constrained_multiplier, ctx),
+                    "mouse_scroll_multiplier",
+                );
             });
         } else {
             // Fall back to the current setting value.
@@ -2340,8 +2558,11 @@ impl FeaturesPageView {
     }
 
     fn set_new_tab_placement(&mut self, value: &NewTabPlacement, ctx: &mut ViewContext<Self>) {
-        let _ = TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
-            tab_settings.new_tab_placement.set_value(*value, ctx)
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings.new_tab_placement.set_value(*value, ctx),
+                "new_tab_placement",
+            );
         });
     }
 
@@ -2410,10 +2631,17 @@ impl FeaturesPageView {
 
     fn set_default_session_mode(
         &mut self,
-        _value: &DefaultSessionMode,
+        value: &DefaultSessionMode,
         ctx: &mut ViewContext<Self>,
     ) {
-        AISettings::handle(ctx).update(ctx, |_ai_settings, _ctx| {});
+        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
+            log_setting_result(
+                ai_settings
+                    .default_session_mode_internal
+                    .set_value(*value, ctx),
+                "default_session_mode_internal",
+            );
+        });
     }
 
     /// This function renders the component that allows the user to record a keybinding for the

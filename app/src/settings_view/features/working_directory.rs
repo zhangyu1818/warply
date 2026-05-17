@@ -9,6 +9,7 @@ use warpui::{
 use crate::{
     appearance::Appearance,
     editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions},
+    settings::log_setting_result,
     settings_view::features_page::render_group,
     terminal::session_settings::*,
     view_components::{dropdown::TOP_MENU_BAR_HEIGHT, Dropdown, DropdownItem},
@@ -190,19 +191,65 @@ impl TypedActionView for WorkingDirectoryView {
         use WorkingDirectoryAction::*;
 
         match action {
-            SetGlobalWorkingDirectoryMode(_mode) => {
-                SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            SetGlobalWorkingDirectoryMode(mode) => {
+                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.working_directory_config.update_and_save_value(
+                            |config| {
+                                if let Some(mode) = mode {
+                                    config.advanced_mode = false;
+                                    config.global.mode = *mode;
+                                } else {
+                                    config.advanced_mode = true;
+                                }
+                            },
+                            ctx,
+                        ),
+                        "working_directory_config",
+                    );
+                });
 
                 // Redraw settings in case we switched in or out of advanced mode.
                 ctx.notify();
             }
-            SetPerSourceWorkingDirectoryMode(_source, _mode) => {
-                SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            SetPerSourceWorkingDirectoryMode(source, mode) => {
+                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.working_directory_config.update_and_save_value(
+                            |config| match source {
+                                NewSessionSource::SplitPane => config.split_pane.mode = *mode,
+                                NewSessionSource::Tab => config.new_tab.mode = *mode,
+                                NewSessionSource::Window => config.new_window.mode = *mode,
+                            },
+                            ctx,
+                        ),
+                        "working_directory_config",
+                    );
+                });
                 // Redraw settings in case we changed a mode to/from "custom directory".
                 ctx.notify();
             }
-            SetCustomWorkingDirectoryValue(_source, _value) => {
-                SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            SetCustomWorkingDirectoryValue(source, value) => {
+                SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.working_directory_config.update_and_save_value(
+                            |config| match source {
+                                Some(NewSessionSource::SplitPane) => {
+                                    config.split_pane.custom_dir.clone_from(value)
+                                }
+                                Some(NewSessionSource::Tab) => {
+                                    config.new_tab.custom_dir.clone_from(value)
+                                }
+                                Some(NewSessionSource::Window) => {
+                                    config.new_window.custom_dir.clone_from(value)
+                                }
+                                None => config.global.custom_dir.clone_from(value),
+                            },
+                            ctx,
+                        ),
+                        "working_directory_config",
+                    );
+                });
             }
         }
     }

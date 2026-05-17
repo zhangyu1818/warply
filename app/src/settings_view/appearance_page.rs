@@ -26,9 +26,9 @@ use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::settings::{
     active_theme_kind,
     app_icon::{AppIcon, AppIconSettings},
-    respect_system_theme, AIFontName, AppEditorSettings, CursorBlink, EnforceMinimumContrast,
-    FontSettings, FontSettingsChangedEvent, InputBoxType, InputModeSettings, MonospaceFontName,
-    PaneSettings, ThemeSettings, DEFAULT_MONOSPACE_FONT_NAME,
+    log_setting_result, respect_system_theme, AIFontName, AppEditorSettings, CursorBlink,
+    EnforceMinimumContrast, FontSettings, FontSettingsChangedEvent, InputBoxType,
+    InputModeSettings, MonospaceFontName, PaneSettings, ThemeSettings, DEFAULT_MONOSPACE_FONT_NAME,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -426,7 +426,6 @@ pub enum AppearancePageAction {
     ToggleShowVerticalTabPanelInRestoredWindows,
     ToggleUseLatestUserPromptAsConversationTitleInTabNames,
     ToggleLigatureRendering,
-    ToggleBlurTexture,
     ToggleLeftPanelVisibility,
     SetEnforceMinimumContrast(EnforceMinimumContrast),
     OpenUrl(String),
@@ -503,7 +502,14 @@ impl TypedActionView for AppearanceSettingsPageView {
             SetFontSize => self.set_font_size(ctx),
             SetFontWeight(value) => self.set_font_weight(*value, ctx),
             ToggleMatchNotebookToMonospaceFontSize => {
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    log_setting_result(
+                        font_settings
+                            .match_notebook_to_monospace_font_size
+                            .toggle_and_save_value(ctx),
+                        "match_notebook_to_monospace_font_size",
+                    );
+                });
             }
             ToggleMatchAIToTerminalFontFamily => self.toggle_match_ai_font_to_terminal_font(ctx),
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
@@ -513,11 +519,25 @@ impl TypedActionView for AppearanceSettingsPageView {
             SetFontFamily(name) => self.set_font_family(name, ctx),
             SetAIFontFamily(name) => {
                 self.set_ai_font_family(name, ctx);
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    log_setting_result(
+                        font_settings
+                            .match_ai_font_to_terminal_font
+                            .set_value(false, ctx),
+                        "match_ai_font_to_terminal_font",
+                    );
+                });
             }
             SetThinStrokes(value) => self.set_thin_strokes(value, ctx),
-            SetEnforceMinimumContrast(_value) => {
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+            SetEnforceMinimumContrast(value) => {
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    log_setting_result(
+                        font_settings
+                            .enforce_minimum_contrast
+                            .set_value(*value, ctx),
+                        "enforce_minimum_contrast",
+                    );
+                });
             }
             SetWorkspaceDecorationVisibility(value) => {
                 self.set_workspace_decoration_visibility(*value, ctx)
@@ -531,7 +551,6 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleRespectSystemTheme => self.toggle_respect_system_theme(ctx),
             ToggleAllAvailableFonts => self.toggle_all_available_fonts(ctx),
             ToggleDimInactivePanes => self.toggle_dim_inactive_panes(ctx),
-            ToggleBlurTexture => self.toggle_blur_texture(ctx),
             ToggleLeftPanelVisibility => self.toggle_left_panel_visibility(ctx),
             SetInputMode {
                 new_mode,
@@ -557,32 +576,45 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleLigatureRendering => self.toggle_ligature_rendering(ctx),
             ToggleFocusPaneOnHover => {
                 PaneSettings::handle(ctx).update(ctx, |pane_settings, ctx| {
-                    match pane_settings
-                        .focus_panes_on_hover
-                        .toggle_and_save_value(ctx)
-                    {
-                        Ok(_new_val) => {}
-                        Err(_e) => {}
-                    }
+                    log_setting_result(
+                        pane_settings
+                            .focus_panes_on_hover
+                            .toggle_and_save_value(ctx),
+                        "focus_panes_on_hover",
+                    );
                 });
                 ctx.notify();
             }
             ToggleInputMode => {
                 self.toggle_input_mode(ctx);
             }
-            UpdateAltScreenPaddingMode(_new_mode) => {
-                TerminalSettings::handle(ctx).update(ctx, |_terminal_settings, _ctx| {});
+            UpdateAltScreenPaddingMode(new_mode) => {
+                TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+                    log_setting_result(
+                        terminal_settings
+                            .alt_screen_padding
+                            .set_value(*new_mode, ctx),
+                        "alt_screen_padding",
+                    );
+                });
                 self.set_alt_screen_padding_editor_text(ctx);
             }
             SetTabCloseButtonPosition(position) => {
                 self.update_tab_close_button_position(*position, ctx);
             }
-            SetZoomLevel(_zoom_level) => {
-                WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+            SetZoomLevel(zoom_level) => {
+                WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+                    log_setting_result(
+                        window_settings.zoom_level.set_value(*zoom_level, ctx),
+                        "zoom_level",
+                    );
+                });
                 ctx.notify();
             }
             ResetZoomLevel => {
-                WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+                WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+                    log_setting_result(window_settings.zoom_level.clear_value(ctx), "zoom_level");
+                });
                 ctx.notify();
             }
             SetDefaultDirectoryTabColor { path, color } => {
@@ -592,7 +624,10 @@ impl TypedActionView for AppearanceSettingsPageView {
                         .directory_tab_colors
                         .value()
                         .with_color(&path, *color);
-                    let _ = settings.directory_tab_colors.set_value(new_value, ctx);
+                    log_setting_result(
+                        settings.directory_tab_colors.set_value(new_value, ctx),
+                        "directory_tab_colors",
+                    );
                 });
                 ctx.notify();
             }
@@ -603,7 +638,10 @@ impl TypedActionView for AppearanceSettingsPageView {
                         .directory_tab_colors
                         .value()
                         .with_color(&path, DirectoryTabColor::Suppressed);
-                    let _ = settings.directory_tab_colors.set_value(new_value, ctx);
+                    log_setting_result(
+                        settings.directory_tab_colors.set_value(new_value, ctx),
+                        "directory_tab_colors",
+                    );
                 });
                 ctx.notify();
             }
@@ -1201,12 +1239,6 @@ impl AppearanceSettingsPageView {
         {
             window_settings_widgets.push(Box::new(WindowBlurWidget::default()));
         }
-        if window_settings
-            .background_blur_texture
-            .is_supported_on_current_platform()
-        {
-            window_settings_widgets.push(Box::new(WindowBlurTextureWidget::default()));
-        }
 
         if FeatureFlag::UIZoom.is_enabled() {
             window_settings_widgets.push(Box::new(ZoomLevelWidget));
@@ -1506,10 +1538,16 @@ impl AppearanceSettingsPageView {
 
                 if let Ok(padding) = buffer_text.parse::<f32>() {
                     if padding >= 0. {
-                        TerminalSettings::handle(ctx).update(ctx, |_terminal_settings, _ctx| {
-                            let _new_mode = AltScreenPaddingMode::Custom {
+                        TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+                            let new_mode = AltScreenPaddingMode::Custom {
                                 uniform_padding: padding.into_pixels(),
                             };
+                            log_setting_result(
+                                terminal_settings
+                                    .alt_screen_padding
+                                    .set_value(new_mode, ctx),
+                                "alt_screen_padding",
+                            );
                         });
                     }
                 }
@@ -1628,31 +1666,53 @@ impl AppearanceSettingsPageView {
         let user_input = self.font_size_editor.as_ref(ctx).buffer_text(ctx);
         if let Ok(num) = user_input.parse::<usize>() {
             if (MIN_FONT_SIZE..=MAX_FONT_SIZE).contains(&num) {
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    log_setting_result(
+                        font_settings.monospace_font_size.set_value(num as f32, ctx),
+                        "monospace_font_size",
+                    );
+                });
             }
         }
     }
 
-    pub fn set_font_weight(&mut self, _value: Weight, ctx: &mut ViewContext<Self>) {
-        FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+    pub fn set_font_weight(&mut self, value: Weight, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings.monospace_font_weight.set_value(value, ctx),
+                "monospace_font_weight",
+            );
+        });
     }
 
     fn set_notebook_font_size(&mut self, ctx: &mut ViewContext<Self>) {
         let user_input = self.notebook_font_size_editor.as_ref(ctx).buffer_text(ctx);
         if let Ok(num) = user_input.parse::<usize>() {
             if (MIN_FONT_SIZE..=MAX_FONT_SIZE).contains(&num) {
-                FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+                FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                    log_setting_result(
+                        font_settings.notebook_font_size.set_value(num as f32, ctx),
+                        "notebook_font_size",
+                    );
+                });
             }
         }
     }
 
     fn set_opacity(
         &mut self,
-        _opacity_value: f32,
+        opacity_value: f32,
         _should_set_defaults: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .background_opacity
+                    .set_value(opacity_value as u8, ctx),
+                "background_opacity",
+            );
+        });
         ctx.notify();
     }
 
@@ -1665,7 +1725,14 @@ impl AppearanceSettingsPageView {
         ctx.windows()
             .set_all_windows_background_blur_radius(blur_value as u8);
 
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .background_blur_radius
+                    .set_value(blur_value as u8, ctx),
+                "background_blur_radius",
+            );
+        });
         ctx.notify()
     }
 
@@ -1674,7 +1741,14 @@ impl AppearanceSettingsPageView {
             editor.set_buffer_text(&format!("{DEFAULT_UI_LINE_HEIGHT_RATIO}"), ctx);
         });
 
-        FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings
+                    .line_height_ratio
+                    .set_value(DEFAULT_UI_LINE_HEIGHT_RATIO, ctx),
+                "line_height_ratio",
+            );
+        });
     }
 
     fn set_line_height_ratio(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1689,24 +1763,49 @@ impl AppearanceSettingsPageView {
         if (current_line_height - new_line_height).abs() > f32::EPSILON
             && (MIN_LINE_SPACING..=MAX_LINE_SPACING).contains(&new_line_height)
         {
-            FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+            FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                log_setting_result(
+                    font_settings
+                        .line_height_ratio
+                        .set_value(new_line_height, ctx),
+                    "line_height_ratio",
+                );
+            });
         }
     }
 
     pub fn toggle_open_windows_at_custom_size(&mut self, ctx: &mut ViewContext<Self>) {
-        WindowSettings::handle(ctx).update(ctx, |window_settings, _ctx| {
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
             let current_val = window_settings.open_windows_at_custom_size.value();
-            let _new_val: bool = !current_val;
+            let new_val: bool = !current_val;
+            log_setting_result(
+                window_settings
+                    .open_windows_at_custom_size
+                    .set_value(new_val, ctx),
+                "open_windows_at_custom_size",
+            );
         });
         ctx.notify();
     }
 
-    fn set_new_windows_num_columns(&mut self, _columns: u16, ctx: &mut ViewContext<Self>) {
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+    fn set_new_windows_num_columns(&mut self, columns: u16, ctx: &mut ViewContext<Self>) {
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .new_windows_num_columns
+                    .set_value(columns, ctx),
+                "new_windows_num_columns",
+            );
+        });
     }
 
-    fn set_new_windows_num_rows(&mut self, _rows: u16, ctx: &mut ViewContext<Self>) {
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+    fn set_new_windows_num_rows(&mut self, rows: u16, ctx: &mut ViewContext<Self>) {
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings.new_windows_num_rows.set_value(rows, ctx),
+                "new_windows_num_rows",
+            );
+        });
     }
 
     fn update_font_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1862,56 +1961,102 @@ impl AppearanceSettingsPageView {
         self.update_font_dropdown(ctx);
     }
 
-    pub fn set_font_family(&mut self, _name: &str, ctx: &mut ViewContext<Self>) {
-        FontSettings::handle(ctx).update(ctx, |font_settings, _ctx| {
-            if *font_settings.match_ai_font_to_terminal_font.value() {}
+    pub fn set_font_family(&mut self, name: &str, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings
+                    .monospace_font_name
+                    .set_value(name.to_string(), ctx),
+                "monospace_font_name",
+            );
+            if *font_settings.match_ai_font_to_terminal_font.value() {
+                log_setting_result(
+                    font_settings.ai_font_name.set_value(name.to_string(), ctx),
+                    "ai_font_name",
+                );
+            }
         });
     }
 
     pub fn toggle_match_ai_font_to_terminal_font(&mut self, ctx: &mut ViewContext<Self>) {
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings
+                    .match_ai_font_to_terminal_font
+                    .toggle_and_save_value(ctx),
+                "match_ai_font_to_terminal_font",
+            );
             if *font_settings.match_ai_font_to_terminal_font.value() {
-                let _font_name = font_settings.monospace_font_name.value().clone();
+                let font_name = font_settings.monospace_font_name.value().clone();
                 self.ai_font_family_dropdown.update(ctx, |dropdown, ctx| {
                     dropdown.clear_filter(ctx);
                 });
+                log_setting_result(
+                    font_settings.ai_font_name.set_value(font_name, ctx),
+                    "ai_font_name",
+                );
             }
         });
     }
 
-    pub fn set_ai_font_family(&mut self, _name: &str, ctx: &mut ViewContext<Self>) {
-        FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+    pub fn set_ai_font_family(&mut self, name: &str, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings.ai_font_name.set_value(name.to_string(), ctx),
+                "ai_font_name",
+            );
+        });
     }
 
     fn set_thin_strokes(&mut self, value: &ThinStrokes, ctx: &mut ViewContext<Self>) {
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-            match font_settings.use_thin_strokes.set_value(*value, ctx) {
-                Ok(_) => {}
-                Err(_e) => {}
-            }
+            log_setting_result(
+                font_settings.use_thin_strokes.set_value(*value, ctx),
+                "use_thin_strokes",
+            );
         });
     }
 
     pub fn toggle_jump_to_bottom_of_block_button(&mut self, ctx: &mut ViewContext<Self>) {
         let block_list_settings = BlockListSettings::handle(ctx);
-        let _new_value = {
+        let new_value = {
             !*block_list_settings
                 .as_ref(ctx)
                 .show_jump_to_bottom_of_block_button
                 .value()
         };
-        ctx.update_model(&block_list_settings, move |_block_list_settings, _ctx| {});
+        ctx.update_model(&block_list_settings, move |block_list_settings, ctx| {
+            log_setting_result(
+                block_list_settings
+                    .show_jump_to_bottom_of_block_button
+                    .set_value(new_value, ctx),
+                "show_jump_to_bottom_of_block_button",
+            );
+        });
     }
 
     pub fn toggle_show_block_dividers(&mut self, ctx: &mut ViewContext<Self>) {
         let block_list_settings = BlockListSettings::handle(ctx);
-        let _new_value = { !*block_list_settings.as_ref(ctx).show_block_dividers.value() };
-        ctx.update_model(&block_list_settings, move |_block_list_settings, _ctx| {});
+        let new_value = { !*block_list_settings.as_ref(ctx).show_block_dividers.value() };
+        ctx.update_model(&block_list_settings, move |block_list_settings, ctx| {
+            log_setting_result(
+                block_list_settings
+                    .show_block_dividers
+                    .set_value(new_value, ctx),
+                "show_block_dividers",
+            );
+        });
     }
 
     pub fn toggle_compact_mode(&mut self, ctx: &mut ViewContext<Self>) {
-        TerminalSettings::handle(ctx).update(ctx, |terminal_settings, _ctx| {
-            let _current_value = *terminal_settings.spacing_mode.value();
+        TerminalSettings::handle(ctx).update(ctx, |terminal_settings, ctx| {
+            let current_value = *terminal_settings.spacing_mode.value();
+            log_setting_result(
+                terminal_settings
+                    .spacing_mode
+                    .set_value(current_value.other_mode(), ctx),
+                "spacing_mode",
+            );
         });
     }
 
@@ -1922,34 +2067,35 @@ impl AppearanceSettingsPageView {
     }
 
     pub fn toggle_respect_system_theme(&mut self, ctx: &mut ViewContext<Self>) {
-        ThemeSettings::handle(ctx).update(ctx, |_theme_settings, _ctx| {});
+        ThemeSettings::handle(ctx).update(ctx, |theme_settings, ctx| {
+            log_setting_result(
+                theme_settings.use_system_theme.toggle_and_save_value(ctx),
+                "use_system_theme",
+            );
+        });
         ctx.notify();
     }
 
     pub fn toggle_dim_inactive_panes(&mut self, ctx: &mut ViewContext<Self>) {
         PaneSettings::handle(ctx).update(ctx, |pane_settings, ctx| {
-            match pane_settings
-                .should_dim_inactive_panes
-                .toggle_and_save_value(ctx)
-            {
-                Ok(_new_value) => {}
-                Err(_e) => {}
-            }
+            log_setting_result(
+                pane_settings
+                    .should_dim_inactive_panes
+                    .toggle_and_save_value(ctx),
+                "should_dim_inactive_panes",
+            );
         });
-    }
-
-    pub fn toggle_blur_texture(&mut self, ctx: &mut ViewContext<Self>) {
-        let blur_enabled = WindowSettings::handle(ctx).read(ctx, |window_settings, _ctx| {
-            *window_settings.background_blur_texture.value()
-        });
-        ctx.windows()
-            .set_all_windows_background_blur_texture(!blur_enabled);
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
-        ctx.notify();
     }
 
     pub fn toggle_left_panel_visibility(&mut self, ctx: &mut ViewContext<Self>) {
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .left_panel_visibility_across_tabs
+                    .toggle_and_save_value(ctx),
+                "left_panel_visibility_across_tabs",
+            );
+        });
         ctx.notify();
     }
 
@@ -1959,8 +2105,9 @@ impl AppearanceSettingsPageView {
         from_binding: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        let _old_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
-        InputModeSettings::handle(ctx).update(ctx, |_input_mode, _ctx| {});
+        InputModeSettings::handle(ctx).update(ctx, |input_mode, ctx| {
+            log_setting_result(input_mode.input_mode.set_value(new_mode, ctx), "input_mode");
+        });
         let item_name = Self::input_mode_dropdown_item_label(new_mode);
 
         if from_binding {
@@ -1979,30 +2126,46 @@ impl AppearanceSettingsPageView {
         let old_type = InputSettings::as_ref(ctx).input_type(ctx);
 
         if old_type != new_type {
-            InputSettings::handle(ctx).update(ctx, |_input_type_settings, _ctx| {});
+            InputSettings::handle(ctx).update(ctx, |input_type_settings, ctx| {
+                log_setting_result(
+                    input_type_settings.input_box_type.set_value(new_type, ctx),
+                    "input_box_type",
+                );
+            });
             self.input_type_radio_state
                 .set_selected_idx(new_type as usize);
 
-            let _is_udi_enabled = new_type == InputBoxType::Universal;
-
-            // Selecting classic mode must also enable honor_ps1 so the mode takes
-            // effect immediately (input_type() requires honor_ps1 to return classic).
-            SessionSettings::handle(ctx).update(ctx, |_session_settings, _ctx| {});
+            SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {
+                log_setting_result(
+                    session_settings
+                        .honor_ps1
+                        .set_value(new_type == InputBoxType::Classic, ctx),
+                    "honor_ps1",
+                );
+            });
 
             ctx.notify();
         }
     }
 
-    fn set_app_icon(&mut self, _new_icon: AppIcon, ctx: &mut ViewContext<Self>) {
-        AppIconSettings::handle(ctx).update(ctx, |_app_icon_settings, _ctx| {});
+    fn set_app_icon(&mut self, new_icon: AppIcon, ctx: &mut ViewContext<Self>) {
+        AppIconSettings::handle(ctx).update(ctx, |app_icon_settings, ctx| {
+            log_setting_result(
+                app_icon_settings.app_icon.set_value(new_icon, ctx),
+                "app_icon",
+            );
+        });
     }
 
-    fn set_cursor_type(
-        &mut self,
-        _new_cursor_type: CursorDisplayType,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        AppEditorSettings::handle(ctx).update(ctx, |_app_editor_settings, _ctx| {});
+    fn set_cursor_type(&mut self, new_cursor_type: CursorDisplayType, ctx: &mut ViewContext<Self>) {
+        AppEditorSettings::handle(ctx).update(ctx, |app_editor_settings, ctx| {
+            log_setting_result(
+                app_editor_settings
+                    .cursor_display_type
+                    .set_value(new_cursor_type, ctx),
+                "cursor_display_type",
+            );
+        });
     }
 
     fn toggle_all_available_fonts(&mut self, ctx: &mut ViewContext<Self>) {
@@ -2012,56 +2175,95 @@ impl AppearanceSettingsPageView {
 
     fn toggle_tab_indicators(&mut self, ctx: &mut ViewContext<Self>) {
         let tab_settings = TabSettings::handle(ctx);
-        let _new_value = { !*tab_settings.as_ref(ctx).show_indicators.value() };
+        let new_value = { !*tab_settings.as_ref(ctx).show_indicators.value() };
 
-        ctx.update_model(&tab_settings, move |_tab_settings, _ctx| {});
+        ctx.update_model(&tab_settings, move |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings.show_indicators.set_value(new_value, ctx),
+                "show_indicators",
+            );
+        });
     }
 
     fn toggle_preserve_active_tab_color(&mut self, ctx: &mut ViewContext<Self>) {
         let tab_settings = TabSettings::handle(ctx);
-        let _new_value = !*tab_settings.as_ref(ctx).preserve_active_tab_color.value();
+        let new_value = !*tab_settings.as_ref(ctx).preserve_active_tab_color.value();
 
-        ctx.update_model(&tab_settings, move |_tab_settings, _ctx| {});
+        ctx.update_model(&tab_settings, move |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings
+                    .preserve_active_tab_color
+                    .set_value(new_value, ctx),
+                "preserve_active_tab_color",
+            );
+        });
     }
 
     fn toggle_vertical_tabs(&mut self, ctx: &mut ViewContext<Self>) {
         let tab_settings = TabSettings::handle(ctx);
-        let _new_value = !*tab_settings.as_ref(ctx).use_vertical_tabs.value();
+        let new_value = !*tab_settings.as_ref(ctx).use_vertical_tabs.value();
 
-        ctx.update_model(&tab_settings, move |_tab_settings, _ctx| {});
+        ctx.update_model(&tab_settings, move |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings.use_vertical_tabs.set_value(new_value, ctx),
+                "use_vertical_tabs",
+            );
+        });
     }
 
     fn toggle_show_vertical_tab_panel_in_restored_windows(&mut self, ctx: &mut ViewContext<Self>) {
-        TabSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+        TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings
+                    .show_vertical_tab_panel_in_restored_windows
+                    .toggle_and_save_value(ctx),
+                "show_vertical_tab_panel_in_restored_windows",
+            );
+        });
     }
 
     fn toggle_use_latest_user_prompt_as_conversation_title_in_tab_names(
         &mut self,
         ctx: &mut ViewContext<Self>,
     ) {
-        TabSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+        TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings
+                    .use_latest_user_prompt_as_conversation_title_in_tab_names
+                    .toggle_and_save_value(ctx),
+                "use_latest_user_prompt_as_conversation_title_in_tab_names",
+            );
+        });
     }
 
     /// Set the workspace decoration visibility to a particular value.
     fn set_workspace_decoration_visibility(
         &mut self,
-        _new_value: WorkspaceDecorationVisibility,
+        new_value: WorkspaceDecorationVisibility,
         ctx: &mut ViewContext<Self>,
     ) {
-        let _previous_value = TabSettings::handle(ctx).update(ctx, |tab_settings, _ctx| {
-            let prev_value = *tab_settings.workspace_decoration_visibility.value();
-            prev_value
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings
+                    .workspace_decoration_visibility
+                    .set_value(new_value, ctx),
+                "workspace_decoration_visibility",
+            );
         });
     }
 
     /// Toggle among the supported workspace decoration visibility values.
     fn toggle_workspace_decoration_visiblity(&mut self, ctx: &mut ViewContext<Self>) {
-        let (_new_value, _previous_value) =
-            TabSettings::handle(ctx).update(ctx, |tab_settings, _ctx| {
-                let previous_value = *tab_settings.workspace_decoration_visibility.value();
-                let new_value = previous_value.toggled();
-                (new_value, previous_value)
-            });
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
+            let previous_value = *tab_settings.workspace_decoration_visibility.value();
+            let new_value = previous_value.toggled();
+            log_setting_result(
+                tab_settings
+                    .workspace_decoration_visibility
+                    .set_value(new_value, ctx),
+                "workspace_decoration_visibility",
+            );
+        });
     }
 
     fn build_workspace_decoration_visibility_dropdown(
@@ -2186,12 +2388,19 @@ impl AppearanceSettingsPageView {
     fn toggle_ligature_rendering(&mut self, ctx: &mut ViewContext<Self>) {
         if FeatureFlag::Ligatures.is_enabled() {
             let ligature_settings = LigatureSettings::handle(ctx);
-            let _new_value = !*ligature_settings
+            let new_value = !*ligature_settings
                 .as_ref(ctx)
                 .ligature_rendering_enabled
                 .value();
 
-            ligature_settings.update(ctx, |_settings, _ctx| {});
+            ligature_settings.update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings
+                        .ligature_rendering_enabled
+                        .set_value(new_value, ctx),
+                    "ligature_rendering_enabled",
+                );
+            });
         }
     }
 
@@ -2211,10 +2420,15 @@ impl AppearanceSettingsPageView {
 
     pub fn update_tab_close_button_position(
         &mut self,
-        _position: TabCloseButtonPosition,
+        position: TabCloseButtonPosition,
         ctx: &mut ViewContext<Self>,
     ) {
-        TabSettings::handle(ctx).update(ctx, |_tab_settings, _ctx| {});
+        TabSettings::handle(ctx).update(ctx, |tab_settings, ctx| {
+            log_setting_result(
+                tab_settings.close_button_position.set_value(position, ctx),
+                "close_button_position",
+            );
+        });
         ctx.notify();
     }
 }
@@ -2830,63 +3044,6 @@ impl SettingsWidget for WindowBlurWidget {
                 None,
             ))
             .finish()
-    }
-}
-
-#[derive(Default)]
-struct WindowBlurTextureWidget {
-    switch_state: SwitchStateHandle,
-}
-
-impl SettingsWidget for WindowBlurTextureWidget {
-    type View = AppearanceSettingsPageView;
-
-    fn search_terms(&self) -> &str {
-        "window blur texture acrylic"
-    }
-
-    fn render(
-        &self,
-        view: &Self::View,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Box<dyn Element> {
-        let window_settings = WindowSettings::as_ref(app);
-        let use_blur_texture = *window_settings.background_blur_texture;
-        let mut col = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            "Use Window Blur (Acrylic texture)".to_string(),
-            None,
-            ToggleState::Enabled,
-            appearance,
-            appearance
-                .ui_builder()
-                .switch(self.switch_state.clone())
-                .check(use_blur_texture)
-                .build()
-                .on_click(|evt_ctx, _app, _v2f| {
-                    evt_ctx.dispatch_typed_action(AppearancePageAction::ToggleBlurTexture);
-                })
-                .finish(),
-            None,
-        ));
-        if let Some(window) = app.windows().platform_window(view.window_id) {
-            if !window.supports_transparency() {
-                col.add_child(
-                    Container::new(
-                        FormattedTextElement::from_str(
-                            "The selected hardware may not support rendering transparent windows.",
-                            appearance.ui_font_family(),
-                            appearance.ui_font_size(),
-                        )
-                        .with_color(appearance.theme().disabled_ui_text_color().into_solid())
-                        .finish(),
-                    )
-                    .with_margin_bottom(8.0)
-                    .finish(),
-                );
-            }
-        }
-        col.finish()
     }
 }
 
@@ -4235,7 +4392,10 @@ fn add_directory_tab_color_path(path: PathBuf, ctx: &mut ViewContext<AppearanceS
             .is_some_and(|c| *c != DirectoryTabColor::Suppressed);
         if !dominated_by_existing {
             let new_value = current.with_color(&path, DirectoryTabColor::Unassigned);
-            let _ = settings.directory_tab_colors.set_value(new_value, ctx);
+            log_setting_result(
+                settings.directory_tab_colors.set_value(new_value, ctx),
+                "directory_tab_colors",
+            );
         }
     });
 }
