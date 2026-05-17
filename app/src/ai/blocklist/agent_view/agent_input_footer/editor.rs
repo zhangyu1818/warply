@@ -11,10 +11,13 @@ use crate::chip_configurator::{
     render_chip_editor_modal, ChipConfigurator, ChipConfiguratorAction, ChipConfiguratorLayout,
     ChipEditorModalConfig, ChipEditorMouseHandles,
 };
+use crate::settings::log_setting_result;
 use crate::terminal::session_settings::{
     AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings, ToolbarChipSelection,
 };
 use crate::Appearance;
+
+use settings::Setting as _;
 
 use super::toolbar_item::AgentToolbarItemKind;
 
@@ -138,20 +141,34 @@ fn save_toolbar_selection<V: View>(
     let is_default = toolbar_items_match_defaults(mode, &left, &right);
     match mode {
         AgentToolbarEditorMode::AgentView => {
-            let _selection = if is_default {
+            let selection = if is_default {
                 AgentToolbarChipSelection::Default
             } else {
                 AgentToolbarChipSelection::Custom { left, right }
             };
-            SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings
+                        .agent_footer_chip_selection
+                        .set_value(selection, ctx),
+                    "agent_footer_chip_selection",
+                );
+            });
         }
         AgentToolbarEditorMode::CLIAgent => {
-            let _selection = if is_default {
+            let selection = if is_default {
                 CLIAgentToolbarChipSelection::Default
             } else {
                 CLIAgentToolbarChipSelection::Custom { left, right }
             };
-            SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+            SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings
+                        .cli_agent_footer_chip_selection
+                        .set_value(selection, ctx),
+                    "cli_agent_footer_chip_selection",
+                );
+            });
         }
     }
 }

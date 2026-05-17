@@ -14,7 +14,7 @@ use warpui::{
 use crate::{
     ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent},
     appearance::Appearance,
-    settings::{AISettings, AISettingsChangedEvent, InputModeSettings},
+    settings::{log_setting_result, AISettings, AISettingsChangedEvent, InputModeSettings},
     terminal::{
         self,
         event::BlockType,
@@ -29,6 +29,7 @@ use crate::{
     workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME,
     WorkspaceAction,
 };
+use settings::Setting as _;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalViewZeroStateAction {
@@ -275,7 +276,14 @@ impl TypedActionView for TerminalViewZeroStateBlock {
         match action {
             TerminalViewZeroStateAction::Dismiss => {
                 self.should_hide = true;
-                TerminalSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                TerminalSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .show_terminal_zero_state_block
+                            .set_value(false, ctx),
+                        "show_terminal_zero_state_block",
+                    );
+                });
                 ctx.notify();
             }
         }

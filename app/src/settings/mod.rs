@@ -24,6 +24,10 @@ mod vim_banner;
 #[path = "schema_validation_tests.rs"]
 mod schema_validation_tests;
 
+#[cfg(test)]
+#[path = "noop_settings_tests.rs"]
+mod noop_settings_tests;
+
 pub use accessibility::*;
 pub use ai::*;
 pub use alias_expansion::*;

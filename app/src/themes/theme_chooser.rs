@@ -23,7 +23,7 @@ use warpui::{
 
 use crate::appearance::AppearanceManager;
 use crate::resource_center::{mark_feature_used_and_write_to_user_defaults, Tip, TipAction};
-use crate::themes::theme::{RespectSystemTheme, ThemeKind, WarpTheme};
+use crate::themes::theme::{RespectSystemTheme, SelectedSystemThemes, ThemeKind, WarpTheme};
 use crate::ui_components::window_focus_dimming::WindowFocusDimming;
 use crate::util::traffic_lights::traffic_light_data;
 use crate::workspace::PANEL_HEADER_HEIGHT;
@@ -32,7 +32,7 @@ use crate::{
     editor::{
         Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
     },
-    settings::{respect_system_theme, ThemeSettings},
+    settings::{log_setting_result, respect_system_theme, ThemeSettings},
     user_config::{load_theme_configs, themes_dir, WarpConfig, WarpConfigUpdateEvent},
     util::traffic_lights::{TrafficLightData, TrafficLightSide},
     window_settings::WindowSettings,
@@ -388,19 +388,48 @@ impl ThemeChooser {
         self.select_theme(selected_kind.clone(), ctx);
         let theme_settings = ThemeSettings::handle(ctx);
 
-        let _selected_themes = respect_system_theme(theme_settings.as_ref(ctx))
+        let selected_themes = respect_system_theme(theme_settings.as_ref(ctx))
             .selected_system_themes()
             .cloned()
             .unwrap_or_default();
         match self.mode {
             ThemeChooserMode::SystemAgnostic => {
-                theme_settings.update(ctx, |_theme_settings, _ctx| {});
+                theme_settings.update(ctx, |theme_settings, ctx| {
+                    log_setting_result(
+                        theme_settings
+                            .theme_kind
+                            .set_value(selected_kind.clone(), ctx),
+                        "theme_kind",
+                    );
+                });
             }
             ThemeChooserMode::SystemLight => {
-                theme_settings.update(ctx, |_theme_settings, _ctx| {});
+                theme_settings.update(ctx, |theme_settings, ctx| {
+                    log_setting_result(
+                        theme_settings.selected_system_themes.set_value(
+                            SelectedSystemThemes {
+                                light: selected_kind.clone(),
+                                dark: selected_themes.dark,
+                            },
+                            ctx,
+                        ),
+                        "selected_system_themes",
+                    );
+                });
             }
             ThemeChooserMode::SystemDark => {
-                theme_settings.update(ctx, |_theme_settings, _ctx| {});
+                theme_settings.update(ctx, |theme_settings, ctx| {
+                    log_setting_result(
+                        theme_settings.selected_system_themes.set_value(
+                            SelectedSystemThemes {
+                                light: selected_themes.light,
+                                dark: selected_kind.clone(),
+                            },
+                            ctx,
+                        ),
+                        "selected_system_themes",
+                    );
+                });
             }
         };
     }
@@ -931,3 +960,7 @@ impl ThemeChooserItem {
         .finish()
     }
 }
+
+#[cfg(test)]
+#[path = "theme_chooser_tests.rs"]
+mod tests;

@@ -18,7 +18,7 @@ use crate::context_chips::{
     available_chips, ChipAvailability, ChipRuntimeCapabilities, ContextChipKind,
 };
 
-use crate::settings::{FontSettings, WarpPromptSeparator};
+use crate::settings::{log_setting_result, FontSettings, WarpPromptSeparator};
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::SizeInfo;
 use settings::Setting as _;
@@ -310,20 +310,34 @@ impl EditorModal {
             match self.prompt_type {
                 PromptType::PS1 => {
                     // TODO: we need to stop the Warp prompt generators from running at this point
-                    SessionSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                    SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                        log_setting_result(settings.honor_ps1.set_value(true, ctx), "honor_ps1");
+                    });
                 }
                 PromptType::WarpDefault => {
-                    Prompt::handle(ctx).update(ctx, |_prompt, _ctx| {});
+                    Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                        log_setting_result(prompt.reset(ctx), "saved_prompt");
+                    });
                 }
                 PromptType::Warp => {
-                    let _new_setup = self
+                    let new_setup = self
                         .chip_configurator
                         .used_chips
                         .iter()
                         .filter_map(|r| r.chip_kind().cloned());
 
                     // Updating the `Prompt` handles turning off PS1.
-                    Prompt::handle(ctx).update(ctx, |_prompt, _ctx| {});
+                    Prompt::handle(ctx).update(ctx, |prompt, ctx| {
+                        log_setting_result(
+                            prompt.update(
+                                new_setup,
+                                self.same_line_prompt_enabled,
+                                self.warp_prompt_separator,
+                                ctx,
+                            ),
+                            "saved_prompt",
+                        );
+                    });
                 }
             }
         }

@@ -190,10 +190,11 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::persistence::{self, FinishedCommandMetadata};
 #[cfg(feature = "local_fs")]
 use crate::settings::{
-    AISettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
-    BlockVisibilitySettingsChangedEvent, DebugSettings, DebugSettingsChangedEvent, FontSettings,
-    FontSettingsChangedEvent, InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
-    PaneSettings, PaneSettingsChangedEvent, SelectionSettings, VimBannerSettings,
+    log_setting_result, AISettings, AliasExpansionSettings, AppEditorSettings,
+    BlockVisibilitySettings, BlockVisibilitySettingsChangedEvent, DebugSettings,
+    DebugSettingsChangedEvent, FontSettings, FontSettingsChangedEvent, InputModeSettings,
+    InputModeSettingsChangedEvent, InputSettings, PaneSettings, PaneSettingsChangedEvent,
+    SelectionSettings, VimBannerSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -7151,7 +7152,14 @@ impl TerminalView {
             self.enable_vim_keybindings(ctx);
         }
         self.remove_vim_mode_banner(ctx);
-        VimBannerSettings::handle(ctx).update(ctx, |_banner_settings, _model_ctx| {});
+        VimBannerSettings::handle(ctx).update(ctx, |banner_settings, ctx| {
+            log_setting_result(
+                banner_settings
+                    .vim_keybindings_banner_state
+                    .set_value(BannerState::Dismissed, ctx),
+                "vim_keybindings_banner_state",
+            );
+        });
     }
 
     fn agent_mode_setup_speedbump_banner_action(

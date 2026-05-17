@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 
-use crate::{terminal::general_settings::GeneralSettings, util::bindings::trigger_to_keystroke};
+use crate::{
+    settings::log_setting_result, terminal::general_settings::GeneralSettings,
+    util::bindings::trigger_to_keystroke,
+};
+use settings::Setting as _;
 
 mod main_page;
 pub mod utils;
@@ -186,12 +190,23 @@ pub fn mark_feature_used_and_write_to_user_defaults(
     ctx: &mut AppContext,
 ) {
     if tips_completed.mark_feature_used(feature) {
-        GeneralSettings::handle(ctx).update(
-            ctx,
-            |_general_settings, _ctx| {
-                if tips_completed.skipped_or_completed {}
-            },
-        );
+        GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+            log_setting_result(
+                general_settings
+                    .welcome_tips_features_used
+                    .set_value(tips_completed.features_used.clone(), ctx),
+                "welcome_tips_features_used",
+            );
+
+            if tips_completed.skipped_or_completed {
+                log_setting_result(
+                    general_settings
+                        .welcome_tips_skipped_or_completed
+                        .set_value(true, ctx),
+                    "welcome_tips_skipped_or_completed",
+                );
+            }
+        });
     }
 }
 
@@ -201,7 +216,14 @@ pub fn skip_tips_and_write_to_user_defaults(
     ctx: &mut AppContext,
 ) {
     tips_completed.skipped_or_completed = true;
-    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
+    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+        log_setting_result(
+            general_settings
+                .welcome_tips_skipped_or_completed
+                .set_value(true, ctx),
+            "welcome_tips_skipped_or_completed",
+        );
+    });
 }
 
 /// Updates the model to reflect welcome tips are completed and writes to user defaults.
@@ -210,7 +232,14 @@ pub fn complete_tips_and_write_to_user_defaults(
     ctx: &mut AppContext,
 ) {
     tips_completed.skipped_or_completed = true;
-    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
+    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+        log_setting_result(
+            general_settings
+                .welcome_tips_skipped_or_completed
+                .set_value(true, ctx),
+            "welcome_tips_skipped_or_completed",
+        );
+    });
 }
 
 impl TipsCompleted {

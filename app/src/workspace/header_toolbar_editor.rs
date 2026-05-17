@@ -7,6 +7,7 @@ use crate::chip_configurator::{
     ChipConfiguratorAction, ChipConfiguratorLayout, ChipEditorModalConfig, ChipEditorMouseHandles,
     ChipEditorSectionsConfig, ConfigurableItem, ControlItemRenderer,
 };
+use crate::settings::log_setting_result;
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::{
     HeaderToolbarChipSelection, TabSettings, TabSettingsChangedEvent,
@@ -149,13 +150,20 @@ fn save_toolbar_selection<V: View>(
 ) {
     sync_show_hide_settings(&left, &right, ctx);
 
-    let _selection = if toolbar_items_match_defaults(&left, &right) {
+    let selection = if toolbar_items_match_defaults(&left, &right) {
         HeaderToolbarChipSelection::Default
     } else {
         HeaderToolbarChipSelection::Custom { left, right }
     };
 
-    TabSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+    TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+        log_setting_result(
+            settings
+                .header_toolbar_chip_selection
+                .set_value(selection, ctx),
+            "header_toolbar_chip_selection",
+        );
+    });
 }
 
 fn sync_show_hide_settings<V: View>(
@@ -167,7 +175,14 @@ fn sync_show_hide_settings<V: View>(
 
     let code_review_placed = placed.contains(&&HeaderToolbarItemKind::CodeReview);
     if *TabSettings::as_ref(ctx).show_code_review_button.value() != code_review_placed {
-        TabSettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+        TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings
+                    .show_code_review_button
+                    .set_value(code_review_placed, ctx),
+                "show_code_review_button",
+            );
+        });
     }
 }
 

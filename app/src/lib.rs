@@ -137,7 +137,7 @@ pub mod workspace;
 #[cfg(feature = "integration_tests")]
 pub use persistence::testing as sqlite_testing;
 
-use ::settings::Setting;
+use ::settings::{Setting, ToggleableSetting};
 
 #[cfg(feature = "plugin_host")]
 pub use plugin::{run_plugin_host, PLUGIN_HOST_FLAG};
@@ -164,7 +164,9 @@ use crate::persistence::PersistenceWriter;
 use crate::projects::ProjectManagementModel;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::manager::SettingsManager;
-use crate::settings::{AccessibilitySettings, ScrollSettings, SelectionSettings};
+use crate::settings::{
+    log_setting_result, AccessibilitySettings, ScrollSettings, SelectionSettings,
+};
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::settings_view::DisplayCount;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
@@ -745,10 +747,20 @@ pub(crate) fn initialize_app(
 
     // Add truly global actions that don't depend on the existence of any view here
     ctx.add_global_action("app:toggle_user_ps1", move |_args: &(), ctx| {
-        SessionSettings::handle(ctx).update(ctx, |_session_settings, _ctx| {});
+        SessionSettings::handle(ctx).update(ctx, |session_settings, ctx| {
+            log_setting_result(
+                session_settings.honor_ps1.toggle_and_save_value(ctx),
+                "honor_ps1",
+            );
+        });
     });
     ctx.add_global_action("app:toggle_copy_on_select", move |_args: &(), ctx| {
-        SelectionSettings::handle(ctx).update(ctx, |_selection_settings, _ctx| {});
+        SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+            log_setting_result(
+                selection_settings.copy_on_select.toggle_and_save_value(ctx),
+                "copy_on_select",
+            );
+        });
     });
 
     ctx.add_singleton_model(|_ctx| SyncedInputState::new());
@@ -1103,7 +1115,14 @@ pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppC
             ApproveTerminateResult::Terminate
         })),
         on_disable_warning_modal: Some(Box::new(move |ctx| {
-            GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
+            GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+                log_setting_result(
+                    general_settings
+                        .show_warning_before_quitting
+                        .set_value(false, ctx),
+                    "show_warning_before_quitting",
+                );
+            });
         })),
         on_notification_clicked: Some(Box::new(move |notification_response, ctx| {
             if let Some(notification_data) = notification_response.data() {

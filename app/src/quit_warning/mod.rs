@@ -5,10 +5,13 @@ use warpui::{
     AppContext, EntityId, SingletonEntity, ViewContext, WeakViewHandle, WindowId,
 };
 
+use settings::Setting as _;
+
 use crate::{
     code::editor_management::{CodeEditorStatus, CodeEditorSummary},
     pane_group::{CodePane, PaneGroup, PaneId, TerminalPane},
     session_management::{RunningSessionSummary, SessionNavigationData},
+    settings::log_setting_result,
     terminal::general_settings::GeneralSettings,
 };
 
@@ -396,5 +399,12 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
 
 /// Callback to disable the quit warning modal.
 fn on_disable_warning_modal(ctx: &mut AppContext) {
-    GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
+    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+        log_setting_result(
+            general_settings
+                .show_warning_before_quitting
+                .set_value(false, ctx),
+            "show_warning_before_quitting",
+        );
+    });
 }

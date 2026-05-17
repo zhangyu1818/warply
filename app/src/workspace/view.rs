@@ -151,9 +151,10 @@ use crate::search::command_search::searcher::{
 use crate::search::command_search::view::{CommandSearchEvent, CommandSearchView};
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::{
-    active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
-    AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
-    GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, SelectionSettings, ThemeSettings,
+    active_theme_kind, log_setting_result, respect_system_theme, AccessibilitySettings,
+    AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings,
+    FontSettings, GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, SelectionSettings,
+    ThemeSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
@@ -1377,7 +1378,20 @@ impl Workspace {
                     == DefaultSessionMode::TabConfig
                     && ai_settings.default_tab_config_path() == path.to_string_lossy();
                 if is_removed_default {
-                    AISettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                    AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                        log_setting_result(
+                            settings
+                                .default_session_mode_internal
+                                .set_value(DefaultSessionMode::Terminal, ctx),
+                            "default_session_mode_internal",
+                        );
+                        log_setting_result(
+                            settings
+                                .default_tab_config_path
+                                .set_value(String::new(), ctx),
+                            "default_tab_config_path",
+                        );
+                    });
                 }
                 if let Err(e) = std::fs::remove_file(path) {
                     log::warn!("Failed to remove tab config file: {e:?}");
@@ -4866,15 +4880,32 @@ impl Workspace {
     }
 
     fn toggle_recording_mode(&self, ctx: &mut ViewContext<Self>) {
-        DebugSettings::handle(ctx).update(ctx, |_debug_settings, _settings_ctx| {});
+        DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
+            log_setting_result(
+                debug_settings.recording_mode.toggle_and_save_value(ctx),
+                "recording_mode",
+            );
+        });
     }
 
     fn toggle_in_band_generators(&self, ctx: &mut ViewContext<Self>) {
-        DebugSettings::handle(ctx).update(ctx, |_debug_settings, _settings_ctx| {});
+        DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
+            log_setting_result(
+                debug_settings
+                    .are_in_band_generators_for_all_sessions_enabled
+                    .toggle_and_save_value(ctx),
+                "are_in_band_generators_for_all_sessions_enabled",
+            );
+        });
     }
 
     fn toggle_show_memory_stats(&self, ctx: &mut ViewContext<Self>) {
-        DebugSettings::handle(ctx).update(ctx, |_debug_settings, _ctx| {})
+        DebugSettings::handle(ctx).update(ctx, |debug_settings, ctx| {
+            log_setting_result(
+                debug_settings.show_memory_stats.toggle_and_save_value(ctx),
+                "show_memory_stats",
+            );
+        })
     }
 
     fn open_resource_center_main_page(&mut self, ctx: &mut ViewContext<Self>) {
@@ -4946,7 +4977,14 @@ impl Workspace {
         });
 
         // Mark that we've done the one-time auto-open
-        AISettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+        AISettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings
+                    .has_auto_opened_conversation_list
+                    .set_value(true, ctx),
+                "has_auto_opened_conversation_list",
+            );
+        });
     }
 
     fn close_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
@@ -6423,15 +6461,34 @@ impl Workspace {
     }
 
     pub fn toggle_block_snackbar(&mut self, ctx: &mut ViewContext<Self>) {
-        BlockListSettings::handle(ctx).update(ctx, |_blocklist_settings, _ctx| {});
+        BlockListSettings::handle(ctx).update(ctx, |blocklist_settings, ctx| {
+            log_setting_result(
+                blocklist_settings
+                    .snackbar_enabled
+                    .toggle_and_save_value(ctx),
+                "snackbar_enabled",
+            );
+        });
     }
 
     pub fn toggle_error_underlining(&mut self, ctx: &mut ViewContext<Self>) {
-        InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+        InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+            log_setting_result(
+                input_settings.error_underlining.toggle_and_save_value(ctx),
+                "error_underlining",
+            );
+        });
     }
 
     pub fn toggle_syntax_highlighting(&mut self, ctx: &mut ViewContext<Self>) {
-        InputSettings::handle(ctx).update(ctx, |_input_settings, _ctx| {});
+        InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+            log_setting_result(
+                input_settings
+                    .syntax_highlighting
+                    .toggle_and_save_value(ctx),
+                "syntax_highlighting",
+            );
+        });
     }
 
     pub fn change_cursor(&mut self, cursor_shape: Cursor, ctx: &mut ViewContext<Self>) {
@@ -6441,10 +6498,17 @@ impl Workspace {
 
     pub fn set_a11y_verbosity(
         &mut self,
-        _verbosity: AccessibilityVerbosity,
+        verbosity: AccessibilityVerbosity,
         ctx: &mut ViewContext<Self>,
     ) {
-        AccessibilitySettings::handle(ctx).update(ctx, |_accessibility_settings, _ctx| {});
+        AccessibilitySettings::handle(ctx).update(ctx, |accessibility_settings, ctx| {
+            log_setting_result(
+                accessibility_settings
+                    .a11y_verbosity
+                    .set_value(verbosity, ctx),
+                "a11y_verbosity",
+            );
+        });
     }
 
     pub fn snapshot(
@@ -10751,7 +10815,14 @@ impl Workspace {
     }
 
     fn reset_zoom(&mut self, ctx: &mut ViewContext<Self>) {
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .zoom_level
+                    .set_value(crate::window_settings::ZoomLevel::default_value(), ctx),
+                "zoom_level",
+            );
+        });
     }
 
     fn adjust_zoom(&mut self, increase: bool, ctx: &mut ViewContext<Self>) {
@@ -10763,13 +10834,20 @@ impl Workspace {
             return;
         };
 
-        let _next_index = if increase {
+        let next_index = if increase {
             (current_index + 1).min(crate::window_settings::ZoomLevel::VALUES.len() - 1)
         } else {
             current_index.saturating_sub(1)
         };
 
-        WindowSettings::handle(ctx).update(ctx, |_window_settings, _ctx| {});
+        WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
+            log_setting_result(
+                window_settings
+                    .zoom_level
+                    .set_value(crate::window_settings::ZoomLevel::VALUES[next_index], ctx),
+                "zoom_level",
+            );
+        });
     }
 
     fn adjust_terminal_font_size(&mut self, font_size_delta: f32, ctx: &mut ViewContext<Self>) {
@@ -10779,8 +10857,15 @@ impl Workspace {
         self.set_terminal_font_size(new_font_size, ctx);
     }
 
-    fn set_terminal_font_size(&mut self, _new_font_size: f32, ctx: &mut ViewContext<Self>) {
-        FontSettings::handle(ctx).update(ctx, |_font_settings, _ctx| {});
+    fn set_terminal_font_size(&mut self, new_font_size: f32, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            log_setting_result(
+                font_settings
+                    .monospace_font_size
+                    .set_value(new_font_size, ctx),
+                "monospace_font_size",
+            );
+        });
     }
 
     fn toggle_mouse_reporting(&mut self, ctx: &mut ViewContext<Self>) {
@@ -13307,7 +13392,20 @@ impl TypedActionView for Workspace {
                             self.open_tab_config(config, ctx);
                         } else {
                             // Config missing or deleted — clear and fall through to Terminal.
-                            AISettings::handle(ctx).update(ctx, |_settings, _ctx| {});
+                            AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                                log_setting_result(
+                                    settings
+                                        .default_session_mode_internal
+                                        .set_value(DefaultSessionMode::Terminal, ctx),
+                                    "default_session_mode_internal",
+                                );
+                                log_setting_result(
+                                    settings
+                                        .default_tab_config_path
+                                        .set_value(String::new(), ctx),
+                                    "default_tab_config_path",
+                                );
+                            });
                             self.add_terminal_tab(false, ctx);
                         }
                     }
@@ -13404,17 +13502,25 @@ impl TypedActionView for Workspace {
                 self.dismiss_older_toasts(toast_object_id, ctx);
             }
             TabConfigSidecarMakeDefault {
-                mode: _,
+                mode,
                 tab_config_path,
                 #[cfg_attr(not(feature = "local_tty"), allow(unused_variables))]
                 shell,
             } => {
-                AISettings::handle(ctx).update(
-                    ctx,
-                    |_settings, _ctx| {
-                        if let Some(_path) = tab_config_path {}
-                    },
-                );
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.default_session_mode_internal.set_value(*mode, ctx),
+                        "default_session_mode_internal",
+                    );
+                    if let Some(path) = tab_config_path {
+                        log_setting_result(
+                            settings
+                                .default_tab_config_path
+                                .set_value(path.to_string_lossy().into_owned(), ctx),
+                            "default_tab_config_path",
+                        );
+                    }
+                });
                 #[cfg(feature = "local_tty")]
                 if let Some(shell) = shell {
                     use crate::terminal::available_shells::AvailableShells;

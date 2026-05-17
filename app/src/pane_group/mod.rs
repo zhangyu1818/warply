@@ -16,7 +16,7 @@ use crate::env_vars::EnvVarCollectionType;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
 use crate::pane_group::pane::ActionOrigin;
 use crate::quit_warning::UnsavedStateSummary;
-use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
+use crate::settings::{log_setting_result, AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
@@ -37,6 +37,8 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{mpsc::SyncSender, Arc};
+
+use settings::Setting as _;
 
 #[cfg(test)]
 use itertools::Itertools;
@@ -3858,7 +3860,14 @@ impl PaneGroup {
                         model_ctx.notify();
                     });
 
-                GeneralSettings::handle(ctx).update(ctx, |_general_settings, _ctx| {});
+                GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
+                    log_setting_result(
+                        general_settings
+                            .user_default_shell_unsupported_banner_state
+                            .set_value(BannerState::Dismissed, ctx),
+                        "user_default_shell_unsupported_banner_state",
+                    );
+                });
             }
             BannerEvent::Action(_) => {
                 #[cfg(debug_assertions)]
