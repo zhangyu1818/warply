@@ -1,6 +1,16 @@
-# Agents Wiki
+# Agents / LLM Wiki
 
-This wiki is the project-level memory for the local ACP fork. Its purpose is to make future upstream merges from original Warp possible without accidentally restoring removed cloud product code.
+This wiki is the project-level LLM memory for the local ACP fork. Its purpose is to make future upstream merges from original Warp possible without accidentally restoring removed cloud product code.
+
+This is not an `llms.txt` site index. `llms.txt` is a website-root convention for publishing a curated public content map to external LLM tools. This repository instead uses a local, versioned wiki under `docs/agents-wiki/` as the durable source of truth for fork decisions.
+
+## Memory Model
+
+- `AGENTS.md`: entry contract and high-level rules agents should read first.
+- `.agents/skills/`: procedural workflows agents can load for specific tasks, such as upstream merge work.
+- `docs/agents-wiki/`: durable project memory, merge decisions, retained/deleted surface boundaries, and path-level cleanup rationale.
+
+Do not create a parallel `llms.txt`, `llms-full.txt`, or historical plan directory for fork memory. Keep long-lived context here, and keep action-oriented procedures in project skills.
 
 The wiki is organized for quick agent lookup:
 
@@ -8,6 +18,16 @@ The wiki is organized for quick agent lookup:
 - What this fork deleted.
 - Which upstream changes should be accepted, adapted, or rejected.
 - Which legacy names are still present but do not mean the old product surface should return.
+
+## Maintenance Rules
+
+- Prefer short, durable facts over narrative implementation logs.
+- Record why a retained upstream change was accepted, adapted, or rejected when the reason is likely to matter in a future merge.
+- Keep deleted upstream specs and planning docs out of the repo; summarize retained decisions here instead.
+- Update `change-map.md` for path-level behavior changes, removed surfaces, and intentional divergences from master.
+- Update `fork-contract.md` only when the product boundary itself changes.
+- Update `upstream-merge-guide.md` when a new recurring merge pattern needs a rule.
+- Do not duplicate the same rule in multiple files unless one copy is an entry-point summary and the wiki remains the detailed source.
 
 ## Baseline
 

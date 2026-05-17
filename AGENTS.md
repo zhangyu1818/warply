@@ -22,6 +22,8 @@ Fork baseline:
 
 Use that baseline, plus the current `docs/agents-wiki/` records, when deciding whether future upstream changes should be accepted, adapted, or rejected.
 
+Project memory lives in `docs/agents-wiki/`; do not recreate `llms.txt`, `llms-full.txt`, upstream `specs/**`, standalone `PRODUCT.md` or `TECH.md`, or `docs/superpowers/plans/**` as fork memory.
+
 ## Merge Discipline
 
 Every upstream commit must be reviewed before it is applied.
@@ -99,7 +101,6 @@ Inspect call sites, persistence usage, settings, and runtime ownership before ac
 
 ## Required Reading For Merge Work
 
-- `llms.txt`
 - `docs/agents-wiki/README.md`
 - `docs/agents-wiki/fork-contract.md`
 - `docs/agents-wiki/upstream-merge-guide.md`
