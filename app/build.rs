@@ -17,10 +17,13 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=src/platform/mac/objc/app_bundle.m");
     println!("cargo:rerun-if-changed=src/platform/mac/objc/services.h");
     println!("cargo:rerun-if-changed=src/platform/mac/objc/services.m");
+    println!("cargo:rerun-if-changed=src/platform/mac/objc/updater.h");
+    println!("cargo:rerun-if-changed=src/platform/mac/objc/updater.m");
 
     cc::Build::new()
         .file("src/platform/mac/objc/app_bundle.m")
         .file("src/platform/mac/objc/services.m")
+        .file("src/platform/mac/objc/updater.m")
         .compile("warp_objc");
 
     // Build the dock tile plugin

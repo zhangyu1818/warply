@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="${WARPLY_SPARKLE_VERSION:-2.9.2}"
+SHA256="1cb340cbbef04c6c0d162078610c25e2221031d794a3449d89f2f56f4df77c95"
+CACHE_DIR="$ROOT/target/sparkle"
+INSTALL_DIR="$CACHE_DIR/Sparkle-$VERSION"
+ARCHIVE_PATH="$CACHE_DIR/Sparkle-$VERSION.tar.xz"
+URL="https://github.com/sparkle-project/Sparkle/releases/download/$VERSION/Sparkle-$VERSION.tar.xz"
+
+if [[ -d "$INSTALL_DIR/Sparkle.framework" && -x "$INSTALL_DIR/bin/generate_appcast" ]]; then
+  printf '%s\n' "$INSTALL_DIR"
+  exit 0
+fi
+
+mkdir -p "$CACHE_DIR"
+
+if [[ ! -f "$ARCHIVE_PATH" ]]; then
+  curl -fL --retry 3 -o "$ARCHIVE_PATH" "$URL"
+fi
+
+actual_sha="$(shasum -a 256 "$ARCHIVE_PATH" | awk '{print $1}')"
+if [[ "$actual_sha" != "$SHA256" ]]; then
+  echo "Sparkle archive checksum mismatch: expected $SHA256, got $actual_sha" >&2
+  exit 1
+fi
+
+TMP_DIR="$CACHE_DIR/Sparkle-$VERSION.tmp"
+rm -rf "$TMP_DIR"
+mkdir -p "$TMP_DIR"
+tar -xf "$ARCHIVE_PATH" -C "$TMP_DIR"
+rm -rf "$INSTALL_DIR"
+mv "$TMP_DIR" "$INSTALL_DIR"
+
+printf '%s\n' "$INSTALL_DIR"

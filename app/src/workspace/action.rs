@@ -156,6 +156,7 @@ pub enum WorkspaceAction {
     },
     SelectNewSessionMenuItem(NewSessionMenuItem),
     CopyVersion(&'static str),
+    CheckForUpdates,
     ConfigureKeybindingSettings {
         keybinding_name: Option<String>,
     },
@@ -534,6 +535,7 @@ impl WorkspaceAction {
             // workspace would most likely require a save, so that if the app gets
             // restarted, the user can continue working
             CopyVersion(_)
+            | CheckForUpdates
             | ConfigureKeybindingSettings { .. }
             | ShowSettings
             | ShowSettingsPage(_)

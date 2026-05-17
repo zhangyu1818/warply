@@ -12,6 +12,7 @@ The fork is a local-first terminal application:
 - OpenAI-compatible Next Command.
 - OpenAI-compatible Prompt Suggestions.
 - Local settings and local persistence.
+- Sparkle 2 app updates from this fork's GitHub Release appcast.
 - macOS as the only maintained native host platform.
 
 No maintained feature should require Warp login, Warp billing, Warp cloud objects, Warp-hosted agent services, or external telemetry. Do not add backward-compatibility paths for deleted Warp cloud/account/agent data; migrate retained local data directly to the current local schema.
@@ -47,7 +48,7 @@ These were deliberately removed. If upstream changes touch them, the default dec
 - `app/src/auth/`: account auth, anonymous id, SSO, access tokens, login UI.
 - `app/src/billing/`: billing, usage, upgrade, referral/invite gates.
 - Unused cloud/billing/team/referral SVGs and icon variants, including `cloud-01.svg`, `cloud-filled.svg`, `cloud-off.svg`, `create-team.svg`, `credits.svg`, `referral-*`, `Icon::Cloud`, `Icon::CloudFilled`, and `Icon::CoinsStacked`.
-- `app/src/autoupdate/`: upstream update/changelog behavior not needed for this fork.
+- `app/src/autoupdate/`: upstream Warp update/changelog infrastructure. This fork uses its own Sparkle 2 updater under `app/src/updater/` instead.
 - `app/src/crash_reporting/` and Sentry scripts.
 - `app/src/ai/agent_sdk/`: old Warp-hosted Agent SDK and harnesses.
 - `app/src/ai/agent_management/`: cloud agent management UI.
@@ -95,6 +96,7 @@ These are still in scope and should receive compatible upstream fixes:
 - Retained AI history may store ACP model metadata for display, but must not restore old Warp planning-model selector state.
 - Do not restore app-level cloud online/offline mode, offline cloud toolbar indicators, debug network-status toggles, or suggestion gates that depend on Warp cloud connectivity.
 - OS launch-at-login settings.
+- Sparkle 2 update checks and downloads for Warply releases, using the bundled Sparkle framework, standard Sparkle UI, GitHub Release DMG assets, and `appcast.xml` from GitHub Releases. Do not restore Warp `channel_versions`, Warp update server APIs, Linux package updaters, or old autoupdate product code around this.
 - SSH/remote terminal behavior that does not depend on Warp account auth.
 - macOS host platform integration, packaging, secure storage, user preferences, local PTY, windowing, menus, and launch-at-login behavior.
 

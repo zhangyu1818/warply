@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ARCHIVES_DIR="${1:?archives directory is required}"
+RELEASE_TAG="${GIT_RELEASE_TAG:-${GITHUB_REF_NAME:-}}"
+REPOSITORY="${GITHUB_REPOSITORY:-zhangyu1818/warply}"
+
+if [[ -z "$RELEASE_TAG" ]]; then
+  echo "GIT_RELEASE_TAG or GITHUB_REF_NAME must be set" >&2
+  exit 1
+fi
+
+: "${WARPLY_SPARKLE_PRIVATE_KEY:?WARPLY_SPARKLE_PRIVATE_KEY must be set}"
+
+SPARKLE_DIR="$("$ROOT/script/install_sparkle")"
+DOWNLOAD_URL_PREFIX="${WARPLY_SPARKLE_DOWNLOAD_URL_PREFIX:-https://github.com/$REPOSITORY/releases/download/$RELEASE_TAG/}"
+LINK_URL="${WARPLY_SPARKLE_LINK_URL:-https://github.com/$REPOSITORY/releases/tag/$RELEASE_TAG}"
+
+printf '%s' "$WARPLY_SPARKLE_PRIVATE_KEY" | "$SPARKLE_DIR/bin/generate_appcast" \
+  --ed-key-file - \
+  --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
+  --link "$LINK_URL" \
+  "$ARCHIVES_DIR"

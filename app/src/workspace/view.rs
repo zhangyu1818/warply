@@ -180,6 +180,7 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::view::docker_sandbox::DEFAULT_DOCKER_SANDBOX_BASE_IMAGE;
 use crate::terminal::{self, SizeInfo, TerminalView};
 use crate::ui_events::LaunchConfigUiLocation;
+use crate::updater::{UpdaterStatus, WarplyUpdater};
 use ::settings::{Setting, ToggleableSetting};
 use warp_core::{features::FeatureFlag, SessionId};
 
@@ -1824,6 +1825,10 @@ impl Workspace {
 
         ctx.subscribe_to_model(&WindowSettings::handle(ctx), |me, _handle, event, ctx| {
             me.handle_window_settings_changed_event(event, ctx);
+        });
+
+        ctx.subscribe_to_model(&WarplyUpdater::handle(ctx), |_, _, _, ctx| {
+            ctx.notify();
         });
 
         let tab_settings_handle = TabSettings::handle(ctx);
@@ -11476,6 +11481,88 @@ impl Workspace {
         .finish()
     }
 
+    fn render_update_button(
+        &self,
+        appearance: &Appearance,
+        ctx: &AppContext,
+    ) -> Option<Box<dyn Element>> {
+        let version = match WarplyUpdater::as_ref(ctx).status() {
+            UpdaterStatus::UpdateAvailable { version } => version.clone(),
+            _ => return None,
+        };
+
+        let theme = appearance.theme();
+        let font_color = theme.main_text_color(theme.background());
+        let icon = ConstrainedBox::new(icons::Icon::Download.to_warpui_icon(font_color).finish())
+            .with_width(14.)
+            .with_height(14.)
+            .finish();
+
+        let label = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(6.)
+            .with_child(icon)
+            .with_child(
+                Text::new_inline("Update", appearance.ui_font_family(), 12.)
+                    .with_color(font_color.into())
+                    .with_style(Properties::default().weight(Weight::Medium))
+                    .finish(),
+            )
+            .finish();
+
+        let default_styles = UiComponentStyles {
+            font_color: Some(font_color.into()),
+            font_size: Some(12.),
+            font_weight: Some(Weight::Medium),
+            font_family_id: Some(appearance.ui_font_family()),
+            height: Some(24.),
+            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
+            border_width: Some(0.),
+            padding: Some(Coords {
+                top: 0.,
+                bottom: 0.,
+                left: 8.,
+                right: 8.,
+            }),
+            background: Some(internal_colors::fg_overlay_2(theme).into()),
+            ..Default::default()
+        };
+
+        let hover_styles = UiComponentStyles {
+            background: Some(internal_colors::fg_overlay_3(theme).into()),
+            ..default_styles
+        };
+
+        let clicked_styles = UiComponentStyles {
+            background: Some(theme.background().into()),
+            ..default_styles
+        };
+
+        let button = Button::new(
+            self.mouse_states.update_button.clone(),
+            default_styles,
+            Some(hover_styles),
+            Some(clicked_styles),
+            None,
+        )
+        .with_custom_label(label)
+        .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+            appearance,
+            format!("Update to {version}"),
+            None,
+        ))
+        .build()
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(WorkspaceAction::CheckForUpdates);
+        });
+
+        Some(
+            Container::new(Align::new(button.finish()).finish())
+                .with_margin_left(TAB_BAR_ICON_PADDING)
+                .finish(),
+        )
+    }
+
     /// Renders an invisible rect for detecting hovers over the tab bar.
     fn render_tab_bar_hover_area(&self) -> Box<dyn Element> {
         self.render_tab_bar_hoverable(
@@ -11837,6 +11924,10 @@ impl Workspace {
             if let Some(button) = self.render_header_toolbar_button(&item, appearance, ctx) {
                 target.add_child(button);
             }
+        }
+
+        if let Some(button) = self.render_update_button(appearance, ctx) {
+            target.add_child(button);
         }
 
         let zoom_factor = WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor();
@@ -13573,6 +13664,11 @@ impl TypedActionView for Workspace {
             OpenSettingsFile => {
                 let path = crate::settings::user_preferences_toml_file_path();
                 self.add_tab_for_code_file(path, None, ctx);
+            }
+            CheckForUpdates => {
+                WarplyUpdater::handle(ctx).update(ctx, |updater, ctx| {
+                    updater.check_for_updates(ctx);
+                });
             }
             OpenWorktreeInRepo { repo_path } => {
                 self.open_worktree_in_repo(repo_path.clone(), ctx);

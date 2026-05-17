@@ -38,11 +38,20 @@ jobs:
           WARPLY_APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.WARPLY_APP_STORE_CONNECT_PRIVATE_KEY }}
         run: ./script/bundle --channel oss --arch aarch64 --read-signing-secrets-from-env --release-tag "${{ github.ref_name }}"
 
+      - name: Generate Sparkle appcast
+        shell: bash
+        env:
+          WARPLY_SPARKLE_PRIVATE_KEY: ${{ secrets.WARPLY_SPARKLE_PRIVATE_KEY }}
+          GIT_RELEASE_TAG: ${{ github.ref_name }}
+        run: ./script/generate_sparkle_appcast target/release-lto/bundle/osx
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Warply-macOS-arm64
-          path: target/release-lto/bundle/osx/Warply.dmg
+          path: |
+            target/release-lto/bundle/osx/Warply.dmg
+            target/release-lto/bundle/osx/appcast.xml
           if-no-files-found: error
 
       - name: Publish GitHub release
@@ -52,5 +61,6 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             target/release-lto/bundle/osx/Warply.dmg \
+            target/release-lto/bundle/osx/appcast.xml \
             --title "Warply ${{ github.ref_name }}" \
             --notes "Warply macOS arm64 signed DMG."

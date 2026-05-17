@@ -40,7 +40,7 @@ This map explains the large fork baseline change at a path level.
 | `app/src/auth/` | Account auth, user identity, access tokens, login UI. | Reject. |
 | `app/src/billing/` | Billing, usage, upgrade, referral gates. | Reject. |
 | Cloud/billing/team/referral SVGs and icon variants | `cloud-01.svg`, `cloud-filled.svg`, `cloud-off.svg`, `create-team.svg`, `credits.svg`, `referral-*`, `Icon::Cloud`, `Icon::CloudFilled`, `Icon::CoinsStacked`. | Removed when unused. Keep generic publish/upload icons that are used by retained local code review flows. |
-| `app/src/autoupdate/` | App update/changelog infrastructure. | Reject unless this fork intentionally restores updater behavior. |
+| `app/src/autoupdate/` | Warp app update/changelog infrastructure. | Reject. The fork-owned updater lives in `app/src/updater/` and uses Sparkle 2 with GitHub Release appcasts. |
 | `app/src/crash_reporting/` | Crash reporter/Sentry integration. | Reject. |
 | `app/src/ai/agent_sdk/` | Old Warp Agent SDK, harnesses, cloud environment, scheduling, cloud tool execution. | Reject; reimplement useful behavior in ACP if needed. |
 | `app/src/ai/agent_management/` | Cloud agent management UI. | Reject. |
@@ -182,6 +182,15 @@ This map explains the large fork baseline change at a path level.
 - The simplified Warply CI runs on macOS only. Environment setup should install protobuf through Homebrew directly instead of pinning an external setup-protoc action that can break workflow resolution.
 - Workspace checks compile `command-signatures-v2`, whose build script runs the Yarn 4 TypeScript build. CI must install Node and enable Corepack before `cargo check --workspace`.
 - macOS build dependency setup should treat `xcodebuild -downloadComponent MetalToolchain` as optional because GitHub macOS runner Xcode versions may not expose that flag.
+
+## 2026-05 Sparkle 2 Updater
+
+- Added a fork-owned updater path under `app/src/updater/` with an Objective-C bridge in `app/src/platform/mac/objc/updater.*`. The bridge loads the bundled Sparkle framework at runtime and uses `SPUStandardUpdaterController` with Sparkle's standard update UI.
+- The app checks update information through Sparkle's probing API so the toolbar can show an `Update` affordance only when a newer GitHub Release appcast item exists. User-initiated checks use Sparkle's standard `checkForUpdates:` flow.
+- `script/install_sparkle` pins Sparkle `2.9.2` and verifies the release archive SHA-256 before copying `Sparkle.framework` into the macOS app bundle. Keep using `ditto` or another symlink-preserving copy path.
+- `script/update_plist` writes `SUFeedURL`, `SUPublicEDKey`, `SUEnableAutomaticChecks`, and `SUAutomaticallyUpdate` into the bundle plist. Release versions come from Warply tags `vYYYY.MM.DD` or `vYYYY.MM.DD.N`; old Warp tag formats are intentionally rejected.
+- `.github/workflows/create_release.yml` generates `appcast.xml` from the signed DMG and publishes both `Warply.dmg` and `appcast.xml` to the GitHub Release. CI needs the `WARPLY_SPARKLE_PRIVATE_KEY` secret matching the bundled public EdDSA key.
+- Do not restore `app/src/autoupdate`, `channel_versions`, Warp update/changelog APIs, Linux package-update hooks, or old Warp release tag compatibility around this updater. Future updater changes should stay Sparkle/GitHub Release based unless the fork distribution model changes.
 
 ## 2026-05 Old Warp Model Surface Cleanup
 

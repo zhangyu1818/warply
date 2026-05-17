@@ -826,6 +826,15 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_custom_action(CustomAction::ShowSettings),
         EditableBinding::new(
+            "workspace:check_for_updates",
+            BindingDescription::new("Check for Updates")
+                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Check for Updates..."),
+            WorkspaceAction::CheckForUpdates,
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_context_predicate(id!("Workspace"))
+        .with_custom_action(CustomAction::CheckForUpdates),
+        EditableBinding::new(
             "workspace:show_settings_appearance_page",
             BindingDescription::new("Open Settings: Appearance")
                 .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Appearance..."),

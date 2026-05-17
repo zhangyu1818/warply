@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION_SCRIPT="$ROOT/script/warply_version"
+
+expect() {
+  local tag="$1"
+  local field="$2"
+  local expected="$3"
+  local actual
+  actual="$("$VERSION_SCRIPT" "$tag" "$field")"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "Expected $tag $field to be '$expected', got '$actual'" >&2
+    exit 1
+  fi
+}
+
+expect v2026.05.17 short 2026.05.17
+expect v2026.05.17 bundle 20260517
+expect v2026.05.17.2 short 2026.05.17
+expect v2026.05.17.2 bundle 20260517.2
+
+if "$VERSION_SCRIPT" v1.2025.01.07.08.02.stable_02 short >/dev/null 2>&1; then
+  echo "Expected old Warp release tags to be rejected" >&2
+  exit 1
+fi
+
+if "$VERSION_SCRIPT" not-a-tag bundle >/dev/null 2>&1; then
+  echo "Expected invalid tags to be rejected" >&2
+  exit 1
+fi

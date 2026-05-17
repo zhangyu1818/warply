@@ -71,6 +71,11 @@ export WARPLY_SCHEME_NAME
 export WARPLY_PLIST_PATH="$WARPLY_APP_PATH/Contents/Info.plist"
 ./script/update_plist
 
+SPARKLE_DIR="$("${REPO_ROOT}/script/install_sparkle")"
+echo "Copying Sparkle.framework into app bundle"
+mkdir -p "$WARPLY_APP_PATH/Contents/Frameworks"
+ditto "$SPARKLE_DIR/Sparkle.framework" "$WARPLY_APP_PATH/Contents/Frameworks/Sparkle.framework"
+
 echo "Preparing bundled resources..."
 if [ "${GENERATE_SCHEMA:-false}" != "true" ]; then
   export SKIP_SETTINGS_SCHEMA=1

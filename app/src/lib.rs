@@ -62,6 +62,7 @@ mod tracing;
 mod ui_components;
 mod ui_events;
 mod undo_close;
+mod updater;
 mod uri;
 mod user_config;
 pub mod util;
@@ -176,6 +177,7 @@ use crate::terminal::keys::TerminalKeybindings;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::{AudibleBell, History};
 use crate::undo_close::UndoCloseStack;
+use crate::updater::WarplyUpdater;
 use crate::user_config::WarpConfig;
 use crate::vim_registers::VimRegisters;
 use crate::warp_managed_paths_watcher::{ensure_warp_watch_roots_exist, WarpManagedPathsWatcher};
@@ -736,6 +738,7 @@ pub(crate) fn initialize_app(
     App::record_last_active_timestamp();
 
     ctx.add_singleton_model(|_| SettingsPaneManager::new());
+    ctx.add_singleton_model(WarplyUpdater::new);
     ctx.add_singleton_model(|_| AIFactManager::new());
     ctx.add_singleton_model(|_| ExecutionProfileEditorManager::default());
     if !launch_mode.is_headless() {

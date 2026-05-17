@@ -133,6 +133,11 @@ fn make_new_app_menu(ctx: &AppContext) -> Menu {
     )];
 
     menu_items.push(MenuItem::Separator);
+    menu_items.push(updateable_custom_item_without_checkmark(
+        CustomAction::CheckForUpdates,
+        ctx,
+    ));
+    menu_items.push(MenuItem::Separator);
 
     let preferences_menu_items = vec![
         updateable_custom_item_without_checkmark(CustomAction::ShowSettings, ctx),

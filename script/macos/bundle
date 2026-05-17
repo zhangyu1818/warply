@@ -295,6 +295,11 @@ export WARPLY_SCHEME_NAME
 export WARPLY_PLIST_PATH="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Info.plist"
 ./script/update_plist
 
+SPARKLE_DIR="$("$WORKSPACE_ROOT_DIR/script/install_sparkle")"
+echo "Copying Sparkle.framework into app bundle"
+mkdir -p "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Frameworks"
+ditto "$SPARKLE_DIR/Sparkle.framework" "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Frameworks/Sparkle.framework"
+
 if [[ $REGISTER_SERVICES = true ]]; then
     plutil -insert NSServices -xml "
     <array>
