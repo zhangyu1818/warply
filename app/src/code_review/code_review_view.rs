@@ -69,7 +69,7 @@ use crate::{
     quit_warning::UnsavedStateSummary,
     terminal::input::MenuPositioning,
     terminal::view::{InitProjectModel, TerminalAction, TerminalView},
-    util::bindings::{custom_tag_to_keystroke, CustomAction},
+    util::bindings::{custom_tag_to_keystroke, keybinding_name_to_display_string, CustomAction},
     view_components::{
         action_button::{
             ActionButton, AdjoinedSide, ButtonSize, DangerPrimaryTheme, KeystrokeSource,
@@ -266,6 +266,19 @@ pub fn get_discard_button_disabled_tooltip(git_operation_blocked: bool) -> Strin
             .to_string()
     } else {
         "No changes to discard".to_string()
+    }
+}
+
+fn file_nav_button_tooltip(is_sidebar_expanded: bool, app: &AppContext) -> String {
+    let label = if is_sidebar_expanded {
+        "Hide file navigation"
+    } else {
+        "Show file navigation"
+    };
+
+    match keybinding_name_to_display_string("code_review:toggle_file_navigation", app) {
+        Some(shortcut) => format!("{label} ({shortcut})"),
+        None => label.to_string(),
     }
 }
 
@@ -1143,10 +1156,10 @@ impl CodeReviewView {
                 .on_click(|ctx| ctx.dispatch_typed_action(CodeReviewAction::OpenHeaderMenu))
         });
 
-        let file_nav_button = ctx.add_typed_action_view(|_ctx| {
+        let file_nav_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("", NakedTheme)
                 .with_icon(Icon::FileCopy)
-                .with_tooltip("Show file navigation")
+                .with_tooltip(file_nav_button_tooltip(false, ctx))
                 .on_click(|ctx| ctx.dispatch_typed_action(CodeReviewAction::ToggleFileSidebar))
         });
 
@@ -1418,11 +1431,7 @@ impl CodeReviewView {
     }
 
     fn update_file_nav_button_tooltip(&self, ctx: &mut ViewContext<Self>) {
-        let tooltip = if self.file_sidebar_expanded {
-            "Hide file navigation"
-        } else {
-            "Show file navigation"
-        };
+        let tooltip = file_nav_button_tooltip(self.file_sidebar_expanded, ctx);
         self.file_nav_button.update(ctx, |button, ctx| {
             button.set_tooltip(Some(tooltip), ctx);
         });
@@ -5717,9 +5726,7 @@ impl CodeReviewView {
                 build_selection_line_range_prompt(&file_path, start_line, end_line)
             };
             if terminal_view
-                .update(ctx, |tv, ctx| {
-                    tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
-                })
+                .update(ctx, |tv, ctx| tv.try_send_text_to_cli_agent(prompt, ctx))
                 .is_some()
             {
                 return;
@@ -5807,7 +5814,7 @@ impl CodeReviewView {
                     let file_diffs =
                         convert_file_diffs_to_diffset_hunks(files_to_process.into_iter());
                     terminal_view.update(ctx, |tv, ctx| {
-                        tv.send_diff_context_to_cli_agent_or_rich_input(&file_diffs, ctx)
+                        tv.send_diff_context_to_cli_agent(&file_diffs, ctx)
                     });
                 }
                 return;
@@ -5990,7 +5997,7 @@ impl CodeReviewView {
                     let start_line = line_range.start.as_usize() + 1;
                     let end_line = line_range.end.as_usize();
                     terminal_view.update(ctx, |tv, ctx| {
-                        tv.send_diff_hunk_to_cli_agent_or_rich_input(
+                        tv.send_diff_hunk_to_cli_agent(
                             &relative_path,
                             start_line,
                             end_line,
@@ -6878,6 +6885,22 @@ impl View for CodeReviewView {
 
     fn ui_name() -> &'static str {
         "CodeReviewView"
+    }
+
+    fn keymap_context(&self, ctx: &AppContext) -> warpui::keymap::Context {
+        let mut context = Self::default_keymap_context();
+
+        let editor_focused = ctx
+            .focused_view_id(self.window_id)
+            .and_then(|view_id| ctx.view_name(self.window_id, view_id))
+            .is_some_and(|name| {
+                matches!(name, "EditorView" | "RichTextEditorView" | "CodeEditorView")
+            });
+        if !editor_focused {
+            context.set.insert("CodeReviewView_NotEditing");
+        }
+
+        context
     }
 }
 

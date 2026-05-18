@@ -115,7 +115,6 @@ impl AtContextMenuDisabledReason {
         // no categories available.
         if AIContextMenu::get_categories_for_mode(
             input_config.input_type.is_ai() || !input_config.is_locked,
-            false,
             ctx,
         )
         .is_empty()

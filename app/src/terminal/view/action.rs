@@ -325,9 +325,6 @@ pub enum TerminalAction {
     ResolvePromptSuggestion(PromptSuggestionResolution),
     /// Toggle PTY recording for this session.
     ToggleSessionRecording,
-    /// Toggle the rich input editor for composing a prompt to send to a CLI agent.
-    /// Triggered by Ctrl-G when a CLI agent is detected, or from the footer button.
-    ToggleCLIAgentRichInput,
 }
 
 // Manually implementing Debug to avoid leaking sensitive information in logs
@@ -546,7 +543,6 @@ impl fmt::Debug for TerminalAction {
             OpenInlineHistoryMenu => write!(f, "OpenInlineHistoryMenu"),
             ResolvePromptSuggestion(..) => write!(f, "ResolvePromptSuggestion"),
             ToggleSessionRecording => write!(f, "ToggleSessionRecording"),
-            ToggleCLIAgentRichInput => write!(f, "ToggleCLIAgentRichInput"),
         }
     }
 }

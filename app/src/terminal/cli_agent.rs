@@ -203,19 +203,6 @@ impl CLIAgent {
         }
     }
 
-    /// Whether this CLI agent supports the `!` bash mode prefix in the rich input.
-    /// When `true`, typing `!` in the CLI agent rich input activates shell mode with
-    /// decorations, completions, and error underlining.
-    ///
-    /// TODO(advait): Check whether Gemini, Amp, Droid, and Copilot support `!` bash
-    /// mode and enable them here if so.
-    pub fn supports_bash_mode(&self) -> bool {
-        matches!(
-            self,
-            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode
-        )
-    }
-
     /// Returns the brand color for this CLI agent, or `None` for unknown/custom agents.
     pub fn brand_color(&self) -> Option<ColorU> {
         match self {

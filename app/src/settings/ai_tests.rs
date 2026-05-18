@@ -4,56 +4,6 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use warpui::{App, SingletonEntity};
 
 #[test]
-fn test_toolbar_command_map_deserialize_from_map() {
-    let json = serde_json::json!({
-        "^claude": "Claude",
-        "^gemini": "Gemini",
-        "^codex": ""
-    });
-    let map: ToolbarCommandMap = serde_json::from_value(json).unwrap();
-    assert_eq!(map.0.len(), 3);
-    assert_eq!(map.0["^claude"], "Claude");
-    assert_eq!(map.0["^gemini"], "Gemini");
-    assert_eq!(map.0["^codex"], "");
-}
-
-#[test]
-fn test_toolbar_command_map_from_file_value_map_format() {
-    use settings_value::SettingsValue;
-
-    let value = serde_json::json!({
-        "^claude": "Claude",
-        "^amp": "Amp"
-    });
-    let map = ToolbarCommandMap::from_file_value(&value).unwrap();
-    assert_eq!(map.0.len(), 2);
-    assert_eq!(map.0["^claude"], "Claude");
-    assert_eq!(map.0["^amp"], "Amp");
-}
-
-#[test]
-fn test_toolbar_command_map_from_file_value_invalid() {
-    use settings_value::SettingsValue;
-
-    let value = serde_json::json!(42);
-    assert!(ToolbarCommandMap::from_file_value(&value).is_none());
-}
-
-#[test]
-fn test_toolbar_command_map_roundtrip() {
-    use settings_value::SettingsValue;
-
-    let mut inner = IndexMap::new();
-    inner.insert("^claude".to_string(), "Claude".to_string());
-    inner.insert("^custom".to_string(), String::new());
-    let original = ToolbarCommandMap::new(inner);
-
-    let file_value = original.to_file_value();
-    let restored = ToolbarCommandMap::from_file_value(&file_value).unwrap();
-    assert_eq!(original, restored);
-}
-
-#[test]
 fn test_terminal_suggestions_settings_defaults() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);

@@ -128,6 +128,8 @@ fn selecting_acp_command_with_input_hint_keeps_editor_open() {
 
         input.read(&app, |input, ctx| {
             assert_eq!(input.buffer_text(ctx), "/review ");
+            assert!(input.ai_input_model.as_ref(ctx).is_ai_input_enabled());
+            assert!(input.ai_input_model.as_ref(ctx).is_input_type_locked());
         });
         app.read(|ctx| {
             assert!(matches!(

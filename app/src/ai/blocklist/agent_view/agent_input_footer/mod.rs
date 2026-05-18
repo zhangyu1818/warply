@@ -13,42 +13,29 @@ use crate::{
         self,
         display_chip::{render_udi_chip, DisplayChip, DisplayChipConfig, UdiChipConfig},
         prompt_type::PromptType,
-        ContextChipKind,
     },
-    terminal::{
-        cli_agent_sessions::{
-            CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-        },
-        session_settings::{SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection},
-        view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-        CLIAgent, TerminalModel,
+    terminal::session_settings::{
+        SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
     },
     ui_components::icons::Icon,
-    view_components::{
-        action_button::{
-            ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, TooltipAlignment,
-        },
-        DismissibleToast,
+    view_components::action_button::{
+        ActionButton, ActionButtonTheme, ButtonSize, TooltipAlignment,
     },
-    workspace::{view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME, ToastStack},
 };
-use std::sync::Arc;
 use toolbar_item::AgentToolbarItemKind;
 
 use ai::document::{AIDocumentId, AIDocumentVersion};
-use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
 
 use warp_core::ui::{
-    color::{blend::Blend, contrast::MinimumAllowedContrast, ContrastingColor},
+    color::blend::Blend,
     theme::{color::internal_colors, Fill},
 };
 use warpui::{
     elements::{
-        ChildView, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, Element,
-        EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Wrap, WrapFill,
-        WrapFillEntireRun,
+        ChildView, Container, CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex,
+        MainAxisAlignment, MainAxisSize, ParentElement, Wrap, WrapFill,
     },
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
@@ -56,35 +43,18 @@ use warpui::{
 
 /// Footer control bar at the bottom of the agent input.
 ///
-/// Renders in two modes:
-/// - **Agent View mode** (default): local controls and context chips.
-/// - **CLI agent mode**: agent icon, image, mic, file explorer, view changes, rich input.
-///
-/// The mode is determined by reading `CLIAgentSessionsModel` at render time.
-/// A single `ViewHandle<AgentInputFooter>` is shared between `Input` and
-/// `UseAgentToolbar`, rendering the appropriate mode in each context.
 pub struct AgentInputFooter {
     terminal_view_id: EntityId,
     file_button: ViewHandle<ActionButton>,
     left_display_chips: Vec<ViewHandle<DisplayChip>>,
     right_display_chips: Vec<ViewHandle<DisplayChip>>,
-    // Separate set of display chips for the CLI agent footer.
-    // Needed because the CLI footer chip selection can include chips not present in the agent view selection.
-    cli_display_chips: Vec<ViewHandle<DisplayChip>>,
     display_chip_config: DisplayChipConfig,
-
-    terminal_model: Arc<FairMutex<TerminalModel>>,
-
-    // CLI agent-specific buttons (rendered when a CLI agent session is active).
-    file_explorer_button: ViewHandle<ActionButton>,
-    rich_input_button: ViewHandle<ActionButton>,
 }
 
 impl AgentInputFooter {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         terminal_view_id: EntityId,
-        terminal_model: Arc<FairMutex<TerminalModel>>,
         prompt: ModelHandle<PromptType>,
         display_chip_config: DisplayChipConfig,
         ctx: &mut ViewContext<Self>,
@@ -102,87 +72,13 @@ impl AgentInputFooter {
                 })
         });
 
-        // CLI agent-specific buttons (only rendered when a CLI agent session is active).
-        let cli_button_size = ButtonSize::AgentInputButton;
-        let file_explorer_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("File explorer", AgentInputButtonTheme)
-                .with_icon(Icon::FileCopy)
-                .with_tooltip("Open file explorer")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_keybinding(
-                    KeystrokeSource::Binding(TOGGLE_PROJECT_EXPLORER_BINDING_NAME),
-                    ctx,
-                )
-                .with_compact_keybinding(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleFileExplorer);
-                })
-        });
-        let rich_input_button = ctx.add_typed_action_view(|ctx| {
-            ActionButton::new("Rich Input", AgentInputButtonTheme)
-                .with_icon(Icon::TextInput)
-                .with_tooltip("Open Rich Input")
-                .with_size(cli_button_size)
-                .with_tooltip_alignment(TooltipAlignment::Left)
-                .with_keybinding(
-                    KeystrokeSource::Binding(OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING),
-                    ctx,
-                )
-                .with_compact_keybinding(true)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(AgentInputFooterAction::ToggleRichInput);
-                })
-        });
-        // Toggle rich input button label when CLI input session opens/closes.
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, _, event, ctx| {
-                if event.terminal_view_id() != terminal_view_id {
-                    return;
-                }
-
-                let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    new_input_state, ..
-                } = event
-                else {
-                    ctx.notify();
-                    return;
-                };
-                let is_open = matches!(new_input_state, CLIAgentInputState::Open { .. });
-                me.rich_input_button.update(ctx, |button, ctx| {
-                    if is_open {
-                        button.set_label("Hide Rich Input", ctx);
-                        button.set_tooltip(Some("Hide Rich Input"), ctx);
-                        button.set_keybinding(
-                            Some(KeystrokeSource::Binding(
-                                OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-                            )),
-                            ctx,
-                        );
-                    } else {
-                        button.set_label("Rich Input", ctx);
-                        button.set_tooltip(Some("Open Rich Input"), ctx);
-                        button.set_keybinding(
-                            Some(KeystrokeSource::Binding(
-                                OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-                            )),
-                            ctx,
-                        );
-                    }
-                });
-                ctx.notify();
-            },
-        );
-
         ctx.subscribe_to_model(&AcpAgentModel::handle(ctx), |_, _, _, ctx| ctx.notify());
 
         let prompt_for_session_settings = prompt.clone();
         ctx.subscribe_to_model(
             &SessionSettings::handle(ctx),
             move |me, _, event, ctx| match event {
-                SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. }
-                | SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } => {
+                SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. } => {
                     me.update_display_chips(&prompt_for_session_settings, ctx);
                     ctx.notify();
                 }
@@ -229,12 +125,8 @@ impl AgentInputFooter {
         let mut me = Self {
             terminal_view_id,
             file_button,
-            file_explorer_button,
-            rich_input_button,
-            terminal_model,
             left_display_chips: vec![],
             right_display_chips: vec![],
-            cli_display_chips: vec![],
             display_chip_config,
         };
         me.update_display_chips(&prompt, ctx);
@@ -256,7 +148,6 @@ impl AgentInputFooter {
         self.left_display_chips
             .iter()
             .chain(self.right_display_chips.iter())
-            .chain(self.cli_display_chips.iter())
     }
 
     pub fn update_session_context(
@@ -270,178 +161,6 @@ impl AgentInputFooter {
                 chip.update_session_context(session_context.clone(), chip_ctx);
             });
         }
-    }
-
-    fn has_active_cli_agent_input_session(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_view_id)
-    }
-
-    fn cli_agent(&self, app: &AppContext) -> Option<CLIAgent> {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.terminal_view_id)
-            .map(|session| session.agent)
-    }
-
-    fn is_cli_agent_session_active(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.terminal_view_id)
-            .is_some()
-    }
-
-    fn select_cli_file(&mut self, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        let view_id = ctx.view_id();
-        let file_picker_config = warpui::platform::FilePickerConfiguration::new();
-
-        ctx.open_file_picker(
-            move |result, ctx| match result {
-                Ok(paths) => {
-                    if let Some(path) = paths.first() {
-                        ctx.dispatch_typed_action_for_view(
-                            window_id,
-                            view_id,
-                            &AgentInputFooterAction::InsertFilePath(path.clone()),
-                        );
-                    }
-                }
-                Err(err) => {
-                    let window_id = ctx.window_id();
-                    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                        toast_stack.add_ephemeral_toast(
-                            DismissibleToast::error(format!("{err}")),
-                            window_id,
-                            ctx,
-                        );
-                    });
-                }
-            },
-            file_picker_config,
-        );
-    }
-
-    fn cli_display_chip(
-        &self,
-        chip_kind: ContextChipKind,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        self.cli_display_chips
-            .iter()
-            .find(|chip| chip.as_ref(app).chip_kind() == &chip_kind)
-            .filter(|chip| chip.as_ref(app).should_render(app))
-            .map(|chip| ChildView::new(chip).finish())
-    }
-
-    fn render_cli_toolbar_item(
-        &self,
-        item: &AgentToolbarItemKind,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        if !item.available_in().is_available_for_cli() {
-            return None;
-        }
-
-        match item {
-            AgentToolbarItemKind::ContextChip(chip_kind) => {
-                self.cli_display_chip(chip_kind.clone(), app)
-            }
-            AgentToolbarItemKind::FileExplorer => {
-                Some(ChildView::new(&self.file_explorer_button).finish())
-            }
-            AgentToolbarItemKind::RichInput => {
-                Some(ChildView::new(&self.rich_input_button).finish())
-            }
-            AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
-        }
-    }
-
-    fn render_cli_mode_footer(&self, app: &AppContext) -> Box<dyn Element> {
-        let appearance = Appearance::as_ref(app);
-        let cli_icon_size = ButtonSize::AgentInputButton.icon_size(appearance, app);
-
-        // Extract everything we need from the terminal model up front and drop
-        // the lock before calling into helpers like `should_use_manual_mode`
-        // and `render_cli_toolbar_item`, which may re-lock the same model and
-        // would deadlock since the lock is non-reentrant.
-        let background_color = {
-            let terminal_model = self.terminal_model.lock();
-            if terminal_model.is_alt_screen_active() {
-                terminal_model
-                    .alt_screen()
-                    .inferred_bg_color()
-                    .unwrap_or_else(|| appearance.theme().surface_1().into_solid())
-            } else {
-                appearance.theme().surface_1().into_solid()
-            }
-        };
-
-        let session_settings = SessionSettings::as_ref(app);
-        let left_items = session_settings
-            .cli_agent_footer_chip_selection
-            .left_items();
-        let right_items = session_settings
-            .cli_agent_footer_chip_selection
-            .right_items();
-
-        let mut left_buttons = Wrap::row()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_main_axis_alignment(MainAxisAlignment::Start)
-            .with_run_spacing(4.)
-            .with_spacing(4.);
-
-        // CLI agent brand icon is always rendered (not configurable).
-        if let Some(agent) = self.cli_agent(app) {
-            if let Some(icon) = agent.icon() {
-                let icon_color = agent
-                    .brand_color()
-                    .map(|c| c.on_background(background_color, MinimumAllowedContrast::NonText))
-                    .unwrap_or_else(|| appearance.theme().foreground().into_solid());
-                left_buttons.add_child(
-                    Container::new(
-                        ConstrainedBox::new(icon.to_warpui_icon(Fill::Solid(icon_color)).finish())
-                            .with_width(cli_icon_size)
-                            .with_height(cli_icon_size)
-                            .finish(),
-                    )
-                    .with_padding_right(8.)
-                    .finish(),
-                );
-            }
-        }
-
-        for item in &left_items {
-            if let Some(element) = self.render_cli_toolbar_item(item, app) {
-                left_buttons.add_child(element);
-            }
-        }
-
-        let mut right_buttons = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_spacing(4.);
-
-        for item in &right_items {
-            if let Some(element) = self.render_cli_toolbar_item(item, app) {
-                right_buttons.add_child(element);
-            }
-        }
-
-        let content = Wrap::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(WrapFillEntireRun::new(left_buttons.finish()).finish())
-            .with_child(WrapFill::new(0., right_buttons.finish()).finish())
-            .with_run_spacing(context_chips::spacing::UDI_ROW_RUN_SPACING)
-            .finish();
-        let content = EventHandler::new(content)
-            .on_right_mouse_down(|ctx, _, position| {
-                ctx.dispatch_typed_action(AgentInputFooterAction::ShowContextMenu { position });
-                DispatchEventResult::StopPropagation
-            })
-            .finish();
-
-        Container::new(content).with_vertical_padding(4.).finish()
     }
 
     pub fn has_open_chip_menu(&self, app: &AppContext) -> bool {
@@ -475,13 +194,6 @@ impl AgentInputFooter {
         item: &AgentToolbarItemKind,
         app: &AppContext,
     ) -> Option<Box<dyn Element>> {
-        if !item.is_local_agent_view_control() {
-            return None;
-        }
-
-        if !item.available_in().is_available_for_agent_view() {
-            return None;
-        }
         match item {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
                 let chips = match SessionSettings::as_ref(app)
@@ -499,7 +211,6 @@ impl AgentInputFooter {
                     .map(|chip| ChildView::new(chip).finish())
             }
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
-            AgentToolbarItemKind::FileExplorer | AgentToolbarItemKind::RichInput => None,
         }
     }
 
@@ -522,17 +233,6 @@ impl AgentInputFooter {
             collect_chip_kinds(&self.left_display_chips),
             collect_chip_kinds(&self.right_display_chips),
         )
-    }
-
-    #[cfg(test)]
-    pub fn cli_display_chip_kinds(
-        &self,
-        app: &AppContext,
-    ) -> Vec<crate::context_chips::ContextChipKind> {
-        self.cli_display_chips
-            .iter()
-            .map(|chip| chip.as_ref(app).chip_kind().clone())
-            .collect()
     }
 }
 
@@ -579,11 +279,6 @@ impl View for AgentInputFooter {
     }
 
     fn render(&self, app: &warpui::AppContext) -> Box<dyn warpui::Element> {
-        // When a CLI agent session is active, render the CLI agent toolbar instead.
-        if self.is_cli_agent_session_active(app) {
-            return self.render_cli_mode_footer(app);
-        }
-
         let session_settings = SessionSettings::as_ref(app);
         let left_items = session_settings.agent_footer_chip_selection.left_items();
         let right_items = session_settings.agent_footer_chip_selection.right_items();
@@ -641,10 +336,6 @@ impl View for AgentInputFooter {
 #[derive(Debug, Clone)]
 pub enum AgentInputFooterAction {
     SelectFile,
-    InsertFilePath(String),
-    ToggleCodeReview,
-    ToggleFileExplorer,
-    ToggleRichInput,
     ShowContextMenu { position: Vector2F },
 }
 
@@ -654,42 +345,7 @@ impl TypedActionView for AgentInputFooter {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut warpui::ViewContext<Self>) {
         match action {
             AgentInputFooterAction::SelectFile => {
-                // Fork based on CLI agent session: in CLI mode, open a file
-                // picker and insert/write the path; in normal mode, use the
-                // standard AI file attachment flow.
-                if self.is_cli_agent_session_active(ctx) {
-                    self.select_cli_file(ctx);
-                } else {
-                    ctx.emit(AgentInputFooterEvent::SelectFile);
-                }
-            }
-            AgentInputFooterAction::InsertFilePath(path) => {
-                if let Some(_agent) = self.cli_agent(ctx) {}
-                let path_with_space = format!("{path} ");
-                if self.has_active_cli_agent_input_session(ctx) {
-                    ctx.emit(AgentInputFooterEvent::InsertIntoCLIRichInput(
-                        path_with_space,
-                    ));
-                } else {
-                    ctx.emit(AgentInputFooterEvent::WriteToPty(path_with_space));
-                }
-            }
-            AgentInputFooterAction::ToggleCodeReview => {
-                if let Some(agent) = self.cli_agent(ctx) {
-                    ctx.emit(AgentInputFooterEvent::ToggleCodeReviewPane(agent));
-                }
-            }
-            AgentInputFooterAction::ToggleFileExplorer => {
-                if let Some(agent) = self.cli_agent(ctx) {
-                    ctx.emit(AgentInputFooterEvent::ToggleFileExplorer(agent));
-                }
-            }
-            AgentInputFooterAction::ToggleRichInput => {
-                if self.has_active_cli_agent_input_session(ctx) {
-                    ctx.emit(AgentInputFooterEvent::HideRichInput);
-                } else {
-                    ctx.emit(AgentInputFooterEvent::OpenRichInput);
-                }
+                ctx.emit(AgentInputFooterEvent::SelectFile);
             }
             AgentInputFooterAction::ShowContextMenu { position } => {
                 ctx.emit(AgentInputFooterEvent::ShowContextMenu {
@@ -702,13 +358,6 @@ impl TypedActionView for AgentInputFooter {
 
 pub enum AgentInputFooterEvent {
     SelectFile,
-    WriteToPty(String),
-    /// Insert text into the CLI agent rich input.
-    InsertIntoCLIRichInput(String),
-    ToggleCodeReviewPane(CLIAgent),
-    ToggleFileExplorer(CLIAgent),
-    OpenRichInput,
-    HideRichInput,
     ToggledChipMenu {
         open: bool,
     },
@@ -731,8 +380,6 @@ pub(crate) struct AgentInputButtonTheme;
 
 impl ActionButtonTheme for AgentInputButtonTheme {
     fn background(&self, hovered: bool, appearance: &Appearance) -> Option<Fill> {
-        // Solid surface fills keep the button readable even when its parent
-        // isn't `theme.background()` (for example, over an alt-screen CLI agent).
         let theme = appearance.theme();
         Some(if hovered {
             theme.surface_2()

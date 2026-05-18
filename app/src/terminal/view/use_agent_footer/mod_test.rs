@@ -15,7 +15,10 @@ use crate::{
         llms::LLMId,
     },
     settings::AISettings,
-    terminal::model::ansi::{BootstrappedValue, Handler as _, InitShellValue},
+    terminal::{
+        cli_agent_sessions::{CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus},
+        model::ansi::{BootstrappedValue, Handler as _, InitShellValue},
+    },
     test_util::{add_window_with_terminal, terminal::initialize_app_for_terminal_view},
 };
 
@@ -267,6 +270,55 @@ fn use_agent_footer_renders_for_manual_handoff_when_unfinished_ai_block_remains(
                 .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
                 .map(|(_, item)| item.view_id);
             assert_eq!(rendered_footer_view_id, Some(view.use_agent_footer.id()));
+        });
+    })
+}
+
+#[test]
+fn cli_agent_session_does_not_render_use_agent_footer() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            {
+                let mut model = view.model.lock();
+                model.init_shell(InitShellValue {
+                    session_id: 0.into(),
+                    shell: "zsh".to_owned(),
+                    ..Default::default()
+                });
+                model.bootstrapped(BootstrappedValue {
+                    shell: "zsh".to_owned(),
+                    ..Default::default()
+                });
+                model.simulate_long_running_block("claude", "");
+            }
+
+            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
+                sessions.set_session(
+                    view.view_id,
+                    CLIAgentSession {
+                        agent: CLIAgent::Claude,
+                        status: CLIAgentSessionStatus::InProgress,
+                        session_context: CLIAgentSessionContext::default(),
+                        listener: None,
+                        remote_host: None,
+                    },
+                    ctx,
+                );
+            });
+
+            view.maybe_show_use_agent_footer_in_blocklist(ctx);
+
+            let model = view.model.lock();
+            assert!(!view.should_render_use_agent_footer(&model, ctx));
+            let active_block_index = model.block_list().active_block_index();
+            assert!(model
+                .block_list()
+                .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
+                .is_none());
         });
     })
 }

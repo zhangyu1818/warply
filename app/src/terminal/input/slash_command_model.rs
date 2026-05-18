@@ -158,7 +158,6 @@ impl SlashCommandModel {
         // of `active_commands` via `Availability::AI_ENABLED`, so parsing still works for
         // non-AI commands like `/open-file`.
         if !self.data_source.as_ref(ctx).is_agent_view_active(ctx)
-            && !self.data_source.as_ref(ctx).is_cli_agent_input_open(ctx)
             && !*InputSettings::as_ref(ctx)
                 .enable_slash_commands_in_terminal
                 .value()

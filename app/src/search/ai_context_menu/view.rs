@@ -188,8 +188,6 @@ struct AIContextMenuState {
     main_menu_query: String,
     /// Whether we're in AI/autodetect mode (true) or locked in terminal mode (false)
     is_ai_or_autodetect_mode: bool,
-    /// Whether this is a CLI agent rich input (restricts categories to files/folders + code)
-    is_cli_agent_input: bool,
 }
 
 /// Maximum number of results to display
@@ -212,19 +210,6 @@ pub struct AIContextMenu {
     /// we had 0 matches and the user continued to make the query longer.
     /// We can use this to close the menu if the user doesn't make any progress.
     num_consecutive_empty_results_events: usize,
-}
-
-impl AIContextMenu {
-    pub fn set_is_cli_agent_input(
-        &mut self,
-        is_cli_agent_input: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if self.state.is_cli_agent_input != is_cli_agent_input {
-            self.state.is_cli_agent_input = is_cli_agent_input;
-            self.refresh_categories_state(ctx);
-        }
-    }
 }
 
 impl Entity for AIContextMenu {
@@ -331,10 +316,8 @@ impl AIContextMenu {
     /// If false (locked in terminal mode), return only Files category
     pub(crate) fn get_categories_for_mode(
         is_ai_or_autodetect_mode: bool,
-        is_cli_agent_input: bool,
         app: &AppContext,
     ) -> Vec<AIContextMenuCategory> {
-        // Compute once — used by CLI agent, AI-mode, and terminal-mode branches.
         let active_window_id = app.windows().state().active_window;
         let active_dir = active_window_id
             .and_then(|window_id| ActiveSession::as_ref(app).path_if_local(window_id));
@@ -343,26 +326,6 @@ impl AIContextMenu {
                 .get_root_for_path(Path::new(dir))
                 .is_some()
         });
-
-        // For CLI agent input, use a positive allowlist of categories that CLI agents
-        // can interpret. This is safer than a blocklist because new categories added
-        // to the enum in the future won't accidentally leak into the CLI agent menu.
-        if is_cli_agent_input {
-            let mut categories = vec![];
-            if is_active_dir_in_git_repo {
-                categories.push(AIContextMenuCategory::RepoFiles);
-            } else {
-                categories.push(AIContextMenuCategory::CurrentFolderFiles);
-            }
-            if *InputSettings::as_ref(app)
-                .outline_codebase_symbols_for_at_context_menu
-                .value()
-                && is_active_dir_in_git_repo
-            {
-                categories.push(AIContextMenuCategory::Code);
-            }
-            return categories;
-        }
 
         if is_ai_or_autodetect_mode {
             let mut categories = vec![];
@@ -416,11 +379,7 @@ impl AIContextMenu {
 
     /// Recompute category-dependent state when repository availability changes.
     fn refresh_categories_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            ctx,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, ctx);
 
         // Reset to appropriate initial state based on categories available
         if categories.is_empty() || categories.len() > 1 {
@@ -507,7 +466,7 @@ impl AIContextMenu {
         );
 
         // Get initial categories for proper initialization
-        let initial_categories = Self::get_categories_for_mode(true, false, ctx);
+        let initial_categories = Self::get_categories_for_mode(true, ctx);
 
         let code_symbol_cache = ctx.add_model(CodeSymbolCache::new);
 
@@ -548,7 +507,6 @@ impl AIContextMenu {
                 selected_category_index: 0,
                 main_menu_query: String::new(),
                 is_ai_or_autodetect_mode: true,
-                is_cli_agent_input: false,
             },
             handle: ctx.handle(),
             search_debounce_tx,
@@ -616,11 +574,7 @@ impl AIContextMenu {
         self.num_consecutive_empty_results_events = 0;
         let query_length = self.query(ctx).len();
         let item_count = self.item_count(ctx);
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            ctx,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, ctx);
         if categories.len() > 1 {
             self.state.navigation_state = NavigationState::MainMenu;
         }
@@ -633,11 +587,7 @@ impl AIContextMenu {
 
     /// Reset the menu to the main menu state only if there are more than 1 available categories.
     pub fn reset_menu_state(&mut self, ctx: &mut ViewContext<Self>) {
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            ctx,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, ctx);
         if categories.len() > 1 {
             self.state.navigation_state = NavigationState::MainMenu;
             self.state.main_menu_query = String::new();
@@ -874,11 +824,7 @@ impl AIContextMenu {
         });
 
         // Add all available data sources
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            ctx,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, ctx);
         for category in categories.iter() {
             match category {
                 AIContextMenuCategory::RepoFiles => {
@@ -956,11 +902,7 @@ impl AIContextMenu {
 
     /// Get the list of categories that match the current query filter
     fn get_filtered_categories(&self, app: &AppContext) -> Vec<AIContextMenuCategory> {
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            app,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, app);
         if self.state.main_menu_query.is_empty() {
             categories
         } else {
@@ -1060,11 +1002,8 @@ impl AIContextMenu {
                 .finish();
 
             // Find the original index of this category in current categories for hover state
-            let categories = Self::get_categories_for_mode(
-                self.state.is_ai_or_autodetect_mode,
-                self.state.is_cli_agent_input,
-                app,
-            );
+            let categories =
+                Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, app);
             let original_index = categories.iter().position(|c| *c == *category).unwrap_or(0);
             let hover_state = self
                 .state
@@ -1231,12 +1170,7 @@ impl AIContextMenu {
 
     /// Whether the AI context menu should render.
     pub fn should_render(&self, app: &AppContext) -> bool {
-        !Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            app,
-        )
-        .is_empty()
+        !Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, app).is_empty()
     }
 
     /// Returns the selected result renderer, if any.
@@ -1303,11 +1237,7 @@ impl AIContextMenu {
         .finish();
 
         // Only show the title if there are multiple categories
-        let categories = Self::get_categories_for_mode(
-            self.state.is_ai_or_autodetect_mode,
-            self.state.is_cli_agent_input,
-            app,
-        );
+        let categories = Self::get_categories_for_mode(self.state.is_ai_or_autodetect_mode, app);
         if categories.len() > 1 {
             column.add_child(title);
         }

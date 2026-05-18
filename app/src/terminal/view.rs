@@ -109,12 +109,11 @@ use crate::code_review::git_status_update::{
 use crate::projects::ProjectManagementModel;
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::terminal::cli_agent_sessions::event::{
-    parse_event, CLIAgentEvent, CLIAgentEventType, CLI_AGENT_NOTIFICATION_SENTINEL,
+    parse_event, CLIAgentEvent, CLI_AGENT_NOTIFICATION_SENTINEL,
 };
 use crate::terminal::cli_agent_sessions::listener::{is_agent_supported, CLIAgentSessionListener};
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason, CLIAgentSession,
-    CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
+    CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
     CLIAgentSessionsModelEvent,
 };
 use crate::terminal::view::ssh_remote_server_choice_view::{
@@ -147,7 +146,6 @@ use crate::ai::agent::{
     AIAgentActionType, AIAgentOutputStatus, AIAgentTextSection, FinishedAIAgentOutput,
     RenderableAIError,
 };
-use crate::ai::blocklist::agent_view::agent_input_footer::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::{model::AIBlockModelImpl, ClientIdentifiers};
 use crate::ai::{
     agent::{
@@ -1118,7 +1116,6 @@ pub enum ContextMenuAction {
     CopyRprompt,
     EditPrompt,
     EditAgentToolbar,
-    EditCLIAgentToolbar,
     /// Ask AI about the current context. Handled by blocklist AI if its feature flag is enabled and
     /// the AI assistant panel otherwise.
     AskAI(AskAISource),
@@ -1202,7 +1199,6 @@ impl fmt::Debug for ContextMenuAction {
             CopyUrl { .. } => f.write_str("CopyUrl"),
             EditPrompt => f.write_str("EditPrompt"),
             EditAgentToolbar => f.write_str("EditAgentToolbar"),
-            EditCLIAgentToolbar => f.write_str("EditCLIAgentToolbar"),
             AskAI(_) => f.write_str("AttachBlockAsAgentContext"),
             OpenWorkflowModal => f.write_str("OpenWorkflowModal"),
             CopyBlockFilteredOutputs => f.write_str("CopyBlockFilteredOutput"),
@@ -1376,7 +1372,6 @@ pub enum Event {
     },
     OpenPromptEditor,
     OpenAgentToolbarEditor,
-    OpenCLIAgentToolbarEditor,
     SummarizationCancelDialogToggled {
         is_open: bool,
     },
@@ -1788,13 +1783,8 @@ struct TerminalViewMouseStates {
 }
 
 /// Where content was routed when sent to a CLI agent.
-/// Returned by [`TerminalView::try_send_text_to_cli_agent_or_rich_input`]
-/// so callers can route follow-up behavior without a separate read of the rich input state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CliAgentRouting {
-    /// Content was inserted into CLI agent rich input.
-    RichInput,
-    /// Content was written directly to the PTY.
     Pty,
 }
 
@@ -2639,7 +2629,6 @@ impl TerminalView {
                 model.clone(),
                 agent_view_controller.clone(),
                 ai_context_model.clone(),
-                terminal_view_id,
                 ctx,
             );
 
@@ -3151,15 +3140,8 @@ impl TerminalView {
         let agent_todos_popup = Self::build_agent_todos_popup(ai_context_model.clone(), ctx);
 
         let terminal_view_id = ctx.view_id();
-        let agent_input_footer = input.as_ref(ctx).agent_input_footer().clone();
         let use_agent_button_bar = ctx.add_typed_action_view(|ctx| {
-            UseAgentToolbar::new(
-                terminal_view_id,
-                model.clone(),
-                &model_events_handle,
-                agent_input_footer.clone(),
-                ctx,
-            )
+            UseAgentToolbar::new(terminal_view_id, model.clone(), &model_events_handle, ctx)
         });
         let agent_view_back_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("for terminal", AgentViewHeaderTheme)
@@ -5321,9 +5303,6 @@ impl TerminalView {
     pub fn is_input_box_visible(&self, model: &TerminalModel, app: &AppContext) -> bool {
         if model.is_read_only() {
             return false;
-        }
-        if self.has_active_cli_agent_input_session(app) {
-            return true;
         }
         if model.is_alt_screen_active()
             && !model.block_list().active_block().is_agent_in_control()
@@ -7623,11 +7602,6 @@ impl TerminalView {
                 });
                 self.hide_use_agent_footer_in_blocklist(ctx);
                 if matches!(block_completed_event.block_type, BlockType::User(_)) {
-                    // Close the rich input editor if it was open (side effects
-                    // like input config restore happen reactively).
-                    // The auto-toggle flag is irrelevant here because the
-                    // session is removed immediately afterwards.
-                    self.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Other, ctx);
                     CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
                         sessions_model.remove_session(self.view_id, ctx);
                     });
@@ -7803,14 +7777,8 @@ impl TerminalView {
                                                         status: CLIAgentSessionStatus::InProgress,
                                                         session_context:
                                                             CLIAgentSessionContext::default(),
-                                                        input_state: CLIAgentInputState::Closed,
-                                                        should_auto_toggle_input: *AISettings::as_ref(
-                                                            ctx,
-                                                        )
-                                                        .auto_open_rich_input_on_cli_agent_start,
                                                         listener: None,
                                                         remote_host,
-                                                        draft_text: None,
                                                     },
                                                     ctx,
                                                 );
@@ -7820,7 +7788,6 @@ impl TerminalView {
                                     );
 
                                     me.maybe_show_use_agent_footer_in_blocklist(ctx);
-                                    me.maybe_auto_open_cli_agent_rich_input(ctx);
                                     me.input.update(ctx, |input, ctx| {
                                         input.universal_developer_input_button_bar().update(
                                             ctx,
@@ -8864,10 +8831,6 @@ impl TerminalView {
         CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
             sessions_model.update_from_event(self.view_id, &notification, ctx);
         });
-
-        if notification.event == CLIAgentEventType::SessionStart {
-            self.maybe_auto_open_cli_agent_rich_input(ctx);
-        }
     }
 
     fn register_cli_agent_listener_from_event(
@@ -8892,10 +8855,6 @@ impl TerminalView {
             CLIAgentSessionListener::new(view_id, agent, &model_events_handle, ctx)
         });
         let remote_host = self.active_session_remote_host(ctx);
-        let should_auto_toggle_input =
-            *AISettings::as_ref(ctx).auto_open_rich_input_on_cli_agent_start;
-        // Seed context from the event that caused registration before the
-        // listener subscribes to future events.
         CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
             sessions_model.register_listener(
                 view_id,
@@ -8904,7 +8863,6 @@ impl TerminalView {
                 notification.project.clone(),
                 notification.session_id.clone(),
                 remote_host,
-                should_auto_toggle_input,
                 listener,
                 ctx,
             );
@@ -8912,32 +8870,9 @@ impl TerminalView {
         true
     }
 
-    /// If the startup auto-open setting is enabled, auto-opens rich input for a
-    /// CLI agent session. Called after creating a command-detected session or
-    /// registering a listener so rich input is shown immediately.
-    fn maybe_auto_open_cli_agent_rich_input(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_settings = AISettings::as_ref(ctx);
-        if !*ai_settings.auto_open_rich_input_on_cli_agent_start
-            || !ai_settings.is_any_ai_enabled(ctx)
-            || !*ai_settings.should_render_cli_agent_footer
-            || !is_rich_input_chip_in_cli_toolbar(ctx)
-        {
-            return;
-        }
-        let should_open = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some_and(|s| s.should_auto_toggle_input);
-        if should_open && !self.has_active_cli_agent_input_session(ctx) {
-            self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::AutoShow, ctx);
-        }
-    }
-
     /// Handles CLI agent session status changes from the singleton model.
     /// Sends a desktop notification when a CLI agent reaches a completed state
     /// (blocked or succeeded) and the user is in a different window.
-    /// Also handles auto-show/hide of CLI agent rich input based on the
-    /// `auto_toggle_rich_input` setting: closes rich input when blocked
-    /// (agent requires keyboard interaction) and opens it when the agent resumes.
     fn handle_cli_agent_sessions_event(
         &mut self,
         event: &CLIAgentSessionsModelEvent,
@@ -8988,38 +8923,6 @@ impl TerminalView {
             return;
         }
 
-        // Auto-show/hide rich input based on the setting.
-        // Only applies when the session has a plugin listener (rich status info).
-        let ai_settings = AISettings::as_ref(ctx);
-        if *ai_settings.auto_toggle_rich_input
-            && ai_settings.is_any_ai_enabled(ctx)
-            && *ai_settings.should_render_cli_agent_footer
-            && is_rich_input_chip_in_cli_toolbar(ctx)
-        {
-            let should_auto_toggle_input = CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.view_id)
-                .is_some_and(|s| s.listener.is_some() && s.should_auto_toggle_input);
-            if should_auto_toggle_input {
-                match status {
-                    CLIAgentSessionStatus::Blocked { .. } => {
-                        // Auto-close rich input when the agent is blocked
-                        // (it requires direct keyboard interaction in the terminal).
-                        self.close_cli_agent_rich_input(
-                            CLIAgentRichInputCloseReason::AutoToggle,
-                            ctx,
-                        );
-                    }
-                    CLIAgentSessionStatus::InProgress | CLIAgentSessionStatus::Success => {
-                        // Auto-open rich input when the agent resumes or completes.
-                        if !self.has_active_cli_agent_input_session(ctx) {
-                            self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::AutoShow, ctx);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Desktop notifications — only when navigated away and not in-progress.
         if !self.is_navigated_away_from_window(ctx)
             || matches!(status, CLIAgentSessionStatus::InProgress)
         {
@@ -11254,23 +11157,12 @@ impl TerminalView {
             }))
             .into_item();
 
-        let has_cli_agent_session = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some();
         let is_agent_view_active = self
             .agent_view_controller
             .as_ref(ctx)
             .agent_view_state()
             .is_active();
-        let edit_menu_item = if has_cli_agent_session {
-            Some(
-                MenuItemFields::new("Edit CLI agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditCLIAgentToolbar,
-                    ))
-                    .into_item(),
-            )
-        } else if is_agent_view_active {
+        let edit_menu_item = if is_agent_view_active {
             Some(
                 MenuItemFields::new("Edit agent toolbelt")
                     .with_on_select_action(TerminalAction::ContextMenu(
@@ -14756,10 +14648,6 @@ impl TerminalView {
                 self.create_and_push_docker_sandbox(ctx);
             }
             InputEvent::Escape => {
-                if self.has_active_cli_agent_input_session(ctx) {
-                    self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
-                    return;
-                }
                 if self.agent_view_controller.as_ref(ctx).is_active() {
                     if self.can_exit_agent_view_for_terminal_view(ctx).is_err() {
                         return;
@@ -14929,9 +14817,6 @@ impl TerminalView {
                     document_id: *document_id,
                     document_version: *document_version,
                 });
-            }
-            InputEvent::SubmitCLIAgentInput { text } => {
-                self.submit_cli_agent_rich_input(text.clone(), ctx);
             }
             InputEvent::OpenAIDocumentPane {
                 document_id,
@@ -15834,67 +15719,38 @@ impl TerminalView {
             .map(|s| s.agent)
     }
 
-    /// Returns `true` if CLI agent rich input is currently open.
-    pub fn is_cli_agent_rich_input_open(&self, ctx: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.view_id)
-    }
-
-    /// Appends `text` to CLI agent rich input and focuses it.
-    fn append_to_rich_input(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.append_to_buffer(text, ctx);
-        });
-        self.focus_input_box(ctx);
-    }
-
-    /// Sends `text` to the active CLI agent, routing to rich input when it is open
-    /// or directly to the PTY when it is closed.
-    ///
-    /// Returns `Some(CliAgentRouting)` indicating how the text was sent, or
-    /// `None` if no CLI agent is active.
-    pub fn try_send_text_to_cli_agent_or_rich_input(
+    pub fn try_send_text_to_cli_agent(
         &mut self,
         text: String,
         ctx: &mut ViewContext<Self>,
     ) -> Option<CliAgentRouting> {
         self.active_cli_agent(ctx)?;
-        if self.is_cli_agent_rich_input_open(ctx) {
-            self.append_to_rich_input(&text, ctx);
-            Some(CliAgentRouting::RichInput)
-        } else {
-            self.write_to_pty(text.into_bytes(), ctx);
-            self.focus_terminal(ctx);
-            Some(CliAgentRouting::Pty)
-        }
+        self.write_to_pty(text.into_bytes(), ctx);
+        self.focus_terminal(ctx);
+        Some(CliAgentRouting::Pty)
     }
 
-    /// Sends code review comments to a running CLI agent, routing to the
-    /// rich input when it is open or directly to the PTY when closed.
-    pub fn send_review_to_cli_agent_or_rich_input(
+    pub fn send_review_to_cli_agent(
         &mut self,
         review: &AgentReviewCommentBatch,
         ctx: &mut ViewContext<Self>,
     ) -> anyhow::Result<()> {
         let text = cli_agent::build_review_prompt(review);
-        self.try_send_text_to_cli_agent_or_rich_input(text, ctx);
+        self.try_send_text_to_cli_agent(text, ctx);
         Ok(())
     }
 
-    /// Sends diff file context hunks to a running CLI agent, routing to the
-    /// rich input when open or the PTY when closed.
     #[cfg(feature = "local_fs")]
-    pub fn send_diff_context_to_cli_agent_or_rich_input(
+    pub fn send_diff_context_to_cli_agent(
         &mut self,
         file_diffs: &std::collections::HashMap<String, Vec<crate::ai::agent::DiffSetHunk>>,
         ctx: &mut ViewContext<Self>,
     ) -> Option<CliAgentRouting> {
         let text = cli_agent::build_diff_context_prompt(file_diffs);
-        self.try_send_text_to_cli_agent_or_rich_input(text, ctx)
+        self.try_send_text_to_cli_agent(text, ctx)
     }
 
-    /// Sends a diff hunk location to a running CLI agent, routing to the
-    /// rich input when open or the PTY when closed.
-    pub fn send_diff_hunk_to_cli_agent_or_rich_input(
+    pub fn send_diff_hunk_to_cli_agent(
         &mut self,
         file_path: &Path,
         start_line: usize,
@@ -15910,7 +15766,7 @@ impl TerminalView {
             lines_added,
             lines_removed,
         );
-        self.try_send_text_to_cli_agent_or_rich_input(text, ctx)
+        self.try_send_text_to_cli_agent(text, ctx)
     }
 
     fn handle_theme_change(&mut self, ctx: &mut ViewContext<Self>) {
@@ -15948,13 +15804,6 @@ impl TerminalView {
                 // honor_ps1 affects whether the Warp prompt is active, which
                 // determines if we need git status updates.
                 self.update_git_status_subscription(ctx);
-            }
-            SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } => {
-                // Force-close rich input when the Rich Input chip is removed so
-                // it doesn't linger open with no toolbar button to manage it.
-                if !is_rich_input_chip_in_cli_toolbar(ctx) {
-                    self.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Other, ctx);
-                }
             }
             _ => {}
         }
@@ -16602,9 +16451,6 @@ impl TerminalView {
         if should_use_ligature_rendering(app) {
             alt_screen_element = alt_screen_element.with_ligature_rendering();
         }
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            alt_screen_element = alt_screen_element.with_hide_cursor_cell();
-        }
         let _required_terminal_height = self.size_info.cell_height_px.as_f32() * (rows as f32)
             + 2. * self.size_info.padding_y_px().as_f32();
         let _pane_height = self.content_element_height_px(app);
@@ -16678,14 +16524,6 @@ impl TerminalView {
             &self.content_element_position_id,
         )
         .finish()
-    }
-
-    /// Returns true when cursor rendering should be suppressed because the
-    /// CLI agent rich input is open.
-    fn should_hide_cli_agent_cursor_cell(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.view_id)
-            .is_some_and(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
     }
 
     fn render_block_list_element(
@@ -16847,10 +16685,6 @@ impl TerminalView {
 
         if should_use_ligature_rendering(app) {
             element = element.with_ligature_rendering();
-        }
-
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            element = element.with_hide_cursor_cell();
         }
 
         element = element.with_filtered_blocks(filtered_blocks);
@@ -17316,9 +17150,6 @@ impl TerminalView {
             EditPrompt => self.edit_prompt(ctx),
             EditAgentToolbar => {
                 ctx.emit(Event::OpenAgentToolbarEditor);
-            }
-            EditCLIAgentToolbar => {
-                ctx.emit(Event::OpenCLIAgentToolbarEditor);
             }
             AskAI(ask_source) => {
                 self.ask_ai(ask_source, ctx);
@@ -18107,25 +17938,6 @@ impl TerminalView {
 
         let image_filepaths = get_image_filepaths_from_paths(paths);
 
-        // CLI-agent paste path: when a CLI agent (e.g. Claude Code) is the
-        // foreground long-running process and the user is interacting with its
-        // TUI directly (rich input closed), hand image drops to the agent the
-        // same way Cmd+V does at `TerminalView::paste` — write each image to
-        // the system clipboard and send the agent's paste keystroke to the
-        // PTY. Without this branch the path string would be shell-escaped and
-        // typed into the agent's prompt. When the rich input is open we leave
-        // the existing chip-attach flow alone, since that's where the user
-        // explicitly asked the drop to land.
-        if !image_filepaths.is_empty()
-            && image_filepaths.len() == paths.len()
-            && is_in_long_running_command
-            && self.has_active_cli_agent_session(ctx)
-            && !CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.view_id)
-        {
-            self.paste_dropped_images_to_cli_agent(image_filepaths, ctx);
-            return;
-        }
-
         if !is_in_long_running_command {
             // Check for image file paths to be auto-attached
             let num_images = image_filepaths.len();
@@ -18414,10 +18226,6 @@ impl TerminalView {
         PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
             workspace.execute_lsp_task(LspTask::Spawn { file_path: cwd }, ctx);
         });
-    }
-
-    pub(super) fn toggle_file_tree(&mut self, ctx: &mut ViewContext<Self>) {
-        self.toggle_left_panel_file_tree(false, ctx);
     }
 }
 
@@ -18721,7 +18529,6 @@ impl TypedActionView for TerminalView {
             | OpenInlineHistoryMenu
             | ResolvePromptSuggestion(..)
             | ExecuteRewindFromInlineMenu { .. }
-            | ToggleCLIAgentRichInput
             | ToggleSessionRecording => Empty,
         }
     }
@@ -19389,13 +19196,6 @@ impl TypedActionView for TerminalView {
                     recorder.toggle_recording(ctx);
                 });
             }
-            ToggleCLIAgentRichInput => {
-                if self.has_active_cli_agent_input_session(ctx) {
-                    self.close_cli_agent_rich_input_and_disable_auto_toggle(ctx);
-                } else {
-                    self.open_cli_agent_rich_input(CLIAgentInputEntrypoint::CtrlG, ctx);
-                }
-            }
         }
     }
 }
@@ -19879,13 +19679,6 @@ impl View for TerminalView {
             .is_some()
         {
             context.set.insert(init::CLI_AGENT_SESSION_ACTIVE_KEY);
-            if *AISettings::as_ref(app).should_render_cli_agent_footer {
-                context.set.insert(flags::CLI_AGENT_FOOTER_ENABLED);
-
-                if is_rich_input_chip_in_cli_toolbar(app) {
-                    context.set.insert(flags::CLI_AGENT_RICH_INPUT_CHIP_ENABLED);
-                }
-            }
         }
 
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
@@ -20334,16 +20127,6 @@ fn maybe_wrap_terminal_element_in_scrollable(
         }
         (false, false) => element.finish(),
     }
-}
-
-/// Returns `true` when the Rich Input chip is present in the user's CLI agent
-/// footer toolbar configuration.
-fn is_rich_input_chip_in_cli_toolbar(app: &AppContext) -> bool {
-    let sel = &SessionSettings::as_ref(app).cli_agent_footer_chip_selection;
-    sel.left_items()
-        .iter()
-        .chain(sel.right_items().iter())
-        .any(|item| matches!(item, AgentToolbarItemKind::RichInput))
 }
 
 #[cfg(test)]

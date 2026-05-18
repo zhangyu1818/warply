@@ -24,7 +24,6 @@ use crate::search::slash_command_menu::static_commands::Availability;
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::decorations::InputBackgroundJobOptions;
 use crate::terminal::input::inline_menu::{InlineMenuAction, InlineMenuType};
 use crate::terminal::input::slash_command_model::{
@@ -169,9 +168,7 @@ impl Input {
         trigger: SlashCommandTrigger,
         ctx: &mut ViewContext<Self>,
     ) {
-        let is_cli_agent_input_open =
-            CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id);
-        if !is_cli_agent_input_open && !self.agent_view_controller.as_ref(ctx).is_active() {
+        if !self.agent_view_controller.as_ref(ctx).is_active() {
             self.ai_context_model.update(ctx, |context_model, ctx| {
                 context_model.set_pending_query_state_for_new_conversation(
                     AgentViewEntryOrigin::SlashCommand { trigger },
@@ -312,6 +309,7 @@ impl Input {
             } => {
                 let prompt = format!("/{name}");
                 if input_hint.is_some() {
+                    self.enter_auto_slash_command_ai_mode(SlashCommandTrigger::input(), ctx);
                     self.editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(&format!("{prompt} "), ctx);
                     });

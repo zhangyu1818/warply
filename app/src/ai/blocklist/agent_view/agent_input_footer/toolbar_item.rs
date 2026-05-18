@@ -1,26 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::context_chips::{agent_footer_available_chips, available_chips, ContextChipKind};
+use crate::context_chips::{agent_footer_available_chips, ContextChipKind};
 use crate::ui_components::icons::Icon;
-
-use super::editor::AgentToolbarEditorMode;
-
-/// Declares which footer(s) a toolbar item is available in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ToolbarAvailability {
-    CLIAgentOnly,
-    Both,
-}
-
-impl ToolbarAvailability {
-    pub fn is_available_for_agent_view(self) -> bool {
-        matches!(self, Self::Both)
-    }
-
-    pub fn is_available_for_cli(self) -> bool {
-        matches!(self, Self::CLIAgentOnly | Self::Both)
-    }
-}
 
 /// A configurable item
 ///
@@ -45,32 +26,14 @@ pub enum AgentToolbarItemKind {
     #[schemars(description = "A prompt context chip.")]
     ContextChip(ContextChipKind),
 
-    // CLI agent only
-    FileExplorer,
-    RichInput,
-
-    // Both
     FileAttach,
 }
 
 impl AgentToolbarItemKind {
-    pub fn is_local_agent_view_control(&self) -> bool {
-        matches!(self, Self::ContextChip(_) | Self::FileAttach)
-    }
-
-    pub fn available_in(&self) -> ToolbarAvailability {
-        match self {
-            Self::ContextChip(_) | Self::FileAttach => ToolbarAvailability::Both,
-            Self::FileExplorer | Self::RichInput => ToolbarAvailability::CLIAgentOnly,
-        }
-    }
-
     pub fn display_label(&self) -> &'static str {
         match self {
             Self::ContextChip(_) => "Context Chip",
             Self::FileAttach => "Attach File",
-            Self::FileExplorer => "File Explorer",
-            Self::RichInput => "Rich Input",
         }
     }
 
@@ -78,8 +41,6 @@ impl AgentToolbarItemKind {
         match self {
             Self::ContextChip(kind) => kind.udi_icon(),
             Self::FileAttach => Some(Icon::Plus),
-            Self::FileExplorer => Some(Icon::FileCopy),
-            Self::RichInput => Some(Icon::TextInput),
         }
     }
 
@@ -120,49 +81,12 @@ impl AgentToolbarItemKind {
         items
     }
 
-    /// Default left-side items for the CLI agent footer.
-    pub fn cli_default_left() -> Vec<Self> {
-        let mut items = vec![
-            Self::FileAttach,
-            Self::ContextChip(ContextChipKind::GitDiffStats),
-        ];
-        items.push(Self::FileExplorer);
-        items.push(Self::RichInput);
-        items
-    }
-
-    /// Default right-side items for the CLI agent footer.
-    pub fn cli_default_right() -> Vec<Self> {
-        vec![
-            Self::ContextChip(ContextChipKind::WorkingDirectory),
-            Self::ContextChip(ContextChipKind::ShellGitBranch),
-        ]
-    }
-
-    /// All items available for the CLI agent footer configurator.
-    pub fn all_available_for_cli_input() -> Vec<Self> {
-        let mut items: Vec<Self> = available_chips()
-            .into_iter()
-            .map(Self::ContextChip)
-            .collect();
-        items.extend([Self::FileExplorer, Self::RichInput, Self::FileAttach]);
-        items
-    }
-
-    /// Returns the appropriate defaults and available items for a given editor mode.
-    pub fn defaults_for_mode(mode: AgentToolbarEditorMode) -> (Vec<Self>, Vec<Self>, Vec<Self>) {
-        match mode {
-            AgentToolbarEditorMode::AgentView => (
-                Self::default_left(),
-                Self::default_right(),
-                Self::all_available(),
-            ),
-            AgentToolbarEditorMode::CLIAgent => (
-                Self::cli_default_left(),
-                Self::cli_default_right(),
-                Self::all_available_for_cli_input(),
-            ),
-        }
+    pub fn defaults() -> (Vec<Self>, Vec<Self>, Vec<Self>) {
+        (
+            Self::default_left(),
+            Self::default_right(),
+            Self::all_available(),
+        )
     }
 }
 

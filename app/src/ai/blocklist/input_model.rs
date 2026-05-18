@@ -13,15 +13,12 @@ use instant::Instant;
 use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 pub use input_classifier::InputType;
 
 use super::agent_view::{AgentViewController, AgentViewControllerEvent, AgentViewEntryOrigin};
 use super::context_model::BlocklistAIContextModel;
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
 use warp_completer::completer::CompletionContext;
 
 use crate::{
@@ -137,8 +134,6 @@ pub struct BlocklistAIInputModel {
     /// [`BlocklistAIContextModel::has_locking_attachment`]).
     ai_context_model: ModelHandle<BlocklistAIContextModel>,
 
-    terminal_view_id: EntityId,
-
     autodetect_abort_handle: Option<AbortHandle>,
     model: Arc<FairMutex<TerminalModel>>,
 }
@@ -148,39 +143,8 @@ impl BlocklistAIInputModel {
         model: Arc<FairMutex<TerminalModel>>,
         agent_view_controller: ModelHandle<AgentViewController>,
         ai_context_model: ModelHandle<BlocklistAIContextModel>,
-        terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        // Reactively restore input config when CLI agent rich input closes.
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, event, ctx| {
-                let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    terminal_view_id: event_view_id,
-                    previous_input_state,
-                    ..
-                } = event
-                else {
-                    return;
-                };
-                if *event_view_id != terminal_view_id {
-                    return;
-                }
-                if let CLIAgentInputState::Open {
-                    previous_input_config,
-                    previous_was_lock_set_with_empty_buffer,
-                    ..
-                } = previous_input_state
-                {
-                    me.restore_input_config(
-                        *previous_input_config,
-                        *previous_was_lock_set_with_empty_buffer,
-                        ctx,
-                    );
-                }
-            },
-        );
-
         ctx.subscribe_to_model(&agent_view_controller, |me, event, ctx| match event {
             AgentViewControllerEvent::EnteredAgentView {
                 display_mode,
@@ -257,7 +221,6 @@ impl BlocklistAIInputModel {
             },
             agent_view_controller,
             ai_context_model,
-            terminal_view_id,
             last_ai_autodetection_ts: None,
             last_explicit_input_type_set_at: None,
             was_lock_set_with_empty_buffer: false,
@@ -328,7 +291,6 @@ impl BlocklistAIInputModel {
         if !self.agent_view_controller.as_ref(ctx).is_active()
             && new_config.input_type.is_ai()
             && new_config.is_locked
-            && !CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id)
         {
             return false;
         }
@@ -372,20 +334,6 @@ impl BlocklistAIInputModel {
             self.abort_in_progress_detection();
         }
         self.was_lock_set_with_empty_buffer = self.is_input_type_locked() && is_input_buffer_empty;
-    }
-
-    /// Restores a previous input config without recomputing whether the lock was set while the
-    /// buffer was empty.
-    fn restore_input_config(
-        &mut self,
-        new_config: InputConfig,
-        was_lock_set_with_empty_buffer: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.temporarily_disable_autodetection();
-        self.set_input_config_internal(new_config, ctx);
-        self.abort_in_progress_detection();
-        self.was_lock_set_with_empty_buffer = was_lock_set_with_empty_buffer;
     }
 
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect

@@ -358,6 +358,42 @@ mod tests {
     }
 
     #[test]
+    fn static_command_registry_matches_reviewed_app_owned_commands() {
+        let names = COMMAND_REGISTRY.all_commands().map(|command| command.name);
+        let mut actual = HashSet::from_iter(names);
+        let mut expected = HashSet::from([
+            ADD_PROMPT.name,
+            ADD_RULE.name,
+            OPEN_PROJECT_RULES.name,
+            OPEN_RULES.name,
+            AGENT.name,
+            NEW.name,
+            RENAME_TAB.name,
+            SET_TAB_COLOR.name,
+            CONVERSATIONS.name,
+            EXPORT_TO_CLIPBOARD.name,
+            CREATE_DOCKER_SANDBOX.name,
+            PROMPTS.name,
+            OPEN_CODE_REVIEW.name,
+            QUEUE.name,
+            FORK.name,
+            FORK_FROM.name,
+            EDIT.name,
+            EXPORT_TO_FILE.name,
+            REWIND.name,
+            OPEN_REPO.name,
+        ]);
+
+        if cfg!(feature = "local_fs") {
+            expected.insert(OPEN_SETTINGS_FILE.name);
+        } else {
+            actual.remove(OPEN_SETTINGS_FILE.name);
+        }
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn agent_semantic_commands_are_not_registered_as_static_commands() {
         for name in [PLAN_NAME, INIT_NAME, "/create-new-project", "/pr-comments"] {
             assert!(

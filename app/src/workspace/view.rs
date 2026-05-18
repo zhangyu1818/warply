@@ -13,7 +13,6 @@ use self::vertical_tabs::{
     VERTICAL_TABS_SETTINGS_BUTTON_POSITION_ID,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 #[cfg(feature = "local_fs")]
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::RestoredConversationData;
@@ -9064,10 +9063,7 @@ impl Workspace {
                 self.open_prompt_editor(PromptEditorOpenSource::InputContextMenu, ctx);
             }
             pane_group::Event::OpenAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::AgentView, ctx);
-            }
-            pane_group::Event::OpenCLIAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::CLIAgent, ctx);
+                self.open_agent_toolbar_editor(ctx);
             }
             pane_group::Event::OpenAddRulePane => {
                 // Open the AI Fact Collection pane directly with the Rule Editor page for adding a new rule
@@ -11087,13 +11083,9 @@ impl Workspace {
         ctx.focus(&self.prompt_editor_modal);
     }
 
-    fn open_agent_toolbar_editor(
-        &mut self,
-        mode: AgentToolbarEditorMode,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    fn open_agent_toolbar_editor(&mut self, ctx: &mut ViewContext<Self>) {
         self.agent_toolbar_editor_modal
-            .update(ctx, |modal, ctx| modal.open(mode, ctx));
+            .update(ctx, |modal, ctx| modal.open(ctx));
         self.close_all_overlays(ctx);
         self.current_workspace_state.is_agent_toolbar_editor_open = true;
         ctx.focus(&self.agent_toolbar_editor_modal);
@@ -14066,10 +14058,7 @@ impl TypedActionView for Workspace {
                 self.open_prompt_editor(*open_source, ctx);
             }
             OpenAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::AgentView, ctx);
-            }
-            OpenCLIAgentToolbarEditor => {
-                self.open_agent_toolbar_editor(AgentToolbarEditorMode::CLIAgent, ctx);
+                self.open_agent_toolbar_editor(ctx);
             }
             OpenHeaderToolbarEditor => {
                 self.open_header_toolbar_editor(ctx);

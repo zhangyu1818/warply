@@ -4101,9 +4101,6 @@ dependencies = [
 [[package]]
 name = "handlebars"
 version = "0.0.0"
-dependencies = [
- "warpui",
-]
 
 [[package]]
 name = "hash32"

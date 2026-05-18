@@ -14,13 +14,12 @@ use warp_core::ui::appearance::Appearance;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
-use crate::ai::acp::model::AcpAgentModel;
+use crate::ai::acp::{events::AcpEvent, model::AcpAgentModel};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
 use crate::search::slash_command_menu::static_commands::Availability;
-use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::terminal::model::session::SessionType;
 
 use super::AcceptSlashCommandOrSavedPrompt;
@@ -97,20 +96,6 @@ impl SlashCommandDataSource {
                 me.recompute_active_commands(ctx);
             }
         });
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, event, ctx| {
-                if let CLIAgentSessionsModelEvent::InputSessionChanged {
-                    terminal_view_id: event_terminal_view_id,
-                    ..
-                } = event
-                {
-                    if *event_terminal_view_id == terminal_view_id {
-                        me.recompute_active_commands(ctx);
-                    }
-                }
-            },
-        );
         ctx.subscribe_to_model(&BlocklistAIHistoryModel::handle(ctx), |me, event, ctx| {
             if matches!(
                 event,
@@ -118,6 +103,14 @@ impl SlashCommandDataSource {
                     | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
             ) {
                 me.recompute_active_commands(ctx);
+            }
+        });
+        ctx.subscribe_to_model(&AcpAgentModel::handle(ctx), |_, event, ctx| {
+            if matches!(
+                event,
+                AcpEvent::SessionStarted | AcpEvent::AvailableCommandsUpdated { .. }
+            ) {
+                ctx.emit(UpdatedActiveCommands);
             }
         });
         let mut me = Self {
@@ -132,11 +125,7 @@ impl SlashCommandDataSource {
         me
     }
 
-    const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/prompts"];
-
     fn recompute_active_commands(&mut self, ctx: &mut ModelContext<Self>) {
-        let is_cli_agent_input = self.is_cli_agent_input_open(ctx);
-
         let mut session_context = Availability::empty();
 
         let is_agent_view_active = self.agent_view_controller.as_ref(ctx).is_active();
@@ -188,11 +177,6 @@ impl SlashCommandDataSource {
             COMMAND_REGISTRY
                 .all_commands_by_id()
                 .filter(|(_, command)| command.is_active(session_context))
-                // When CLI agent input is open, restrict to the explicit allowlist.
-                .filter(|(_, command)| {
-                    !is_cli_agent_input
-                        || Self::CLI_AGENT_INPUT_ALLOWED_COMMANDS.contains(&command.name)
-                })
                 .map(|(id, command)| (id, command.clone())),
         );
 
@@ -244,11 +228,6 @@ impl SlashCommandDataSource {
 
     pub fn is_agent_view_active(&self, ctx: &AppContext) -> bool {
         self.agent_view_controller.as_ref(ctx).is_active()
-    }
-
-    /// Returns `true` if the CLI agent rich input is currently open for this terminal.
-    pub fn is_cli_agent_input_open(&self, ctx: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.terminal_view_id)
     }
 }
 

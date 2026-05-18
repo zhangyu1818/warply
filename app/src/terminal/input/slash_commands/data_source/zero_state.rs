@@ -82,6 +82,14 @@ impl SyncDataSource for ZeroStateDataSource {
             }
         }
 
+        for command in self
+            .slash_command_data_source
+            .as_ref(app)
+            .active_acp_commands(app)
+        {
+            results.push(InlineItem::from_acp_command(&command, app).into());
+        }
+
         Ok(results)
     }
 }

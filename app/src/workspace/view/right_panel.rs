@@ -1140,7 +1140,7 @@ impl RightPanelView {
 
         let result = if active_cli_agent.is_some() {
             terminal_view.update(ctx, |terminal, ctx| {
-                terminal.send_review_to_cli_agent_or_rich_input(&comments, ctx)
+                terminal.send_review_to_cli_agent(&comments, ctx)
             })
         } else {
             terminal_view.update(ctx, |terminal, ctx| {

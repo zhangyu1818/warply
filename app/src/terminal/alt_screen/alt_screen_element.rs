@@ -154,11 +154,6 @@ impl AltScreenElement {
         self
     }
 
-    pub fn with_hide_cursor_cell(mut self) -> Self {
-        self.grid_render_params.hide_cursor_cell = true;
-        self
-    }
-
     fn key_down(&mut self, chars: &str, ctx: &mut EventContext) -> bool {
         if self.is_terminal_focused && !chars.is_empty() && chars.chars().all(|c| c.is_control()) {
             ctx.dispatch_typed_action(TerminalAction::KeyDown(chars.to_string()));
@@ -653,7 +648,6 @@ impl Element for AltScreenElement {
         record_trace_event!("alt_screen_element:paint:grid_rendered");
 
         // Render cursor if the escape sequence is set.
-        // Also suppress the cursor when hide_cursor_cell is active (CLI agent rich input is open).
         if cursor_visible && !self.grid_render_params.hide_cursor_cell {
             grid_renderer::render_cursor(
                 &self.grid_render_params,

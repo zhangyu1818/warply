@@ -1,4 +1,4 @@
-use crate::ai::acp::model::AcpAgentModel;
+use crate::ai::acp::{events::AcpEvent, model::AcpAgentModel};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::search::data_source::Query;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
@@ -191,6 +191,91 @@ fn acp_available_commands_are_visible_only_for_active_acp_conversation() {
             assert!(acp_command_names(data_source, ctx, "alpha").is_empty());
             assert_eq!(acp_command_names(data_source, ctx, "beta"), vec!["beta"]);
         });
+    });
+}
+
+#[test]
+fn acp_available_commands_are_visible_in_zero_state_for_active_acp_conversation() {
+    use agent_client_protocol::schema::AvailableCommand;
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let terminal_view_id = terminal.read(&app, |view, _| view.view_id());
+        let input = terminal.read(&app, |view, _| view.input().clone());
+        let slash_command_data_source =
+            input.read(&app, |input, _| input.slash_command_data_source.clone());
+        let zero_state_source =
+            app.add_model(|_| super::ZeroStateDataSource::new(&slash_command_data_source));
+
+        let conversation_id =
+            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
+                let conversation_id = history.start_new_conversation(terminal_view_id, false, ctx);
+                history.set_active_conversation_id(conversation_id, terminal_view_id, ctx);
+                conversation_id
+            });
+
+        AcpAgentModel::handle(&app).update(&mut app, |model, _| {
+            model.set_available_commands_for_test(
+                conversation_id,
+                vec![AvailableCommand::new("plan", "Plan the work")],
+            );
+        });
+
+        let names = zero_state_source.read(&app, |source, ctx| {
+            source
+                .run_query(&Query::from(""), ctx)
+                .expect("zero-state query should run")
+                .into_iter()
+                .filter_map(|result| match result.accept_result() {
+                    AcceptSlashCommandOrSavedPrompt::AcpCommand { name, .. } => Some(name),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        });
+
+        assert_eq!(names, vec!["plan"]);
+    });
+}
+
+#[test]
+fn acp_available_commands_update_emits_active_commands_event() {
+    use agent_client_protocol::schema::AvailableCommand;
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let terminal_view_id = terminal.read(&app, |view, _| view.view_id());
+        let input = terminal.read(&app, |view, _| view.input().clone());
+        let slash_command_data_source =
+            input.read(&app, |input, _| input.slash_command_data_source.clone());
+
+        let conversation_id =
+            BlocklistAIHistoryModel::handle(&app).update(&mut app, |history, ctx| {
+                let conversation_id = history.start_new_conversation(terminal_view_id, false, ctx);
+                history.set_active_conversation_id(conversation_id, terminal_view_id, ctx);
+                conversation_id
+            });
+
+        let (tx, rx) = async_channel::unbounded();
+        app.update(|ctx| {
+            ctx.subscribe_to_model(&slash_command_data_source, move |_, _, _| {
+                tx.try_send(()).expect("can record data source update");
+            });
+        });
+
+        let commands = vec![AvailableCommand::new("init", "Initialize project rules")];
+        AcpAgentModel::handle(&app).update(&mut app, |model, ctx| {
+            model.set_available_commands_for_test(conversation_id, commands.clone());
+            ctx.emit(AcpEvent::AvailableCommandsUpdated { commands });
+        });
+
+        assert!(
+            rx.try_recv().is_ok(),
+            "ACP command changes should notify slash command menus to rerun their current query"
+        );
     });
 }
 

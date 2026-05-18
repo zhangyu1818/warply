@@ -5,19 +5,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use indexmap::IndexMap;
-
 use crate::ai::acp::registry::DEFAULT_AGENT_ID;
-use crate::terminal::CLIAgent;
 use cfg_if::cfg_if;
 use lazy_static::lazy_static;
 use regex::Regex;
-use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{AppContext, SingletonEntity};
 
 use settings::{define_settings_group, Setting, SupportedPlatforms};
 use warp_core::execution_mode::AppExecutionMode;
 
-use serde::{de::Deserializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 /// The default mode for new terminal sessions.
@@ -315,52 +312,6 @@ cfg_if! {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct ToolbarCommandMap(IndexMap<String, String>);
-
-impl ToolbarCommandMap {
-    pub(crate) fn new(map: IndexMap<String, String>) -> Self {
-        Self(map)
-    }
-}
-
-impl<'de> Deserialize<'de> for ToolbarCommandMap {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        IndexMap::<String, String>::deserialize(deserializer).map(ToolbarCommandMap::new)
-    }
-}
-
-impl schemars::JsonSchema for ToolbarCommandMap {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ToolbarCommandMap")
-    }
-
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        gen.subschema_for::<HashMap<String, String>>()
-    }
-}
-
-impl std::ops::Deref for ToolbarCommandMap {
-    type Target = IndexMap<String, String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl settings_value::SettingsValue for ToolbarCommandMap {
-    fn to_file_value(&self) -> serde_json::Value {
-        serde_json::to_value(&self.0).unwrap_or_default()
-    }
-
-    fn from_file_value(value: &serde_json::Value) -> Option<Self> {
-        serde_json::from_value::<IndexMap<String, String>>(value.clone())
-            .ok()
-            .map(ToolbarCommandMap::new)
-    }
-}
-
 define_settings_group!(AISettings, settings: [
     acp_agent_backend: AcpAgentBackendSetting {
         type: String,
@@ -540,62 +491,6 @@ define_settings_group!(AISettings, settings: [
         description: "Whether to show the \"Use Agent\" footer for terminal commands.",
     }
 
-    // Whether to render the CLI agent footer for commands like Claude, Codex, Gemini, etc.
-    // This is independent of the "Use Agent" footer setting.
-    should_render_cli_agent_footer: ShouldRenderCLIAgentToolbar {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.third_party.should_render_cli_agent_toolbar",
-        description: "Whether to show the CLI agent footer for coding agent commands.",
-    }
-    // When enabled and a CLI agent session has a plugin listener, rich input
-    // auto-closes when the session enters a Blocked state (the agent requires
-    // direct keyboard interaction) and auto-opens when it leaves Blocked.
-    auto_toggle_rich_input: AutoToggleRichInput {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.third_party.auto_toggle_composer",
-        description: "Whether CLI agent Rich Input automatically closes and reopens based on the agent's blocked state.",
-    }
-
-    // When enabled and a CLI agent session has a plugin listener, rich input
-    // auto-opens once when the session starts or when the listener is registered.
-    auto_open_rich_input_on_cli_agent_start: AutoOpenRichInputOnCLIAgentStart {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.third_party.auto_open_composer_on_cli_agent_start",
-        description: "Whether CLI agent Rich Input automatically opens when a CLI agent session starts.",
-    }
-
-    // When enabled and a CLI agent session does NOT have a plugin listener,
-    // rich input auto-closes after the user submits a prompt.
-    // When the plugin IS present, this setting has no effect (auto-show/hide
-    // from auto_toggle_rich_input handles rich input lifecycle).
-    auto_dismiss_rich_input_after_submit: AutoDismissRichInputAfterSubmit {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.third_party.auto_dismiss_composer_after_submit",
-        description: "Whether CLI agent Rich Input automatically closes after the user submits a prompt.",
-    }
-
-    cli_agent_footer_enabled_commands: CLIAgentToolbarEnabledCommands {
-        type: ToolbarCommandMap,
-        default: ToolbarCommandMap::default(),
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "agents.third_party.cli_agent_toolbar_enabled_commands",
-        max_table_depth: 1,
-        description: "Maps custom toolbar command patterns to specific CLI agents.",
-    }
-
     // Tracks whether we've done the one-time auto-open of the conversation list for discoverability.
     // Once set to true, the conversation list visibility will be restored from workspace state.
     has_auto_opened_conversation_list: HasAutoOpenedConversationList {
@@ -650,7 +545,6 @@ define_settings_group!(AISettings, settings: [
 impl AISettings {
     pub fn register_and_subscribe_to_events(app: &mut AppContext) {
         Self::register(app);
-        CompiledCommandsForCodingAgentToolbar::register(app);
     }
 
     pub fn is_any_ai_enabled(&self, _app: &AppContext) -> bool {
@@ -786,107 +680,7 @@ impl AISettings {
     pub fn show_code_suggestion_speedbump(&self, app: &AppContext) -> bool {
         self.is_any_ai_enabled(app) && *self.show_code_suggestion_speedbump
     }
-
-    pub fn add_cli_agent_footer_enabled_command(
-        &mut self,
-        command: &str,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        let command = command.trim();
-        if command.is_empty() {
-            return;
-        }
-        if self
-            .cli_agent_footer_enabled_commands
-            .value()
-            .contains_key(command)
-        {
-            return;
-        }
-
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        map.insert(command.to_string(), String::new());
-    }
-
-    pub fn remove_cli_agent_footer_enabled_command(
-        &mut self,
-        command: &str,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        let command = command.trim();
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        map.shift_remove(command);
-    }
-
-    pub fn set_cli_agent_for_command(
-        &mut self,
-        pattern: &str,
-        agent: Option<CLIAgent>,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        if !map.contains_key(pattern) {
-            return;
-        }
-        let value = agent.map(|a| a.to_serialized_name()).unwrap_or_default();
-        map.insert(pattern.to_string(), value);
-    }
 }
-
-/// Singleton model that caches compiled regexes for the `cli_agent_footer_enabled_commands`
-/// setting. Each entry pairs a compiled regex with the CLI agent it maps to.
-pub struct CompiledCommandsForCodingAgentToolbar {
-    regexes: Vec<(Regex, CLIAgent)>,
-}
-
-impl CompiledCommandsForCodingAgentToolbar {
-    fn parse(app: &AppContext) -> Vec<(Regex, CLIAgent)> {
-        AISettings::as_ref(app)
-            .cli_agent_footer_enabled_commands
-            .value()
-            .iter()
-            .filter_map(|(pattern, agent_name)| {
-                let regex = Regex::new(pattern).ok()?;
-                let agent = CLIAgent::from_serialized_name(agent_name);
-                Some((regex, agent))
-            })
-            .collect()
-    }
-
-    fn register(app: &mut AppContext) {
-        let handle = app.add_singleton_model(|ctx| Self {
-            regexes: Self::parse(ctx),
-        });
-        let ai_settings = AISettings::handle(app);
-        app.subscribe_to_model(&ai_settings, move |_, event, ctx| {
-            if matches!(
-                event,
-                AISettingsChangedEvent::CLIAgentToolbarEnabledCommands { .. }
-            ) {
-                let regexes = Self::parse(ctx);
-                handle.update(ctx, |me, _| {
-                    me.regexes = regexes;
-                });
-            }
-        });
-    }
-
-    /// Returns the CLI agent assigned to the first matching pattern, or `None`
-    /// if no pattern matches the command.
-    pub fn matched_agent(app: &AppContext, command: &str) -> Option<CLIAgent> {
-        Self::as_ref(app)
-            .regexes
-            .iter()
-            .find(|(regex, _)| regex.is_match(command))
-            .map(|(_, agent)| *agent)
-    }
-}
-
-impl Entity for CompiledCommandsForCodingAgentToolbar {
-    type Event = ();
-}
-
-impl SingletonEntity for CompiledCommandsForCodingAgentToolbar {}
 
 #[cfg(test)]
 #[path = "ai_tests.rs"]
