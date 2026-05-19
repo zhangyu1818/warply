@@ -166,9 +166,9 @@ bool warply_sparkle_check_for_updates(void) {
 }
 
 - (void)updater:(id)updater didFindValidUpdate:(id)item {
-    NSString *version = warply_sparkle_item_string(item, @"displayVersionString");
+    NSString *version = warply_sparkle_item_string(item, @"versionString");
     if (version == nil) {
-        version = warply_sparkle_item_string(item, @"versionString");
+        version = warply_sparkle_item_string(item, @"displayVersionString");
     }
     warply_sparkle_emit(2, version, nil);
 }

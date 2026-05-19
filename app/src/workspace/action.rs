@@ -155,7 +155,7 @@ pub enum WorkspaceAction {
         position: Vector2F,
     },
     SelectNewSessionMenuItem(NewSessionMenuItem),
-    CopyVersion(&'static str),
+    CopyVersion(String),
     CheckForUpdates,
     ConfigureKeybindingSettings {
         keybinding_name: Option<String>,

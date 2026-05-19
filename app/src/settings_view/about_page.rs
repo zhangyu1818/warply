@@ -54,7 +54,7 @@ impl SettingsWidget for AboutPageWidget {
     type View = AboutPageView;
 
     fn search_terms(&self) -> &str {
-        "about warp version"
+        "about warply version"
     }
 
     fn render(
@@ -72,21 +72,22 @@ impl SettingsWidget for AboutPageWidget {
             "bundled/svg/warp-logo-with-dark-title.svg"
         };
 
-        let version = ChannelState::app_version().unwrap_or("v#.##.###");
+        let version = app_display_version();
 
         let version_text = ui_builder
-            .span(version.to_string())
+            .span(version.clone())
             .with_soft_wrap()
             .build()
             .with_margin_top(16.)
             .finish();
 
+        let version_to_copy = version.clone();
         let copy_version_icon = appearance
             .ui_builder()
             .copy_button(16., self.copy_version_button_mouse_state.clone())
             .build()
             .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(WorkspaceAction::CopyVersion(version));
+                ctx.dispatch_typed_action(WorkspaceAction::CopyVersion(version_to_copy.clone()));
             })
             .finish();
 
@@ -118,7 +119,7 @@ impl SettingsWidget for AboutPageWidget {
                 .with_child(version_row.finish())
                 .with_child(
                     ui_builder
-                        .span("Copyright 2026 Warp")
+                        .span("Copyright 2026 Warp Open Source")
                         .build()
                         .with_margin_top(16.)
                         .finish(),
@@ -127,6 +128,47 @@ impl SettingsWidget for AboutPageWidget {
         )
         .finish()
     }
+}
+
+fn app_display_version() -> String {
+    let release_tag = bundle_info_value("WarplyVersion")
+        .or_else(|| ChannelState::app_version().map(ToString::to_string));
+
+    display_version_from_release_tag(release_tag.as_deref())
+}
+
+fn display_version_from_release_tag(release_tag: Option<&str>) -> String {
+    release_tag
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "v#.##.###".to_string())
+}
+
+#[cfg(all(target_os = "macos", not(test)))]
+#[allow(deprecated)]
+fn bundle_info_value(key: &str) -> Option<String> {
+    use cocoa::base::{id, nil};
+    use objc::{class, msg_send, sel, sel_impl};
+    use warpui::platform::mac::{make_nsstring, utils::nsstring_as_str};
+
+    unsafe {
+        let bundle: id = msg_send![class!(NSBundle), mainBundle];
+        if bundle == nil {
+            return None;
+        }
+
+        let key = make_nsstring(key);
+        let value: id = msg_send![bundle, objectForInfoDictionaryKey: key];
+        if value == nil {
+            return None;
+        }
+
+        nsstring_as_str(value).ok().map(ToString::to_string)
+    }
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+fn bundle_info_value(_key: &str) -> Option<String> {
+    None
 }
 
 impl SettingsPageMeta for AboutPageView {

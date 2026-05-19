@@ -124,7 +124,10 @@ extern "C" fn handle_native_updater_event(
         0 => NativeUpdaterEvent::Unavailable,
         1 => NativeUpdaterEvent::Idle,
         2 => NativeUpdaterEvent::UpdateAvailable {
-            version: version.unwrap_or_else(|| "unknown".to_string()),
+            version: version
+                .as_deref()
+                .map(format_update_version_for_display)
+                .unwrap_or_else(|| "unknown".to_string()),
         },
         3 => NativeUpdaterEvent::Checking,
         4 => NativeUpdaterEvent::Error {
@@ -156,6 +159,27 @@ fn c_string(value: *const c_char) -> Option<String> {
     )
 }
 
+fn format_update_version_for_display(version: &str) -> String {
+    let (date, build) = match version.split_once('.') {
+        Some((date, build)) if !build.is_empty() && build.chars().all(|c| c.is_ascii_digit()) => {
+            (date, Some(build))
+        }
+        Some(_) => return version.to_string(),
+        None => (version, None),
+    };
+
+    if date.len() != 8 || !date.chars().all(|c| c.is_ascii_digit()) {
+        return version.to_string();
+    }
+
+    let mut formatted = format!("{}.{}.{}", &date[0..4], &date[4..6], &date[6..8]);
+    if let Some(build) = build {
+        formatted.push('.');
+        formatted.push_str(build);
+    }
+    formatted
+}
+
 extern "C" {
     fn warply_sparkle_set_event_callback(
         callback: Option<extern "C" fn(i32, *const c_char, *const c_char)>,
@@ -163,4 +187,29 @@ extern "C" {
     fn warply_sparkle_start() -> bool;
     fn warply_sparkle_check_for_update_information() -> bool;
     fn warply_sparkle_check_for_updates() -> bool;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_update_version_for_display;
+
+    #[test]
+    fn formats_warply_bundle_versions_for_display() {
+        assert_eq!(format_update_version_for_display("20260519"), "2026.05.19");
+        assert_eq!(
+            format_update_version_for_display("20260519.1"),
+            "2026.05.19.1"
+        );
+        assert_eq!(
+            format_update_version_for_display("20260519.12"),
+            "2026.05.19.12"
+        );
+    }
+
+    #[test]
+    fn leaves_non_warply_versions_unchanged() {
+        assert_eq!(format_update_version_for_display("1.2.3"), "1.2.3");
+        assert_eq!(format_update_version_for_display("beta"), "beta");
+        assert_eq!(format_update_version_for_display("2026051"), "2026051");
+    }
 }
