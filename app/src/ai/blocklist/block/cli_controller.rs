@@ -213,7 +213,6 @@ impl CLISubagentController {
                 let block_id = block.id().clone();
                 let conversation_id = block.ai_conversation_id();
                 let requested_command_action_id = block.requested_command_action_id().cloned();
-                let was_agent_tagged_in = block.interaction_mode().is_agent_tagged_in();
                 let has_agent_metadata = block.agent_interaction_metadata().is_some();
                 drop(terminal_model);
                 let removed_subagent_state = me.active_subagents_by_block.remove(&block_id);
@@ -254,10 +253,9 @@ impl CLISubagentController {
                     });
                 }
 
-                // Exit inline agent view if agent was tagged in or had metadata (was in control).
                 if let Some(agent_view_controller) = &me.agent_view_controller {
                     agent_view_controller.update(ctx, |controller, ctx| {
-                        if controller.is_inline() && (was_agent_tagged_in || has_agent_metadata) {
+                        if controller.is_inline() && has_agent_metadata {
                             controller.exit_agent_view(ctx);
                         }
                     });

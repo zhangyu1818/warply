@@ -180,12 +180,6 @@ impl HeaderConfig {
         self
     }
 
-    /// Parses the title as markdown when rendering.
-    pub fn with_markdown(mut self) -> Self {
-        self.use_markdown = true;
-        self
-    }
-
     pub fn render_header(
         self,
         app: &AppContext,

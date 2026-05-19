@@ -4018,7 +4018,7 @@ impl Input {
             .lock()
             .block_list()
             .active_block()
-            .is_agent_in_control_or_tagged_in()
+            .is_agent_in_control()
         {
             return;
         }
@@ -6906,16 +6906,13 @@ impl Input {
                 // If the last buffer didn't start with the terminal input prefix and the current buffer does, then enable terminal input and lock it.
                 let is_locked_shell_mode = !is_ai_input_enabled && is_input_mode_locked;
                 let is_agent_view_active = self.agent_view_controller.as_ref(ctx).is_active();
-                let is_agent_in_control_or_tagged_in = self
+                let is_agent_in_control = self
                     .model
                     .lock()
                     .block_list()
                     .active_block()
-                    .is_agent_in_control_or_tagged_in();
-                if !is_locked_shell_mode
-                    && is_agent_view_active
-                    && !is_agent_in_control_or_tagged_in
-                {
+                    .is_agent_in_control();
+                if !is_locked_shell_mode && is_agent_view_active && !is_agent_in_control {
                     let buffer_text = self.buffer_text(ctx);
                     if buffer_text.starts_with(TERMINAL_INPUT_PREFIX)
                         && *edit_origin == EditOrigin::UserTyped
@@ -9726,7 +9723,7 @@ impl Input {
     fn is_input_mode_toggle_disabled(&self) -> bool {
         let terminal_model = self.model.lock();
         let active_block = terminal_model.block_list().active_block();
-        active_block.is_agent_in_control_or_tagged_in()
+        active_block.is_agent_in_control()
     }
 
     /// Set input mode to natural language detection (auto-detection)

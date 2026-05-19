@@ -17,7 +17,6 @@ pub enum PaletteSource {
     ContextChip,
     PaneHeader,
     RecentsViewAll,
-    AgentTip,
     TitleBarSearchBar,
 }
 

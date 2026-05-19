@@ -5,79 +5,18 @@ use crate::{
         agent::{conversation::AIConversationId, task::TaskId, AIAgentActionId},
         blocklist::block::cli_controller::{LongRunningCommandControlState, UserTakeOverReason},
     },
-    terminal::{
-        event::Event,
-        model::{
-            grid::{grid_handler::GridHandler, RespectDisplayedOutput},
-            RespectObfuscatedSecrets,
-        },
+    terminal::model::{
+        grid::{grid_handler::GridHandler, RespectDisplayedOutput},
+        RespectObfuscatedSecrets,
     },
 };
 
 use super::{Block, SerializedAIMetadata};
 
 impl Block {
-    /// `true` if the command is executing and the user has opened the agent mode input.
-    ///
-    /// "tagged in" means that the agent mode input should be shown, but control has yet
-    /// to be passed to the agent.
-    pub fn is_agent_tagged_in(&self) -> bool {
-        if !self.is_active_and_long_running() {
-            return false;
-        }
-
-        match &self.interaction_mode {
-            InteractionMode::User(user_mode) => user_mode.did_user_tag_in_agent,
-            _ => false,
-        }
-    }
-
-    /// `true` if the command is eligible for tagging in the agent (e.g. showing the agent mode
-    /// input and sending a query to trigger the CLI subagent).
-    ///
-    /// Notably, this is NOT true if the subagent had already taken control of the command, and
-    /// the user took control back from the subagent.
-    ///
-    /// See doc comment on `InteractionMode` for explanation on the semantics of 'tagged in',
-    /// 'agent in control', 'user take control, and 'agent handoff'.
-    pub fn is_eligible_to_tag_in_agent(&self) -> bool {
-        if !self.is_active_and_long_running()
-            || self.is_in_band_command_block()
-            || !self.bootstrap_stage.is_bootstrapped()
-            || self.env_var_metadata().is_some()
-        {
-            return false;
-        }
-
-        match &self.interaction_mode {
-            InteractionMode::User(user_mode) => !user_mode.did_user_tag_in_agent,
-            _ => false,
-        }
-    }
-
-    pub fn set_is_agent_tagged_in(&mut self, value: bool) {
-        if let InteractionMode::User(UserMode {
-            ref mut did_user_tag_in_agent,
-        }) = &mut self.interaction_mode
-        {
-            if *did_user_tag_in_agent != value {
-                *did_user_tag_in_agent = value;
-                self.event_proxy
-                    .send_terminal_event(Event::AgentTaggedInChanged {
-                        is_tagged_in: value,
-                    });
-            }
-        }
-    }
-
     /// Returns `true` if an agent is monitoring/interacting with this command.
     pub fn is_agent_monitoring(&self) -> bool {
         self.is_active_and_long_running() && self.long_running_control_state().is_some()
-    }
-
-    /// Returns `true` if the agent is either in control or has been tagged in by the user.
-    pub fn is_agent_in_control_or_tagged_in(&self) -> bool {
-        self.is_agent_in_control() || self.is_agent_tagged_in()
     }
 
     pub fn cli_subagent_task_id(&self) -> Option<&TaskId> {
@@ -287,35 +226,8 @@ pub enum UpdateInteractionModeError {
 }
 
 #[derive(Debug, Clone)]
-pub struct UserMode {
-    // `true` if the user executed the command themself and the agent mode input should be shown.
-    //
-    // This does _not_ mean an agent is in control of the command. This merely means the user has
-    // opted to show the agent input, indicated intent to send a query to give control.
-    //
-    // If the user executes a command, shows the input, then hides the input, this reverts to
-    // `false`.
-    did_user_tag_in_agent: bool,
-}
+pub struct UserMode;
 
-/// Represents the 'interaction mode' for a command block with respect to the agent.
-///
-/// There are 4 user-perceived states:
-///
-/// 1) The command was executed by the user; if long-running, they are in control and the input is hidden.
-/// 2) The command was executed by the user, but is long-running and the user has toggled on the
-///    agent input and may send a query to trigger the Agent (the CLI subagent). We refer to this
-///    state, where the user executed the command and deliberately opened the agent input, as the
-///    agent being 'tagged in'. Note that this is distinct from the agent actually having control.
-///    "Tagged in" merely means the command is running and the agent mode input is visible
-/// 3) The command was executed by the agent (is a requested command) and is not long running. No CLI subagent was triggered.
-/// 4) The command was executed by the agent and is long running, and thus the CLI subagent was triggered.
-///   a) The agent is in control of the command (actively reading the command's output or writing input to the command)
-///   b) The agent was in the control of the command, but the user took over.
-///
-/// The `User` variant represents modes where the user executed the original command and the agent has yet to take control.
-/// The `Agent` variant represents modes where the agent either ran the command itself, or the user tagged in the agent and
-/// passed control to the CLI subagent by sending a query during its execution
 #[derive(Debug, Clone)]
 pub enum InteractionMode {
     User(UserMode),
@@ -380,15 +292,6 @@ impl InteractionMode {
         }
     }
 
-    pub fn is_agent_tagged_in(&self) -> bool {
-        matches!(
-            self,
-            Self::User(UserMode {
-                did_user_tag_in_agent: true
-            })
-        )
-    }
-
     fn set_should_hide_block(&mut self, value: bool) {
         if let Self::Agent(metadata) = self {
             metadata.should_hide_block = value;
@@ -444,9 +347,7 @@ impl InteractionMode {
 
 impl Default for InteractionMode {
     fn default() -> Self {
-        Self::User(UserMode {
-            did_user_tag_in_agent: false,
-        })
+        Self::User(UserMode)
     }
 }
 

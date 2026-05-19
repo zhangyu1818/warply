@@ -140,8 +140,6 @@ const LINEAR_SCROLLING: ScrollingAcceleration = ScrollingAcceleration::Polynomia
 /// have a height that extends down to the bottom of the window when there's a horizontal scroll bar, which messes with the on-hover behavior.
 const BLOCK_HOVER_BUTTON_HEIGHT: f32 = 28.;
 
-const TAG_AGENT_FOR_ASSISTANCE_TEXT: &str = "Tag agent for assistance";
-
 enum ScrollingAcceleration {
     Polynomial(f32),
 }
@@ -1007,7 +1005,7 @@ impl BlockListElement {
     pub fn with_hovered_index(
         mut self,
         block_index: BlockIndex,
-        model: &TerminalModel,
+        _model: &TerminalModel,
         should_render_tooltip_below_button: bool,
         app: &AppContext,
     ) -> Self {
@@ -1098,20 +1096,8 @@ impl BlockListElement {
             .with_padding_left(6.)
             .with_padding_right(4.);
 
-            let active_block = model.block_list().active_block();
-            let has_active_long_running_command = active_block.is_active_and_long_running();
-            let (ai_button_action, ai_button_tooltip) =
-                if has_active_long_running_command && active_block.index() == block_index {
-                    (
-                        Some(TerminalAction::SetInputModeAgent),
-                        TAG_AGENT_FOR_ASSISTANCE_TEXT,
-                    )
-                } else {
-                    (
-                        Some(TerminalAction::AttachBlockAsAgentContext { block_index }),
-                        *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT,
-                    )
-                };
+            let ai_button_action = Some(TerminalAction::AttachBlockAsAgentContext { block_index });
+            let ai_button_tooltip = *ATTACH_AS_AGENT_MODE_CONTEXT_TEXT;
 
             let tooltip = ToolbeltButtonTooltip {
                 label: ai_button_tooltip.to_owned(),

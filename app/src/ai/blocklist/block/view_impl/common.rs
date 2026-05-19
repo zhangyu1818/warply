@@ -76,8 +76,7 @@ use crate::{
     code::{editor::view::CodeEditorView, editor_management::CodeSource},
     notebooks::editor::{markdown_table_appearance, rich_text_styles},
     terminal::{
-        find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode,
-        view::TerminalAction, ShellLaunchData,
+        find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode, ShellLaunchData,
     },
     ui_components::{
         avatar::{Avatar, AvatarContent},
@@ -98,10 +97,7 @@ use crate::{
     terminal::{self, TerminalModel},
     util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
 };
-use crate::{
-    search::slash_command_menu::static_commands::commands,
-    settings::{FontSettings, InputSettings},
-};
+use crate::{search::slash_command_menu::static_commands::commands, settings::FontSettings};
 use warp_editor::content::{
     edit::resolve_asset_source_relative_to_directory, mermaid_diagram::mermaid_asset_source,
 };
@@ -515,8 +511,6 @@ pub fn render_warping_indicator_base(
         text_col = text_col
             .with_child(text_content)
             .with_child(Container::new(sub_element).with_margin_top(1.).finish());
-    } else if *InputSettings::as_ref(app).show_agent_tips {
-        text_col = text_col.with_child(text_content);
     } else {
         text_col = text_col.with_child(
             Container::new(text_content)
@@ -644,37 +638,6 @@ fn render_image_source_link(props: ImageSourceLinkProps<'_>, app: &AppContext) -
         props.soft_wrap,
         (!props.soft_wrap).then_some(ClipConfig::end()),
         app,
-    )
-}
-
-pub fn render_switch_control_to_user_button(
-    text: &'static str,
-    tooltip: &'static str,
-    props: ButtonProps,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let theme = appearance.theme();
-    let text = Container::new(
-        Text::new(
-            text,
-            appearance.ui_font_family(),
-            get_keybinding_font_size(appearance),
-        )
-        .with_color(theme.foreground().into())
-        .finish(),
-    )
-    .finish();
-
-    render_warping_indicator_button(
-        props.button_handle.clone(),
-        appearance,
-        text,
-        props.keystroke,
-        tooltip.to_string(),
-        props.is_active,
-        |ctx| {
-            ctx.dispatch_typed_action(TerminalAction::SetInputModeTerminal);
-        },
     )
 }
 

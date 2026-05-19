@@ -3,13 +3,9 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use super::{
     cli_controller::{CLISubagentController, CLISubagentEvent},
     model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
-    view_impl::common::{
-        render_switch_control_to_user_button, render_warping_indicator,
-        render_warping_indicator_base, ButtonProps, MaybeShimmeringText, WarpingIndicatorProps,
-        WarpingProps, WAITING_FOR_USER_INPUT_MESSAGE,
-    },
+    view_impl::common::{render_warping_indicator, ButtonProps, WarpingProps},
 };
-use crate::{ai::agent_tips::AITipModel, terminal::input::buffer_model::InputBufferUpdateEvent};
+use crate::terminal::input::buffer_model::InputBufferUpdateEvent;
 use crate::{
     ai::blocklist::agent_view::{
         agent_view_bg_fill, AgentMessageBar, AgentViewController, EphemeralMessageModel,
@@ -24,7 +20,7 @@ use crate::{
     ai::{
         acp::model::AcpAgentModel,
         agent::{
-            conversation::AIConversationId, icons, AIAgentExchangeId, AIAgentOutput,
+            conversation::AIConversationId, AIAgentExchangeId, AIAgentOutput,
             AIAgentOutputMessageType, CancellationReason, SummarizationType,
         },
         blocklist::{
@@ -37,12 +33,10 @@ use crate::{
             BlocklistAIContextModel, BlocklistAIController, BlocklistAIHistoryEvent,
             BlocklistAIInputEvent, BlocklistAIInputModel, ResponseStreamId,
         },
-        AgentTip,
     },
-    settings::{InputModeSettings, InputSettings},
+    settings::InputModeSettings,
     settings_view::keybindings::KeybindingChangedNotifier,
     terminal::{
-        input::SET_INPUT_MODE_TERMINAL_ACTION_NAME,
         model::block::LONG_RUNNING_COMMAND_DURATION_MS,
         model_events::{ModelEvent, ModelEventDispatcher},
         TerminalModel, CANCEL_COMMAND_KEYBINDING,
@@ -53,7 +47,7 @@ use crate::{
 use instant::Instant;
 use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
-use warp_core::ui::{appearance::Appearance, theme::Fill};
+use warp_core::ui::theme::Fill;
 use warpui::elements::shimmering_text::ShimmeringTextStateHandle;
 use warpui::{
     elements::{Container, Empty, Flex, MouseStateHandle, ParentElement},
@@ -72,7 +66,6 @@ pub fn init(app: &mut AppContext) {
 #[derive(Default)]
 struct StateHandles {
     stop_button: MouseStateHandle,
-    take_over_button: MouseStateHandle,
 }
 
 pub struct BlocklistAIStatusBar {
@@ -87,8 +80,6 @@ pub struct BlocklistAIStatusBar {
     state_handles: StateHandles,
 
     stop_keystroke: Option<Keystroke>,
-    set_terminal_input_keystroke: Option<Keystroke>,
-
     // Whether the summarization cancellation confirmation dialog is open.
     is_summarization_cancel_dialog_open: bool,
     summarization_cancel_dialog: ViewHandle<SummarizationCancelDialog>,
@@ -101,9 +92,6 @@ pub struct BlocklistAIStatusBar {
     last_read_refresh_handle: Option<SpawnedFutureHandle>,
 
     latest_response_stream_id: Option<ResponseStreamId>,
-
-    /// Agent tip to display below the warping indicator.
-    current_tip: Option<AgentTip>,
 
     ephemeral_message_model: ModelHandle<EphemeralMessageModel>,
     agent_message_bar: ViewHandle<AgentMessageBar>,
@@ -236,17 +224,11 @@ impl BlocklistAIStatusBar {
         });
         ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
 
-        let input_settings = InputSettings::handle(ctx);
-        ctx.subscribe_to_model(&input_settings, |_, _, _, ctx| ctx.notify());
         let input_mode_settings = InputModeSettings::handle(ctx);
         ctx.subscribe_to_model(&input_mode_settings, |_, _, _, ctx| ctx.notify());
         let stop_keystroke = keybinding_name_to_keystroke(CANCEL_COMMAND_KEYBINDING, ctx);
-        let set_terminal_input_keystroke =
-            keybinding_name_to_keystroke(SET_INPUT_MODE_TERMINAL_ACTION_NAME, ctx);
         ctx.subscribe_to_model(&KeybindingChangedNotifier::handle(ctx), |me, _, _, ctx| {
             me.stop_keystroke = keybinding_name_to_keystroke(CANCEL_COMMAND_KEYBINDING, ctx);
-            me.set_terminal_input_keystroke =
-                keybinding_name_to_keystroke(SET_INPUT_MODE_TERMINAL_ACTION_NAME, ctx);
             ctx.notify();
         });
 
@@ -320,14 +302,12 @@ impl BlocklistAIStatusBar {
             cli_subagent_controller,
             state_handles: Default::default(),
             stop_keystroke,
-            set_terminal_input_keystroke,
             summarization_cancel_dialog,
             latest_response_stream_id: None,
             is_summarization_cancel_dialog_open: false,
             summarization_timer_handle: None,
             summarization_start_time: None,
             last_read_refresh_handle: None,
-            current_tip: None,
             ephemeral_message_model,
             agent_message_bar,
         }
@@ -411,8 +391,6 @@ impl BlocklistAIStatusBar {
                 });
             self.is_summarization_cancel_dialog_open = false;
             self.stop_summarization_timer();
-
-            self.update_agent_tip(ctx);
         }
     }
 
@@ -632,40 +610,6 @@ impl BlocklistAIStatusBar {
         }
     }
 
-    fn update_agent_tip(&mut self, ctx: &mut ViewContext<Self>) {
-        if *InputSettings::as_ref(ctx).show_agent_tips {
-            let current_working_directory = self
-                .terminal_model
-                .lock()
-                .active_block_metadata()
-                .current_working_directory()
-                .map(|cwd| cwd.to_string());
-
-            // Update the tip using the model's cooldown-based API
-            let tip_model = AITipModel::<AgentTip>::handle(ctx);
-            tip_model.update(ctx, |model, model_ctx| {
-                model.maybe_refresh_tip(current_working_directory.as_deref(), model_ctx);
-            });
-
-            // Get the current tip from the model
-            self.current_tip = tip_model.as_ref(ctx).current_tip().cloned();
-
-            if let Some(_tip) = self.current_tip.as_ref() {}
-        } else {
-            self.current_tip = None;
-        }
-    }
-
-    fn render_tip(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if *InputSettings::as_ref(app).show_agent_tips {
-            self.current_tip
-                .as_ref()
-                .map(|tip| render_agent_tip(tip, app))
-        } else {
-            None
-        }
-    }
-
     fn render_warping_indicator_for_latest_exchange(
         &self,
         app: &AppContext,
@@ -718,103 +662,14 @@ impl BlocklistAIStatusBar {
     }
 }
 
-fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
-    use crate::ai::agent_tips::AITip;
-    use markdown_parser::{FormattedTextFragment, FormattedTextLine};
-    use warpui::text_layout::ClipConfig;
-
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    let _tip_description = tip.description.clone();
-    let action_text = tip.action.clone().and_then(|action| action.display_text());
-
-    let mut fragments = tip.to_formatted_text(app);
-
-    if let (Some(action), Some(text)) = (tip.action.clone(), action_text.clone()) {
-        fragments.push(FormattedTextFragment::plain_text(" "));
-        fragments.push(FormattedTextFragment::hyperlink_action(text, action));
-    } else if let Some(link_target) = tip.link.clone() {
-        fragments.push(FormattedTextFragment::plain_text(" "));
-        fragments.push(FormattedTextFragment::hyperlink("Learn more", link_target));
-    }
-
-    let formatted_text =
-        markdown_parser::FormattedText::new(vec![FormattedTextLine::Line(fragments)]);
-    warpui::elements::FormattedTextElement::new(
-        formatted_text,
-        appearance.monospace_font_size() - 3.,
-        appearance.ui_font_family(),
-        appearance.monospace_font_family(),
-        theme.disabled_ui_text_color().into_solid(),
-        Default::default(),
-    )
-    .with_hyperlink_font_color(theme.accent().into())
-    .set_selectable(true)
-    .with_clip(ClipConfig::ellipsis())
-    .register_default_click_handlers_with_action_support(move |link, evt, app| {
-        use warpui::elements::HyperlinkLens;
-        match link {
-            HyperlinkLens::Url(url) => {
-                app.open_url(url);
-            }
-            HyperlinkLens::Action(action_ref) => {
-                if let Some(action) = action_ref
-                    .as_any()
-                    .downcast_ref::<crate::workspace::WorkspaceAction>()
-                {
-                    evt.dispatch_typed_action(action.clone());
-                }
-            }
-        }
-    })
-    .finish()
-}
-
 impl View for BlocklistAIStatusBar {
     fn ui_name() -> &'static str {
         "BlocklistAIStatusBar"
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn warpui::Element> {
-        let appearance = Appearance::as_ref(app);
         let agent_view_controller = self.agent_view_controller.as_ref(app);
-        let status_element = if self
-            .terminal_model
-            .lock()
-            .block_list()
-            .active_block()
-            .is_agent_tagged_in()
-            && self
-                .ephemeral_message_model
-                .as_ref(app)
-                .current_message()
-                .is_none()
-        {
-            render_warping_indicator_base(
-                WarpingIndicatorProps {
-                    icon: Some(icons::gray_clock_icon(appearance).finish()),
-                    warping_indicator_text: MaybeShimmeringText::Static(
-                        WAITING_FOR_USER_INPUT_MESSAGE.into(),
-                    ),
-                    non_shimmering_text: None,
-                    non_shimmering_suffix: None,
-                    buttons: Some(render_switch_control_to_user_button(
-                        "Exit",
-                        "Exit agent input",
-                        ButtonProps {
-                            button_handle: &self.state_handles.take_over_button,
-                            keystroke: self.set_terminal_input_keystroke.as_ref(),
-                            is_active: false,
-                        },
-                        appearance,
-                    )),
-                    is_passive_code_diff: false,
-                    secondary_element: self.render_tip(app),
-                },
-                app,
-            )
-        } else if let (Some(warping_indicator), true) = (
+        let status_element = if let (Some(warping_indicator), true) = (
             self.render_warping_indicator_for_latest_exchange(app),
             self.ephemeral_message_model
                 .as_ref(app)

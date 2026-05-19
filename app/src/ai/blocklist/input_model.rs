@@ -349,7 +349,7 @@ impl BlocklistAIInputModel {
             .lock()
             .block_list()
             .active_block()
-            .is_agent_in_control_or_tagged_in()
+            .is_agent_in_control()
         {
             return false;
         }
@@ -389,14 +389,14 @@ impl BlocklistAIInputModel {
     /// Handles the input buffer being submitted.
     pub fn handle_input_buffer_submitted(&mut self, ctx: &mut ModelContext<Self>) {
         // If the agent is still in control of a long-running command, keep the input locked to AI mode.
-        let is_agent_in_control_or_tagged_in = self
+        let is_agent_in_control = self
             .model
             .lock()
             .block_list()
             .active_block()
-            .is_agent_in_control_or_tagged_in();
+            .is_agent_in_control();
 
-        let new_config = if is_agent_in_control_or_tagged_in {
+        let new_config = if is_agent_in_control {
             InputConfig {
                 input_type: InputType::AI,
                 is_locked: true,

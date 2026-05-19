@@ -13,7 +13,7 @@ use crate::context_chips::prompt::Prompt;
 use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::pane_group::focus_state::PaneGroupFocusState;
 use crate::pane_group::{BackingView, TerminalPaneId};
-use crate::settings::{AISettings, AppEditorSettings, WarpPromptSeparator};
+use crate::settings::{AppEditorSettings, WarpPromptSeparator};
 use crate::terminal::alt_screen::should_intercept_mouse;
 use crate::terminal::block_list_element::{SnackbarPoint, SnackbarTranslationMode};
 use crate::terminal::block_list_viewport::{ClampingMode, ScrollLines};
@@ -2895,66 +2895,6 @@ fn test_scroll_position_doesnt_change_when_block_finished() {
 }
 
 #[test]
-fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            {
-                let mut model = view.model.lock();
-                model.init_shell(InitShellValue {
-                    session_id: 0.into(),
-                    shell: "zsh".to_owned(),
-                    ..Default::default()
-                });
-                model.bootstrapped(BootstrappedValue {
-                    shell: "zsh".to_owned(),
-                    ..Default::default()
-                });
-                model.simulate_long_running_block("sleep 10", "running");
-            }
-
-            view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_inline_agent_view(
-                        None,
-                        AgentViewEntryOrigin::LongRunningCommand,
-                        ctx,
-                    )
-                    .expect("should enter inline agent view for a tagged-in command");
-            });
-            view.model
-                .lock()
-                .block_list_mut()
-                .active_block_mut()
-                .set_is_agent_tagged_in(true);
-
-            assert!(view.agent_view_controller().as_ref(ctx).is_inline());
-            assert!(view
-                .model
-                .lock()
-                .block_list()
-                .active_block()
-                .is_agent_tagged_in());
-
-            let model = view.model.lock();
-            assert!(view.is_input_box_visible(&model, ctx));
-            drop(model);
-
-            view.handle_action(&TerminalAction::SetInputModeTerminal, ctx);
-
-            assert!(!view.agent_view_controller().as_ref(ctx).is_active());
-            let model = view.model.lock();
-            let active_block = model.block_list().active_block();
-            assert!(!active_block.is_agent_tagged_in());
-            assert!(!view.is_input_box_visible(&model, ctx));
-        });
-    })
-}
-
-#[test]
 fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_running_command() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -2985,19 +2925,13 @@ fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_runnin
                     )
                     .expect("inline agent view should create a conversation")
             });
-            view.model
-                .lock()
-                .block_list_mut()
-                .active_block_mut()
-                .set_is_agent_tagged_in(true);
-
             let task_id = TaskId::new("test-task".to_owned());
             view.model
                 .lock()
                 .block_list_mut()
                 .active_block_mut()
                 .set_agent_interaction_mode_for_agent_monitored_command(&task_id, conversation_id)
-                .expect("tagged-in command should transition to agent-monitored");
+                .expect("command should transition to agent-monitored");
 
             assert!(view.agent_view_controller().as_ref(ctx).is_inline());
 
@@ -3031,89 +2965,6 @@ fn inline_agent_view_persists_across_transfer_takeover_for_monitored_long_runnin
             let active_block = model.block_list().active_block();
             assert!(active_block.is_agent_in_control());
             assert!(view.is_input_box_visible(&model, ctx));
-        });
-    })
-}
-
-#[test]
-fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_setting_disabled() {
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        AISettings::handle(&app).update(&mut app, |settings, ctx| {
-            let _ = settings
-                .should_render_use_agent_footer_for_user_commands
-                .set_value(false, ctx);
-        });
-
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            {
-                let mut model = view.model.lock();
-                model.init_shell(InitShellValue {
-                    session_id: 0.into(),
-                    shell: "zsh".to_owned(),
-                    ..Default::default()
-                });
-                model.bootstrapped(BootstrappedValue {
-                    shell: "zsh".to_owned(),
-                    ..Default::default()
-                });
-                model.simulate_long_running_block("ssh localhost", "Password:");
-            }
-
-            view.maybe_show_use_agent_footer_in_blocklist(ctx);
-            {
-                let model = view.model.lock();
-                assert!(!view.should_render_use_agent_footer(&model, ctx));
-                let active_block_index = model.block_list().active_block_index();
-                assert!(model
-                    .block_list()
-                    .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
-                    .is_none());
-            }
-
-            let conversation_id = view.agent_view_controller().update(ctx, |controller, ctx| {
-                controller
-                    .try_enter_inline_agent_view(
-                        None,
-                        AgentViewEntryOrigin::LongRunningCommand,
-                        ctx,
-                    )
-                    .expect("inline agent view should create a conversation")
-            });
-            view.model
-                .lock()
-                .block_list_mut()
-                .active_block_mut()
-                .set_is_agent_tagged_in(true);
-
-            let task_id = TaskId::new("test-task".to_owned());
-            view.model
-                .lock()
-                .block_list_mut()
-                .active_block_mut()
-                .set_agent_interaction_mode_for_agent_monitored_command(&task_id, conversation_id)
-                .expect("tagged-in command should transition to agent-monitored");
-
-            view.cli_subagent_controller.update(ctx, |controller, ctx| {
-                controller.switch_control_to_user(
-                    UserTakeOverReason::TransferFromAgent {
-                        reason: "Enter your password".to_owned(),
-                    },
-                    ctx,
-                );
-            });
-
-            view.maybe_show_use_agent_footer_in_blocklist(ctx);
-            let model = view.model.lock();
-            assert!(view.should_render_use_agent_footer(&model, ctx));
-            let active_block_index = model.block_list().active_block_index();
-            let rendered_footer_view_id = model
-                .block_list()
-                .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
-                .map(|(_, item)| item.view_id);
-            assert_eq!(rendered_footer_view_id, Some(view.use_agent_footer.id()));
         });
     })
 }

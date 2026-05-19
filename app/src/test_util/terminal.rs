@@ -6,7 +6,6 @@ use warp_core::ui::appearance::Appearance;
 use crate::ai::acp::model::AcpAgentModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::agent_tips::{AITipModel, AgentTip};
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::code_review::git_status_update::GitStatusUpdateModel;
@@ -58,7 +57,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_ctx| SyncedInputState::mock());
     app.add_singleton_model(|_| ResizableData::default());
     app.add_singleton_model(LocalWorkflows::new);
-    app.add_singleton_model(|ctx| AITipModel::<AgentTip>::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| History::default());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(AcpAgentModel::new_for_test);

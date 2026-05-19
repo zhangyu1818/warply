@@ -482,15 +482,6 @@ define_settings_group!(AISettings, settings: [
         private: true,
     }
 
-    should_render_use_agent_footer_for_user_commands: ShouldRenderUseAgentToolbarForUserCommands {
-        type: bool,
-        default: true,
-        supported_platforms: SupportedPlatforms::ALL,
-        private: false,
-        toml_path: "ai.other.should_render_use_agent_toolbar_for_user_commands",
-        description: "Whether to show the \"Use Agent\" footer for terminal commands.",
-    }
-
     // Tracks whether we've done the one-time auto-open of the conversation list for discoverability.
     // Once set to true, the conversation list visibility will be restored from workspace state.
     has_auto_opened_conversation_list: HasAutoOpenedConversationList {

@@ -106,12 +106,6 @@ pub enum Event {
     /// the running program. The shell stores these characters, inserts them into its internal line
     /// buffer, and re-echoes them after Precmd.
     Typeahead,
-    /// Emitted when the agent is tagged in or out of the active block.
-    /// Users "Tag an agent in" when they ask the agent to take over a long running command
-    /// that was started outside of a conversation (and they tag the agent out when they take control back).
-    AgentTaggedInChanged {
-        is_tagged_in: bool,
-    },
     Handler(HandlerEvent),
     /// Emitted when the remote server binary has been successfully checked or
     /// installed and is ready. The session is initialized independently on
@@ -454,9 +448,6 @@ impl Debug for Event {
             Event::PromptUpdated => write!(f, "PromptUpdated"),
             Event::HonorPS1OutOfSync => write!(f, "HonorPS1OutOfSync"),
             Event::Typeahead => write!(f, "Typeahead"),
-            Event::AgentTaggedInChanged { is_tagged_in } => {
-                write!(f, "AgentTaggedInChanged(is_tagged_in: {is_tagged_in})")
-            }
             Event::Handler(handler_event) => write!(f, "Handler({handler_event:?}))"),
             Event::RemoteServerReady { session_id } => {
                 write!(f, "RemoteServerReady(session: {session_id:?})")

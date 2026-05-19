@@ -316,7 +316,6 @@ pub enum TerminalAction {
     },
     /// Start a Language Server for the current working directory (if supported)
     StartLspServer,
-    ToggleLongRunningCommandControl,
     ToggleHideCliResponses,
     ExitAgentView,
     StartNewAgentConversation,
@@ -533,9 +532,6 @@ impl fmt::Debug for TerminalAction {
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
             OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),
             StartLspServer => write!(f, "StartLspServer"),
-            ToggleLongRunningCommandControl => {
-                write!(f, "TakeOverLongRunningCommandControlForUser")
-            }
             ToggleHideCliResponses => write!(f, "ToggleHideCliResponses"),
             ExitAgentView => write!(f, "ExitAgentView"),
             StartNewAgentConversation => write!(f, "StartNewAgentConversation"),

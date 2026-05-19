@@ -8,10 +8,7 @@ use crate::terminal::input::{
 };
 use crate::terminal::ssh::error::{SshErrorBlockAction, SSH_ERROR_BLOCK_VISIBLE_KEY};
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
-use crate::terminal::view::{
-    LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY,
-    LONG_RUNNING_AGENT_REQUESTED_COMMAND_USER_TOOK_OVER_CONTEXT_KEY,
-};
+use crate::terminal::view::LONG_RUNNING_AGENT_REQUESTED_COMMAND_CONTEXT_KEY;
 use crate::util::bindings;
 use crate::util::bindings::{cmd_or_ctrl_shift, is_binding_pty_compliant};
 use crate::{
@@ -24,7 +21,6 @@ use crate::{
     terminal::TerminalView,
     util::bindings::CustomAction,
 };
-use warpui::keymap::ContextPredicate;
 use warpui::keymap::{BindingDescription, PerPlatformKeystroke};
 use warpui::platform::OperatingSystem;
 use warpui::{
@@ -778,27 +774,12 @@ pub fn init(app: &mut AppContext) {
 fn register_input_mode_bindings(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
-    // A context predicate that matches when the input mode bindings are
-    // available for use. Disabled when a CLI agent session is active — the
-    // Warp agent should not be tagged into a CLI agent's command, and the
-    // `!` prefix is the only way to toggle shell mode in the rich input.
     let base_context = id!(flags::IS_ANY_AI_ENABLED)
         & (id!("Input") | id!("Terminal"))
         & !id!("SubshellBanner")
         & !id!(CLI_AGENT_SESSION_ACTIVE_KEY);
 
-    // A context predicate that is active when the user can switch input to agent mode.
-    let agent_mode_predicate = base_context.clone()
-        & ContextPredicate::Or(
-            Box::new(id!(flags::TERMINAL_MODE_INPUT)),
-            Box::new(ContextPredicate::Or(
-                Box::new(
-                    !id!(flags::TERMINAL_MODE_INPUT)
-                        & id!(LONG_RUNNING_AGENT_REQUESTED_COMMAND_USER_TOOK_OVER_CONTEXT_KEY),
-                ),
-                Box::new(id!("LongRunningCommand") | id!("AltScreen")),
-            )),
-        );
+    let agent_mode_predicate = base_context.clone() & id!(flags::TERMINAL_MODE_INPUT);
 
     let terminal_mode_predicate = base_context.clone()
         & id!(flags::AGENT_MODE_INPUT)

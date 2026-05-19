@@ -17,11 +17,9 @@ use crate::{
             BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
         },
     },
-    terminal::{model::session::Sessions, TerminalModel},
-    ui_components::{blended_colors, icons::Icon},
+    terminal::TerminalModel,
 };
 
-const AGENT_PROMPT_TO_INTERACT_MESSAGE: &str = "Prompt agent to interact with";
 const AGENT_WAITING_ON_INSTRUCTIONS_MESSAGE: &str = "Agent is waiting on instructions";
 const AGENT_WAITING_FOR_COMMAND_TO_EXIT_MESSAGE: &str = "Agent is waiting for command to exit";
 const AGENT_BLOCKED_MESSAGE: &str = "Agent needs your permission to continue";
@@ -32,7 +30,6 @@ const USER_IN_CONTROL_MESSAGE: &str = "User is in control";
 pub struct InlineAgentViewHeader {
     terminal_view_id: EntityId,
     terminal_model: Arc<FairMutex<TerminalModel>>,
-    sessions_model: ModelHandle<Sessions>,
     action_model: ModelHandle<BlocklistAIActionModel>,
 }
 
@@ -40,7 +37,6 @@ impl InlineAgentViewHeader {
     pub fn new(
         terminal_view_id: EntityId,
         terminal_model: Arc<FairMutex<TerminalModel>>,
-        sessions_model: ModelHandle<Sessions>,
         action_model: ModelHandle<BlocklistAIActionModel>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
@@ -70,7 +66,6 @@ impl InlineAgentViewHeader {
         Self {
             terminal_view_id,
             terminal_model,
-            sessions_model,
             action_model,
         }
     }
@@ -97,18 +92,10 @@ impl View for InlineAgentViewHeader {
             .map(|exchange| exchange.output_status.is_streaming())
             .unwrap_or(false);
 
-        let (
-            is_agent_tagged_in,
-            is_agent_in_control,
-            is_user_in_control,
-            is_action_blocked,
-            top_level_command,
-        ) = {
+        let (is_agent_in_control, is_user_in_control, is_action_blocked) = {
             let terminal_model = self.terminal_model.lock();
             let active_block = terminal_model.block_list().active_block();
-            let sessions = self.sessions_model.as_ref(app);
             (
-                active_block.is_agent_tagged_in(),
                 active_block
                     .long_running_control_state()
                     .is_some_and(LongRunningCommandControlState::is_agent_in_control),
@@ -116,25 +103,8 @@ impl View for InlineAgentViewHeader {
                     .long_running_control_state()
                     .is_some_and(LongRunningCommandControlState::is_user_in_control),
                 active_block.is_agent_blocked(),
-                active_block.top_level_command(sessions),
             )
         };
-        if is_agent_tagged_in {
-            let header_background = appearance.theme().surface_2();
-            let icon = Icon::AgentMode.to_warpui_icon(
-                blended_colors::text_main(appearance.theme(), header_background).into(),
-            );
-            let message = if let Some(command) = top_level_command.as_deref() {
-                format!("{AGENT_PROMPT_TO_INTERACT_MESSAGE} `{command}`")
-            } else {
-                format!("{AGENT_PROMPT_TO_INTERACT_MESSAGE} the running command")
-            };
-            return HeaderConfig::new(message, app)
-                .with_icon(icon)
-                .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(8.)))
-                .with_markdown()
-                .render(app);
-        }
 
         let action_model = self.action_model.as_ref(app);
         let action = action_model.get_async_running_action(app);

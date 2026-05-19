@@ -4,7 +4,6 @@ use super::*;
 use crate::ai::acp::model::{AcpAgentModel, AcpAgentState};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::agent_tips::{AITipModel, AgentTip};
 use crate::ai::blocklist::{AIQueryHistory, AcpResponseStreamTarget, BlocklistAIPermissions};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::outline::RepoOutlines;
@@ -98,7 +97,6 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ResizableData::default());
     app.add_singleton_model(|_| History::default());
     app.add_singleton_model(LocalWorkflows::new);
-    app.add_singleton_model(|ctx| AITipModel::<AgentTip>::new_for_agent_tips(ctx));
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
