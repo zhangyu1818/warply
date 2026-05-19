@@ -169,6 +169,19 @@ enum EnvironmentSidecarSide {
     Right,
 }
 
+pub type CreateItemFromQueryFn =
+    dyn Fn(&str) -> Option<Arc<dyn GenericMenuItem>> + Send + Sync + 'static;
+
+fn query_matches_existing_name<I, S>(item_names: I, query: &str) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    item_names
+        .into_iter()
+        .any(|name| name.as_ref().eq_ignore_ascii_case(query))
+}
+
 pub struct DisplayChipMenu {
     list_state: UniformListState,
     scroll_state: ScrollStateHandle,
@@ -180,6 +193,7 @@ pub struct DisplayChipMenu {
     search_input: Option<ViewHandle<EditorView>>,
     search_query: String,
     chip_menu_type: ChipMenuType,
+    create_item_from_query: Option<Arc<CreateItemFromQueryFn>>,
 
     // Environment sidecar state
     window_id: WindowId,
@@ -353,6 +367,7 @@ impl DisplayChipMenu {
             search_input,
             search_query: String::new(),
             chip_menu_type,
+            create_item_from_query: None,
 
             window_id: ctx.window_id(),
             env_sidecar_copy_id_mouse_state: Default::default(),
@@ -360,6 +375,11 @@ impl DisplayChipMenu {
             env_sidecar_copy_feedback_times: HashMap::new(),
             env_sidecar_scroll_state: Default::default(),
         }
+    }
+
+    pub fn with_create_item_from_query(mut self, builder: Arc<CreateItemFromQueryFn>) -> Self {
+        self.create_item_from_query = Some(builder);
+        self
     }
 
     pub fn reset_selected_index(&mut self) {
@@ -407,28 +427,46 @@ impl DisplayChipMenu {
                     match_result: None,
                 })
                 .collect();
-        } else {
-            // Filter items based on search query
-            self.filtered_items = self
-                .menu_items
-                .iter()
-                .filter_map(|item| {
-                    let item_name = item.name();
-                    match_indices_case_insensitive(&item_name, &self.search_query).map(
-                        |match_result| FilteredMenuItem {
-                            item: item.clone(),
-                            match_result: Some(match_result),
-                        },
-                    )
-                })
-                .collect();
+            return;
+        }
 
-            // Sort by match score (higher scores first)
-            self.filtered_items.sort_by(|a, b| {
-                let score_a = a.match_result.as_ref().map(|r| r.score).unwrap_or(0);
-                let score_b = b.match_result.as_ref().map(|r| r.score).unwrap_or(0);
-                score_b.cmp(&score_a)
-            });
+        self.filtered_items = self
+            .menu_items
+            .iter()
+            .filter_map(|item| {
+                let item_name = item.name();
+                match_indices_case_insensitive(&item_name, &self.search_query).map(|match_result| {
+                    FilteredMenuItem {
+                        item: item.clone(),
+                        match_result: Some(match_result),
+                    }
+                })
+            })
+            .collect();
+
+        self.filtered_items.sort_by(|a, b| {
+            let score_a = a.match_result.as_ref().map(|r| r.score).unwrap_or(0);
+            let score_b = b.match_result.as_ref().map(|r| r.score).unwrap_or(0);
+            score_b.cmp(&score_a)
+        });
+
+        if let Some(builder) = self.create_item_from_query.as_ref() {
+            let trimmed = self.search_query.trim();
+            let already_matches_existing = query_matches_existing_name(
+                self.menu_items.iter().map(|item| item.name()),
+                trimmed,
+            );
+            if !already_matches_existing {
+                if let Some(synthetic) = builder(trimmed) {
+                    self.filtered_items.insert(
+                        0,
+                        FilteredMenuItem {
+                            item: synthetic,
+                            match_result: None,
+                        },
+                    );
+                }
+            }
         }
     }
 
@@ -1389,5 +1427,40 @@ impl TypedActionView for DisplayChipMenu {
             }
             DisplayChipMenuAction::Close => self.close(ctx),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::query_matches_existing_name;
+
+    #[test]
+    fn query_matches_existing_name_is_ascii_case_insensitive() {
+        let names = ["main", "feature/Foo"];
+        assert!(query_matches_existing_name(names, "main"));
+        assert!(query_matches_existing_name(names, "Main"));
+        assert!(query_matches_existing_name(names, "MAIN"));
+        assert!(query_matches_existing_name(names, "feature/foo"));
+        assert!(query_matches_existing_name(names, "FEATURE/FOO"));
+    }
+
+    #[test]
+    fn query_matches_existing_name_returns_false_when_no_overlap() {
+        let names = ["main", "feature/foo"];
+        assert!(!query_matches_existing_name(names, "develop"));
+        assert!(!query_matches_existing_name(names, "feature/bar"));
+    }
+
+    #[test]
+    fn query_matches_existing_name_returns_false_for_empty_input() {
+        let names: [&str; 0] = [];
+        assert!(!query_matches_existing_name(names, "main"));
+    }
+
+    #[test]
+    fn query_matches_existing_name_works_with_owned_strings() {
+        let names = [String::from("main"), String::from("Develop")];
+        assert!(query_matches_existing_name(names.iter(), "Main"));
+        assert!(query_matches_existing_name(names.iter(), "develop"));
     }
 }

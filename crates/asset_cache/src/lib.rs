@@ -80,7 +80,7 @@ impl AssetCacheExt for AssetCache {
 /// Fetches a file from the given `url` to memory.
 async fn fetch_file_to_memory(url: Url) -> Result<Bytes, anyhow::Error> {
     let response = async_compat::Compat::new(async move { reqwest::get(url).await }).await?;
-    let content = response.bytes().await?;
+    let content = response.error_for_status()?.bytes().await?;
     Ok(content)
 }
 

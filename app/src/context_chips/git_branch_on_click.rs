@@ -179,6 +179,20 @@ fn parse_git_worktree_paths(lines: &[String]) -> HashMap<String, String> {
     branch_to_worktree_path
 }
 
+pub(crate) fn is_plausible_new_branch_name(name: &str) -> bool {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if trimmed.starts_with('-') {
+        return false;
+    }
+    if trimmed.chars().any(char::is_whitespace) {
+        return false;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,5 +258,37 @@ mod tests {
         assert_eq!(value.branch_name, "feature");
         assert_eq!(value.worktree_path, None);
         assert!(value.is_linked_worktree);
+    }
+
+    #[test]
+    fn test_is_plausible_new_branch_name_accepts_typical_names() {
+        for name in [
+            "feature/xyz",
+            "fix-123",
+            "release/v1.2.3",
+            "user/alice/work",
+            "main",
+        ] {
+            assert!(is_plausible_new_branch_name(name));
+        }
+    }
+
+    #[test]
+    fn test_is_plausible_new_branch_name_rejects_empty_or_whitespace() {
+        for name in ["", "   ", "\t\n"] {
+            assert!(!is_plausible_new_branch_name(name));
+        }
+    }
+
+    #[test]
+    fn test_is_plausible_new_branch_name_rejects_leading_dash() {
+        assert!(!is_plausible_new_branch_name("-foo"));
+        assert!(!is_plausible_new_branch_name("--all"));
+    }
+
+    #[test]
+    fn test_is_plausible_new_branch_name_rejects_internal_whitespace() {
+        assert!(!is_plausible_new_branch_name("my branch"));
+        assert!(!is_plausible_new_branch_name("foo\tbar"));
     }
 }

@@ -59,6 +59,15 @@ impl WarplyUpdater {
         model
     }
 
+    #[cfg(test)]
+    pub fn new_for_test(_ctx: &mut ModelContext<Self>) -> Self {
+        let (_event_sender, event_receiver) = async_channel::unbounded();
+        Self {
+            status: UpdaterStatus::Unavailable,
+            event_receiver,
+        }
+    }
+
     pub fn status(&self) -> &UpdaterStatus {
         &self.status
     }

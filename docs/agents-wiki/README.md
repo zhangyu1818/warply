@@ -94,6 +94,7 @@ The fork removes:
 - `upstream-master-audit-2026-05-16.md`: Incremental in-progress audit for commits after `1ca5496d8`; use it together with the 2026-05-14 audit until the new range is fully reviewed.
 - `upstream-master-audit-2026-05-17.md`: Incremental audit for `fa732953d..53da56352`, completing the currently fetched upstream master tip.
 - `upstream-master-audit-2026-05-18.md`: Incremental audit for `53da56352..24e799977`, completing the currently fetched upstream master tip.
+- `upstream-master-audit-2026-05-19.md`: Incremental audit for `24e799977..b37688958`, completing the currently fetched upstream master tip.
 
 ## Quick Merge Principle
 

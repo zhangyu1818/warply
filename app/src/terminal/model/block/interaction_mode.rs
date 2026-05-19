@@ -217,7 +217,9 @@ impl Block {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum UpdateInteractionModeError {
-    #[error("Attempted to update interaction mode from agent with requested command to agent-monitored for mismatched conversation IDs.")]
+    #[error(
+        "Attempted to update interaction mode from agent with requested command to agent-monitored for mismatched conversation IDs."
+    )]
     UnexpectedConversationId,
     #[error("Attempted to take over control for user when block was not already agent controlled")]
     InvalidTakeOver,

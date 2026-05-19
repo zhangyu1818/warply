@@ -102,6 +102,15 @@ This map explains the large fork baseline change at a path level.
 - Ported the upstream code review file-navigation toggle shortcut for retained local code review UI. `F` toggles the file navigation sidebar only when the code review pane is focused outside descendant text editors, and the toolbar tooltip uses the current keybinding display string.
 - Rejected the remaining `53da56352..24e799977` upstream commits as cloud/orchestration, GraphQL, usage/billing, auth-secret, onboarding, old Agent SDK, telemetry, shared-session cloud viewer, or Web/WASM host behavior. Retained local ACP history, terminal suggestions, SSH/remote terminal, and local UI paths should not restore those upstream dependencies.
 
+## 2026-05-19 Upstream Sync Batch
+
+- Ported the upstream branch-switcher create-branch affordance for retained context chips. The branch picker can synthesize a create row for plausible unmatched branch names and execute `git checkout -b <branch> --` without restoring cloud behavior.
+- Ported the upstream `approve` follow-up classifier word for retained natural-language detection and ACP AgentView follow-up routing.
+- Ported the upstream horizontal-tab close behavior for retained workspace tabs. Closing an active horizontal tab now activates the right neighbor, while vertical tab behavior keeps the previous-tab fallback.
+- Partially ported the upstream asset-cache HTTP status fix by checking URL fetch status before reading response bytes. The upstream Web/WASM persistence gating remains rejected under the macOS-only host contract.
+- Ported the upstream terminal bootstrap block hot-path cleanup for retained terminal block lifecycle. Bootstrap placeholder blocks start eagerly, empty pre-bootstrap placeholders do not count as long-running commands, and `VisibleBootstrapBlock` is emitted when script execution content becomes visible.
+- Rejected the remaining `24e799977..b37688958` upstream commits as old Agent SDK/API-key/telemetry, auth-secret FTUX, billing/usage, ambient/orchestration/cloud environment UI, app-bundled skills/onboarding process content, remote codebase indexing, remote code-review architecture built on `LocalOrRemotePath`, or upstream contributor-process documentation.
+
 ## 2026-05 macOS-Only Host Cleanup
 
 - Local WSL/MSYS2 shell discovery, shell launch, startup-directory conversion, path conversion, shell indicators, and bootstrap compatibility branches were removed.

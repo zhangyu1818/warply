@@ -408,6 +408,8 @@ pub struct Block {
     ///
     /// This is used for debugging UI shown in the block header on dogfood builds.
     nld_overridden: bool,
+
+    visible_bootstrap_block_event_sent: bool,
 }
 
 #[cfg(debug_assertions)]
@@ -981,6 +983,7 @@ impl Block {
             },
             nld_overridden: false,
             is_agent_environment_startup_command: false,
+            visible_bootstrap_block_event_sent: false,
         }
     }
 
@@ -1147,13 +1150,6 @@ impl Block {
     pub fn start(&mut self) {
         if self.start_ts.is_none() {
             self.start_ts = Some(Local::now());
-        }
-
-        // If we are in script execution stage and the shell starts a new block,
-        // this means we have a visible bootstrap block.
-        if self.bootstrap_stage() == BootstrapStage::ScriptExecution {
-            self.event_proxy
-                .send_terminal_event(Event::VisibleBootstrapBlock);
         }
 
         self.header_grid.start_command_grid();
@@ -1654,9 +1650,19 @@ impl Block {
         self.state == BlockState::Executing
     }
 
+    fn is_empty_pre_bootstrap_block(&self) -> bool {
+        !self.bootstrap_stage.is_done()
+            && self.command_should_show_as_empty_when_finished()
+            && self.output_grid.should_show_as_empty_when_finished()
+    }
+
     /// Whether a command is long running.
     /// We use this to determine whether to hide the input box.
     pub fn is_active_and_long_running(&self) -> bool {
+        if self.is_empty_pre_bootstrap_block() {
+            return false;
+        }
+
         // Use the command grid start time by default (which should be earlier)
         // than the output grid start time.  If for some reason there isn't a
         // command grid start time, then fall back to the start time of the output
@@ -1878,6 +1884,15 @@ impl Block {
 
     pub fn bootstrap_stage(&self) -> BootstrapStage {
         self.bootstrap_stage
+    }
+
+    pub(super) fn should_emit_visible_bootstrap_block_event(&self) -> bool {
+        self.bootstrap_stage == BootstrapStage::ScriptExecution
+            && !self.visible_bootstrap_block_event_sent
+    }
+
+    pub(super) fn mark_visible_bootstrap_block_event_sent(&mut self) {
+        self.visible_bootstrap_block_event_sent = true;
     }
 
     /// Returns the ENTIRE HEIGHT of the prompt and command (no padding top or middle included).
@@ -2874,7 +2889,9 @@ macro_rules! delegate {
 
 impl ansi::Handler for Block {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!("Handler method Block::set_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method Block::set_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn set_cursor_style(&mut self, style: Option<ansi::CursorStyle>) {
@@ -3110,11 +3127,15 @@ impl ansi::Handler for Block {
     }
 
     fn push_title(&mut self) {
-        log::error!("Handler method Block::push_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method Block::push_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn pop_title(&mut self) {
-        log::error!("Handler method Block::pop_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method Block::pop_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn prompt_marker(&mut self, marker: ansi::PromptMarker) {
