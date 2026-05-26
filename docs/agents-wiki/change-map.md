@@ -111,6 +111,15 @@ This map explains the large fork baseline change at a path level.
 - Ported the upstream terminal bootstrap block hot-path cleanup for retained terminal block lifecycle. Bootstrap placeholder blocks start eagerly, empty pre-bootstrap placeholders do not count as long-running commands, and `VisibleBootstrapBlock` is emitted when script execution content becomes visible.
 - Rejected the remaining `24e799977..b37688958` upstream commits as old Agent SDK/API-key/telemetry, auth-secret FTUX, billing/usage, ambient/orchestration/cloud environment UI, app-bundled skills/onboarding process content, remote codebase indexing, remote code-review architecture built on `LocalOrRemotePath`, or upstream contributor-process documentation.
 
+## 2026-05-26 Upstream Sync Batch
+
+- Ported retained terminal, UI, and macOS fixes from `b37688958..fc110333a`: terminal column clipping, stale git diff prompt-chip cleanup, readable worktree menu paths, pane-divider double-click reset, macOS Metal async presentation, visible-terminal code-review comment routing, and too-small persisted-window-bound filtering.
+- Ported retained SSH/remote-terminal and shell behavior where it fit the fork: remote run-command requests now skip disconnected remote-server clients, remote code-review empty states avoid local repository CTAs, Podman container subshell Warpify is recognized, bootstrap assets use 7-bit ST, and large container bootstrap payloads are chunked.
+- Ported retained secret-redaction lock ordering by sharing compiled secret regex state without the upstream mutex cycle.
+- Partially adapted Mermaid diagram lightbox support to the retained notebook editor and lightbox model. Broader upstream AgentView/editor event rewrites were not imported.
+- Reviewed but did not port several retained ideas that need fork-specific implementation: OSC 7 CWD updates, remote SSH markdown/image viewing improvements, focus URL environment variables, remote disconnect banner UI, and duplicate-pane AgentView conversation ownership. Do not import their upstream patches directly because they depend on rejected `LocalOrRemotePath`, cloud conversation, telemetry, Web/WASM, or old AgentView structures.
+- Rejected the remaining upstream commits as cloud handoff/orchestration/Oz, billing/Teams/credits, auth/API-key/model-picker UI, app-managed skills/MCP, Agent SDK/cloud agents/shared sessions, telemetry/observability, Windows/Web/WASM host support, upstream release/changelog plumbing, broad server-client crate restructuring, or feature-flag rollout churn.
+
 ## 2026-05 macOS-Only Host Cleanup
 
 - Local WSL/MSYS2 shell discovery, shell launch, startup-directory conversion, path conversion, shell indicators, and bootstrap compatibility branches were removed.

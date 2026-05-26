@@ -143,12 +143,16 @@ NSNumber *previouslyActiveAppPID;
     // we explicitly force callbacks to be synchronous if it's caused by the user instead
     // of another system call (such as the active screen changing)
     [warp_view setAsyncCallback:NO];
+
+    [warp_view setPresentsWithTransaction:YES];
 }
 
 - (void)windowDidEndLiveResize:(NSNotification *)notification {
     WarpWindow *warp_window = notification.object;
     WarpHostView *warp_view = warp_window.contentView;
+
     [warp_view setAsyncCallback:YES];
+    [warp_view setPresentsWithTransaction:NO];
 }
 
 - (void)setForceTermination {

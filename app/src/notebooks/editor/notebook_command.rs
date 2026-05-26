@@ -16,6 +16,7 @@ use warp_editor::{
     content::{
         anchor::Anchor,
         buffer::{Buffer, BufferEvent, EditOrigin},
+        mermaid_diagram::mermaid_asset_source,
         selection_model::BufferSelectionModel,
         text::{
             BlockType, BufferBlockStyle, CodeBlockType, CODE_BLOCK_DEFAULT_DISPLAY_LANG,
@@ -62,6 +63,7 @@ use crate::{
     },
     view_components::{Dropdown, DropdownItem},
     workflows::{workflow::Workflow, WorkflowType},
+    workspace::WorkspaceAction,
     Assets,
 };
 
@@ -95,6 +97,7 @@ lazy_static! {
 struct MouseStateHandles {
     insert_button_state: MouseStateHandle,
     copy_button_state: MouseStateHandle,
+    mermaid_fullscreen_button_state: MouseStateHandle,
 }
 
 struct CachedHighlightKey {
@@ -655,6 +658,42 @@ impl RunnableCommandModel for NotebookCommand {
                         if let Some(command_model) = model.upgrade(app) {
                             if let Some(workflow) = command_model.as_ref(app).to_workflow(app) {
                                 ctx.dispatch_typed_action(EditorViewAction::RunWorkflow(workflow));
+                            }
+                        }
+                    })
+                    .finish(),
+                )
+                .right()
+                .finish(),
+            );
+        }
+        if matches!(block_style, CodeBlockType::Mermaid) {
+            let model = self.handle.clone();
+            footer.add_child(
+                Align::new(
+                    block_footer_action_button(
+                        appearance,
+                        Icon::Maximize,
+                        self.mouse_state_handles
+                            .mermaid_fullscreen_button_state
+                            .clone(),
+                        "Open full screen",
+                        None,
+                    )
+                    .on_click(move |ctx, app, _| {
+                        if let Some(command_model) = model.upgrade(app) {
+                            if let Some(source) = command_model.as_ref(app).command(app) {
+                                if !source.trim().is_empty() {
+                                    ctx.dispatch_typed_action(WorkspaceAction::OpenLightbox {
+                                        images: vec![ui_components::lightbox::LightboxImage {
+                                            source: ui_components::lightbox::LightboxImageSource::Resolved {
+                                                asset_source: mermaid_asset_source(&source),
+                                            },
+                                            description: None,
+                                        }],
+                                        initial_index: 0,
+                                    });
+                                }
                             }
                         }
                     })

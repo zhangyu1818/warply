@@ -785,7 +785,7 @@ impl RightPanelView {
                 let button = Some(ChildView::new(&self.open_repository_button).finish());
                 if let Some(env) = &self.code_review_session_env {
                     if env.is_remote {
-                        CodeReviewView::render_remote_state(appearance, button)
+                        CodeReviewView::render_remote_state(appearance, None)
                     } else {
                         CodeReviewView::render_not_repo_state(appearance, button)
                     }
@@ -1409,7 +1409,7 @@ impl RightPanelView {
         ai_enabled: bool,
         ctx: &AppContext,
     ) -> Option<ViewHandle<TerminalView>> {
-        let terminal_views = pane_group.read(ctx, |pg, ctx| pg.terminal_views(ctx));
+        let terminal_views = pane_group.read(ctx, |pg, ctx| pg.visible_terminal_views(ctx));
         let focused_terminal = pane_group.read(ctx, |pg, ctx| pg.focused_session_view(ctx));
         let pane_group_id = pane_group.id();
         let preferred_terminal_id = self

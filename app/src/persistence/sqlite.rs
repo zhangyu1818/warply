@@ -28,6 +28,7 @@ use num_traits::FromPrimitive;
 use pathfinder_geometry::{rect::RectF, vector::Vector2F};
 use warp_core::safe_info;
 use warpui::platform::FullscreenState;
+use warpui::windowing::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
 use warpui::AppContext;
 
 use super::agent::{delete_agent_conversations, upsert_agent_conversation};
@@ -533,16 +534,18 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
             // unsigned to signed.
             let active_tab_index: i32 = window.active_tab_index.try_into().unwrap_or(0);
 
-            // In the database each individual field is nullable but in practice these
-            // fields are either all null or all non-null as they together represent
-            // the stored window bound.
             let (window_width, window_height, origin_x, origin_y) = match window.bounds {
-                Some(rect) => (
-                    Some(rect.size().x()),
-                    Some(rect.size().y()),
-                    Some(rect.origin().x()),
-                    Some(rect.origin().y()),
-                ),
+                Some(rect)
+                    if rect.size().x() >= MIN_WINDOW_WIDTH
+                        && rect.size().y() >= MIN_WINDOW_HEIGHT =>
+                {
+                    (
+                        Some(rect.size().x()),
+                        Some(rect.size().y()),
+                        Some(rect.origin().x()),
+                        Some(rect.origin().y()),
+                    )
+                }
                 _ => (None, None, None, None),
             };
 
@@ -1738,17 +1741,20 @@ fn read_sqlite_data(conn: &mut SqliteConnection) -> Result<PersistedData, Error>
             let fullscreen_state_val =
                 FullscreenState::from_i32(window.fullscreen_state).unwrap_or_default();
 
-            // The origin and size of the bound should be all null or all non-null.
             let bounds = match (
                 window.window_width,
                 window.window_height,
                 window.origin_x,
                 window.origin_y,
             ) {
-                (Some(width), Some(height), Some(x), Some(y)) => Some(RectF::new(
-                    Vector2F::new(x, y),
-                    Vector2F::new(width, height),
-                )),
+                (Some(width), Some(height), Some(x), Some(y))
+                    if width >= MIN_WINDOW_WIDTH && height >= MIN_WINDOW_HEIGHT =>
+                {
+                    Some(RectF::new(
+                        Vector2F::new(x, y),
+                        Vector2F::new(width, height),
+                    ))
+                }
                 _ => None,
             };
 

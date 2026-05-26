@@ -22,7 +22,7 @@ if [[ -z $WARP_BOOTSTRAPPED ]]; then
   DCS_JSON_MARKER="d"
 
   # Byte used to signal the end of a DCS.
-  DCS_END="$(printf '\x9c')"
+  DCS_END="$(printf '\x1b\x5c')"
 
   # OSC used to mark the start of in-band command output.
   #
@@ -822,7 +822,7 @@ if [[ -z $WARP_BOOTSTRAPPED ]]; then
           # Hex-encode the ZSH environment script we use to bootstrap remote zsh b/c it contains control characters
           # We decode on the SSH server using xxd if its available, otherwise fall back to a for-loop over each byte
           # and use printf to convert back to plaintext
-          local zsh_env_script=$(printf '%s' 'unsetopt ZLE; unset RCS; unset GLOBAL_RCS; WARP_SESSION_ID="$(command -p date +%s)$RANDOM"; _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || command -p uname -n); _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER); _msg=$(printf "{\"hook\": \"InitShell\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"shell\": \"zsh\", \"user\": \"%s\", \"hostname\": \"%s\"}}" "$_user" "$_hostname" | command -p od -An -v -tx1 | command -p tr -d '"'"' \n'"'"'); printf '"'"'\eP$d%s\x9c'"'"' $_msg; unset _hostname _user _msg' | command -p od -An -v -tx1 | command -p tr -d ' \n')
+          local zsh_env_script=$(printf '%s' 'unsetopt ZLE; unset RCS; unset GLOBAL_RCS; WARP_SESSION_ID="$(command -p date +%s)$RANDOM"; _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || command -p uname -n); _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER); _msg=$(printf "{\"hook\": \"InitShell\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"shell\": \"zsh\", \"user\": \"%s\", \"hostname\": \"%s\"}}" "$_user" "$_hostname" | command -p od -An -v -tx1 | command -p tr -d '"'"' \n'"'"'); printf '"'"'\eP$d%s\x1b\x5c'"'"' $_msg; unset _hostname _user _msg' | command -p od -An -v -tx1 | command -p tr -d ' \n')
 
           # Keep remote commands up-to-date with shell.rs & bash.sh.
           # Note that in this command, we're passing a string to the remote shell. Any variable expansions need to be
@@ -882,7 +882,7 @@ case "'${SHELL##*/}'" in
       _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || command -p uname -n)
       _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER)
       _msg=$(printf "{\"hook\": \"InitShell\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"shell\": \"bash\", \"user\": \"%s\", \"hostname\": \"%s\"}}" "$_user" "$_hostname" | command -p od -An -v -tx1 | command -p tr -d " \n")'"
-      printf '\''"'\eP$d%s\x9c'"'\'' \""'$_msg'"\"'
+      printf '\''"'\eP$d%s\x1b\x5c'"'\'' \""'$_msg'"\"'
       unset _hostname _user _msg
     )
       ;;

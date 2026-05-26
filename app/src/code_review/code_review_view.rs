@@ -2999,7 +2999,7 @@ impl CodeReviewView {
                     CodingPanelEnablementState::RemoteSession { .. }
                 ) =>
             {
-                self.render_remote_state_with_buttons(appearance)
+                Self::render_remote_state(appearance, None)
             }
             None => self.render_not_repo_state_with_buttons(appearance),
             Some(_) => self.render_not_repo_state_with_buttons(appearance),
@@ -4088,14 +4088,6 @@ impl CodeReviewView {
         open_repo_button: Option<Box<dyn Element>>,
     ) -> Box<dyn Element> {
         Self::render_no_repo_found_state(appearance, DISABLED_TEXT, open_repo_button)
-    }
-
-    fn render_remote_state_with_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
-        self.render_no_repo_found_state_with_buttons(
-            appearance,
-            REMOTE_TEXT,
-            InitButtons::OpenRepository,
-        )
     }
 
     fn render_not_repo_state_with_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {

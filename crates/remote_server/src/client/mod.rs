@@ -180,6 +180,10 @@ impl RemoteServerClient {
         )
     }
 
+    pub fn is_disconnected(&self) -> bool {
+        self.disconnected.load(Ordering::Acquire)
+    }
+
     /// Sends an `Initialize` request and awaits the `InitializeResponse`.
     pub async fn initialize(&self) -> Result<InitializeResponse, ClientError> {
         let request_id = RequestId::new();

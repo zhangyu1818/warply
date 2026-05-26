@@ -1,5 +1,8 @@
 use std::{path::PathBuf, sync::Arc};
 
+use diesel::connection::SimpleConnection;
+use pathfinder_geometry::{rect::RectF, vector::Vector2F};
+
 use crate::{
     app_state::{
         AppState, CodePaneSnapShot, CodePaneTabSnapshot, LeafContents, LeafSnapshot,
@@ -387,4 +390,69 @@ fn test_path_encode_decode() {
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/ñoñàscii/temp.txt"));
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/hindi/हिन्दी"));
     assert_encode_then_decode_preserves_original_path(PathBuf::from("/temp/cjk/狗没有耐心"));
+}
+
+#[test]
+fn test_sqlite_drops_too_small_bounds_on_save() {
+    use diesel::prelude::*;
+
+    use crate::persistence::schema::windows;
+
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warply.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let mut snapshot = test_terminal_window_snapshot(false);
+    snapshot.bounds = Some(RectF::new(
+        Vector2F::new(0.0, -1410.0),
+        Vector2F::new(1.0, 1410.0),
+    ));
+
+    let app_state = AppState {
+        windows: vec![snapshot],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+    };
+
+    save_app_state(&mut conn, &app_state).expect("app state should save");
+
+    let row: (Option<f32>, Option<f32>, Option<f32>, Option<f32>) = windows::dsl::windows
+        .select((
+            windows::columns::window_width,
+            windows::columns::window_height,
+            windows::columns::origin_x,
+            windows::columns::origin_y,
+        ))
+        .first(&mut conn)
+        .expect("a windows row should have been inserted");
+
+    assert_eq!(row, (None, None, None, None));
+}
+
+#[test]
+fn test_sqlite_drops_too_small_bounds_on_read() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warply.sqlite");
+    let mut conn = setup_database(&database_path).expect("database should initialize");
+
+    let app_state = AppState {
+        windows: vec![test_terminal_window_snapshot(false)],
+        active_window_index: Some(0),
+        block_lists: Default::default(),
+    };
+    save_app_state(&mut conn, &app_state).expect("app state should save");
+
+    conn.batch_execute(
+        "UPDATE windows \
+         SET window_width = 1.0, window_height = 1410.0, \
+             origin_x = 0.0, origin_y = -1410.0",
+    )
+    .expect("corrupting update should succeed");
+
+    let restored = read_sqlite_data(&mut conn)
+        .expect("app state should load")
+        .app_state;
+
+    assert_eq!(restored.windows.len(), 1);
+    assert!(restored.windows[0].bounds.is_none());
 }

@@ -787,6 +787,11 @@ impl CurrentPrompt {
                             output: value.as_ref(),
                             timed_out,
                         });
+                        if matches!(chip_kind, ContextChipKind::GitDiffStats)
+                            && me.is_updated_externally(&chip_kind)
+                        {
+                            return;
+                        }
 
                         if timed_out {
                             if suppress_on_failure
@@ -1426,6 +1431,15 @@ impl CurrentPrompt {
             if let Some(old_strong) = old_weak.upgrade(ctx) {
                 ctx.unsubscribe_from_model(&old_strong);
             }
+        }
+
+        if handle.is_none() {
+            if let Some(state) = self.states.get_mut(&ContextChipKind::GitDiffStats) {
+                state.clear_abort_handlers();
+                state.clear_cache();
+            }
+            let _ = self.update_tx.try_send(());
+            return;
         }
 
         if let Some(weak) = handle {
