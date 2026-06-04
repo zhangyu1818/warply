@@ -1,11 +1,10 @@
-use warpui::{SingletonEntity, ViewContext};
+use warpui::ViewContext;
 
 use crate::{
     ai::{
         agent::{conversation::AIConversationId, CancellationReason},
         blocklist::block::{FinishReason, PendingUserQueryBlock, PendingUserQueryBlockEvent},
     },
-    identity::LocalIdentityProvider,
     terminal::{view::PendingUserQueryKind, TerminalView},
 };
 
@@ -35,18 +34,9 @@ impl TerminalView {
     ) {
         self.remove_pending_user_query_block(ctx);
         self.pending_user_query_kind = Some(kind);
-        let local_identity = LocalIdentityProvider::as_ref(ctx).get().clone();
-        let user_display_name = local_identity.username_for_display();
-
         let prompt_for_send_now = prompt.clone();
         let handle = ctx.add_typed_action_view(|ctx| {
-            PendingUserQueryBlock::new(
-                prompt,
-                user_display_name,
-                show_close_button,
-                show_send_now_button,
-                ctx,
-            )
+            PendingUserQueryBlock::new(prompt, show_close_button, show_send_now_button, ctx)
         });
         ctx.subscribe_to_view(&handle, move |me, block, event, ctx| match event {
             PendingUserQueryBlockEvent::Dismissed => {

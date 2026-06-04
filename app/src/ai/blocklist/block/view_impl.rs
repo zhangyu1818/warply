@@ -867,11 +867,8 @@ impl View for AIBlock {
                 contents.add_child(header.with_content_item_spacing().finish());
                 did_render_header = true;
             }
-            let avatar_display_name = self.user_display_name.clone();
             if let Some(rendered_query) = query::maybe_render(
                 query::Props {
-                    user_display_name: &avatar_display_name,
-                    avatar_color: None,
                     query_and_index: Some((&query_for_display, input_index)),
                     query_prefix_highlight_len,
                     detected_links_state: &self.detected_links_state,

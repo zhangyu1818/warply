@@ -78,11 +78,7 @@ use crate::{
     terminal::{
         find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode, ShellLaunchData,
     },
-    ui_components::{
-        avatar::{Avatar, AvatarContent},
-        blended_colors,
-        icons::Icon,
-    },
+    ui_components::{blended_colors, icons::Icon},
     workspace::WorkspaceAction,
 };
 use crate::{
@@ -2631,30 +2627,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
 pub struct FindContext<'a> {
     pub model: &'a TerminalFindModel,
     pub state: &'a FindState,
-}
-
-pub fn render_user_avatar(
-    user_display_name: &str,
-    avatar_color: Option<ColorU>,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-    let background = avatar_color.unwrap_or_else(|| blended_colors::accent(theme).into());
-    let avatar = Avatar::new(
-        AvatarContent::DisplayName(user_display_name.to_owned()),
-        UiComponentStyles {
-            width: Some(icon_size(app)),
-            height: Some(icon_size(app)),
-            font_family_id: Some(appearance.ui_font_family()),
-            font_size: Some(appearance.monospace_font_size() - 2.),
-            background: Some(background.into()),
-            font_color: Some(blended_colors::text_main(theme, background)),
-            border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
-            ..Default::default()
-        },
-    );
-    avatar.build().finish()
 }
 
 pub struct UserQueryProps<'a> {

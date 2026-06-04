@@ -25,6 +25,15 @@ use ui_components::lightbox::{LightboxImage, LightboxImageSource};
 use warpui::{elements::Empty, Element};
 
 #[test]
+fn user_query_surfaces_do_not_render_user_avatars() {
+    let query_renderer = include_str!("query.rs");
+    let pending_query_renderer = include_str!("../pending_user_query_block.rs");
+
+    assert!(!query_renderer.contains("render_user_avatar"));
+    assert!(!pending_query_renderer.contains("render_user_avatar"));
+}
+
+#[test]
 fn query_prefix_highlight_len_does_not_guess_from_plain_user_query_text() {
     let input = AIAgentInput::UserQuery {
         query: "/review-pr tighten the summary".to_string(),
