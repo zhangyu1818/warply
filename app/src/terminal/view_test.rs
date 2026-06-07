@@ -1,4 +1,5 @@
 use crate::ai::agent::task::TaskId;
+use settings::Setting as _;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::pin::pin;
@@ -17,15 +18,19 @@ use crate::settings::{AppEditorSettings, WarpPromptSeparator};
 use crate::terminal::alt_screen::should_intercept_mouse;
 use crate::terminal::block_list_element::{SnackbarPoint, SnackbarTranslationMode};
 use crate::terminal::block_list_viewport::{ClampingMode, ScrollLines};
+use crate::terminal::event::SshLoginStatus;
 
 use crate::terminal::model::ansi::{self, InitShellValue};
 use crate::terminal::model::ansi::{BootstrappedValue, PreexecValue};
 use crate::terminal::model::blocks::{insert_block, TotalIndex};
+use crate::terminal::model::grid::grid_handler::TermMode;
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
 
 use crate::terminal::settings::TerminalSettings;
+use crate::terminal::warpify::settings::WarpifySettings;
+use crate::terminal::warpify::trigger_state::SshBlockState;
 use crate::terminal::{MockTerminalManager, TerminalModel};
 use crate::test_util::terminal::add_window_with_id_and_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
@@ -164,6 +169,95 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
         command_first_word_and_suffix("  myssh"),
         Some(("myssh", ""))
     );
+}
+
+fn prepare_detected_ssh_session(view: &mut TerminalView) {
+    view.model
+        .lock()
+        .simulate_long_running_block("ssh user@example.com", "Last login\n");
+    view.warpify_state.set_pending_ssh_host(
+        "ssh user@example.com".to_owned(),
+        Some("user@example.com".to_owned()),
+    );
+}
+
+#[test]
+fn focus_reporting_writes_focus_events_in_normal_screen() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        terminal.update(&mut app, |view, ctx| {
+            let mut model = view.model.lock();
+            model.simulate_long_running_block("python3 /tmp/warp_focus_test.py", "");
+            assert!(!model.is_alt_screen_active());
+            ansi::Handler::set_mode(&mut *model, ansi::Mode::ReportFocusInOut);
+            assert!(model.is_term_mode_set(TermMode::FOCUS_IN_OUT));
+            drop(model);
+            assert!(view.should_report_focus(ctx));
+
+            view.maybe_report_focus_out(ctx);
+            view.maybe_report_focus_in(ctx);
+        });
+
+        assert_eq!(
+            *pty_writes.borrow(),
+            vec![
+                escape_sequences::EscCodes::FOCUS_OUT.to_vec(),
+                escape_sequences::EscCodes::FOCUS_IN.to_vec(),
+            ]
+        );
+    })
+}
+
+#[test]
+fn ready_ssh_login_auto_warpifies_when_enabled() {
+    App::test(crate::Assets, |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            prepare_detected_ssh_session(view);
+
+            view.handle_detected_end_of_ssh_login(&SshLoginStatus::ReadyToWarpify, ctx);
+
+            assert!(matches!(
+                view.warpify_state.ssh_block_state(),
+                Some(SshBlockState::Warpifying { .. })
+            ));
+            assert!(view.warpify_footer.as_ref(ctx).mode(ctx).is_none());
+        });
+    })
+}
+
+#[test]
+fn ready_ssh_login_respects_disabled_ssh_warpification() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            WarpifySettings::handle(ctx).update(ctx, |settings, ctx| {
+                let _ = settings.enable_ssh_warpification.set_value(false, ctx);
+            });
+            prepare_detected_ssh_session(view);
+
+            view.handle_detected_end_of_ssh_login(&SshLoginStatus::ReadyToWarpify, ctx);
+
+            assert!(view.warpify_state.ssh_block_state().is_none());
+            assert!(view.warpify_footer.as_ref(ctx).mode(ctx).is_none());
+        });
+    })
 }
 
 #[test]

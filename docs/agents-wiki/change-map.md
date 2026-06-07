@@ -120,6 +120,13 @@ This map explains the large fork baseline change at a path level.
 - Reviewed but did not port several retained ideas that need fork-specific implementation: OSC 7 CWD updates, remote SSH markdown/image viewing improvements, focus URL environment variables, remote disconnect banner UI, and duplicate-pane AgentView conversation ownership. Do not import their upstream patches directly because they depend on rejected `LocalOrRemotePath`, cloud conversation, telemetry, Web/WASM, or old AgentView structures.
 - Rejected the remaining upstream commits as cloud handoff/orchestration/Oz, billing/Teams/credits, auth/API-key/model-picker UI, app-managed skills/MCP, Agent SDK/cloud agents/shared sessions, telemetry/observability, Windows/Web/WASM host support, upstream release/changelog plumbing, broad server-client crate restructuring, or feature-flag rollout churn.
 
+## 2026-06-07 Upstream Sync Batch
+
+- Ported retained terminal/runtime fixes from `3497d1844..d3757291a`: headless delegate event-loop send failures now log at debug, normal-screen DECSET 1004 focus reporting now writes focus in/out escape sequences, and AgentView no longer forces an extra AI-block focus attempt after an exchange finishes.
+- Adapted retained SSH Warpify behavior for the fork: after an interactive SSH login reaches `ReadyToWarpify` and passes existing Warpify settings, tmux, denylist, and pending-host checks, Warp starts the SSH Warpify block automatically instead of requiring the footer button click. This keeps SSH Warpify as required retained terminal functionality without restoring upstream prompt/banner branches.
+- Reviewed but did not port upstream code-review remote git-operation disabling because it depends on upstream `LocalOrRemotePath` code-review architecture absent from this fork. Future remote code-review UX should derive remote state from retained fork-owned session models rather than guessing from plain local paths.
+- Deferred broad retained-adjacent repo metadata, block navigation, Rich Input, Project Explorer, dependency-pin, and codebase-indexing changes to focused passes. Rejected the remaining commits as app-managed skills/MCP, cloud orchestration/Oz/shared sessions, Warp Control CLI/local-control product work, native Linux watcher behavior, upstream process docs/specs, or previously rejected tab-grouping work.
+
 ## 2026-05 macOS-Only Host Cleanup
 
 - Local WSL/MSYS2 shell discovery, shell launch, startup-directory conversion, path conversion, shell indicators, and bootstrap compatibility branches were removed.

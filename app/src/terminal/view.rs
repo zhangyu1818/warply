@@ -3610,10 +3610,6 @@ impl TerminalView {
 
             let mut finish_reason: Option<FinishReason> = None;
             if let Some(active_ai_block) = self.active_ai_block(ctx) {
-                // Focus the block so that the user can interact
-                // with any blocking actions (if any).
-                self.focus_ai_block_if_self_focused(active_ai_block, ctx);
-
                 // A new exchange is already active, so callbacks for the
                 // just-finished exchange will be skipped. Clear any pending
                 // user query now to prevent its callback from firing when
@@ -5258,9 +5254,7 @@ impl TerminalView {
         let focus_reporting_enabled = *AltScreenReporting::as_ref(ctx)
             .focus_reporting_enabled
             .value();
-        focus_reporting_enabled
-            && model.is_alt_screen_active()
-            && model.alt_screen().is_mode_set(TermMode::FOCUS_IN_OUT)
+        focus_reporting_enabled && model.is_term_mode_set(TermMode::FOCUS_IN_OUT)
     }
 
     fn maybe_report_focus_in(&mut self, ctx: &mut ViewContext<Self>) {
@@ -18100,7 +18094,6 @@ impl TerminalView {
                 );
             }
             SshLoginStatus::ReadyToWarpify => {
-                // After the confirmation check, we are confident enough to auto-warpify or offer warpification.
                 let Some(command) = &self.warpify_state.get_pending_ssh_command() else {
                     return;
                 };
@@ -18116,15 +18109,11 @@ impl TerminalView {
                     warpify_settings,
                 );
 
-                if let SshInteractiveSessionDetected::ShouldPromptWarpification {
-                    ref host,
-                    ref command,
-                } = ssh_interactive_session_event
-                {
-                    self.show_warpify_footer(
-                        WarpificationMode::ssh(command.clone(), host.to_owned()),
-                        ctx,
-                    );
+                if matches!(
+                    ssh_interactive_session_event,
+                    SshInteractiveSessionDetected::ShouldPromptWarpification { .. }
+                ) {
+                    self.add_ssh_warpifying_block(ctx);
                 }
             }
         }
