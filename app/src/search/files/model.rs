@@ -139,10 +139,23 @@ impl FileSearchModel {
     /// Gets repository contents (files and directories) from the LocalRepoMetadataModel for the current working directory.
     /// Results are cached per repo root and invalidated when the file tree changes.
     #[cfg(feature = "local_fs")]
-    pub fn get_repo_contents(&self, app: &AppContext) -> Arc<Vec<FileSearchResult>> {
+    pub fn get_repo_contents(&self, query: &str, app: &AppContext) -> Arc<Vec<FileSearchResult>> {
         let Some(repo_root) = self.repo_root(app) else {
             return Arc::new(Vec::new());
         };
+
+        if !query.is_empty() {
+            let repo_metadata = RepoMetadataModel::as_ref(app);
+            let Some(id) = repo_metadata::RepositoryIdentifier::try_local(&repo_root) else {
+                return Arc::new(Vec::new());
+            };
+            let contents = if repo_metadata.has_repository(&id, app) {
+                self.get_contents_from_repo(&repo_root, repo_metadata, query, app)
+            } else {
+                Vec::new()
+            };
+            return Arc::new(contents);
+        }
 
         if let Some(cached) = self.repo_contents_cache.borrow().get(&repo_root) {
             return cached.clone();
@@ -153,7 +166,7 @@ impl FileSearchModel {
             return Arc::new(Vec::new());
         };
         let contents = if repo_metadata.has_repository(&id, app) {
-            self.get_contents_from_repo(&repo_root, repo_metadata, GetContentsArgs::default(), app)
+            self.get_contents_from_repo(&repo_root, repo_metadata, query, app)
         } else {
             Vec::new()
         };
@@ -172,7 +185,7 @@ impl FileSearchModel {
         &self,
         app: &AppContext,
     ) -> (Arc<Vec<FileSearchResult>>, HashSet<String>) {
-        let contents = self.get_repo_contents(app);
+        let contents = self.get_repo_contents("", app);
         let git_changed_files = self
             .repo_root(app)
             .and_then(|repo_root| self.get_git_changed_files(&repo_root).ok())
@@ -182,7 +195,7 @@ impl FileSearchModel {
 
     /// Gets repository contents from the LocalRepoMetadataModel for the current working directory.
     #[cfg(not(feature = "local_fs"))]
-    pub fn get_repo_contents(&self, _app: &AppContext) -> Arc<Vec<FileSearchResult>> {
+    pub fn get_repo_contents(&self, _query: &str, _app: &AppContext) -> Arc<Vec<FileSearchResult>> {
         Arc::new(Vec::new())
     }
 
@@ -195,13 +208,33 @@ impl FileSearchModel {
         (Arc::new(Vec::new()), HashSet::new())
     }
 
+    #[cfg(feature = "local_fs")]
+    fn contents_args(query: &str, canonical_repo_path: PathBuf) -> GetContentsArgs {
+        if query.is_empty() {
+            return GetContentsArgs::default();
+        }
+
+        let query = query.to_string();
+        GetContentsArgs::default().with_filter(move |content| {
+            let local = match content {
+                repo_metadata::RepoContent::File(file) => file.path.to_local_path_lossy(),
+                repo_metadata::RepoContent::Directory(dir) => dir.path.to_local_path_lossy(),
+            };
+            local
+                .strip_prefix(&canonical_repo_path)
+                .ok()
+                .and_then(|relative| relative.to_str())
+                .is_some_and(|path| FileSearchModel::fuzzy_match_path(path, &query).is_some())
+        })
+    }
+
     /// Helper method to get repository contents from a specific repository
     #[cfg(feature = "local_fs")]
     fn get_contents_from_repo(
         &self,
         repo_path: &Path,
         repo_metadata: &repo_metadata::wrapper_model::RepoMetadataModel,
-        args: GetContentsArgs,
+        query: &str,
         app: &AppContext,
     ) -> Vec<FileSearchResult> {
         // Canonicalize the repository path to handle symlinks consistently
@@ -212,6 +245,7 @@ impl FileSearchModel {
         let Some(id) = repo_metadata::RepositoryIdentifier::try_local(repo_path) else {
             return Vec::new();
         };
+        let args = Self::contents_args(query, canonical_repo_path.clone());
         if let Some(contents) = repo_metadata.get_repo_contents(&id, args, app) {
             contents
                 .iter()

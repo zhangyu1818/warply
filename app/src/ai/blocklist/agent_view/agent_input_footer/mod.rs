@@ -11,7 +11,9 @@ use crate::{
     completer::SessionContext,
     context_chips::{
         self,
-        display_chip::{render_udi_chip, DisplayChip, DisplayChipConfig, UdiChipConfig},
+        display_chip::{
+            render_udi_chip, DisplayChip, DisplayChipConfig, PromptChipShellCommand, UdiChipConfig,
+        },
         prompt_type::PromptType,
     },
     terminal::session_settings::{
@@ -361,7 +363,7 @@ pub enum AgentInputFooterEvent {
     ToggledChipMenu {
         open: bool,
     },
-    TryExecuteChipCommand(String),
+    TryExecuteChipCommand(PromptChipShellCommand),
     OpenCodeReview,
     OpenAIDocument {
         document_id: AIDocumentId,

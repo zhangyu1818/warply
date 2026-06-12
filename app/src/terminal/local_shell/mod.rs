@@ -232,6 +232,19 @@ pub async fn execute_command(
     }
 }
 
+#[cfg(feature = "local_tty")]
+const PATH_CAPTURE_START: &str = "__WARP_PATH_CAPTURE_START__";
+#[cfg(feature = "local_tty")]
+const PATH_CAPTURE_END: &str = "__WARP_PATH_CAPTURE_END__";
+
+#[cfg(feature = "local_tty")]
+fn extract_captured_path(output: &str) -> Option<&str> {
+    let start = output.find(PATH_CAPTURE_START)? + PATH_CAPTURE_START.len();
+    let after_start = &output[start..];
+    let end = after_start.find(PATH_CAPTURE_END)?;
+    Some(&after_start[..end])
+}
+
 /// Captures the PATH environment variable from an interactive login shell.
 /// This uses setsid() to start a new session (fully detaching from the terminal)
 /// and stdin(null) to prevent interactive prompts from blocking.
@@ -241,9 +254,15 @@ async fn capture_interactive_shell_env(
     shell_path: PathBuf,
 ) -> Result<String> {
     let command_str = match shell_type {
-        ShellType::Bash | ShellType::Zsh => "echo $PATH",
-        ShellType::Fish => "string join : $PATH",
-        ShellType::PowerShell => "echo $Env:PATH",
+        ShellType::Bash | ShellType::Zsh => {
+            format!("printf '{PATH_CAPTURE_START}%s{PATH_CAPTURE_END}' \"$PATH\"")
+        }
+        ShellType::Fish => {
+            format!("printf '{PATH_CAPTURE_START}%s{PATH_CAPTURE_END}' (string join : $PATH)")
+        }
+        ShellType::PowerShell => {
+            format!("Write-Output \"{PATH_CAPTURE_START}$($env:PATH){PATH_CAPTURE_END}\"")
+        }
     };
 
     // With the `-i` flag, shells may try to set themselves as the foreground process for their
@@ -262,13 +281,13 @@ async fn capture_interactive_shell_env(
         ShellType::Bash | ShellType::Zsh => {
             // -i: interactive (sources .zshrc/.bashrc)
             // -l: login shell (sources .zprofile/.bash_profile)
-            command.args(["-i", "-l", "-c", command_str]);
+            command.args(["-i", "-l", "-c", command_str.as_str()]);
         }
         ShellType::Fish => {
-            command.args(["-i", "-l", "-c", command_str]);
+            command.args(["-i", "-l", "-c", command_str.as_str()]);
         }
         ShellType::PowerShell => {
-            command.args(["-Command", command_str]);
+            command.args(["-Command", command_str.as_str()]);
         }
     }
 
@@ -297,12 +316,16 @@ async fn capture_interactive_shell_env(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let path = stdout.trim().to_string();
+
+    let Some(path) = extract_captured_path(&stdout) else {
+        log::warn!("[LSP PATH] capture output missing PATH sentinels; ignoring");
+        return Err(anyhow!("missing PATH capture markers"));
+    };
 
     if path.is_empty() {
         Err(anyhow!("Interactive shell returned empty PATH"))
     } else {
-        Ok(path)
+        Ok(path.to_string())
     }
 }
 
@@ -311,3 +334,7 @@ impl Entity for LocalShellState {
 }
 
 impl SingletonEntity for LocalShellState {}
+
+#[cfg(all(test, feature = "local_tty"))]
+#[path = "mod_tests.rs"]
+mod tests;

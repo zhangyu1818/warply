@@ -61,8 +61,22 @@ fn compile_metal_shaders() {
 
     println!("cargo:rerun-if-changed={header_path}");
     println!("cargo:rerun-if-changed={metal_path}");
+    println!("cargo:rerun-if-env-changed=MACOSX_DEPLOYMENT_TARGET");
 
-    let mut compile_args = vec!["-sdk", "macosx", "metal", "-c", metal_path, "-o", air_path];
+    let min_macos_version = env::var("MACOSX_DEPLOYMENT_TARGET")
+        .expect("MACOSX_DEPLOYMENT_TARGET must be set for macOS builds");
+    let min_version_arg = format!("-mmacosx-version-min={min_macos_version}");
+
+    let mut compile_args = vec![
+        "-sdk",
+        "macosx",
+        "metal",
+        "-c",
+        metal_path,
+        "-o",
+        air_path,
+        &min_version_arg,
+    ];
     if cfg!(feature = "enable-metal-frame-capture") {
         compile_args.push("-frecord-sources");
         compile_args.push("-gline-tables-only");

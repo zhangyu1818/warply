@@ -45,13 +45,26 @@ pub struct SessionContext {
     #[cfg(feature = "completions_v2")]
     js_ctx: Option<js::SessionJsExecutionContext>,
 
-    cached_directory_entries: dashmap::DashMap<TypedPathBuf, Arc<Vec<EngineDirEntry>>>,
+    cached_directory_entries: Arc<dashmap::DashMap<TypedPathBuf, Arc<Vec<EngineDirEntry>>>>,
 
     /// Snapshot of all Warp workflow aliases.
     workflow_aliases: HashMap<String, String>,
 }
 
 impl SessionContext {
+    pub(crate) async fn refresh_directory_entries(
+        &self,
+        directory: TypedPathBuf,
+    ) -> Arc<Vec<EngineDirEntry>> {
+        let result = Arc::new(
+            self.list_directory_entries_internal(&directory.to_path())
+                .await,
+        );
+        self.cached_directory_entries
+            .insert(directory, result.clone());
+        result
+    }
+
     async fn list_directory_entries_internal(
         &self,
         directory: &TypedPath<'_>,
@@ -346,7 +359,7 @@ impl SessionContext {
                     command_registry,
                     current_working_directory,
                     js_ctx: js_function_caller.map(js::SessionJsExecutionContext::new),
-                    cached_directory_entries: Default::default(),
+                    cached_directory_entries: Arc::new(Default::default()),
                     workflow_aliases,
                 }
             } else {
@@ -354,7 +367,7 @@ impl SessionContext {
                     session: session.into(),
                     command_registry,
                     current_working_directory,
-                    cached_directory_entries: Default::default(),
+                    cached_directory_entries: Arc::new(Default::default()),
                     workflow_aliases,
                 }
             }

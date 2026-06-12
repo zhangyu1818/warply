@@ -98,6 +98,7 @@ The fork removes:
 - `upstream-master-audit-2026-05-26.md`: Incremental audit for `b37688958..fc110333a`, completing the currently fetched upstream master tip.
 - `upstream-master-audit-2026-06-04.md`: Triage audit for `fc110333a..3497d1844` after refreshing local `master` to current upstream `master`.
 - `upstream-master-audit-2026-06-07.md`: Incremental audit for `3497d1844..d3757291a`, including retained terminal focus/logging fixes and the fork-specific SSH Warpify automation change.
+- `upstream-master-audit-2026-06-12.md`: Incremental audit for `d3757291a..a30cc7a33`, including retained security quoting fixes, terminal/shell fixes, local UI fixes, and rejected cloud/Oz/MCP/skills/native-platform changes.
 
 ## Quick Merge Principle
 

@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::completer::SessionContext;
 use crate::ui_components::icons::Icon;
 use typed_path::TypedPathBuf;
-use warp_completer::completer::{EngineDirEntry, EngineFileType, PathCompletionContext};
+use warp_completer::completer::{EngineDirEntry, EngineFileType};
 use warp_util::file_type::is_binary_file;
 use warpui::{r#async::SpawnedFutureHandle, AppContext, Entity, ModelContext};
 
@@ -90,8 +90,7 @@ impl DirectoryFetcher {
             TypedPathBuf::from(dir_path)
         };
 
-        // Use SessionContext to get directory entries (works for both local and remote sessions)
-        let entries = session_context.list_directory_entries(typed_path).await;
+        let entries = session_context.refresh_directory_entries(typed_path).await;
 
         // Convert EngineDirEntry to GenericMenuItem, filtering out hidden files
         let mut items: Vec<DirectoryItem> = entries
@@ -147,6 +146,14 @@ impl DirectoryFetcher {
 
 impl Entity for DirectoryFetcher {
     type Event = DirectoryFetcherEvent;
+}
+
+impl Drop for DirectoryFetcher {
+    fn drop(&mut self) {
+        if let Some(handle) = self.fetch_handle.take() {
+            handle.abort();
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

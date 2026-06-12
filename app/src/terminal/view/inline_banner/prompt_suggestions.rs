@@ -29,6 +29,7 @@ use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
+const INLINE_BANNER_BUTTON_VERTICAL_PADDING: f32 = 4.;
 
 /// Types of zero-state prompt suggestions.
 #[derive(Debug, Copy, Clone, Serialize)]
@@ -112,7 +113,6 @@ fn render_button(
     on_click: Rc<impl Fn(&mut EventContext) + 'static>,
     should_shrink: bool,
     appearance: &Appearance,
-    app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let hoverable = Hoverable::new(mouse_state.clone(), |mouse_state| {
@@ -126,20 +126,15 @@ fn render_button(
         let text_color = blended_colors::text_main(theme, theme.surface_1());
 
         let icon_size = appearance.monospace_font_size();
-        let button_height = app.font_cache().line_height(
-            appearance.monospace_font_size(),
-            appearance.line_height_ratio(),
-        ) + 14.;
-        // Need this to have reasonable keyboard shortcut heights.
-        // let keyboard_shortcut_icon_height = button_height - 6.;
         let icon_color = blended_colors::text_main(theme, theme.surface_1());
 
         let text = {
-            let base = Text::new_inline(
+            let base = Text::new(
                 text,
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
+            .soft_wrap(mouse_state.is_hovered())
             .with_color(text_color)
             .finish();
 
@@ -194,15 +189,15 @@ fn render_button(
         let mut container = Container::new(flex.finish())
             .with_background(background_fill)
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-            .with_padding_right(INLINE_BANNER_BUTTON_PADDING);
+            .with_padding_right(INLINE_BANNER_BUTTON_PADDING)
+            .with_padding_top(INLINE_BANNER_BUTTON_VERTICAL_PADDING)
+            .with_padding_bottom(INLINE_BANNER_BUTTON_VERTICAL_PADDING);
 
         if button_index != 0 {
             container = container.with_margin_left(INLINE_BANNER_SPACING);
         }
 
-        ConstrainedBox::new(container.finish())
-            .with_height(button_height)
-            .finish()
+        container.finish()
     })
     .with_cursor(Cursor::PointingHand);
 
@@ -268,7 +263,6 @@ impl View for PromptSuggestionsView {
                     }),
                     true, // should_shrink
                     appearance,
-                    app,
                 ),
             )
             .finish(),

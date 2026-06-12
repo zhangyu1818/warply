@@ -59,7 +59,6 @@ use crate::terminal::shell::ShellType;
 use warp_core::SessionId;
 
 use crate::terminal::model::secrets::ObfuscateSecrets;
-use warpui::util::save_as_file;
 
 use base64::Engine;
 use hex::FromHexError;
@@ -2812,15 +2811,9 @@ impl ansi::Handler for TerminalModel {
                 pending.data = decoded_bytes;
 
                 if !pending.metadata.inline {
-                    if let Some(cwd) = self
-                        .active_block_metadata()
-                        .current_working_directory()
-                        .map(|cwd| cwd.to_string())
-                    {
-                        let mut path = PathBuf::from(cwd);
-                        path.push(pending.metadata.name);
-                        let _ = save_as_file(&pending.data[..], path);
-                    }
+                    log::warn!(
+                        "Ignoring non-inline iTerm file payload; automatic local file writes are disabled."
+                    );
                     return;
                 }
 

@@ -590,6 +590,7 @@ pub struct AppContext {
     /// is the fastest commonly-used hasher for this type.
     singleton_models: FxHashMap<TypeId, AnyModelHandle>,
     last_frame_position_cache: HashMap<WindowId, crate::presenter::PositionCache>,
+    last_observed_active_cursor_positions: HashMap<WindowId, Option<CursorInfo>>,
     pub(super) windows: HashMap<WindowId, Window>,
     pub(super) ref_counts: Arc<Mutex<RefCounts>>,
     pub(super) platform_delegate: Box<dyn platform::Delegate>,
@@ -762,6 +763,7 @@ impl AppContext {
             windows: Default::default(),
             ref_counts: Arc::new(Mutex::new(RefCounts::default())),
             last_frame_position_cache: Default::default(),
+            last_observed_active_cursor_positions: Default::default(),
             platform_delegate,
             // AppContext fields
             actions: Default::default(),
@@ -924,6 +926,21 @@ impl AppContext {
 
     pub fn report_active_cursor_position_update(&self) {
         self.windows().active_cursor_position_updated();
+    }
+
+    pub fn report_active_cursor_position_update_if_changed(&mut self, window_id: WindowId) {
+        let active_cursor_position = self.active_cursor_position(window_id);
+        let did_change = match self.last_observed_active_cursor_positions.get(&window_id) {
+            Some(previous_position) => previous_position != &active_cursor_position,
+            None => active_cursor_position.is_some(),
+        };
+
+        self.last_observed_active_cursor_positions
+            .insert(window_id, active_cursor_position);
+
+        if did_change && self.windows().active_window() == Some(window_id) {
+            self.report_active_cursor_position_update();
+        }
     }
 
     pub fn rendering_config(&self) -> rendering::Config {
@@ -2542,6 +2559,8 @@ impl AppContext {
         self.presenters.remove(&window_id);
         self.invalidation_callbacks.remove(&window_id);
         self.window_invalidations.remove(&window_id);
+        self.last_observed_active_cursor_positions
+            .remove(&window_id);
         autotracking::close_window(window_id);
 
         let mut subscriptions = HashMap::new();
@@ -2753,6 +2772,8 @@ impl AppContext {
                 self.handle_window_event(event, window_id, presenter.clone());
             }
         }
+
+        self.report_active_cursor_position_update_if_changed(window_id);
 
         scene
     }

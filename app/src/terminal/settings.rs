@@ -74,6 +74,42 @@ impl AltScreenPaddingMode {
     }
 }
 
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+    settings_value::SettingsValue,
+)]
+#[schemars(
+    description = "Controls whether terminal programs can access the system clipboard via OSC 52 escape sequences.",
+    rename_all = "snake_case"
+)]
+pub enum Osc52ClipboardAccess {
+    #[default]
+    #[schemars(description = "Deny all OSC 52 clipboard access.")]
+    Deny,
+    #[schemars(description = "Allow terminal programs to write to the clipboard, but not read.")]
+    WriteOnly,
+    #[schemars(description = "Allow terminal programs to both read and write the clipboard.")]
+    ReadWrite,
+}
+
+impl Osc52ClipboardAccess {
+    pub fn allows_write(self) -> bool {
+        matches!(self, Self::WriteOnly | Self::ReadWrite)
+    }
+
+    pub fn allows_read(self) -> bool {
+        matches!(self, Self::ReadWrite)
+    }
+}
+
 define_settings_group!(TerminalSettings, settings: [
     use_audible_bell: UseAudibleBell {
         type: bool,
@@ -118,6 +154,14 @@ define_settings_group!(TerminalSettings, settings: [
         toml_path: "terminal.show_terminal_zero_state_block",
         description: "Whether to show the AI zero-state block in new terminal sessions.",
     },
+    osc52_clipboard_access: Osc52ClipboardAccessSetting {
+        type: Osc52ClipboardAccess,
+        default: Osc52ClipboardAccess::default(),
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "terminal.osc52_clipboard_access",
+        description: "Controls whether terminal programs can access the system clipboard via OSC 52 escape sequences. Options: deny (default), write_only, read_write.",
+    },
 ]);
 
 impl TerminalSettings {
@@ -152,3 +196,7 @@ impl TerminalSettings {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "settings_tests.rs"]
+mod tests;
