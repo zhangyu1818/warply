@@ -27,4 +27,12 @@ define_settings_group!(CodeSettings, settings: [
         toml_path: "code.editor.show_global_search",
         description: "Whether global file search is shown in the tools panel.",
     },
+    format_on_save: FormatOnSave {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "code.editor.format_on_save",
+        description: "Whether the language server automatically formats files on save.",
+    },
 ]);

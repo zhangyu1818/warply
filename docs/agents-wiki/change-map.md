@@ -517,6 +517,14 @@ This map explains the large fork baseline change at a path level.
 - Deferred broad retained-adjacent upstream changes that need separate focused passes: DCS integrity/session-id validation, user-owned SSH ControlMaster reuse, ai_queries FIFO write cap, Cmd-Enter AgentView behavior, LRC resize, prompt queue attachment behavior, remote git/code-review operations, markdown visual sizing, vertical-tab pinning/double-click behavior, and remote-server secure-storage handling.
 - Rejected or marked not applicable the upstream tab-grouping line, cloud/Oz/orchestration/harness changes, app-managed MCP/skills changes, account/subscription/Grok/SuperGrok/GraphQL/telemetry changes, native Linux/Windows/WSL/Web host changes, and upstream specs/process docs.
 
+## 2026-06-13 Upstream Local UI And Code Review Sync
+
+- Code-review attach-as-context actions now resolve their target terminal through a right-panel-backed `ReviewActionTargetProvider` at action time. This keeps selection/diff/diff-hunk attachments aligned with the focused or repo-preferred local terminal and avoids preserving stale terminal handles on `CodeReviewView`. Do not restore upstream server-backed conversation routing or old captured-handle behavior around this path.
+- Format-on-save is a retained local `CodeSettings` value under the Features page and gates language-server formatting before save in `LocalCodeEditorView`. Keep it local and editor-focused; do not restore cloud-synced code settings, telemetry reporting, or upstream custom-inference settings surfaces around it.
+- Directory tab colors and LSP startup now reuse canonical local session paths from `TerminalView` instead of canonicalizing repeatedly during render. Canonical directory keys are normalized when settings entries are added, and remote/WSL-specific upstream behavior remains rejected unless it supports retained SSH/remote-server terminal features.
+- Theme chooser, markdown header rendering, AI settings text-editor colors, and DisplayChip menu filtering received retained local UI fixes. These are local UI improvements only and should not pull in app-managed skills, cloud conversation rename APIs, tab-grouping, or upstream account/workspace dependencies.
+- Rejected the upstream commits for GraphQL/Gemini Enterprise federation, conversation rename via Warp server API, app-side skills/Open Skill, bundled remote skill install, cloud-agent OTLP tracing, tab grouping/pinning, and removing tmux SSH Warpification.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:

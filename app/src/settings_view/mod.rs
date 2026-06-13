@@ -214,6 +214,7 @@ pub mod flags {
     pub const ALIAS_EXPANSION_FLAG: &str = "Alias_Expansion_Enabled";
     pub const MIDDLE_CLICK_PASTE_FLAG: &str = "Middle_Click_Paste_Enabled";
     pub const CODE_AS_DEFAULT_EDITOR: &str = "Code_As_Default_Enabled";
+    pub const FORMAT_ON_SAVE_CONTEXT_FLAG: &str = "Format_On_Save";
     pub const SYNC_ALL_TABS_FLAG: &str = "Sync_All_Tabs_Enabled";
     pub const SYNC_ALL_PANES_IN_CURRENT_TAB: &str = "Sync_All_Panes_In_Current_Tab";
     pub const USE_AUDIBLE_BELL_CONTEXT_FLAG: &str = "Use_Audible_Terminal_Bell";

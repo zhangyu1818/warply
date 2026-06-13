@@ -196,6 +196,25 @@ fn transferred_tab_workspace(
     workspace
 }
 
+#[test]
+fn test_theme_chooser_does_not_suppress_tab_bar_traffic_light_padding() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            let closed_padding = workspace.compute_tab_bar_left_padding(ctx);
+            assert!(closed_padding > 0.);
+
+            workspace.current_workspace_state.is_theme_chooser_open = true;
+            assert_eq!(workspace.compute_tab_bar_left_padding(ctx), closed_padding);
+
+            workspace.open_left_panel(ctx);
+            assert_eq!(workspace.compute_tab_bar_left_padding(ctx), 0.);
+        });
+    });
+}
+
 #[cfg(feature = "local_fs")]
 fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     workspace.update(app, |workspace, ctx| {
