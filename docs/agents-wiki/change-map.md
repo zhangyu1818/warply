@@ -525,6 +525,17 @@ This map explains the large fork baseline change at a path level.
 - Theme chooser, markdown header rendering, AI settings text-editor colors, and DisplayChip menu filtering received retained local UI fixes. These are local UI improvements only and should not pull in app-managed skills, cloud conversation rename APIs, tab-grouping, or upstream account/workspace dependencies.
 - Rejected the upstream commits for GraphQL/Gemini Enterprise federation, conversation rename via Warp server API, app-side skills/Open Skill, bundled remote skill install, cloud-agent OTLP tracing, tab grouping/pinning, and removing tmux SSH Warpification.
 
+## 2026-06-16 Upstream Terminal And Parser Sync
+
+- Retained terminal startup image handling now routes completed iTerm/Kitty image actions through output/background blocks when they produce visible content. `WarpInput` bootstrap image completions remain dropped, image-only grids count as visible content, and non-moving Kitty placements should not make a finished grid look empty. Future image-protocol merges should preserve this separation between bootstrap input and renderable command/background output.
+- PTY command writes normalize CRLF per shell family before sending bytes: POSIX shells receive LF and PowerShell receives CR. This is retained shell behavior for the macOS app and should not be used to restore native Windows host code or platform branches.
+- Prompt suggestion banners should stay layout-stable. Do not reintroduce hover-expanded wrapping around prompt-suggestion buttons; constrain the input banner height at the retained input renderer boundary.
+- Nix grammar support is retained editor/language functionality. Future language grammar additions may be accepted when they only touch local highlighting/editor paths and do not add cloud or platform product dependencies.
+- Markdown delimiter counters are `usize` so long delimiter runs parse without overflow. Keep parser fixes local and public-API neutral unless a future change intentionally alters formatted Markdown semantics.
+- Code-review untracked directory diffs are empty non-binary diffs, while untracked files still use empty file baselines. Keep this local Git/code-review behavior without importing upstream split remote diff-state or telemetry/reporting scaffolding.
+- Vertical-tabs traffic-light padding should remain reserved when the tools/left panel is open. This is retained macOS window chrome behavior, not a reason to accept upstream tab grouping or deleted toolbar items.
+- Rejected the upstream commits for warpctrl/local-control, GEAP/cloud credentials, GraphQL schema/model-host parsing, app-managed skills/`ReadSkill`, bundled remote skills, broad remote ripgrep/git-chip architecture, and tab grouping/pinning.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:

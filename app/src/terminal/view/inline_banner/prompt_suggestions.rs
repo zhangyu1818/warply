@@ -29,7 +29,6 @@ use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
-const INLINE_BANNER_BUTTON_VERTICAL_PADDING: f32 = 4.;
 
 /// Types of zero-state prompt suggestions.
 #[derive(Debug, Copy, Clone, Serialize)]
@@ -129,12 +128,11 @@ fn render_button(
         let icon_color = blended_colors::text_main(theme, theme.surface_1());
 
         let text = {
-            let base = Text::new(
+            let base = Text::new_inline(
                 text,
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
-            .soft_wrap(mouse_state.is_hovered())
             .with_color(text_color)
             .finish();
 
@@ -189,9 +187,7 @@ fn render_button(
         let mut container = Container::new(flex.finish())
             .with_background(background_fill)
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-            .with_padding_right(INLINE_BANNER_BUTTON_PADDING)
-            .with_padding_top(INLINE_BANNER_BUTTON_VERTICAL_PADDING)
-            .with_padding_bottom(INLINE_BANNER_BUTTON_VERTICAL_PADDING);
+            .with_padding_right(INLINE_BANNER_BUTTON_PADDING);
 
         if button_index != 0 {
             container = container.with_margin_left(INLINE_BANNER_SPACING);

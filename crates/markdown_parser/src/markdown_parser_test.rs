@@ -1020,6 +1020,22 @@ fn test_parse_unclosed_strikethrough() {
 }
 
 #[test]
+fn test_long_delimiter_run_does_not_overflow() {
+    for delimiter in ["*", "_", "~"] {
+        for len in [255, 256, 512] {
+            let source = delimiter.repeat(len);
+            let parsed = parse_markdown(&source)
+                .unwrap_or_else(|_| panic!("{len} '{delimiter}' delimiters should parse"));
+            assert_eq!(
+                parsed.raw_text(),
+                format!("{source}\n"),
+                "{len} '{delimiter}' delimiters must round-trip without loss"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_parse_escapes() {
     let source = "This is \\*not\\* italic. *This* is marked by \\* though";
     assert_eq!(
