@@ -1319,6 +1319,12 @@ pub struct ExecuteCommandEvent {
     pub source: CommandExecutionSource,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SelectionFocusPolicy {
+    HoldsFocus,
+    HoldsFocusOnlyWhileSelecting,
+}
+
 /// Actions that can be taken on a passive code diff via the input editor.
 #[derive(Clone, Debug)]
 pub enum CodeDiffAction {
@@ -7243,13 +7249,19 @@ impl TerminalView {
     ///
     /// See [`Self::redetermine_global_focus`] to change focus without checking that the terminal is focused.
     fn redetermine_terminal_focus(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        // Only reset the focus if this terminal is currently focused, don't steal it from
-        // another part of the app
+        self.redetermine_terminal_focus_with_policy(SelectionFocusPolicy::HoldsFocus, ctx)
+    }
+
+    fn redetermine_terminal_focus_with_policy(
+        &mut self,
+        selection_focus_policy: SelectionFocusPolicy,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
         let reset_focus = ctx.is_self_or_child_focused()
             && !self.find_bar.is_self_or_child_focused(ctx)
             && !self.block_filter_editor.is_self_or_child_focused(ctx);
         if reset_focus {
-            self.redetermine_global_focus(ctx);
+            self.redetermine_global_focus_with_policy(selection_focus_policy, ctx);
         }
 
         reset_focus
@@ -7612,10 +7624,11 @@ impl TerminalView {
                     abort_handle.abort();
                 }
 
-                // In-band commands finishing should never trigger a focus change as it could steal
-                // focus from the TerminalView.
                 if !matches!(block_completed_event.block_type, BlockType::InBandCommand) {
-                    self.redetermine_terminal_focus(ctx);
+                    self.redetermine_terminal_focus_with_policy(
+                        SelectionFocusPolicy::HoldsFocusOnlyWhileSelecting,
+                        ctx,
+                    );
                 }
 
                 if let BlockType::User(_) = &block_completed_event.block_type {
@@ -9030,6 +9043,7 @@ impl TerminalView {
         // doing the decoration to ensure we don't erroneously apply error
         // underlines to valid commands.
         let input = self.input().clone();
+        let session_clone = session.clone();
         ctx.spawn(
             async move { session.load_external_commands().await },
             move |me, _, ctx| {
@@ -9042,6 +9056,10 @@ impl TerminalView {
                 me.refresh_warp_prompt(ctx);
             },
         );
+
+        ctx.background_executor()
+            .spawn(async move { session_clone.load_all_function_names().await })
+            .detach();
 
         // If we were waiting for a successful warpification, it's come. Stop the timeout.
         self.warpify_state.abort_ssh_warpify_timeout();
@@ -14245,6 +14263,14 @@ impl TerminalView {
     ///
     /// TODO: https://linear.app/warpdotdev/issue/CORE-277
     pub fn redetermine_global_focus(&mut self, ctx: &mut ViewContext<Self>) {
+        self.redetermine_global_focus_with_policy(SelectionFocusPolicy::HoldsFocus, ctx);
+    }
+
+    fn redetermine_global_focus_with_policy(
+        &mut self,
+        selection_focus_policy: SelectionFocusPolicy,
+        ctx: &mut ViewContext<Self>,
+    ) {
         if self.context_menu_state.is_some() {
             // This is a hack to avoid focusing on the terminal which
             // calls on_blur and closes the context menu when it is supposed
@@ -14273,7 +14299,24 @@ impl TerminalView {
                 // oh-my-zsh prompt and send input directly to the pty.
                 && (!is_input_visible || !has_bootstrapped);
 
-            has_active_user_terminal_command
+            let semantic_selection = SemanticSelection::as_ref(ctx);
+            let is_shell_mode = !self.ai_input_model.as_ref(ctx).is_ai_input_enabled();
+            let are_blocks_selected = !self.selected_blocks.is_empty();
+            let is_text_selected = model
+                .selection_to_string(semantic_selection, false, ctx)
+                .filter(|text| !text.is_empty())
+                .is_some();
+
+            let selection_holds_focus = match selection_focus_policy {
+                SelectionFocusPolicy::HoldsFocus => true,
+                SelectionFocusPolicy::HoldsFocusOnlyWhileSelecting => {
+                    self.is_selecting || self.mouse_down_block_index.is_some()
+                }
+            };
+            let has_block_or_text_selection_in_shell_mode =
+                is_shell_mode && (are_blocks_selected || is_text_selected) && selection_holds_focus;
+
+            has_active_user_terminal_command || has_block_or_text_selection_in_shell_mode
         };
         let blocked_cli_subagent_view = {
             let model = self.model.lock();

@@ -77,6 +77,7 @@ pub enum GlobalBufferModelEvent {
     },
     FileSaved {
         file_id: FileId,
+        content_version: ContentVersion,
     },
     FailedToSave {
         file_id: FileId,
@@ -467,7 +468,10 @@ impl GlobalBufferModel {
                 if let Some(state) = self.buffers.get_mut(id) {
                     state.base_content_version = Some(*version);
                 }
-                ctx.emit(GlobalBufferModelEvent::FileSaved { file_id: *id });
+                ctx.emit(GlobalBufferModelEvent::FileSaved {
+                    file_id: *id,
+                    content_version: *version,
+                });
             }
             FileModelEvent::FailedToSave { id, error } => {
                 ctx.emit(GlobalBufferModelEvent::FailedToSave {

@@ -84,6 +84,7 @@ use crate::cmd_or_ctrl_shift;
 use crate::code::view::CodeView;
 use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::{self, PaneMode, PaneTemplateType};
+use crate::notebooks::file::FileNotebookView;
 use crate::object_ids::{ObjectUid, SyncId};
 use crate::persistence::ModelEvent;
 use crate::resource_center::{
@@ -1787,6 +1788,13 @@ impl PaneGroup {
         app: &'a AppContext,
     ) -> impl Iterator<Item = (PaneId, ViewHandle<CodeView>)> + 'a {
         self.panes_of::<CodePane>()
+            .map(move |pane| (pane.id(), pane.file_view(app)))
+    }
+    pub fn file_notebook_panes<'a>(
+        &'a self,
+        app: &'a AppContext,
+    ) -> impl Iterator<Item = (PaneId, ViewHandle<FileNotebookView>)> + 'a {
+        self.panes_of::<FilePane>()
             .map(move |pane| (pane.id(), pane.file_view(app)))
     }
 

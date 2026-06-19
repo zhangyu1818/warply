@@ -141,6 +141,64 @@ fn test_end_of_buffer() {
 }
 
 #[test]
+fn test_search_non_ascii() {
+    App::test((), |mut app| async move {
+        let (buffer, _selection) = Buffer::mock_from_markdown(
+            "你好aaaaa\n再見你好",
+            None,
+            Box::new(|_, _| IndentBehavior::Ignore),
+            &mut app,
+        );
+        buffer.read(&app, |buffer, _| {
+            assert_matches(
+                buffer,
+                &SearchConfig::new("a"),
+                [
+                    (3, 4, "a"),
+                    (4, 5, "a"),
+                    (5, 6, "a"),
+                    (6, 7, "a"),
+                    (7, 8, "a"),
+                ],
+            );
+
+            assert_matches(
+                buffer,
+                &SearchConfig::new("你好"),
+                [(1, 3, "你好"), (11, 13, "你好")],
+            );
+
+            assert_matches(buffer, &SearchConfig::new("好a"), [(2, 4, "好a")]);
+
+            assert_matches(
+                buffer,
+                &SearchConfig::regex("你."),
+                [(1, 3, "你好"), (11, 13, "你好")],
+            );
+        });
+    });
+}
+
+#[test]
+fn test_search_non_ascii_case_insensitive() {
+    App::test((), |mut app| async move {
+        let (buffer, _selection) = Buffer::mock_from_markdown(
+            "CAFÉ café",
+            None,
+            Box::new(|_, _| IndentBehavior::Ignore),
+            &mut app,
+        );
+        buffer.read(&app, |buffer, _| {
+            assert_matches(
+                buffer,
+                &SearchConfig::new("café").with_case_sensitive(false),
+                [(1, 5, "CAFÉ"), (6, 10, "café")],
+            );
+        });
+    });
+}
+
+#[test]
 fn test_word_boundaries() {
     App::test((), |mut app| async move {
         let (buffer, _selection) = Buffer::mock_from_markdown(

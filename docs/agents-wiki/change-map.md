@@ -536,6 +536,17 @@ This map explains the large fork baseline change at a path level.
 - Vertical-tabs traffic-light padding should remain reserved when the tools/left panel is open. This is retained macOS window chrome behavior, not a reason to accept upstream tab grouping or deleted toolbar items.
 - Rejected the upstream commits for warpctrl/local-control, GEAP/cloud credentials, GraphQL schema/model-host parsing, app-managed skills/`ReadSkill`, bundled remote skills, broad remote ripgrep/git-chip architecture, and tab grouping/pinning.
 
+## 2026-06-19 Upstream Editor And Terminal Sync
+
+- Local file-tree sorting now uses natural numeric-aware ordering within the retained directory/file and dotfile grouping rules. Keep this as local filesystem UI behavior; do not use it to restore cloud file-tree settings or deleted code-page settings surfaces.
+- Retained macOS windowing keeps native-window chrome event preservation in Objective-C platform code. This remains macOS host behavior and should not pull in upstream Windows/Linux windowing paths.
+- Terminal focus after block completion now distinguishes ordinary focus recalculation from the completion path that should release input focus only while block selection is still active. Future LRC/selection merges should preserve ACP-only control flow and avoid upstream telemetry callbacks.
+- Local and remote file-save events now carry saved content versions so local code editors can update their clean baseline after saves. Keep this limited to retained local buffers, code-review notification, and SSH/remote-file save semantics; do not restore server-local buffers, app-bundled skills, or old remote skill actions.
+- PowerShell bootstrap should collect only core function names synchronously and load the full function set later through the retained shell command executor. This is macOS PowerShell Core terminal behavior, not native Windows host support.
+- Markdown file preview reopen should focus an existing visible `FileNotebookView` for the same local path instead of creating duplicate panes. Do not restore deleted upstream workspace tests or notebook/cloud management around this path.
+- Tree-sitter parsing skips buffers larger than the retained parse-byte limit while still flushing delayed rendering. Future syntax-tree work should preserve this editor stability guard and keep it independent of cloud indexing.
+- Rejected the upstream commits for cloud/Oz transport and handoff, account/free-AI/SuperGrok flows, Sentry-linked CLI behavior, managed MCP and app-bundled skills, warpctrl/local-control, tab grouping/pinning/cross-window-dragging rollouts, broad remote search/git-chip architecture, cloud shared-session ping handling, and upstream spec/process files.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:

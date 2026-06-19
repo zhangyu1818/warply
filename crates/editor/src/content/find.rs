@@ -319,7 +319,12 @@ impl Engine {
                         }
                     } else if let Some(character) = cursor.char() {
                         let mut bytes = [0u8; 4];
-                        for byte in character.encode_utf8(&mut bytes).bytes() {
+                        let encoded = character.encode_utf8(&mut bytes).len();
+                        let utf8 = &mut bytes[..encoded];
+                        if matches!(direction, SearchDirection::Reverse) {
+                            utf8.reverse();
+                        }
+                        for &byte in utf8.iter() {
                             state = dfa
                                 .next_state(cache, state, byte)
                                 .context("Couldn't advance to next state")?;
