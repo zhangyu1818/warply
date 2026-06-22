@@ -134,7 +134,7 @@ impl TextFileAccumulator {
         let line_range = if self.whole_file && !self.truncated {
             None
         } else if self.truncated {
-            Some(range.start..self.last_line)
+            Some(range.start..self.last_line.max(range.start))
         } else {
             Some(range)
         };

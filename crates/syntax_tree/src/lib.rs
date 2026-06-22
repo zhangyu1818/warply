@@ -33,6 +33,8 @@ use warpui::text::point::Point;
 
 const MAX_SYNTAX_TREES: usize = 3;
 
+const MAX_PARSE_BYTES: usize = 2 * 1024 * 1024;
+
 thread_local! {
     static PARSER: RefCell<Parser> = RefCell::new(Parser::new());
 }
@@ -229,8 +231,11 @@ impl SyntaxTreeState {
         content: BufferSnapshot,
         old_tree: Option<Tree>,
         language: &Language,
-    ) -> Tree {
-        PARSER.with(|parser| {
+    ) -> Option<Tree> {
+        if content.byte_len() > MAX_PARSE_BYTES {
+            return None;
+        }
+        Some(PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser
                 .set_language(&language.grammar)
@@ -244,7 +249,7 @@ impl SyntaxTreeState {
             parser
                 .parse_with_options(&mut callback, old_tree.as_ref(), None)
                 .expect("Should succeed")
-        })
+        }))
     }
 
     /// Translate an incoming edit delta into an InputEdit for incrementally updating the syntax
@@ -355,6 +360,14 @@ impl DecorationLayer for SyntaxTreeState {
                     new_tree
                 },
                 move |model, new_tree, ctx| {
+                    let Some(new_tree) = new_tree else {
+                        let mut syntax_tree_lock = model.syntax_tree.lock();
+                        syntax_tree_lock.remove(&version);
+                        drop(syntax_tree_lock);
+                        model.invalidate_highlight_cache_for_version(version);
+                        ctx.emit(DecorationStateEvent::DecorationUpdated { version });
+                        return;
+                    };
                     let mut syntax_tree_lock = model.syntax_tree.lock();
                     model.invalidate_highlight_cache_for_version(version);
                     if let Some(old_tree) = syntax_tree_lock.get_mut(&version) {

@@ -142,7 +142,22 @@ $null = New-Module -Name Warp-Module -ScriptBlock {
         (Get-Variable | Select-Object -ExpandProperty Name) -join ' '
         $aliasesRaw = Get-Command -CommandType Alias | Select-Object -ExpandProperty DisplayName
         $aliases = $aliasesRaw -join [Environment]::NewLine
-        $functionNamesRaw = Get-Command -CommandType Function | Where-Object { -not $_.Name.StartsWith('Warp') } | Select-Object -ExpandProperty Name
+        $corePsModules = @(
+            'Microsoft.PowerShell.*',
+            'Microsoft.WSMan.*',
+            'CimCmdlets',
+            'PackageManagement',
+            'PowerShellGet',
+            'PSReadLine',
+            'ThreadJob',
+            'PSDiagnostics',
+            'PSDesiredStateConfiguration',
+            'PSWorkflow',
+            'PSWorkflowUtility'
+        )
+        $functionNamesRaw = Get-Command -CommandType Function -Module $corePsModules |
+            Where-Object { -not $_.Name.StartsWith('Warp') } |
+            Select-Object -ExpandProperty Name
         $functionNames = $functionNamesRaw -join [Environment]::NewLine
         $builtinsRaw = Get-Command -CommandType Cmdlet | Select-Object -ExpandProperty Name
         $builtins = $builtinsRaw -join [Environment]::NewLine

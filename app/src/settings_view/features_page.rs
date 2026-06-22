@@ -311,6 +311,22 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
+            "format on save",
+            builder(SettingsAction::FeaturesPageToggle(
+                FeaturesPageAction::ToggleFormatOnSave,
+            )),
+            context,
+            flags::FORMAT_ON_SAVE_CONTEXT_FLAG,
+        )
+        .is_supported_on_current_platform(
+            CodeSettings::as_ref(app)
+                .format_on_save
+                .is_supported_on_current_platform(),
+        ),
+    );
+
+    toggle_binding_pairs.push(
+        ToggleSettingActionPair::new(
             "input hint text",
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleShowInputHintText,
@@ -480,6 +496,7 @@ pub enum FeaturesPageAction {
     ToggleAliasExpansion,
     ToggleMiddleClickPaste,
     ToggleCodeAsDefaultEditor,
+    ToggleFormatOnSave,
     ToggleShowInputHintText,
     ToggleUseAudibleBell,
     ToggleShowTerminalZeroStateBlock,
@@ -731,6 +748,12 @@ impl TypedActionView for FeaturesPageView {
                     );
                 })
             }
+            ToggleFormatOnSave => CodeSettings::handle(ctx).update(ctx, |code_settings, ctx| {
+                log_setting_result(
+                    code_settings.format_on_save.toggle_and_save_value(ctx),
+                    "format_on_save",
+                );
+            }),
             ToggleNotifications => {
                 ctx.dispatch_typed_action(&WorkspaceAction::ToggleNotifications);
             }
@@ -1905,6 +1928,12 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             text_editing_widgets.push(Box::new(VimModeWidget::default()));
+        }
+        if CodeSettings::as_ref(ctx)
+            .format_on_save
+            .is_supported_on_current_platform()
+        {
+            text_editing_widgets.push(Box::new(FormatOnSaveWidget::default()));
         }
 
         let mut editor_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
@@ -4186,6 +4215,43 @@ impl SettingsWidget for AutocompleteSymbolsWidget {
                 })
                 .finish(),
             None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct FormatOnSaveWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for FormatOnSaveWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "format on save lsp language server formatting code editor"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Format files on save with language server".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(*CodeSettings::as_ref(app).format_on_save)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleFormatOnSave);
+                })
+                .finish(),
+            Some("Only applies when a language server is active for the file.".into()),
         )
     }
 }

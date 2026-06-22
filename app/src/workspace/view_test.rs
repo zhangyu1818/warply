@@ -197,6 +197,73 @@ fn transferred_tab_workspace(
     workspace
 }
 
+#[test]
+fn test_theme_chooser_does_not_suppress_tab_bar_traffic_light_padding() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            let closed_padding = workspace.compute_tab_bar_left_padding(ctx);
+            assert!(closed_padding > 0.);
+
+            workspace.current_workspace_state.is_theme_chooser_open = true;
+            assert_eq!(workspace.compute_tab_bar_left_padding(ctx), closed_padding);
+
+            workspace.open_left_panel(ctx);
+            assert_eq!(workspace.compute_tab_bar_left_padding(ctx), closed_padding);
+        });
+    });
+}
+
+fn assert_vertical_tabs_tools_panel_preserves_padding(config: HeaderToolbarChipSelection) {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                assert!(settings.use_vertical_tabs.set_value(true, ctx).is_ok());
+                assert!(settings
+                    .header_toolbar_chip_selection
+                    .set_value(config, ctx)
+                    .is_ok());
+            });
+        });
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            let closed_padding = workspace.compute_tab_bar_left_padding(ctx);
+            assert!(closed_padding > 0.);
+
+            workspace.open_left_panel(ctx);
+            assert_eq!(workspace.compute_tab_bar_left_padding(ctx), closed_padding);
+        });
+    });
+}
+
+#[test]
+fn test_tools_panel_does_not_suppress_vertical_tab_bar_traffic_light_padding() {
+    let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
+    for config in [
+        HeaderToolbarChipSelection::Custom {
+            left: vec![],
+            right: vec![
+                HeaderToolbarItemKind::TabsPanel,
+                HeaderToolbarItemKind::ToolsPanel,
+                HeaderToolbarItemKind::CodeReview,
+            ],
+        },
+        HeaderToolbarChipSelection::Custom {
+            left: vec![
+                HeaderToolbarItemKind::TabsPanel,
+                HeaderToolbarItemKind::ToolsPanel,
+            ],
+            right: vec![HeaderToolbarItemKind::CodeReview],
+        },
+    ] {
+        assert_vertical_tabs_tools_panel_preserves_padding(config);
+    }
+}
+
 #[cfg(feature = "local_fs")]
 fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     workspace.update(app, |workspace, ctx| {

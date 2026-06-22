@@ -1,8 +1,8 @@
 use crate::ai::agent::AgentReviewCommentBatch;
 use crate::code_review::code_review_header::HEADER_BUTTON_PADDING;
-use crate::code_review::code_review_view::{CodeReviewCommentDebugState, CodeReviewViewEvent};
 use crate::code_review::code_review_view::{
-    CodeReviewView, CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN,
+    CodeReviewCommentDebugState, CodeReviewView, CodeReviewViewEvent, ReviewActionTargetProvider,
+    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN,
 };
 use crate::pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT};
 use crate::pane_group::WorkingDirectoriesEvent;
@@ -114,6 +114,57 @@ struct ReviewTerminalStatus {
 impl ReviewTerminalStatus {
     fn is_available(&self) -> bool {
         self.unavailable_reasons.is_empty()
+    }
+}
+
+struct RightPanelReviewActionTargetProvider {
+    right_panel: WeakViewHandle<RightPanelView>,
+}
+
+impl ReviewActionTargetProvider for RightPanelReviewActionTargetProvider {
+    fn attach_terminal(
+        &self,
+        repo_path: &Path,
+        app: &AppContext,
+    ) -> Option<ViewHandle<TerminalView>> {
+        let right_panel = self.right_panel.upgrade(app)?;
+        right_panel.read(app, |panel, app| {
+            let pane_group = panel.active_pane_group.as_ref()?;
+            let ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+            panel
+                .find_review_terminal(pane_group, repo_path, ai_enabled, app)
+                .or_else(|| {
+                    let focused = pane_group
+                        .read(app, |pane_group, app| pane_group.focused_session_view(app))?;
+                    let status = RightPanelView::review_terminal_status(
+                        &focused,
+                        Some(repo_path),
+                        ai_enabled,
+                        app,
+                    );
+                    let in_repo = !status.unavailable_reasons.iter().any(|reason| {
+                        matches!(
+                            reason,
+                            ReviewTerminalUnavailableReason::NoSelectedRepo
+                                | ReviewTerminalUnavailableReason::SessionPathUnavailable
+                                | ReviewTerminalUnavailableReason::SessionOutsideSelectedRepo
+                        )
+                    });
+                    in_repo.then_some(focused)
+                })
+        })
+    }
+
+    fn focused_terminal(&self, app: &AppContext) -> Option<ViewHandle<TerminalView>> {
+        let right_panel = self.right_panel.upgrade(app)?;
+        right_panel.read(app, |panel, app| {
+            let pane_group = panel.active_pane_group.as_ref()?;
+            pane_group.read(app, |pane_group, app| {
+                pane_group
+                    .focused_session_view(app)
+                    .or_else(|| pane_group.active_session_view(app))
+            })
+        })
     }
 }
 
@@ -601,7 +652,6 @@ impl RightPanelView {
         &mut self,
         repo_path: Option<PathBuf>,
         diff_state_model: ModelHandle<DiffStateModel>,
-        terminal_view: WeakViewHandle<TerminalView>,
         ctx: &mut ViewContext<Self>,
     ) {
         let Some(repo_dropdown_state) = &mut self.code_review_state else {
@@ -623,17 +673,12 @@ impl RightPanelView {
             .get_code_review_view(pane_group_id, repo_path);
         if let Some(view) = existing_view {
             view.update(ctx, |view, ctx| {
-                view.set_terminal_view(terminal_view);
                 view.on_open(Some(repo_path.clone()), ctx);
             });
             self.recompute_terminal_availability(ctx);
-        } else if let Some(view) = self.create_code_review_view(
-            repo_path,
-            diff_state_model.clone(),
-            pane_group_id,
-            terminal_view.clone(),
-            ctx,
-        ) {
+        } else if let Some(view) =
+            self.create_code_review_view(repo_path, diff_state_model.clone(), pane_group_id, ctx)
+        {
             view.update(ctx, |view, ctx| {
                 view.on_open(Some(repo_path.clone()), ctx);
             });
@@ -1006,7 +1051,6 @@ impl RightPanelView {
         repo_path: &Path,
         diff_state_model: ModelHandle<DiffStateModel>,
         pane_group_id: EntityId,
-        terminal_view: WeakViewHandle<TerminalView>,
         ctx: &mut ViewContext<Self>,
     ) -> Option<ViewHandle<CodeReviewView>> {
         // Early check: if pane group has no active repositories, don't create a view
@@ -1026,12 +1070,16 @@ impl RightPanelView {
                 .update(ctx, |working_directories, ctx| {
                     working_directories.get_or_create_code_review_comments(repo_path, ctx)
                 });
+        let action_target_provider: Box<dyn ReviewActionTargetProvider> =
+            Box::new(RightPanelReviewActionTargetProvider {
+                right_panel: ctx.handle(),
+            });
         let code_review_view = ctx.add_typed_action_view(|ctx| {
             CodeReviewView::new(
                 Some(repo_path.to_path_buf()),
                 diff_state_model_clone,
                 code_review_comment_batch,
-                Some(terminal_view),
+                Some(action_target_provider),
                 ctx,
             )
         });
@@ -1499,32 +1547,32 @@ impl RightPanelView {
                 return;
             };
             let working_directories_model = self.working_directories_model.as_ref(ctx);
-            let Some(terminal_view_id) =
-                working_directories_model.get_terminal_id_for_root_path(pane_group_id, repo_path)
-            else {
-                return;
-            };
-
-            if working_directories_model
+            let is_known_repo = working_directories_model
                 .most_recent_repositories_for_pane_group(pane_group_id)
-                .is_some_and(|mut repos| repos.contains(repo_path))
-            {
-                if let Some(terminal_view) =
-                    ctx.view_with_id::<TerminalView>(ctx.window_id(), terminal_view_id)
+                .is_some_and(|mut repos| repos.contains(repo_path));
+
+            if is_known_repo {
+                let Some(terminal_view_id) = working_directories_model
+                    .get_terminal_id_for_root_path(pane_group_id, repo_path)
+                else {
+                    return;
+                };
+
+                if ctx
+                    .view_with_id::<TerminalView>(ctx.window_id(), terminal_view_id)
+                    .is_none()
                 {
-                    if let Some(view) = self.create_code_review_view(
-                        repo_path,
-                        diff_state_model,
-                        pane_group_id,
-                        terminal_view.downgrade(),
-                        ctx,
-                    ) {
-                        if is_panel_open {
-                            let repo_path = repo_path.to_path_buf();
-                            view.update(ctx, |view, ctx| {
-                                view.on_open(Some(repo_path), ctx);
-                            });
-                        }
+                    return;
+                }
+
+                if let Some(view) =
+                    self.create_code_review_view(repo_path, diff_state_model, pane_group_id, ctx)
+                {
+                    if is_panel_open {
+                        let repo_path = repo_path.to_path_buf();
+                        view.update(ctx, |view, ctx| {
+                            view.on_open(Some(repo_path), ctx);
+                        });
                     }
                 }
             }

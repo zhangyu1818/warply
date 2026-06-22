@@ -2887,6 +2887,34 @@ macro_rules! delegate {
     };
 }
 
+macro_rules! delegate_image_completion {
+    ($self:ident.$method:ident( $( $arg:expr ),* )) => {
+        match $self.header_grid.receiving_chars_for_prompt {
+            Some(ansi::PromptKind::Initial) => {
+                $self.header_grid.$method($( $arg ),*)
+            },
+            Some(ansi::PromptKind::Right) => {
+                if !$self.ignore_next_rprompt {
+                    $self.rprompt_grid.$method($( $arg ),*)
+                } else {
+                    Default::default()
+                }
+            },
+            _ if $self.bootstrap_stage == BootstrapStage::WarpInput => Default::default(),
+            _ => {
+                let had_visible_content = $self.output_grid.has_visible_content();
+                let retval = $self.output_grid.$method($( $arg ),*);
+                if !had_visible_content && $self.output_grid.has_visible_content() {
+                    if !$self.output_grid.started() {
+                        $self.output_grid.start();
+                    }
+                }
+                retval
+            }
+        }
+    };
+}
+
 impl ansi::Handler for Block {
     fn set_title(&mut self, _: Option<String>) {
         log::error!(
@@ -3268,7 +3296,7 @@ impl ansi::Handler for Block {
     }
 
     fn handle_completed_iterm_image(&mut self, image: ITermImage) {
-        delegate!(self.handle_completed_iterm_image(image))
+        delegate_image_completion!(self.handle_completed_iterm_image(image))
     }
 
     fn handle_completed_kitty_action(
@@ -3276,7 +3304,7 @@ impl ansi::Handler for Block {
         action: KittyAction,
         metadata: &mut HashMap<u32, StoredImageMetadata>,
     ) -> Option<KittyResponse> {
-        delegate!(self.handle_completed_kitty_action(action, metadata))
+        delegate_image_completion!(self.handle_completed_kitty_action(action, metadata))
     }
 
     fn set_keyboard_enhancement_flags(

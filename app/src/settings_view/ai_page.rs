@@ -1,6 +1,6 @@
 use crate::ai::acp::config_options::{probe_config_options, AcpConfigOption};
 use crate::ai::acp::registry::AcpRegistryModel;
-use crate::appearance::Appearance;
+use crate::appearance::{Appearance, AppearanceEvent};
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors};
 use crate::settings::{AISettings, TerminalSuggestionEffort};
 use crate::terminal::local_shell::LocalShellState;
@@ -35,6 +35,14 @@ use super::{SettingsAction, SettingsSection};
 
 const CONTENT_FONT_SIZE: f32 = 12.;
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
+
+fn ai_text_colors(appearance: &Appearance) -> TextColors {
+    TextColors {
+        default_color: appearance.theme().active_ui_text_color(),
+        disabled_color: appearance.theme().disabled_ui_text_color(),
+        hint_color: appearance.theme().disabled_ui_text_color(),
+    }
+}
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
     _app: &mut AppContext,
@@ -223,6 +231,23 @@ impl AISettingsPageView {
         let terminal_suggestions_effort_dropdown =
             Self::create_terminal_suggestions_effort_dropdown(ctx);
 
+        let terminal_suggestions_editors = [
+            terminal_suggestions_endpoint_editor.clone(),
+            terminal_suggestions_api_key_editor.clone(),
+            terminal_suggestions_model_editor.clone(),
+        ];
+        ctx.subscribe_to_model(&Appearance::handle(ctx), move |_, _, event, ctx| {
+            if matches!(event, AppearanceEvent::ThemeChanged) {
+                let text_colors = ai_text_colors(Appearance::as_ref(ctx));
+                for editor in &terminal_suggestions_editors {
+                    let colors = text_colors.clone();
+                    editor.update(ctx, move |editor, ctx| {
+                        editor.set_text_colors(colors, ctx);
+                    });
+                }
+            }
+        });
+
         ctx.subscribe_to_model(&AcpRegistryModel::handle(ctx), |me, _, _, ctx| {
             me.refresh_acp_agent_backend_dropdown(ctx);
             me.refresh_acp_config_options(ctx);
@@ -257,11 +282,7 @@ impl AISettingsPageView {
                 text: crate::editor::TextOptions {
                     font_size_override: Some(appearance.ui_font_size()),
                     font_family_override: Some(appearance.monospace_font_family()),
-                    text_colors_override: Some(TextColors {
-                        default_color: appearance.theme().active_ui_text_color(),
-                        disabled_color: appearance.theme().disabled_ui_text_color(),
-                        hint_color: appearance.theme().disabled_ui_text_color(),
-                    }),
+                    text_colors_override: Some(ai_text_colors(appearance)),
                     ..Default::default()
                 },
                 ..Default::default()

@@ -517,6 +517,44 @@ This map explains the large fork baseline change at a path level.
 - Deferred broad retained-adjacent upstream changes that need separate focused passes: DCS integrity/session-id validation, user-owned SSH ControlMaster reuse, ai_queries FIFO write cap, Cmd-Enter AgentView behavior, LRC resize, prompt queue attachment behavior, remote git/code-review operations, markdown visual sizing, vertical-tab pinning/double-click behavior, and remote-server secure-storage handling.
 - Rejected or marked not applicable the upstream tab-grouping line, cloud/Oz/orchestration/harness changes, app-managed MCP/skills changes, account/subscription/Grok/SuperGrok/GraphQL/telemetry changes, native Linux/Windows/WSL/Web host changes, and upstream specs/process docs.
 
+## 2026-06-13 Upstream Local UI And Code Review Sync
+
+- Code-review attach-as-context actions now resolve their target terminal through a right-panel-backed `ReviewActionTargetProvider` at action time. This keeps selection/diff/diff-hunk attachments aligned with the focused or repo-preferred local terminal and avoids preserving stale terminal handles on `CodeReviewView`. Do not restore upstream server-backed conversation routing or old captured-handle behavior around this path.
+- Format-on-save is a retained local `CodeSettings` value under the Features page and gates language-server formatting before save in `LocalCodeEditorView`. Keep it local and editor-focused; do not restore cloud-synced code settings, telemetry reporting, or upstream custom-inference settings surfaces around it.
+- Directory tab colors and LSP startup now reuse canonical local session paths from `TerminalView` instead of canonicalizing repeatedly during render. Canonical directory keys are normalized when settings entries are added, and remote/WSL-specific upstream behavior remains rejected unless it supports retained SSH/remote-server terminal features.
+- Theme chooser, markdown header rendering, AI settings text-editor colors, and DisplayChip menu filtering received retained local UI fixes. These are local UI improvements only and should not pull in app-managed skills, cloud conversation rename APIs, tab-grouping, or upstream account/workspace dependencies.
+- Rejected the upstream commits for GraphQL/Gemini Enterprise federation, conversation rename via Warp server API, app-side skills/Open Skill, bundled remote skill install, cloud-agent OTLP tracing, tab grouping/pinning, and removing tmux SSH Warpification.
+
+## 2026-06-16 Upstream Terminal And Parser Sync
+
+- Retained terminal startup image handling now routes completed iTerm/Kitty image actions through output/background blocks when they produce visible content. `WarpInput` bootstrap image completions remain dropped, image-only grids count as visible content, and non-moving Kitty placements should not make a finished grid look empty. Future image-protocol merges should preserve this separation between bootstrap input and renderable command/background output.
+- PTY command writes normalize CRLF per shell family before sending bytes: POSIX shells receive LF and PowerShell receives CR. This is retained shell behavior for the macOS app and should not be used to restore native Windows host code or platform branches.
+- Prompt suggestion banners should stay layout-stable. Do not reintroduce hover-expanded wrapping around prompt-suggestion buttons; constrain the input banner height at the retained input renderer boundary.
+- Nix grammar support is retained editor/language functionality. Future language grammar additions may be accepted when they only touch local highlighting/editor paths and do not add cloud or platform product dependencies.
+- Markdown delimiter counters are `usize` so long delimiter runs parse without overflow. Keep parser fixes local and public-API neutral unless a future change intentionally alters formatted Markdown semantics.
+- Code-review untracked directory diffs are empty non-binary diffs, while untracked files still use empty file baselines. Keep this local Git/code-review behavior without importing upstream split remote diff-state or telemetry/reporting scaffolding.
+- Vertical-tabs traffic-light padding should remain reserved when the tools/left panel is open. This is retained macOS window chrome behavior, not a reason to accept upstream tab grouping or deleted toolbar items.
+- Rejected the upstream commits for warpctrl/local-control, GEAP/cloud credentials, GraphQL schema/model-host parsing, app-managed skills/`ReadSkill`, bundled remote skills, broad remote ripgrep/git-chip architecture, and tab grouping/pinning.
+
+## 2026-06-19 Upstream Editor And Terminal Sync
+
+- Local file-tree sorting now uses natural numeric-aware ordering within the retained directory/file and dotfile grouping rules. Keep this as local filesystem UI behavior; do not use it to restore cloud file-tree settings or deleted code-page settings surfaces.
+- Retained macOS windowing keeps native-window chrome event preservation in Objective-C platform code. This remains macOS host behavior and should not pull in upstream Windows/Linux windowing paths.
+- Terminal focus after block completion now distinguishes ordinary focus recalculation from the completion path that should release input focus only while block selection is still active. Future LRC/selection merges should preserve ACP-only control flow and avoid upstream telemetry callbacks.
+- Local and remote file-save events now carry saved content versions so local code editors can update their clean baseline after saves. Keep this limited to retained local buffers, code-review notification, and SSH/remote-file save semantics; do not restore server-local buffers, app-bundled skills, or old remote skill actions.
+- PowerShell bootstrap should collect only core function names synchronously and load the full function set later through the retained shell command executor. This is macOS PowerShell Core terminal behavior, not native Windows host support.
+- Markdown file preview reopen should focus an existing visible `FileNotebookView` for the same local path instead of creating duplicate panes. Do not restore deleted upstream workspace tests or notebook/cloud management around this path.
+- Tree-sitter parsing skips buffers larger than the retained parse-byte limit while still flushing delayed rendering. Future syntax-tree work should preserve this editor stability guard and keep it independent of cloud indexing.
+- Rejected the upstream commits for cloud/Oz transport and handoff, account/free-AI/SuperGrok flows, Sentry-linked CLI behavior, managed MCP and app-bundled skills, warpctrl/local-control, tab grouping/pinning/cross-window-dragging rollouts, broad remote search/git-chip architecture, cloud shared-session ping handling, and upstream spec/process files.
+
+## 2026-06-22 Upstream UI And Test Stability Sync
+
+- Block-list event dispatch now skips retained left-click handling when a child element has already handled the event. Keep this as generic terminal UI behavior for block selection/click routing.
+- Integration-test builds now enable `warpui/defer_scene_build`, which keeps unit-test eager scene rebuilds while letting integration tests rely on the platform redraw path. This is retained test/runtime stability work and should not pull in upstream agent-mode eval feature lists or cloud-agent harnesses.
+- Remote Agent Mode context snapshots remain rejected because they publish and consume bundled/home skills, MCP metadata, and remote global rules through the Warp app and remote daemon. Skills, MCP, and agent-side instructions belong to the ACP process in this fork.
+- Broad upstream TUI framework restructuring is rejected for now because it adds a new feature/dependency surface and moves the `warpui_core` GUI element hierarchy without a retained macOS/ACP caller. Re-evaluate only when a retained feature needs that layer.
+- Cloud Agent `/continue-locally`, SuperGrok/free-AI availability, cloud tracing, managed secrets, and native Windows local TTY tests remain outside the fork contract.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:
