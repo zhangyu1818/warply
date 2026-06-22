@@ -39,6 +39,7 @@ use crate::tab_configs::tab_config::{TabConfigPaneNode, TabConfigPaneType};
 use crate::terminal::history::History;
 use crate::terminal::keys::TerminalKeybindings;
 use crate::updater::WarplyUpdater;
+use crate::util::bindings::keybinding_name_to_normalized_string;
 
 use crate::terminal::local_tty::spawner::PtySpawner;
 
@@ -1085,6 +1086,47 @@ fn mark_conversation_list_auto_opened(ctx: &mut ViewContext<Workspace>) {
             .has_auto_opened_conversation_list
             .set_value(true, ctx)
             .expect("Failed to update has_auto_opened_conversation_list setting");
+    });
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn test_left_panel_view_order_matches_default_toolbelt_shortcuts() {
+    let _global_search_guard = FeatureFlag::GlobalSearch.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        app.update(|ctx| {
+            assert_eq!(
+                Workspace::compute_left_panel_views(ctx),
+                vec![
+                    ToolPanelView::ProjectExplorer,
+                    ToolPanelView::GlobalSearch {
+                        entry_focus: GlobalSearchEntryFocus::Results,
+                    },
+                    ToolPanelView::ConversationListView,
+                ]
+            );
+            assert_eq!(
+                keybinding_name_to_normalized_string(LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, ctx)
+                    .as_deref(),
+                Some("ctrl-1")
+            );
+            assert_eq!(
+                keybinding_name_to_normalized_string(LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME, ctx)
+                    .as_deref(),
+                Some("ctrl-2")
+            );
+            assert_eq!(
+                keybinding_name_to_normalized_string(
+                    LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME,
+                    ctx
+                )
+                .as_deref(),
+                Some("ctrl-3")
+            );
+        });
     });
 }
 

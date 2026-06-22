@@ -304,11 +304,11 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::AttachSelectionAsAgentModeContext => {
             Keystroke::parse("ctrl-shift-space").ok()
         }
-        CustomAction::ToggleProjectExplorer => Keystroke::parse("ctrl-2").ok(),
+        CustomAction::ToggleProjectExplorer => Keystroke::parse("ctrl-1").ok(),
         CustomAction::OpenRepository => Keystroke::parse("cmd-shift-O").ok(),
         CustomAction::GoToLine => Keystroke::parse("ctrl-g").ok(),
-        CustomAction::ToggleGlobalSearch => Keystroke::parse("ctrl-3").ok(),
-        CustomAction::ToggleConversationListView => Keystroke::parse("ctrl-1").ok(),
+        CustomAction::ToggleGlobalSearch => Keystroke::parse("ctrl-2").ok(),
+        CustomAction::ToggleConversationListView => Keystroke::parse("ctrl-3").ok(),
         CustomAction::NewTerminalTab
         | CustomAction::NewFile
         | CustomAction::ShowAboutWarp

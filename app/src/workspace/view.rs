@@ -13353,11 +13353,6 @@ impl Workspace {
 
     fn compute_left_panel_views(ctx: &AppContext) -> Vec<ToolPanelView> {
         let mut views = vec![];
-        if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-            && *AISettings::as_ref(ctx).show_conversation_history
-        {
-            views.push(ToolPanelView::ConversationListView);
-        }
         if cfg!(feature = "local_fs") && *CodeSettings::as_ref(ctx).show_project_explorer.value() {
             views.push(ToolPanelView::ProjectExplorer);
         }
@@ -13368,6 +13363,11 @@ impl Workspace {
             views.push(ToolPanelView::GlobalSearch {
                 entry_focus: GlobalSearchEntryFocus::Results,
             });
+        }
+        if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+            && *AISettings::as_ref(ctx).show_conversation_history
+        {
+            views.push(ToolPanelView::ConversationListView);
         }
         views
     }
