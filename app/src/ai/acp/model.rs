@@ -55,8 +55,10 @@ pub enum AcpAgentState {
 pub struct AcpAgentModel {
     state: AcpAgentState,
     session_state_by_conversation: HashMap<AIConversationId, AcpSessionState>,
+    conversation_sessions: HashMap<AIConversationId, AcpConversationSessionHandle>,
     pending_permission_responses: HashMap<String, oneshot::Sender<AcpPermissionSelection>>,
     pending_session_cancels: HashMap<AIConversationId, UnboundedSender<()>>,
+    next_runtime_id: u64,
     allow_adapter_execution: bool,
 }
 
@@ -82,11 +84,30 @@ impl AcpRunTarget {
 }
 
 enum AcpRuntimeEvent {
-    Event(AcpEvent),
+    Event {
+        event: AcpEvent,
+        target: AcpRunTarget,
+    },
     PermissionRequested {
         request: AcpPermissionRequest,
         response: oneshot::Sender<AcpPermissionSelection>,
+        target: AcpRunTarget,
     },
+}
+
+struct AcpConversationSessionHandle {
+    runtime_id: u64,
+    backend_id: String,
+    default_config_options: HashMap<String, String>,
+    prompt_tx: UnboundedSender<AcpPromptCommand>,
+}
+
+struct AcpPromptCommand {
+    display_prompt: String,
+    content_blocks: Vec<ContentBlock>,
+    cwd: PathBuf,
+    target: AcpRunTarget,
+    cancel_rx: mpsc::UnboundedReceiver<()>,
 }
 
 impl AcpAgentModel {
@@ -94,8 +115,10 @@ impl AcpAgentModel {
         Self {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
+            next_runtime_id: 0,
             allow_adapter_execution: true,
         }
     }
@@ -105,8 +128,10 @@ impl AcpAgentModel {
         Self {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
+            next_runtime_id: 0,
             allow_adapter_execution: false,
         }
     }
@@ -219,8 +244,8 @@ impl AcpAgentModel {
             default_config_options.len(),
         );
         if !self.allow_adapter_execution {
-            log::info!("ACP: adapter execution disabled; simulating session start");
-            self.handle_event(AcpEvent::SessionStarted, &target, ctx);
+            log::info!("ACP: adapter execution disabled; simulating prompt start");
+            self.handle_event(AcpEvent::PromptStarted, &target, ctx);
             return;
         }
 
@@ -229,52 +254,124 @@ impl AcpAgentModel {
         });
 
         self.state = AcpAgentState::Starting;
-        let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
         let (cancel_tx, cancel_rx) = futures::channel::mpsc::unbounded();
         self.pending_session_cancels
             .insert(target.conversation_id, cancel_tx);
-        let stream_target = target.clone();
+        let prompt = AcpPromptCommand {
+            display_prompt,
+            content_blocks,
+            cwd,
+            target: target.clone(),
+            cancel_rx,
+        };
+
+        if self
+            .conversation_sessions
+            .get(&target.conversation_id)
+            .is_some_and(|session| {
+                session.backend_id == backend_id
+                    && session.default_config_options == default_config_options
+            })
+        {
+            let session = self
+                .conversation_sessions
+                .get(&target.conversation_id)
+                .expect("checked conversation session exists");
+            let runtime_id = session.runtime_id;
+            let prompt_tx = session.prompt_tx.clone();
+            log::info!(
+                "ACP: reusing adapter session runtime_id={} target={}",
+                runtime_id,
+                target_summary(&target),
+            );
+            if prompt_tx.unbounded_send(prompt).is_err() {
+                self.conversation_sessions.remove(&target.conversation_id);
+                self.handle_event(
+                    AcpEvent::Failed {
+                        message: "ACP adapter session is no longer available".to_string(),
+                    },
+                    &target,
+                    ctx,
+                );
+            }
+            return;
+        }
+        self.conversation_sessions.remove(&target.conversation_id);
+
+        let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
         ctx.spawn_stream_local(
             events_rx,
-            move |me, event, ctx| {
-                me.handle_runtime_event(event, &stream_target, ctx);
-            },
+            move |me, event, ctx| me.handle_runtime_event(event, ctx),
             |_, _| {},
         );
 
-        let completion_target = target;
+        let (prompt_tx, prompt_rx) = futures::channel::mpsc::unbounded();
+        let runtime_id = self.next_runtime_id;
+        self.next_runtime_id = self.next_runtime_id.wrapping_add(1);
+        self.conversation_sessions.insert(
+            target.conversation_id,
+            AcpConversationSessionHandle {
+                runtime_id,
+                backend_id,
+                default_config_options: default_config_options.clone(),
+                prompt_tx: prompt_tx.clone(),
+            },
+        );
+        let completion_target = target.clone();
+        let completion_conversation_id = target.conversation_id;
         log::info!(
-            "ACP: spawning adapter task backend={} command={}",
+            "ACP: spawning adapter task runtime_id={} backend={} command={}",
+            runtime_id,
             launch.display_name,
             command,
         );
         ctx.spawn(
-            run_one_prompt(
+            run_conversation_session(
                 launch,
                 default_config_options,
-                display_prompt,
-                content_blocks,
-                cwd,
+                prompt_rx,
                 events_tx,
-                cancel_rx,
                 adapter_path_env,
             ),
-            move |me, result, ctx| match result {
-                Ok(()) => {
-                    log::info!("ACP: adapter task completed successfully");
+            move |me, result, ctx| {
+                match result {
+                    Ok(()) => {
+                        log::info!(
+                            "ACP: adapter task completed successfully runtime_id={runtime_id}"
+                        );
+                    }
+                    Err(err) => {
+                        log::error!("ACP: adapter task failed runtime_id={runtime_id}: {err:#}");
+                        me.handle_event(
+                            AcpEvent::Failed {
+                                message: err.to_string(),
+                            },
+                            &completion_target,
+                            ctx,
+                        );
+                    }
                 }
-                Err(err) => {
-                    log::error!("ACP: adapter task failed: {err:#}");
-                    me.handle_event(
-                        AcpEvent::Failed {
-                            message: err.to_string(),
-                        },
-                        &completion_target,
-                        ctx,
-                    );
+
+                if me
+                    .conversation_sessions
+                    .get(&completion_conversation_id)
+                    .is_some_and(|session| session.runtime_id == runtime_id)
+                {
+                    me.conversation_sessions.remove(&completion_conversation_id);
                 }
             },
         );
+
+        if prompt_tx.unbounded_send(prompt).is_err() {
+            self.conversation_sessions.remove(&target.conversation_id);
+            self.handle_event(
+                AcpEvent::Failed {
+                    message: "ACP adapter session did not start".to_string(),
+                },
+                &target,
+                ctx,
+            );
+        }
     }
 
     fn handle_event(
@@ -288,7 +385,7 @@ impl AcpAgentModel {
             AcpEvent::AdapterMissing { command, .. } => {
                 AcpAgentState::Failed(format!("{command} is not installed"))
             }
-            AcpEvent::SessionStarted => AcpAgentState::Starting,
+            AcpEvent::SessionStarted | AcpEvent::PromptStarted => AcpAgentState::Starting,
             AcpEvent::UserTextDelta { .. }
             | AcpEvent::AssistantTextDelta { .. }
             | AcpEvent::AssistantThoughtDelta { .. }
@@ -362,18 +459,17 @@ impl AcpAgentModel {
         }
     }
 
-    fn handle_runtime_event(
-        &mut self,
-        event: AcpRuntimeEvent,
-        target: &AcpRunTarget,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    fn handle_runtime_event(&mut self, event: AcpRuntimeEvent, ctx: &mut ModelContext<Self>) {
         match event {
-            AcpRuntimeEvent::Event(event) => self.handle_event(event, target, ctx),
-            AcpRuntimeEvent::PermissionRequested { request, response } => {
+            AcpRuntimeEvent::Event { event, target } => self.handle_event(event, &target, ctx),
+            AcpRuntimeEvent::PermissionRequested {
+                request,
+                response,
+                target,
+            } => {
                 self.pending_permission_responses
                     .insert(request.request_id.clone(), response);
-                self.handle_event(AcpEvent::PermissionRequested { request }, target, ctx);
+                self.handle_event(AcpEvent::PermissionRequested { request }, &target, ctx);
             }
         }
     }
@@ -385,7 +481,7 @@ impl AcpAgentModel {
         ctx: &mut ModelContext<Self>,
     ) {
         match event {
-            AcpEvent::SessionStarted => {
+            AcpEvent::PromptStarted => {
                 log::info!(
                     "ACP: initializing AI history output stream={:?} conversation={:?}",
                     target.response_stream_id,
@@ -402,6 +498,7 @@ impl AcpAgentModel {
                     );
                 });
             }
+            AcpEvent::SessionStarted => {}
             AcpEvent::UserTextDelta { .. } => {}
             AcpEvent::AssistantTextDelta { text } => {
                 log::info!(
@@ -658,16 +755,16 @@ impl AcpAgentModel {
     }
 }
 
-async fn run_one_prompt(
+async fn run_conversation_session(
     launch: AcpAgentLaunch,
     default_config_options: HashMap<String, String>,
-    display_prompt: String,
-    content_blocks: Vec<ContentBlock>,
-    cwd: PathBuf,
+    mut prompt_rx: mpsc::UnboundedReceiver<AcpPromptCommand>,
     events: UnboundedSender<AcpRuntimeEvent>,
-    mut cancel_rx: mpsc::UnboundedReceiver<()>,
     adapter_path_env: impl std::future::Future<Output = Option<String>>,
 ) -> anyhow::Result<()> {
+    let Some(first_prompt) = prompt_rx.next().await else {
+        return Ok(());
+    };
     let adapter_path_env = adapter_path_env.await;
     let command = launch.command_line.first().cloned().unwrap_or_default();
     let command_line = launch.command_line.join(" ");
@@ -675,8 +772,8 @@ async fn run_one_prompt(
         "ACP: starting adapter backend={} command={} cwd={} prompt_bytes={} default_config_options={} has_path_env={}",
         launch.display_name,
         command_line,
-        cwd.display(),
-        display_prompt.len(),
+        first_prompt.cwd.display(),
+        first_prompt.display_prompt.len(),
         default_config_options.len(),
         adapter_path_env.is_some(),
     );
@@ -687,10 +784,13 @@ async fn run_one_prompt(
             launch.install_command,
         );
         if events
-            .unbounded_send(AcpRuntimeEvent::Event(AcpEvent::AdapterMissing {
-                command,
-                install_command: launch.install_command.clone(),
-            }))
+            .unbounded_send(AcpRuntimeEvent::Event {
+                event: AcpEvent::AdapterMissing {
+                    command,
+                    install_command: launch.install_command.clone(),
+                },
+                target: first_prompt.target,
+            })
             .is_err()
         {
             log::warn!("ACP: failed to publish adapter missing event");
@@ -699,26 +799,30 @@ async fn run_one_prompt(
     }
     let agent = AcpAgent::from_args(adapter_args(&launch, adapter_path_env.as_deref()))?;
     log::info!("ACP: adapter process configured command={}", command_line,);
-    if events
-        .unbounded_send(AcpRuntimeEvent::Event(AcpEvent::SessionStarted))
-        .is_err()
-    {
-        log::warn!("ACP: failed to publish session start event");
-    }
+    let event_target = Arc::new(Mutex::new(first_prompt.target.clone()));
+    let active_prompt_target = Arc::new(Mutex::new(Some(first_prompt.target.clone())));
     let notifications = events.clone();
+    let notification_target = event_target.clone();
     let permissions = events.clone();
+    let permission_target = event_target.clone();
     let terminal_manager = AcpTerminalManager::default();
     let create_terminal_manager = terminal_manager.clone();
     let create_terminal_events = events.clone();
+    let create_terminal_target = event_target.clone();
     let terminal_output_manager = terminal_manager.clone();
     let terminal_output_events = events.clone();
+    let terminal_output_target = event_target.clone();
     let wait_terminal_manager = terminal_manager.clone();
     let wait_terminal_events = events.clone();
+    let wait_terminal_target = event_target.clone();
     let kill_terminal_manager = terminal_manager.clone();
     let kill_terminal_events = events.clone();
+    let kill_terminal_target = event_target.clone();
     let release_terminal_manager = terminal_manager.clone();
+    let connection_events = events.clone();
+    let connection_active_prompt_target = active_prompt_target.clone();
 
-    let was_cancelled = Client
+    let connection_result = Client
         .builder()
         .on_receive_notification(
             async move |notification: SessionNotification, _connection| {
@@ -726,13 +830,14 @@ async fn run_one_prompt(
                 let update_kind = session_update_label(&notification.update);
                 if let Some(event) = map_session_update(notification.update) {
                     let event_summary = acp_event_summary(&event);
+                    let target = notification_target.lock().await.clone();
                     log::info!(
                         "ACP: received session update session_id={} update={} mapped_event={event_summary}",
                         session_id,
                         update_kind,
                     );
                     if notifications
-                        .unbounded_send(AcpRuntimeEvent::Event(event))
+                        .unbounded_send(AcpRuntimeEvent::Event { event, target })
                         .is_err()
                     {
                         log::warn!(
@@ -756,6 +861,7 @@ async fn run_one_prompt(
                 let session_id = request.session_id.0.clone();
                 let request_id = request.tool_call.tool_call_id.0.to_string();
                 let local_request = AcpPermissionRequest::from_acp(request.clone());
+                let target = permission_target.lock().await.clone();
                 log::info!(
                     "ACP: permission request session_id={} request_id={} options={}",
                     session_id,
@@ -778,6 +884,7 @@ async fn run_one_prompt(
                     .unbounded_send(AcpRuntimeEvent::PermissionRequested {
                         request: local_request,
                         response: selection_tx,
+                        target,
                     })
                     .is_err()
                 {
@@ -821,10 +928,12 @@ async fn run_one_prompt(
             async move |request: CreateTerminalRequest, responder, _connection| {
                 match create_terminal_manager.create_terminal(request).await {
                     Ok(response) => {
+                        let target = create_terminal_target.lock().await.clone();
                         publish_terminal_trace(
                             &create_terminal_events,
                             &create_terminal_manager,
                             &response.terminal_id,
+                            &target,
                         )
                         .await;
                         responder.respond(response)
@@ -841,10 +950,12 @@ async fn run_one_prompt(
                 let terminal_id = request.terminal_id.clone();
                 match terminal_output_manager.terminal_output(request).await {
                     Ok(response) => {
+                        let target = terminal_output_target.lock().await.clone();
                         publish_terminal_trace(
                             &terminal_output_events,
                             &terminal_output_manager,
                             &terminal_id,
+                            &target,
                         )
                         .await;
                         responder.respond(response)
@@ -861,10 +972,12 @@ async fn run_one_prompt(
                 let terminal_id = request.terminal_id.clone();
                 match wait_terminal_manager.wait_for_terminal_exit(request).await {
                     Ok(response) => {
+                        let target = wait_terminal_target.lock().await.clone();
                         publish_terminal_trace(
                             &wait_terminal_events,
                             &wait_terminal_manager,
                             &terminal_id,
+                            &target,
                         )
                         .await;
                         responder.respond(response)
@@ -881,10 +994,12 @@ async fn run_one_prompt(
                 let terminal_id = request.terminal_id.clone();
                 match kill_terminal_manager.kill_terminal(request).await {
                     Ok(response) => {
+                        let target = kill_terminal_target.lock().await.clone();
                         publish_terminal_trace(
                             &kill_terminal_events,
                             &kill_terminal_manager,
                             &terminal_id,
+                            &target,
                         )
                         .await;
                         responder.respond(response)
@@ -940,9 +1055,12 @@ async fn run_one_prompt(
                 .await?;
             log::info!("ACP: initialize completed");
 
-            log::info!("ACP: sending new_session request cwd={}", cwd.display());
+            log::info!(
+                "ACP: sending new_session request cwd={}",
+                first_prompt.cwd.display()
+            );
             let session = connection
-                .send_request(NewSessionRequest::new(cwd))
+                .send_request(NewSessionRequest::new(first_prompt.cwd.clone()))
                 .block_task()
                 .await?;
             log::info!(
@@ -950,6 +1068,7 @@ async fn run_one_prompt(
                 session.session_id.0,
                 session.config_options.as_ref().map_or(0, Vec::len),
             );
+            publish_runtime_event(&events, &first_prompt.target, AcpEvent::SessionStarted);
 
             if let Some(config_options) = session.config_options.as_ref() {
                 for (config_id, value) in
@@ -973,51 +1092,113 @@ async fn run_one_prompt(
             }
 
             let session_id = session.session_id.clone();
-            log::info!(
-                "ACP: sending prompt request session_id={} prompt_bytes={}",
-                session_id.0,
-                display_prompt.len(),
-            );
-            let prompt_task = connection
-                .send_request(PromptRequest::new(session_id.clone(), content_blocks))
-                .block_task();
-            tokio::pin!(prompt_task);
-            let prompt_response = tokio::select! {
-                result = &mut prompt_task => result?,
-                cancel = cancel_rx.next() => {
-                    if cancel.is_some() {
-                        log::info!(
-                            "ACP: sending cancel notification session_id={}",
-                            session_id.0,
-                        );
-                        connection.send_notification(CancelNotification::new(session_id.clone()))?;
+            let mut next_prompt = Some(first_prompt);
+            loop {
+                let mut prompt = if let Some(prompt) = next_prompt.take() {
+                    prompt
+                } else if let Some(prompt) = prompt_rx.next().await {
+                    prompt
+                } else {
+                    break;
+                };
+
+                *event_target.lock().await = prompt.target.clone();
+                *active_prompt_target.lock().await = Some(prompt.target.clone());
+                publish_runtime_event(&events, &prompt.target, AcpEvent::PromptStarted);
+
+                let prompt_bytes = prompt.display_prompt.len();
+                log::info!(
+                    "ACP: sending prompt request session_id={} prompt_bytes={}",
+                    session_id.0,
+                    prompt_bytes,
+                );
+                let prompt_task = connection
+                    .send_request(PromptRequest::new(
+                        session_id.clone(),
+                        prompt.content_blocks,
+                    ))
+                    .block_task();
+                tokio::pin!(prompt_task);
+                let prompt_response = tokio::select! {
+                    result = &mut prompt_task => result,
+                    cancel = prompt.cancel_rx.next() => {
+                        if cancel.is_some() {
+                            log::info!(
+                                "ACP: sending cancel notification session_id={}",
+                                session_id.0,
+                            );
+                            connection.send_notification(CancelNotification::new(session_id.clone()))?;
+                        }
+                        prompt_task.await
                     }
-                    prompt_task.await?
-                }
-            };
-            log::info!(
-                "ACP: prompt request completed session_id={} stop_reason={:?}",
-                session_id.0,
-                prompt_response.stop_reason,
-            );
+                };
+                let prompt_response = match prompt_response {
+                    Ok(response) => response,
+                    Err(err) => {
+                        *active_prompt_target.lock().await = None;
+                        publish_runtime_event(
+                            &events,
+                            &prompt.target,
+                            AcpEvent::Failed {
+                                message: err.to_string(),
+                            },
+                        );
+                        return Ok(());
+                    }
+                };
+                log::info!(
+                    "ACP: prompt request completed session_id={} stop_reason={:?}",
+                    session_id.0,
+                    prompt_response.stop_reason,
+                );
 
-            Ok(prompt_response.stop_reason == StopReason::Cancelled)
+                let event = if prompt_response.stop_reason == StopReason::Cancelled {
+                    AcpEvent::Cancelled
+                } else {
+                    AcpEvent::Completed
+                };
+                publish_runtime_event(&events, &prompt.target, event);
+                *active_prompt_target.lock().await = None;
+            }
+
+            Ok(())
         })
-        .await?;
+        .await;
 
-    let event = if was_cancelled {
-        AcpEvent::Cancelled
-    } else {
-        AcpEvent::Completed
-    };
-    if events
-        .unbounded_send(AcpRuntimeEvent::Event(event))
-        .is_err()
-    {
-        log::warn!("ACP: failed to publish terminal event");
+    if let Err(err) = connection_result {
+        let active_target = connection_active_prompt_target.lock().await.clone();
+        if let Some(target) = active_target {
+            publish_runtime_event(
+                &connection_events,
+                &target,
+                AcpEvent::Failed {
+                    message: err.to_string(),
+                },
+            );
+        } else {
+            log::warn!("ACP: adapter connection ended while idle: {err:#}");
+        }
+        return Ok(());
     }
+
     log::info!("ACP: connection completed");
     Ok(())
+}
+
+fn publish_runtime_event(
+    events: &UnboundedSender<AcpRuntimeEvent>,
+    target: &AcpRunTarget,
+    event: AcpEvent,
+) {
+    if events
+        .unbounded_send(AcpRuntimeEvent::Event {
+            event,
+            target: target.clone(),
+        })
+        .is_err()
+    {
+        log::warn!("ACP: failed to publish runtime event");
+    }
 }
 
 pub(super) fn default_config_options_to_apply(
@@ -1070,6 +1251,7 @@ fn acp_event_summary(event: &AcpEvent) -> String {
             format!("adapter_missing command={command}")
         }
         AcpEvent::SessionStarted => "session_started".to_owned(),
+        AcpEvent::PromptStarted => "prompt_started".to_owned(),
         AcpEvent::UserTextDelta { text } => {
             format!("user_text_delta bytes={}", text.len())
         }
@@ -1398,12 +1580,17 @@ async fn publish_terminal_trace(
     events: &UnboundedSender<AcpRuntimeEvent>,
     manager: &AcpTerminalManager,
     terminal_id: &TerminalId,
+    target: &AcpRunTarget,
 ) {
     if let Some(trace) = manager.terminal_trace(terminal_id).await {
-        let _ = events.unbounded_send(AcpRuntimeEvent::Event(AcpEvent::TerminalUpdated {
-            terminal_id: terminal_id.0.to_string(),
-            trace,
-        }));
+        publish_runtime_event(
+            events,
+            target,
+            AcpEvent::TerminalUpdated {
+                terminal_id: terminal_id.0.to_string(),
+                trace,
+            },
+        );
     }
 }
 
@@ -1418,8 +1605,10 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::from([("request-1".to_string(), tx)]),
             pending_session_cancels: HashMap::new(),
+            next_runtime_id: 0,
             allow_adapter_execution: false,
         };
 
@@ -1441,8 +1630,10 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::from([(conversation_id, tx)]),
+            next_runtime_id: 0,
             allow_adapter_execution: false,
         };
 
@@ -1462,8 +1653,10 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
+            next_runtime_id: 0,
             allow_adapter_execution: false,
         };
 
@@ -1586,5 +1779,251 @@ mod tests {
         .unwrap();
 
         assert_eq!(response.content, "two\n");
+    }
+
+    #[tokio::test]
+    async fn test_acp_runtime_reuses_session_for_multiple_prompts() {
+        use agent_client_protocol::schema::TextContent;
+        use serde_json::Value;
+        use std::time::Duration;
+
+        let temp = tempfile::TempDir::new().unwrap();
+        let log_path = temp.path().join("requests.jsonl");
+        let script_path = temp.path().join("fake_acp.py");
+        std::fs::write(
+            &script_path,
+            r#"import json
+import os
+import sys
+
+session_id = "session-1"
+log_path = os.environ["ACP_TEST_LOG"]
+
+def send(message):
+    sys.stdout.write(json.dumps(message, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+for line in sys.stdin:
+    message = json.loads(line)
+    method = message.get("method")
+    if method in ("initialize", "session/new", "session/prompt"):
+        with open(log_path, "a", encoding="utf-8") as log:
+            log.write(json.dumps({"method": method, "params": message.get("params")}, separators=(",", ":")) + "\n")
+    if "id" not in message:
+        continue
+    if method == "initialize":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"protocolVersion": 1, "agentCapabilities": {}}})
+    elif method == "session/new":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"sessionId": session_id}})
+    elif method == "session/prompt":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"stopReason": "end_turn"}})
+    else:
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {}})
+"#,
+        )
+        .unwrap();
+
+        let launch = AcpAgentLaunch {
+            agent_id: "fake-agent".to_string(),
+            display_name: "Fake Agent".to_string(),
+            command_line: vec![
+                "/usr/bin/env".to_string(),
+                "python3".to_string(),
+                script_path.to_string_lossy().to_string(),
+            ],
+            env: vec![(
+                "ACP_TEST_LOG".to_string(),
+                log_path.to_string_lossy().to_string(),
+            )],
+            install_command: "python3".to_string(),
+        };
+        let (events_tx, _events_rx) = mpsc::unbounded();
+        let (prompt_tx, prompt_rx) = mpsc::unbounded();
+        let conversation_id = AIConversationId::new();
+        let target = |display_name: &str| AcpRunTarget {
+            conversation_id,
+            response_stream_id: ResponseStreamId::new(),
+            terminal_view_id: EntityId::new(),
+            model_id: LLMId::from("fake-model"),
+            display_name: display_name.to_string(),
+        };
+        let prompt = |text: &str, target: AcpRunTarget| {
+            let (_cancel_tx, cancel_rx) = mpsc::unbounded();
+            AcpPromptCommand {
+                display_prompt: text.to_string(),
+                content_blocks: vec![ContentBlock::Text(TextContent::new(text.to_string()))],
+                cwd: temp.path().to_path_buf(),
+                target,
+                cancel_rx,
+            }
+        };
+
+        prompt_tx
+            .unbounded_send(prompt("first", target("first")))
+            .unwrap();
+        prompt_tx
+            .unbounded_send(prompt("second", target("second")))
+            .unwrap();
+        drop(prompt_tx);
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            run_conversation_session(
+                launch,
+                HashMap::new(),
+                prompt_rx,
+                events_tx,
+                std::future::ready(None),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let requests = std::fs::read_to_string(log_path).unwrap();
+        let records = requests
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let new_session_count = records
+            .iter()
+            .filter(|record| record["method"] == "session/new")
+            .count();
+        let prompt_session_ids = records
+            .iter()
+            .filter(|record| record["method"] == "session/prompt")
+            .map(|record| record["params"]["sessionId"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(new_session_count, 1);
+        assert_eq!(prompt_session_ids, vec!["session-1", "session-1"]);
+    }
+
+    #[tokio::test]
+    async fn test_acp_runtime_reports_connection_failure_to_active_prompt() {
+        use agent_client_protocol::schema::TextContent;
+        use std::time::Duration;
+
+        let temp = tempfile::TempDir::new().unwrap();
+        let script_path = temp.path().join("fake_acp_exit.py");
+        std::fs::write(
+            &script_path,
+            r#"import json
+import sys
+
+session_id = "session-1"
+prompt_count = 0
+
+def send(message):
+    sys.stdout.write(json.dumps(message, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+for line in sys.stdin:
+    message = json.loads(line)
+    method = message.get("method")
+    if "id" not in message:
+        continue
+    if method == "initialize":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"protocolVersion": 1, "agentCapabilities": {}}})
+    elif method == "session/new":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"sessionId": session_id}})
+    elif method == "session/prompt":
+        prompt_count += 1
+        if prompt_count > 1:
+            sys.stderr.write("adapter failed during prompt\n")
+            sys.stderr.flush()
+            sys.exit(1)
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"stopReason": "end_turn"}})
+    else:
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {}})
+"#,
+        )
+        .unwrap();
+
+        let launch = AcpAgentLaunch {
+            agent_id: "fake-agent".to_string(),
+            display_name: "Fake Agent".to_string(),
+            command_line: vec![
+                "/usr/bin/env".to_string(),
+                "python3".to_string(),
+                script_path.to_string_lossy().to_string(),
+            ],
+            env: vec![],
+            install_command: "python3".to_string(),
+        };
+        let (events_tx, mut events_rx) = mpsc::unbounded();
+        let (prompt_tx, prompt_rx) = mpsc::unbounded();
+        let conversation_id = AIConversationId::new();
+        let target = AcpRunTarget {
+            conversation_id,
+            response_stream_id: ResponseStreamId::new(),
+            terminal_view_id: EntityId::new(),
+            model_id: LLMId::from("fake-model"),
+            display_name: "Fake Model".to_string(),
+        };
+        let first_stream_id = target.response_stream_id.clone();
+        let second_target = AcpRunTarget {
+            conversation_id,
+            response_stream_id: ResponseStreamId::new(),
+            terminal_view_id: EntityId::new(),
+            model_id: LLMId::from("fake-model"),
+            display_name: "Fake Model".to_string(),
+        };
+        let second_stream_id = second_target.response_stream_id.clone();
+        let (_cancel_tx, cancel_rx) = mpsc::unbounded();
+        prompt_tx
+            .unbounded_send(AcpPromptCommand {
+                display_prompt: "first".to_string(),
+                content_blocks: vec![ContentBlock::Text(TextContent::new("first"))],
+                cwd: temp.path().to_path_buf(),
+                target,
+                cancel_rx,
+            })
+            .unwrap();
+        let (_cancel_tx, cancel_rx) = mpsc::unbounded();
+        prompt_tx
+            .unbounded_send(AcpPromptCommand {
+                display_prompt: "second".to_string(),
+                content_blocks: vec![ContentBlock::Text(TextContent::new("second"))],
+                cwd: temp.path().to_path_buf(),
+                target: second_target,
+                cancel_rx,
+            })
+            .unwrap();
+        drop(prompt_tx);
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            run_conversation_session(
+                launch,
+                HashMap::new(),
+                prompt_rx,
+                events_tx,
+                std::future::ready(None),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let mut events = Vec::new();
+        while let Some(event) = events_rx.next().await {
+            if let AcpRuntimeEvent::Event { event, target } = event {
+                events.push((target.response_stream_id, event));
+            }
+        }
+
+        assert!(events
+            .iter()
+            .any(|(stream_id, event)| stream_id == &first_stream_id
+                && matches!(event, AcpEvent::Completed)));
+        assert!(!events
+            .iter()
+            .any(|(stream_id, event)| stream_id == &first_stream_id
+                && matches!(event, AcpEvent::Failed { .. })));
+        assert!(events
+            .iter()
+            .any(|(stream_id, event)| stream_id == &second_stream_id
+                && matches!(event, AcpEvent::Failed { .. })));
     }
 }

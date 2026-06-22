@@ -12,6 +12,7 @@ pub enum AcpEvent {
         install_command: String,
     },
     SessionStarted,
+    PromptStarted,
     UserTextDelta {
         text: String,
     },
