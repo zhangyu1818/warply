@@ -10,6 +10,7 @@ license = "MIT"
 traces = []
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = ["dep:minimp4", "dep:openh264"]
+defer_scene_build = []
 schema_gen = ["dep:schemars"]
 settings_value = ["dep:settings_value"]
 # Enables utilities for testing.

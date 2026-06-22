@@ -424,6 +424,7 @@ toggle_bootstrap_block = []
 # Feature enabled only when app is compiled for integration tests.
 integration_tests = [
     "warp_cli/integration_tests",
+    "warpui/defer_scene_build",
     "warpui/integration_tests",
     "warpui/test-util",
     "warp_core/integration_tests",

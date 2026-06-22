@@ -547,6 +547,14 @@ This map explains the large fork baseline change at a path level.
 - Tree-sitter parsing skips buffers larger than the retained parse-byte limit while still flushing delayed rendering. Future syntax-tree work should preserve this editor stability guard and keep it independent of cloud indexing.
 - Rejected the upstream commits for cloud/Oz transport and handoff, account/free-AI/SuperGrok flows, Sentry-linked CLI behavior, managed MCP and app-bundled skills, warpctrl/local-control, tab grouping/pinning/cross-window-dragging rollouts, broad remote search/git-chip architecture, cloud shared-session ping handling, and upstream spec/process files.
 
+## 2026-06-22 Upstream UI And Test Stability Sync
+
+- Block-list event dispatch now skips retained left-click handling when a child element has already handled the event. Keep this as generic terminal UI behavior for block selection/click routing.
+- Integration-test builds now enable `warpui/defer_scene_build`, which keeps unit-test eager scene rebuilds while letting integration tests rely on the platform redraw path. This is retained test/runtime stability work and should not pull in upstream agent-mode eval feature lists or cloud-agent harnesses.
+- Remote Agent Mode context snapshots remain rejected because they publish and consume bundled/home skills, MCP metadata, and remote global rules through the Warp app and remote daemon. Skills, MCP, and agent-side instructions belong to the ACP process in this fork.
+- Broad upstream TUI framework restructuring is rejected for now because it adds a new feature/dependency surface and moves the `warpui_core` GUI element hierarchy without a retained macOS/ACP caller. Re-evaluate only when a retained feature needs that layer.
+- Cloud Agent `/continue-locally`, SuperGrok/free-AI availability, cloud tracing, managed secrets, and native Windows local TTY tests remain outside the fork contract.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:
