@@ -1,4 +1,5 @@
 pub mod external_editor;
+pub mod system_editor;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};

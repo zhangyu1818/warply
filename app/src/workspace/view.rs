@@ -48,6 +48,7 @@ use crate::terminal::view::load_ai_conversation::{RestorationDirState, RestoredA
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::OpenConversationPreference;
+use crate::util::file::system_editor::{self, EditorApp};
 use crate::workspace::cross_window_tab_drag::{
     AttachTarget, CrossWindowTabDrag, DragResult, DropResult, GhostState,
 };
@@ -230,6 +231,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use warp_core::context_flag::ContextFlag;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_util::path::{user_friendly_path, LineAndColumnArg};
+use warpui::assets::asset_cache::AssetSource;
 use warpui::fonts::Weight;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
 
@@ -439,6 +441,8 @@ const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
 
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
+const SYSTEM_EDITOR_BUTTON_POSITION_ID: &str = "system_editor_button";
+const SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID: &str = "system_editor_menu_button";
 
 // The max length of the title of a fork toast (after which we truncate it).
 const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
@@ -683,6 +687,10 @@ pub struct Workspace {
     header_toolbar_editor_modal: ViewHandle<HeaderToolbarEditorModal>,
     header_toolbar_context_menu: ViewHandle<Menu<WorkspaceAction>>,
     show_header_toolbar_context_menu: Option<Vector2F>,
+    system_editor_dropdown_menu: ViewHandle<Menu<WorkspaceAction>>,
+    show_system_editor_dropdown_menu: Option<Vector2F>,
+    system_editor_apps: Vec<EditorApp>,
+    selected_system_editor_bundle_identifier: Option<String>,
     theme_creator_modal: ViewHandle<ThemeCreatorModal>,
     theme_deletion_modal: ViewHandle<ThemeDeletionModal>,
     toast_stack: ViewHandle<DismissibleToastStack<WorkspaceAction>>,
@@ -1869,6 +1877,10 @@ impl Workspace {
 
         let prompt_editor_modal = Self::build_prompt_editor_modal(ctx);
         let agent_toolbar_editor_modal = Self::build_agent_toolbar_editor_modal(ctx);
+        let system_editor_apps = system_editor::scan();
+        let selected_system_editor_bundle_identifier = system_editor_apps
+            .first()
+            .map(|editor| editor.bundle_identifier.clone());
 
         Self::subscribe_to_workspace_toast_stack(toast_stack.clone(), ctx);
         Self::subscribe_to_tab_config_errors(toast_stack.clone(), ctx);
@@ -1941,6 +1953,10 @@ impl Workspace {
             header_toolbar_editor_modal: Self::build_header_toolbar_editor_modal(ctx),
             header_toolbar_context_menu: Self::build_header_toolbar_context_menu(ctx),
             show_header_toolbar_context_menu: None,
+            system_editor_dropdown_menu: Self::build_system_editor_dropdown_menu(ctx),
+            show_system_editor_dropdown_menu: None,
+            system_editor_apps,
+            selected_system_editor_bundle_identifier,
             tab_bar_pinned_by_popup: false,
             native_modal,
             file_upload_sessions: Default::default(),
@@ -3522,6 +3538,147 @@ impl Workspace {
         menu
     }
 
+    fn build_system_editor_dropdown_menu(
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<Menu<WorkspaceAction>> {
+        let menu = ctx.add_typed_action_view(|_| Menu::new().with_drop_shadow());
+        ctx.subscribe_to_view(&menu, |me, _, event, ctx| {
+            if let MenuEvent::Close { .. } = event {
+                me.show_system_editor_dropdown_menu = None;
+                ctx.notify();
+            }
+        });
+        menu
+    }
+
+    fn close_system_editor_dropdown_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.show_system_editor_dropdown_menu.take().is_some() {
+            ctx.notify();
+        }
+    }
+
+    fn refresh_system_editor_apps(&mut self) {
+        self.system_editor_apps = system_editor::scan();
+        let selected_is_available = self
+            .selected_system_editor_bundle_identifier
+            .as_ref()
+            .is_some_and(|selected| {
+                self.system_editor_apps
+                    .iter()
+                    .any(|editor| &editor.bundle_identifier == selected)
+            });
+        if !selected_is_available {
+            self.selected_system_editor_bundle_identifier = self
+                .system_editor_apps
+                .first()
+                .map(|editor| editor.bundle_identifier.clone());
+        }
+    }
+
+    fn selected_system_editor(&self) -> Option<&EditorApp> {
+        self.selected_system_editor_bundle_identifier
+            .as_ref()
+            .and_then(|selected| {
+                self.system_editor_apps
+                    .iter()
+                    .find(|editor| &editor.bundle_identifier == selected)
+            })
+            .or_else(|| self.system_editor_apps.first())
+    }
+
+    fn active_local_pwd(&self, ctx: &AppContext) -> Option<PathBuf> {
+        self.active_tab_pane_group()
+            .as_ref(ctx)
+            .active_session_view(ctx)
+            .and_then(|terminal_view| terminal_view.as_ref(ctx).pwd_if_local(ctx))
+            .map(PathBuf::from)
+            .filter(|path| path.is_dir())
+    }
+
+    fn system_editor_menu_items(&self) -> Vec<MenuItem<WorkspaceAction>> {
+        self.system_editor_apps
+            .iter()
+            .map(|editor| {
+                let display_name = editor.display_name.clone();
+                let bundle_identifier = editor.bundle_identifier.clone();
+                let icon_path = editor.icon_path.clone();
+                MenuItemFields::new_with_custom_label(
+                    Arc::new(move |_is_selected, _is_hovered, appearance, _app| {
+                        Self::render_system_editor_menu_label(
+                            &display_name,
+                            icon_path.as_deref(),
+                            appearance,
+                        )
+                    }),
+                    Some(editor.display_name.clone()),
+                )
+                .with_on_select_action(WorkspaceAction::SelectSystemEditor { bundle_identifier })
+                .into_item()
+            })
+            .collect()
+    }
+
+    fn open_system_editor_dropdown_menu(
+        &mut self,
+        position: Vector2F,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.refresh_system_editor_apps();
+        let selected_index = self.selected_system_editor().and_then(|selected| {
+            self.system_editor_apps
+                .iter()
+                .position(|editor| editor.bundle_identifier == selected.bundle_identifier)
+        });
+        let items = self.system_editor_menu_items();
+        self.system_editor_dropdown_menu
+            .update(ctx, |menu, view_ctx| {
+                menu.set_width(220.);
+                menu.set_items(items, view_ctx);
+                if let Some(index) = selected_index {
+                    menu.set_selected_by_index(index, view_ctx);
+                } else {
+                    menu.reset_selection(view_ctx);
+                }
+            });
+        self.show_system_editor_dropdown_menu = Some(position);
+        ctx.focus(&self.system_editor_dropdown_menu);
+        ctx.notify();
+    }
+
+    fn toggle_system_editor_dropdown_menu(
+        &mut self,
+        position: Vector2F,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if self.show_system_editor_dropdown_menu.is_some() {
+            self.close_system_editor_dropdown_menu(ctx);
+            return;
+        }
+        self.open_system_editor_dropdown_menu(position, ctx);
+    }
+
+    fn select_system_editor(&mut self, bundle_identifier: &str, ctx: &mut ViewContext<Self>) {
+        if self
+            .system_editor_apps
+            .iter()
+            .any(|editor| editor.bundle_identifier == bundle_identifier)
+        {
+            self.selected_system_editor_bundle_identifier = Some(bundle_identifier.to_string());
+        }
+        self.close_system_editor_dropdown_menu(ctx);
+    }
+
+    fn open_current_directory_in_system_editor(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(editor) = self.selected_system_editor().cloned() else {
+            return;
+        };
+        let Some(path) = self.active_local_pwd(ctx) else {
+            return;
+        };
+        self.close_system_editor_dropdown_menu(ctx);
+        system_editor::open_path(&editor, path, ctx);
+    }
+
     fn show_header_toolbar_context_menu(
         &mut self,
         position: Vector2F,
@@ -4016,6 +4173,227 @@ impl Workspace {
         }
 
         self.open_tab_configs_menu(position, TabConfigsMenuOpenSource::Pointer, ctx);
+    }
+
+    fn render_system_editor_icon(
+        icon_path: Option<&Path>,
+        appearance: &Appearance,
+        size: f32,
+    ) -> Box<dyn Element> {
+        let fallback = || {
+            ConstrainedBox::new(
+                icons::Icon::Code2
+                    .to_warpui_icon(appearance.theme().foreground())
+                    .finish(),
+            )
+            .with_width(size)
+            .with_height(size)
+            .finish()
+        };
+
+        let Some(icon_path) = icon_path.and_then(Path::to_str) else {
+            return fallback();
+        };
+
+        ConstrainedBox::new(
+            Image::new(
+                AssetSource::LocalFile {
+                    path: icon_path.to_string(),
+                },
+                CacheOption::BySize,
+            )
+            .before_load(fallback())
+            .finish(),
+        )
+        .with_width(size)
+        .with_height(size)
+        .finish()
+    }
+
+    fn render_system_editor_menu_label(
+        display_name: &str,
+        icon_path: Option<&Path>,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let mut row = Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center);
+
+        row.add_child(
+            Container::new(Self::render_system_editor_icon(icon_path, appearance, 16.))
+                .with_margin_right(8.)
+                .finish(),
+        );
+        row.add_child(
+            Shrinkable::new(
+                1.,
+                Text::new_inline(display_name.to_string(), appearance.ui_font_family(), 13.)
+                    .with_color(theme.main_text_color(theme.background()).into())
+                    .with_clip(ClipConfig::ellipsis())
+                    .soft_wrap(false)
+                    .finish(),
+            )
+            .finish(),
+        );
+        row.finish()
+    }
+
+    fn system_editor_button_styles(
+        appearance: &Appearance,
+        width: f32,
+        corner_radius: CornerRadius,
+        background: Option<ElementFill>,
+    ) -> UiComponentStyles {
+        let mut styles = UiComponentStyles::default()
+            .set_width(width)
+            .set_height(24.)
+            .set_padding(Coords::uniform(3.))
+            .set_border_radius(corner_radius)
+            .set_font_color(appearance.theme().foreground().into());
+        if let Some(background) = background {
+            styles = styles.set_background(background);
+        }
+        styles
+    }
+
+    fn render_system_editor_main_button(
+        &self,
+        appearance: &Appearance,
+        editor: &EditorApp,
+        disabled: bool,
+    ) -> Hoverable {
+        let theme = appearance.theme();
+        let corner_radius = CornerRadius::with_left(Radius::Pixels(4.));
+        let label = Self::render_system_editor_icon(editor.icon_path.as_deref(), appearance, 16.);
+        let mut button = Button::new(
+            self.mouse_states.system_editor_button.clone(),
+            Self::system_editor_button_styles(appearance, 24., corner_radius, None),
+            Some(Self::system_editor_button_styles(
+                appearance,
+                24.,
+                corner_radius,
+                Some(theme.surface_2().into()),
+            )),
+            Some(Self::system_editor_button_styles(
+                appearance,
+                24.,
+                corner_radius,
+                Some(theme.background().into()),
+            )),
+            Some(Self::system_editor_button_styles(
+                appearance,
+                24.,
+                corner_radius,
+                Some(theme.background().into()),
+            )),
+        )
+        .with_custom_label(label)
+        .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+            appearance,
+            format!("Open current directory in {}", editor.display_name),
+            None,
+        ));
+
+        if disabled {
+            button = button.disabled();
+            button.build()
+        } else {
+            button.build().on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(WorkspaceAction::OpenCurrentDirectoryInSystemEditor);
+            })
+        }
+    }
+
+    fn render_system_editor_button(
+        &self,
+        appearance: &Appearance,
+        ctx: &AppContext,
+    ) -> Option<Box<dyn Element>> {
+        const CORNER_RADIUS: Radius = Radius::Pixels(4.);
+        const BUTTON_HEIGHT: f32 = 24.;
+        const SIDE_MENU_WIDTH: f32 = 16.;
+        const BUTTON_WIDTH: f32 = 24. + SIDE_MENU_WIDTH;
+        const BUTTON_LEFT_MARGIN: f32 = 4.;
+
+        let editor = self.selected_system_editor()?.clone();
+        let disabled = self.active_local_pwd(ctx).is_none();
+        let theme = appearance.theme();
+
+        Some(
+            Hoverable::new(self.mouse_states.system_editor.clone(), |state| {
+                let window_id = self.window_id;
+                let is_active = self.show_system_editor_dropdown_menu.is_some();
+
+                let main_button =
+                    self.render_system_editor_main_button(appearance, &editor, disabled);
+                let menu_button = combo_inner_button(
+                    appearance,
+                    icons::Icon::ChevronDown,
+                    is_active,
+                    self.mouse_states.system_editor_menu.clone(),
+                )
+                .with_style(
+                    UiComponentStyles::default()
+                        .set_border_radius(CornerRadius::with_right(CORNER_RADIUS))
+                        .set_width(SIDE_MENU_WIDTH),
+                )
+                .with_active_styles(
+                    UiComponentStyles::default()
+                        .set_background(internal_colors::fg_overlay_3(theme).into()),
+                )
+                .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+                    appearance,
+                    "Select editor".to_string(),
+                    None,
+                ))
+                .build()
+                .on_click(move |ctx, app, _| {
+                    if let Some(position) = app.element_position_by_id_at_last_frame(
+                        window_id,
+                        SYSTEM_EDITOR_BUTTON_POSITION_ID,
+                    ) {
+                        ctx.dispatch_typed_action(WorkspaceAction::ToggleSystemEditorMenu {
+                            position: position.lower_left(),
+                        });
+                    }
+                })
+                .finish();
+
+                let row = Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(
+                        SavePosition::new(
+                            Align::new(main_button.finish()).finish(),
+                            SYSTEM_EDITOR_BUTTON_POSITION_ID,
+                        )
+                        .finish(),
+                    )
+                    .with_child(
+                        SavePosition::new(
+                            Align::new(menu_button).finish(),
+                            SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID,
+                        )
+                        .finish(),
+                    )
+                    .finish();
+
+                let mut ret = Container::new(
+                    ConstrainedBox::new(row)
+                        .with_height(BUTTON_HEIGHT)
+                        .with_width(BUTTON_WIDTH)
+                        .finish(),
+                )
+                .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS))
+                .with_margin_left(BUTTON_LEFT_MARGIN);
+
+                if state.is_hovered() {
+                    ret = ret.with_background(internal_colors::neutral_1(theme));
+                }
+                ret.finish()
+            })
+            .finish(),
+        )
     }
 
     fn open_launch_config_from_menu(
@@ -8655,6 +9033,7 @@ impl Workspace {
     fn close_all_overlays(&mut self, ctx: &mut ViewContext<Self>) {
         self.current_workspace_state.close_all_modals();
         self.close_tab_bar_overflow_menu(ctx);
+        self.close_system_editor_dropdown_menu(ctx);
         self.close_all_chip_menus(ctx);
 
         self.active_tab_pane_group()
@@ -11925,6 +12304,10 @@ impl Workspace {
             }
         }
 
+        if let Some(button) = self.render_system_editor_button(appearance, ctx) {
+            target.add_child(button);
+        }
+
         if let Some(button) = self.render_update_button(appearance, ctx) {
             target.add_child(button);
         }
@@ -14063,6 +14446,15 @@ impl TypedActionView for Workspace {
             ShowHeaderToolbarContextMenu { position } => {
                 self.show_header_toolbar_context_menu(*position, ctx);
             }
+            OpenCurrentDirectoryInSystemEditor => {
+                self.open_current_directory_in_system_editor(ctx);
+            }
+            ToggleSystemEditorMenu { position } => {
+                self.toggle_system_editor_dropdown_menu(*position, ctx);
+            }
+            SelectSystemEditor { bundle_identifier } => {
+                self.select_system_editor(bundle_identifier, ctx);
+            }
             ReopenClosedSession => {
                 // While we could grab the UndoCloseStack singleton entity and
                 // directly call undo_close(), it would fail when attempting to
@@ -14807,6 +15199,18 @@ impl View for Workspace {
                     ),
                 );
             }
+        }
+
+        if let Some(position) = self.show_system_editor_dropdown_menu {
+            stack.add_positioned_overlay_child(
+                ChildView::new(&self.system_editor_dropdown_menu).finish(),
+                OffsetPositioning::offset_from_parent(
+                    position,
+                    ParentOffsetBounds::WindowByPosition,
+                    ParentAnchor::TopLeft,
+                    ChildAnchor::TopLeft,
+                ),
+            );
         }
 
         if let Some(position) = self.show_header_toolbar_context_menu {

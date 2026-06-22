@@ -256,6 +256,13 @@ pub enum WorkspaceAction {
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
     },
+    OpenCurrentDirectoryInSystemEditor,
+    ToggleSystemEditorMenu {
+        position: Vector2F,
+    },
+    SelectSystemEditor {
+        bundle_identifier: String,
+    },
     OpenLink(String),
     ReopenClosedSession,
     AddWindow,
@@ -607,6 +614,9 @@ impl WorkspaceAction {
             | OpenAgentToolbarEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
+            | OpenCurrentDirectoryInSystemEditor
+            | ToggleSystemEditorMenu { .. }
+            | SelectSystemEditor { .. }
             | OpenLink(_)
             | ReopenClosedSession
             | FocusLeftPanel
