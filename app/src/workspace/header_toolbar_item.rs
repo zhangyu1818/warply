@@ -28,6 +28,7 @@ pub enum HeaderToolbarItemKind {
     TabsPanel,
     ToolsPanel,
     CodeReview,
+    SystemEditor,
 }
 
 impl HeaderToolbarItemKind {
@@ -36,6 +37,7 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel => "Tabs Panel",
             Self::ToolsPanel => "Tools Panel",
             Self::CodeReview => "Code Review",
+            Self::SystemEditor => "System Editor",
         }
     }
 
@@ -44,6 +46,7 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel => Icon::Menu,
             Self::ToolsPanel => Icon::Tool2,
             Self::CodeReview => Icon::Diff,
+            Self::SystemEditor => Icon::Code2,
         }
     }
 
@@ -58,6 +61,7 @@ impl HeaderToolbarItemKind {
             }
             Self::ToolsPanel => true,
             Self::CodeReview => cfg!(feature = "local_fs"),
+            Self::SystemEditor => cfg!(target_os = "macos"),
         }
     }
 
@@ -84,11 +88,16 @@ impl HeaderToolbarItemKind {
     }
 
     pub fn default_right() -> Vec<Self> {
-        vec![Self::CodeReview]
+        vec![Self::CodeReview, Self::SystemEditor]
     }
 
     /// All toolbar item variants (availability filtering is done at the call site).
     pub fn all_items() -> Vec<Self> {
-        vec![Self::TabsPanel, Self::ToolsPanel, Self::CodeReview]
+        vec![
+            Self::TabsPanel,
+            Self::ToolsPanel,
+            Self::CodeReview,
+            Self::SystemEditor,
+        ]
     }
 }

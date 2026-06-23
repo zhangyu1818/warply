@@ -62,6 +62,7 @@ fn show_vertical_tab_panel_in_restored_windows_uses_vertical_tabs_path() {
 fn header_toolbar_chip_selection_default_contains_code_review() {
     let config = HeaderToolbarChipSelection::Default;
     assert!(config.contains_item(&HeaderToolbarItemKind::CodeReview));
+    assert!(config.contains_item(&HeaderToolbarItemKind::SystemEditor));
 }
 
 #[test]
@@ -81,10 +82,14 @@ fn header_toolbar_chip_selection_custom_without_code_review_reports_absent() {
 #[test]
 fn header_toolbar_chip_selection_custom_with_code_review_on_left_reports_present() {
     let config = HeaderToolbarChipSelection::Custom {
-        left: vec![HeaderToolbarItemKind::CodeReview],
+        left: vec![
+            HeaderToolbarItemKind::CodeReview,
+            HeaderToolbarItemKind::SystemEditor,
+        ],
         right: vec![],
     };
     assert!(config.contains_item(&HeaderToolbarItemKind::CodeReview));
+    assert!(config.contains_item(&HeaderToolbarItemKind::SystemEditor));
 }
 
 #[test]

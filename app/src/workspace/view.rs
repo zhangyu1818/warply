@@ -4256,12 +4256,19 @@ impl Workspace {
     fn render_system_editor_main_button(
         &self,
         appearance: &Appearance,
-        editor: &EditorApp,
+        editor: Option<&EditorApp>,
         disabled: bool,
     ) -> Hoverable {
         let theme = appearance.theme();
         let corner_radius = CornerRadius::with_left(Radius::Pixels(4.));
-        let label = Self::render_system_editor_icon(editor.icon_path.as_deref(), appearance, 16.);
+        let label = Self::render_system_editor_icon(
+            editor.and_then(|editor| editor.icon_path.as_deref()),
+            appearance,
+            16.,
+        );
+        let tooltip = editor
+            .map(|editor| format!("Open current directory in {}", editor.display_name))
+            .unwrap_or_else(|| "No system editor found".to_string());
         let mut button = Button::new(
             self.mouse_states.system_editor_button.clone(),
             Self::system_editor_button_styles(appearance, 24., corner_radius, None),
@@ -4285,11 +4292,7 @@ impl Workspace {
             )),
         )
         .with_custom_label(label)
-        .with_tooltip(self.render_tab_bar_icon_button_tooltip(
-            appearance,
-            format!("Open current directory in {}", editor.display_name),
-            None,
-        ));
+        .with_tooltip(self.render_tab_bar_icon_button_tooltip(appearance, tooltip, None));
 
         if disabled {
             button = button.disabled();
@@ -4305,91 +4308,87 @@ impl Workspace {
         &self,
         appearance: &Appearance,
         ctx: &AppContext,
-    ) -> Option<Box<dyn Element>> {
+    ) -> Box<dyn Element> {
         const CORNER_RADIUS: Radius = Radius::Pixels(4.);
         const BUTTON_HEIGHT: f32 = 24.;
         const SIDE_MENU_WIDTH: f32 = 16.;
         const BUTTON_WIDTH: f32 = 24. + SIDE_MENU_WIDTH;
-        const BUTTON_LEFT_MARGIN: f32 = 4.;
 
-        let editor = self.selected_system_editor()?.clone();
-        let disabled = self.active_local_pwd(ctx).is_none();
+        let editor = self.selected_system_editor().cloned();
+        let disabled = editor.is_none() || self.active_local_pwd(ctx).is_none();
         let theme = appearance.theme();
 
-        Some(
-            Hoverable::new(self.mouse_states.system_editor.clone(), |state| {
-                let window_id = self.window_id;
-                let is_active = self.show_system_editor_dropdown_menu.is_some();
+        Hoverable::new(self.mouse_states.system_editor.clone(), |state| {
+            let window_id = self.window_id;
+            let is_active = self.show_system_editor_dropdown_menu.is_some();
 
-                let main_button =
-                    self.render_system_editor_main_button(appearance, &editor, disabled);
-                let menu_button = combo_inner_button(
-                    appearance,
-                    icons::Icon::ChevronDown,
-                    is_active,
-                    self.mouse_states.system_editor_menu.clone(),
-                )
-                .with_style(
-                    UiComponentStyles::default()
-                        .set_border_radius(CornerRadius::with_right(CORNER_RADIUS))
-                        .set_width(SIDE_MENU_WIDTH),
-                )
-                .with_active_styles(
-                    UiComponentStyles::default()
-                        .set_background(internal_colors::fg_overlay_3(theme).into()),
-                )
-                .with_tooltip(self.render_tab_bar_icon_button_tooltip(
-                    appearance,
-                    "Select editor".to_string(),
-                    None,
-                ))
-                .build()
-                .on_click(move |ctx, app, _| {
-                    if let Some(position) = app.element_position_by_id_at_last_frame(
-                        window_id,
+            let main_button =
+                self.render_system_editor_main_button(appearance, editor.as_ref(), disabled);
+            let menu_button = combo_inner_button(
+                appearance,
+                icons::Icon::ChevronDown,
+                is_active,
+                self.mouse_states.system_editor_menu.clone(),
+            )
+            .with_style(
+                UiComponentStyles::default()
+                    .set_border_radius(CornerRadius::with_right(CORNER_RADIUS))
+                    .set_width(SIDE_MENU_WIDTH),
+            )
+            .with_active_styles(
+                UiComponentStyles::default()
+                    .set_background(internal_colors::fg_overlay_3(theme).into()),
+            )
+            .with_tooltip(self.render_tab_bar_icon_button_tooltip(
+                appearance,
+                "Select editor".to_string(),
+                None,
+            ))
+            .build()
+            .on_click(move |ctx, app, _| {
+                if let Some(position) = app.element_position_by_id_at_last_frame(
+                    window_id,
+                    SYSTEM_EDITOR_BUTTON_POSITION_ID,
+                ) {
+                    ctx.dispatch_typed_action(WorkspaceAction::ToggleSystemEditorMenu {
+                        position: position.lower_left(),
+                    });
+                }
+            })
+            .finish();
+
+            let row = Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    SavePosition::new(
+                        Align::new(main_button.finish()).finish(),
                         SYSTEM_EDITOR_BUTTON_POSITION_ID,
-                    ) {
-                        ctx.dispatch_typed_action(WorkspaceAction::ToggleSystemEditorMenu {
-                            position: position.lower_left(),
-                        });
-                    }
-                })
+                    )
+                    .finish(),
+                )
+                .with_child(
+                    SavePosition::new(
+                        Align::new(menu_button).finish(),
+                        SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID,
+                    )
+                    .finish(),
+                )
                 .finish();
 
-                let row = Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(
-                        SavePosition::new(
-                            Align::new(main_button.finish()).finish(),
-                            SYSTEM_EDITOR_BUTTON_POSITION_ID,
-                        )
-                        .finish(),
-                    )
-                    .with_child(
-                        SavePosition::new(
-                            Align::new(menu_button).finish(),
-                            SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID,
-                        )
-                        .finish(),
-                    )
-                    .finish();
+            let mut ret = Container::new(
+                ConstrainedBox::new(row)
+                    .with_height(BUTTON_HEIGHT)
+                    .with_width(BUTTON_WIDTH)
+                    .finish(),
+            )
+            .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS));
 
-                let mut ret = Container::new(
-                    ConstrainedBox::new(row)
-                        .with_height(BUTTON_HEIGHT)
-                        .with_width(BUTTON_WIDTH)
-                        .finish(),
-                )
-                .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS))
-                .with_margin_left(BUTTON_LEFT_MARGIN);
-
-                if state.is_hovered() {
-                    ret = ret.with_background(internal_colors::neutral_1(theme));
-                }
-                ret.finish()
-            })
-            .finish(),
-        )
+            if state.is_hovered() {
+                ret = ret.with_background(internal_colors::neutral_1(theme));
+            }
+            ret.finish()
+        })
+        .finish()
     }
 
     fn open_launch_config_from_menu(
@@ -12268,6 +12267,9 @@ impl Workspace {
                 }
             }
             HeaderToolbarItemKind::CodeReview => self.render_right_panel_button(appearance, ctx),
+            HeaderToolbarItemKind::SystemEditor => {
+                self.render_system_editor_button(appearance, ctx)
+            }
         };
         Some(
             Container::new(
@@ -12297,10 +12299,6 @@ impl Workspace {
             if let Some(button) = self.render_header_toolbar_button(&item, appearance, ctx) {
                 target.add_child(button);
             }
-        }
-
-        if let Some(button) = self.render_system_editor_button(appearance, ctx) {
-            target.add_child(button);
         }
 
         if let Some(button) = self.render_update_button(appearance, ctx) {
@@ -13281,6 +13279,7 @@ impl Workspace {
                 }
                 Some(ChildView::new(&self.right_panel_view).finish())
             }
+            HeaderToolbarItemKind::SystemEditor => None,
         }
     }
 
