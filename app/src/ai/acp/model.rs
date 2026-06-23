@@ -5,15 +5,16 @@ use std::sync::Arc;
 
 use agent_client_protocol::schema::{
     CancelNotification, ClientCapabilities, ContentBlock, CreateTerminalRequest,
-    CreateTerminalResponse, FileSystemCapabilities, InitializeRequest, KillTerminalRequest,
-    KillTerminalResponse, NewSessionRequest, PromptRequest, ProtocolVersion, ReadTextFileRequest,
-    ReadTextFileResponse, ReleaseTerminalRequest, ReleaseTerminalResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionConfigId, SessionConfigKind, SessionConfigOption,
-    SessionConfigSelectOptions, SessionConfigValueId, SessionNotification,
-    SetSessionConfigOptionRequest, StopReason, TerminalExitStatus, TerminalId,
-    TerminalOutputRequest, TerminalOutputResponse, WaitForTerminalExitRequest,
-    WaitForTerminalExitResponse, WriteTextFileRequest, WriteTextFileResponse,
+    CreateTerminalResponse, EmbeddedResource, EmbeddedResourceResource, FileSystemCapabilities,
+    InitializeRequest, KillTerminalRequest, KillTerminalResponse, NewSessionRequest,
+    PromptCapabilities, PromptRequest, ProtocolVersion, ReadTextFileRequest, ReadTextFileResponse,
+    ReleaseTerminalRequest, ReleaseTerminalResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, ResourceLink, SelectedPermissionOutcome,
+    SessionConfigId, SessionConfigKind, SessionConfigOption, SessionConfigSelectOptions,
+    SessionConfigValueId, SessionNotification, SetSessionConfigOptionRequest, StopReason,
+    TerminalExitStatus, TerminalId, TerminalOutputRequest, TerminalOutputResponse,
+    WaitForTerminalExitRequest, WaitForTerminalExitResponse, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use agent_client_protocol_tokio::AcpAgent;
@@ -1046,13 +1047,14 @@ async fn run_conversation_session(
         )
         .connect_with(agent, |connection: ConnectionTo<Agent>| async move {
             log::info!("ACP: sending initialize request");
-            connection
+            let initialize = connection
                 .send_request(
                     InitializeRequest::new(ProtocolVersion::V1)
                         .client_capabilities(acp_client_capabilities()),
                 )
                 .block_task()
                 .await?;
+            let prompt_capabilities = initialize.agent_capabilities.prompt_capabilities;
             log::info!("ACP: initialize completed");
 
             log::info!(
@@ -1107,16 +1109,18 @@ async fn run_conversation_session(
                 publish_runtime_event(&events, &prompt.target, AcpEvent::PromptStarted);
 
                 let prompt_bytes = prompt.display_prompt.len();
+                let content_blocks = adapt_prompt_content_blocks_for_capabilities(
+                    prompt.content_blocks,
+                    &prompt_capabilities,
+                );
                 log::info!(
-                    "ACP: sending prompt request session_id={} prompt_bytes={}",
+                    "ACP: sending prompt request session_id={} prompt_bytes={} content_blocks={}",
                     session_id.0,
                     prompt_bytes,
+                    content_blocks.len(),
                 );
                 let prompt_task = connection
-                    .send_request(PromptRequest::new(
-                        session_id.clone(),
-                        prompt.content_blocks,
-                    ))
+                    .send_request(PromptRequest::new(session_id.clone(), content_blocks))
                     .block_task();
                 tokio::pin!(prompt_task);
                 let prompt_response = tokio::select! {
@@ -1299,6 +1303,70 @@ fn acp_event_summary(event: &AcpEvent) -> String {
         AcpEvent::Completed => "completed".to_owned(),
         AcpEvent::Failed { message } => format!("failed message={message}"),
     }
+}
+
+fn adapt_prompt_content_blocks_for_capabilities(
+    content_blocks: Vec<ContentBlock>,
+    capabilities: &PromptCapabilities,
+) -> Vec<ContentBlock> {
+    content_blocks
+        .into_iter()
+        .filter_map(|content_block| match content_block {
+            ContentBlock::Image(image) if capabilities.image => Some(ContentBlock::Image(image)),
+            ContentBlock::Image(_) => {
+                log::warn!("ACP: omitting image prompt content because agent lacks image capability");
+                None
+            }
+            ContentBlock::Audio(audio) if capabilities.audio => Some(ContentBlock::Audio(audio)),
+            ContentBlock::Audio(_) => {
+                log::warn!("ACP: omitting audio prompt content because agent lacks audio capability");
+                None
+            }
+            ContentBlock::Resource(resource) if capabilities.embedded_context => {
+                Some(ContentBlock::Resource(resource))
+            }
+            ContentBlock::Resource(resource) => embedded_resource_to_link(resource)
+                .map(ContentBlock::ResourceLink)
+                .or_else(|| {
+                    log::warn!(
+                        "ACP: omitting embedded resource because agent lacks embeddedContext capability"
+                    );
+                    None
+                }),
+            content_block => Some(content_block),
+        })
+        .collect()
+}
+
+fn embedded_resource_to_link(resource: EmbeddedResource) -> Option<ResourceLink> {
+    match resource.resource {
+        EmbeddedResourceResource::TextResourceContents(resource) => {
+            let name = resource_name_from_uri(&resource.uri);
+            let size = i64::try_from(resource.text.len()).ok();
+            Some(
+                ResourceLink::new(name.clone(), resource.uri)
+                    .mime_type(resource.mime_type)
+                    .size(size)
+                    .title(name),
+            )
+        }
+        EmbeddedResourceResource::BlobResourceContents(resource) => {
+            let name = resource_name_from_uri(&resource.uri);
+            Some(
+                ResourceLink::new(name.clone(), resource.uri)
+                    .mime_type(resource.mime_type)
+                    .title(name),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn resource_name_from_uri(uri: &str) -> String {
+    uri.rsplit('/')
+        .find(|part| !part.is_empty())
+        .unwrap_or(uri)
+        .to_string()
 }
 
 impl Entity for AcpAgentModel {
@@ -1723,6 +1791,63 @@ mod tests {
         assert!(capabilities.terminal);
         assert!(capabilities.fs.read_text_file);
         assert!(capabilities.fs.write_text_file);
+    }
+
+    #[test]
+    fn test_acp_prompt_capabilities_downgrade_unsupported_rich_blocks() {
+        use agent_client_protocol::schema::{ImageContent, TextContent, TextResourceContents};
+
+        let blocks = vec![
+            ContentBlock::Text(TextContent::new("hello")),
+            ContentBlock::Image(ImageContent::new("base64-image", "image/png")),
+            ContentBlock::Resource(EmbeddedResource::new(
+                EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("file body", "file:///tmp/file.txt")
+                        .mime_type("text/plain"),
+                ),
+            )),
+        ];
+
+        let adapted =
+            adapt_prompt_content_blocks_for_capabilities(blocks, &PromptCapabilities::new());
+
+        assert_eq!(adapted.len(), 2);
+        assert!(matches!(&adapted[0], ContentBlock::Text(text) if text.text == "hello"));
+        assert!(matches!(
+            &adapted[1],
+            ContentBlock::ResourceLink(resource)
+                if resource.uri == "file:///tmp/file.txt"
+                    && resource.name == "file.txt"
+                    && resource.mime_type.as_deref() == Some("text/plain")
+        ));
+    }
+
+    #[test]
+    fn test_acp_prompt_capabilities_keep_supported_rich_blocks() {
+        use agent_client_protocol::schema::{ImageContent, TextContent, TextResourceContents};
+
+        let blocks = vec![
+            ContentBlock::Text(TextContent::new("hello")),
+            ContentBlock::Image(ImageContent::new("base64-image", "image/png")),
+            ContentBlock::Resource(EmbeddedResource::new(
+                EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("file body", "file:///tmp/file.txt")
+                        .mime_type("text/plain"),
+                ),
+            )),
+        ];
+        let capabilities = PromptCapabilities::new().image(true).embedded_context(true);
+
+        let adapted = adapt_prompt_content_blocks_for_capabilities(blocks, &capabilities);
+
+        assert_eq!(adapted.len(), 3);
+        assert!(matches!(&adapted[0], ContentBlock::Text(text) if text.text == "hello"));
+        assert!(matches!(
+            &adapted[1],
+            ContentBlock::Image(image)
+                if image.data == "base64-image" && image.mime_type == "image/png"
+        ));
+        assert!(matches!(&adapted[2], ContentBlock::Resource(_)));
     }
 
     #[tokio::test]

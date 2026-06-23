@@ -37,14 +37,19 @@ use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::{
     model::session::active_session::ActiveSession, model::terminal_model::TerminalModel,
 };
-use agent_client_protocol::schema::{ContentBlock, TextContent};
+use agent_client_protocol::schema::{
+    BlobResourceContents, ContentBlock, EmbeddedResource, EmbeddedResourceResource, ImageContent,
+    ResourceLink, TextContent, TextResourceContents,
+};
 use anyhow::anyhow;
+use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
 use itertools::Itertools;
 use parking_lot::FairMutex;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use url::Url;
 use warp_core::assertions::safe_assert;
 
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -1097,8 +1102,14 @@ impl BlocklistAIController {
         }
 
         let display_prompt = sections.join("\n\n");
+        let mut content_blocks = vec![ContentBlock::Text(TextContent::new(display_prompt.clone()))];
+        content_blocks.extend(
+            request_input
+                .all_inputs()
+                .flat_map(Self::acp_rich_content_blocks_for_input),
+        );
         AcpPromptPayload {
-            content_blocks: vec![ContentBlock::Text(TextContent::new(display_prompt.clone()))],
+            content_blocks,
             display_prompt,
         }
     }
@@ -1197,13 +1208,7 @@ impl BlocklistAIController {
                     .join("\n\n");
                 (!diffs.is_empty()).then(|| format!("Diff attachment {name}:\n{diffs}"))
             }
-            AIAgentAttachment::FilePathReference {
-                file_name,
-                file_path,
-                ..
-            } => Some(format!(
-                "File attachment {name}:\n{file_name}\nPath: {file_path}"
-            )),
+            AIAgentAttachment::FilePathReference { .. } => None,
             AIAgentAttachment::Block(block) => Some(format!(
                 "Terminal block attachment {name}:\nCommand: {}\nExit code: {}\nOutput:\n{}",
                 block.command,
@@ -1211,6 +1216,97 @@ impl BlocklistAIController {
                 block.output
             )),
         }
+    }
+
+    fn acp_rich_content_blocks_for_input(input: &AIAgentInput) -> Vec<ContentBlock> {
+        let mut blocks = Vec::new();
+
+        if let Some(contexts) = input.context() {
+            blocks.extend(contexts.iter().filter_map(|context| match context {
+                AIAgentContext::Image(image) => Some(ContentBlock::Image(ImageContent::new(
+                    image.data.clone(),
+                    image.mime_type.clone(),
+                ))),
+                _ => None,
+            }));
+        }
+
+        if let AIAgentInput::UserQuery {
+            referenced_attachments,
+            ..
+        } = input
+        {
+            blocks.extend(
+                referenced_attachments
+                    .iter()
+                    .sorted_by(|(left, _), (right, _)| left.cmp(right))
+                    .filter_map(|(name, attachment)| match attachment {
+                        AIAgentAttachment::FilePathReference { file_path, .. } => {
+                            Some(Self::acp_file_attachment_content_block(name, file_path))
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+
+        blocks
+    }
+
+    fn acp_file_attachment_content_block(name: &str, file_path: &str) -> ContentBlock {
+        let path = Path::new(file_path);
+        let uri = Self::acp_file_uri(path, file_path);
+        let mime_type = mime_guess::from_path(path)
+            .first_or_octet_stream()
+            .to_string();
+
+        if let Some(resource) = Self::acp_embedded_resource_for_file(path, &uri, &mime_type) {
+            return ContentBlock::Resource(resource);
+        }
+
+        let size = std::fs::metadata(path)
+            .ok()
+            .and_then(|metadata| i64::try_from(metadata.len()).ok());
+
+        ContentBlock::ResourceLink(
+            ResourceLink::new(name.to_string(), uri)
+                .mime_type(mime_type)
+                .size(size)
+                .title(name.to_string()),
+        )
+    }
+
+    fn acp_embedded_resource_for_file(
+        path: &Path,
+        uri: &str,
+        mime_type: &str,
+    ) -> Option<EmbeddedResource> {
+        let metadata = std::fs::metadata(path).ok()?;
+        if !metadata.is_file() {
+            return None;
+        }
+
+        let bytes = std::fs::read(path).ok()?;
+
+        let resource = match String::from_utf8(bytes) {
+            Ok(text) => EmbeddedResourceResource::TextResourceContents(
+                TextResourceContents::new(text, uri.to_string()).mime_type(mime_type.to_string()),
+            ),
+            Err(err) => EmbeddedResourceResource::BlobResourceContents(
+                BlobResourceContents::new(
+                    general_purpose::STANDARD.encode(err.into_bytes()),
+                    uri.to_string(),
+                )
+                .mime_type(mime_type.to_string()),
+            ),
+        };
+
+        Some(EmbeddedResource::new(resource))
+    }
+
+    fn acp_file_uri(path: &Path, fallback: &str) -> String {
+        Url::from_file_path(path)
+            .map(|url| url.to_string())
+            .unwrap_or_else(|_| fallback.to_string())
     }
 
     fn acp_file_context_section(file: &FileContext) -> String {
@@ -1558,6 +1654,7 @@ mod tests {
     use crate::ai::block_context::BlockContext;
     use crate::terminal::model::block::BlockId;
     use crate::terminal::model::terminal_model::BlockIndex;
+    use agent_client_protocol::schema::EmbeddedResourceResource;
     use warp_core::command::ExitCode;
 
     #[test]
@@ -1626,6 +1723,70 @@ mod tests {
             &payload.content_blocks[0],
             agent_client_protocol::schema::ContentBlock::Text(text)
                 if text.text == payload.display_prompt
+        ));
+    }
+
+    #[test]
+    fn acp_prompt_includes_rich_attachment_content_blocks() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let file_path = temp.path().join("notes.txt");
+        std::fs::write(&file_path, "attached file body").unwrap();
+        let task_id = TaskId::new("root-task".to_string());
+        let image = crate::ai::agent::ImageContext {
+            data: "base64-image".to_string(),
+            mime_type: "image/png".to_string(),
+            file_name: "image.png".to_string(),
+            is_figma: false,
+        };
+        let request_input = RequestInput {
+            conversation_id: AIConversationId::new(),
+            input_messages: HashMap::from([(
+                task_id,
+                vec![AIAgentInput::UserQuery {
+                    query: "Use the attachments".to_string(),
+                    context: vec![AIAgentContext::Image(image)].into(),
+                    static_query_type: None,
+                    referenced_attachments: HashMap::from([(
+                        "notes.txt".to_string(),
+                        AIAgentAttachment::FilePathReference {
+                            file_id: "file-1".to_string(),
+                            file_name: "notes.txt".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                        },
+                    )]),
+                    user_query_mode: UserQueryMode::Normal,
+                    running_command: None,
+                }],
+            )]),
+            working_directory: Some(temp.path().to_string_lossy().to_string()),
+            model_id: LLMId::from("test-model"),
+            coding_model_id: LLMId::from("test-model"),
+            cli_agent_model_id: LLMId::from("test-model"),
+            computer_use_model_id: LLMId::from("test-model"),
+            request_start_ts: Local::now(),
+        };
+
+        let payload = BlocklistAIController::acp_prompt_from_request(&request_input);
+
+        assert_eq!(payload.content_blocks.len(), 3);
+        assert!(matches!(
+            &payload.content_blocks[0],
+            ContentBlock::Text(text) if text.text == "Use the attachments"
+        ));
+        assert!(matches!(
+            &payload.content_blocks[1],
+            ContentBlock::Image(image)
+                if image.data == "base64-image" && image.mime_type == "image/png"
+        ));
+        assert!(matches!(
+            &payload.content_blocks[2],
+            ContentBlock::Resource(resource)
+                if matches!(
+                    &resource.resource,
+                    EmbeddedResourceResource::TextResourceContents(resource)
+                        if resource.text == "attached file body"
+                            && resource.mime_type.as_deref() == Some("text/plain")
+                )
         ));
     }
 }
