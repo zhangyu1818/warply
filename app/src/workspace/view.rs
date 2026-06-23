@@ -442,6 +442,12 @@ pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 const SYSTEM_EDITOR_BUTTON_POSITION_ID: &str = "system_editor_button";
 const SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID: &str = "system_editor_menu_button";
+const SYSTEM_EDITOR_BUTTON_HEIGHT: f32 = 24.;
+const SYSTEM_EDITOR_MAIN_BUTTON_WIDTH: f32 = 32.;
+const SYSTEM_EDITOR_MENU_BUTTON_WIDTH: f32 = 18.;
+const SYSTEM_EDITOR_BUTTON_ICON_SIZE: f32 = 22.;
+const SYSTEM_EDITOR_MENU_ICON_SIZE: f32 = 22.;
+const SYSTEM_EDITOR_MENU_ITEM_HEIGHT: f32 = 40.;
 
 // The max length of the title of a fork toast (after which we truncate it).
 const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
@@ -3628,7 +3634,7 @@ impl Workspace {
         let items = self.system_editor_menu_items();
         self.system_editor_dropdown_menu
             .update(ctx, |menu, view_ctx| {
-                menu.set_width(220.);
+                menu.set_width(240.);
                 menu.set_items(items, view_ctx);
                 if let Some(index) = selected_index {
                     menu.set_selected_by_index(index, view_ctx);
@@ -4217,14 +4223,18 @@ impl Workspace {
             .with_cross_axis_alignment(CrossAxisAlignment::Center);
 
         row.add_child(
-            Container::new(Self::render_system_editor_icon(icon_path, appearance, 16.))
-                .with_margin_right(8.)
-                .finish(),
+            Container::new(Self::render_system_editor_icon(
+                icon_path,
+                appearance,
+                SYSTEM_EDITOR_MENU_ICON_SIZE,
+            ))
+            .with_margin_right(12.)
+            .finish(),
         );
         row.add_child(
             Shrinkable::new(
                 1.,
-                Text::new_inline(display_name.to_string(), appearance.ui_font_family(), 13.)
+                Text::new_inline(display_name.to_string(), appearance.ui_font_family(), 14.)
                     .with_color(theme.main_text_color(theme.background()).into())
                     .with_clip(ClipConfig::ellipsis())
                     .soft_wrap(false)
@@ -4232,25 +4242,28 @@ impl Workspace {
             )
             .finish(),
         );
-        row.finish()
+
+        ConstrainedBox::new(
+            Container::new(row.finish())
+                .with_padding_left(4.)
+                .with_padding_right(4.)
+                .finish(),
+        )
+        .with_min_height(SYSTEM_EDITOR_MENU_ITEM_HEIGHT)
+        .finish()
     }
 
     fn system_editor_button_styles(
         appearance: &Appearance,
         width: f32,
         corner_radius: CornerRadius,
-        background: Option<ElementFill>,
     ) -> UiComponentStyles {
-        let mut styles = UiComponentStyles::default()
+        UiComponentStyles::default()
             .set_width(width)
-            .set_height(24.)
-            .set_padding(Coords::uniform(3.))
+            .set_height(SYSTEM_EDITOR_BUTTON_HEIGHT)
+            .set_padding(Coords::uniform(0.))
             .set_border_radius(corner_radius)
-            .set_font_color(appearance.theme().foreground().into());
-        if let Some(background) = background {
-            styles = styles.set_background(background);
-        }
-        styles
+            .set_font_color(appearance.theme().foreground().into())
     }
 
     fn render_system_editor_main_button(
@@ -4259,37 +4272,27 @@ impl Workspace {
         editor: Option<&EditorApp>,
         disabled: bool,
     ) -> Hoverable {
-        let theme = appearance.theme();
         let corner_radius = CornerRadius::with_left(Radius::Pixels(4.));
-        let label = Self::render_system_editor_icon(
+        let label = Align::new(Self::render_system_editor_icon(
             editor.and_then(|editor| editor.icon_path.as_deref()),
             appearance,
-            16.,
-        );
+            SYSTEM_EDITOR_BUTTON_ICON_SIZE,
+        ))
+        .finish();
         let tooltip = editor
             .map(|editor| format!("Open current directory in {}", editor.display_name))
             .unwrap_or_else(|| "No system editor found".to_string());
+        let styles = Self::system_editor_button_styles(
+            appearance,
+            SYSTEM_EDITOR_MAIN_BUTTON_WIDTH,
+            corner_radius,
+        );
         let mut button = Button::new(
             self.mouse_states.system_editor_button.clone(),
-            Self::system_editor_button_styles(appearance, 24., corner_radius, None),
-            Some(Self::system_editor_button_styles(
-                appearance,
-                24.,
-                corner_radius,
-                Some(theme.surface_2().into()),
-            )),
-            Some(Self::system_editor_button_styles(
-                appearance,
-                24.,
-                corner_radius,
-                Some(theme.background().into()),
-            )),
-            Some(Self::system_editor_button_styles(
-                appearance,
-                24.,
-                corner_radius,
-                Some(theme.background().into()),
-            )),
+            styles,
+            Some(styles),
+            Some(styles),
+            Some(styles),
         )
         .with_custom_label(label)
         .with_tooltip(self.render_tab_bar_icon_button_tooltip(appearance, tooltip, None));
@@ -4310,13 +4313,16 @@ impl Workspace {
         ctx: &AppContext,
     ) -> Box<dyn Element> {
         const CORNER_RADIUS: Radius = Radius::Pixels(4.);
-        const BUTTON_HEIGHT: f32 = 24.;
-        const SIDE_MENU_WIDTH: f32 = 16.;
-        const BUTTON_WIDTH: f32 = 24. + SIDE_MENU_WIDTH;
+        const BUTTON_WIDTH: f32 = SYSTEM_EDITOR_MAIN_BUTTON_WIDTH + SYSTEM_EDITOR_MENU_BUTTON_WIDTH;
 
         let editor = self.selected_system_editor().cloned();
         let disabled = editor.is_none() || self.active_local_pwd(ctx).is_none();
         let theme = appearance.theme();
+        let menu_button_styles = Self::system_editor_button_styles(
+            appearance,
+            SYSTEM_EDITOR_MENU_BUTTON_WIDTH,
+            CornerRadius::with_right(CORNER_RADIUS),
+        );
 
         Hoverable::new(self.mouse_states.system_editor.clone(), |state| {
             let window_id = self.window_id;
@@ -4324,20 +4330,20 @@ impl Workspace {
 
             let main_button =
                 self.render_system_editor_main_button(appearance, editor.as_ref(), disabled);
-            let menu_button = combo_inner_button(
-                appearance,
-                icons::Icon::ChevronDown,
-                is_active,
+            let menu_button = Button::new(
                 self.mouse_states.system_editor_menu.clone(),
+                menu_button_styles,
+                Some(menu_button_styles),
+                Some(menu_button_styles),
+                Some(menu_button_styles),
             )
-            .with_style(
-                UiComponentStyles::default()
-                    .set_border_radius(CornerRadius::with_right(CORNER_RADIUS))
-                    .set_width(SIDE_MENU_WIDTH),
-            )
-            .with_active_styles(
-                UiComponentStyles::default()
-                    .set_background(internal_colors::fg_overlay_3(theme).into()),
+            .with_custom_label(
+                Align::new(
+                    icons::Icon::ChevronDown
+                        .to_warpui_icon(theme.foreground())
+                        .finish(),
+                )
+                .finish(),
             )
             .with_tooltip(self.render_tab_bar_icon_button_tooltip(
                 appearance,
@@ -4377,14 +4383,19 @@ impl Workspace {
 
             let mut ret = Container::new(
                 ConstrainedBox::new(row)
-                    .with_height(BUTTON_HEIGHT)
+                    .with_height(SYSTEM_EDITOR_BUTTON_HEIGHT)
                     .with_width(BUTTON_WIDTH)
                     .finish(),
             )
-            .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS));
+            .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS))
+            .with_background(if is_active {
+                internal_colors::fg_overlay_3(theme)
+            } else {
+                internal_colors::fg_overlay_2(theme)
+            });
 
-            if state.is_hovered() {
-                ret = ret.with_background(internal_colors::neutral_1(theme));
+            if state.is_hovered() || is_active {
+                ret = ret.with_background(internal_colors::fg_overlay_3(theme));
             }
             ret.finish()
         })

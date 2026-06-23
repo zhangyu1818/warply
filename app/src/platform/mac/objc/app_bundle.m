@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#import <CoreServices/CoreServices.h>
 
 NSString *get_default_app_bundle_for_file(NSString *file_path) {
     NSURL *fileUrl = [NSURL fileURLWithPath:file_path];
@@ -72,8 +73,29 @@ static NSString *editor_app_icon_path(NSWorkspace *workspace, NSURL *appURL, NSS
     return wroteIcon ? iconPath : nil;
 }
 
+static void add_editor_app(NSWorkspace *workspace, NSURL *appURL, NSString *iconCacheDirectory, NSMutableSet<NSString *> *seenBundleIdentifiers, NSMutableArray<NSDictionary *> *apps) {
+    NSBundle *bundle = [NSBundle bundleWithURL:appURL];
+    NSString *bundleIdentifier = [bundle bundleIdentifier];
+    if (!bundle || !bundleIdentifier || [seenBundleIdentifiers containsObject:bundleIdentifier]) {
+        return;
+    }
+
+    NSString *displayName = editor_app_display_name(bundle, appURL);
+    [seenBundleIdentifiers addObject:bundleIdentifier];
+    NSString *iconPath = editor_app_icon_path(workspace, appURL, iconCacheDirectory, bundleIdentifier);
+
+    NSMutableDictionary *app = [NSMutableDictionary dictionary];
+    [app setObject:bundleIdentifier forKey:@"bundle_identifier"];
+    [app setObject:displayName forKey:@"display_name"];
+    [app setObject:[appURL path] forKey:@"bundle_url"];
+    if (iconPath) {
+        [app setObject:iconPath forKey:@"icon_path"];
+    }
+    [apps addObject:app];
+}
+
 NSString *scan_editor_apps_json(NSString *iconCacheDirectory) {
-    NSArray<NSString *> *extensions = @[@"txt", @"md", @"swift", @"js", @"ts", @"json", @"py", @"html", @"css", @"yml"];
+    NSArray<NSString *> *extensions = @[@"txt", @"md", @"swift", @"js", @"ts", @"tsx", @"jsx", @"json", @"py", @"rs", @"go", @"java", @"c", @"cpp", @"h", @"hpp", @"toml", @"yaml", @"yml"];
     NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSMutableSet<NSString *> *seenBundleIdentifiers = [NSMutableSet set];
@@ -85,40 +107,25 @@ NSString *scan_editor_apps_json(NSString *iconCacheDirectory) {
         return @"[]";
     }
 
+    NSURL *defaultFolderAppURL = [workspace URLForApplicationToOpenURL:[NSURL fileURLWithPath:probeDirectory isDirectory:YES]];
+    if (defaultFolderAppURL) {
+        add_editor_app(workspace, defaultFolderAppURL, iconCacheDirectory, seenBundleIdentifiers, apps);
+    }
+
     for (NSString *ext in extensions) {
         NSString *probeName = [@"portal-editor-probe" stringByAppendingPathExtension:ext];
         NSString *probePath = [probeDirectory stringByAppendingPathComponent:probeName];
         [fileManager createFileAtPath:probePath contents:[NSData data] attributes:nil];
         NSURL *probeURL = [NSURL fileURLWithPath:probePath];
-        NSArray<NSURL *> *appURLs = nil;
-
-        if (@available(macOS 12.0, *)) {
-            appURLs = [workspace URLsForApplicationsToOpenURL:probeURL];
-        } else {
-            NSURL *defaultAppURL = [workspace URLForApplicationToOpenURL:probeURL];
-            appURLs = defaultAppURL ? @[defaultAppURL] : @[];
+        CFArrayRef appURLs = LSCopyApplicationURLsForURL((CFURLRef)probeURL, kLSRolesEditor);
+        if (!appURLs) {
+            continue;
         }
-
-        for (NSURL *appURL in appURLs) {
-            NSBundle *bundle = [NSBundle bundleWithURL:appURL];
-            NSString *bundleIdentifier = [bundle bundleIdentifier];
-            if (!bundle || !bundleIdentifier || [seenBundleIdentifiers containsObject:bundleIdentifier]) {
-                continue;
-            }
-
-            [seenBundleIdentifiers addObject:bundleIdentifier];
-            NSString *displayName = editor_app_display_name(bundle, appURL);
-            NSString *iconPath = editor_app_icon_path(workspace, appURL, iconCacheDirectory, bundleIdentifier);
-
-            NSMutableDictionary *app = [NSMutableDictionary dictionary];
-            [app setObject:bundleIdentifier forKey:@"bundle_identifier"];
-            [app setObject:displayName forKey:@"display_name"];
-            [app setObject:[appURL path] forKey:@"bundle_url"];
-            if (iconPath) {
-                [app setObject:iconPath forKey:@"icon_path"];
-            }
-            [apps addObject:app];
+        for (CFIndex index = 0; index < CFArrayGetCount(appURLs); index++) {
+            NSURL *appURL = (NSURL *)CFArrayGetValueAtIndex(appURLs, index);
+            add_editor_app(workspace, appURL, iconCacheDirectory, seenBundleIdentifiers, apps);
         }
+        CFRelease(appURLs);
     }
 
     [fileManager removeItemAtPath:probeDirectory error:nil];
