@@ -443,11 +443,11 @@ pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 const SYSTEM_EDITOR_BUTTON_POSITION_ID: &str = "system_editor_button";
 const SYSTEM_EDITOR_MENU_BUTTON_POSITION_ID: &str = "system_editor_menu_button";
 const SYSTEM_EDITOR_BUTTON_HEIGHT: f32 = 24.;
-const SYSTEM_EDITOR_MAIN_BUTTON_WIDTH: f32 = 32.;
-const SYSTEM_EDITOR_MENU_BUTTON_WIDTH: f32 = 18.;
+const SYSTEM_EDITOR_MAIN_BUTTON_WIDTH: f32 = 26.;
+const SYSTEM_EDITOR_MENU_BUTTON_WIDTH: f32 = 16.;
 const SYSTEM_EDITOR_BUTTON_ICON_SIZE: f32 = 22.;
-const SYSTEM_EDITOR_MENU_ICON_SIZE: f32 = 22.;
-const SYSTEM_EDITOR_MENU_ITEM_HEIGHT: f32 = 40.;
+const SYSTEM_EDITOR_MENU_ICON_SIZE: f32 = 16.;
+const SYSTEM_EDITOR_CHEVRON_ICON_SIZE: f32 = 12.;
 
 // The max length of the title of a fork toast (after which we truncate it).
 const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
@@ -3634,7 +3634,7 @@ impl Workspace {
         let items = self.system_editor_menu_items();
         self.system_editor_dropdown_menu
             .update(ctx, |menu, view_ctx| {
-                menu.set_width(240.);
+                menu.set_width(220.);
                 menu.set_items(items, view_ctx);
                 if let Some(index) = selected_index {
                     menu.set_selected_by_index(index, view_ctx);
@@ -4228,13 +4228,13 @@ impl Workspace {
                 appearance,
                 SYSTEM_EDITOR_MENU_ICON_SIZE,
             ))
-            .with_margin_right(12.)
+            .with_margin_right(8.)
             .finish(),
         );
         row.add_child(
             Shrinkable::new(
                 1.,
-                Text::new_inline(display_name.to_string(), appearance.ui_font_family(), 14.)
+                Text::new_inline(display_name.to_string(), appearance.ui_font_family(), 13.)
                     .with_color(theme.main_text_color(theme.background()).into())
                     .with_clip(ClipConfig::ellipsis())
                     .soft_wrap(false)
@@ -4243,14 +4243,7 @@ impl Workspace {
             .finish(),
         );
 
-        ConstrainedBox::new(
-            Container::new(row.finish())
-                .with_padding_left(4.)
-                .with_padding_right(4.)
-                .finish(),
-        )
-        .with_min_height(SYSTEM_EDITOR_MENU_ITEM_HEIGHT)
-        .finish()
+        row.finish()
     }
 
     fn system_editor_button_styles(
@@ -4339,9 +4332,14 @@ impl Workspace {
             )
             .with_custom_label(
                 Align::new(
-                    icons::Icon::ChevronDown
-                        .to_warpui_icon(theme.foreground())
-                        .finish(),
+                    ConstrainedBox::new(
+                        icons::Icon::ChevronDown
+                            .to_warpui_icon(theme.foreground())
+                            .finish(),
+                    )
+                    .with_width(SYSTEM_EDITOR_CHEVRON_ICON_SIZE)
+                    .with_height(SYSTEM_EDITOR_CHEVRON_ICON_SIZE)
+                    .finish(),
                 )
                 .finish(),
             )
@@ -4387,15 +4385,12 @@ impl Workspace {
                     .with_width(BUTTON_WIDTH)
                     .finish(),
             )
-            .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS))
-            .with_background(if is_active {
-                internal_colors::fg_overlay_3(theme)
-            } else {
-                internal_colors::fg_overlay_2(theme)
-            });
+            .with_corner_radius(CornerRadius::with_all(CORNER_RADIUS));
 
-            if state.is_hovered() || is_active {
+            if is_active {
                 ret = ret.with_background(internal_colors::fg_overlay_3(theme));
+            } else if state.is_hovered() {
+                ret = ret.with_background(theme.surface_2());
             }
             ret.finish()
         })

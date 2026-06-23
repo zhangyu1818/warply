@@ -102,6 +102,10 @@ NSString *scan_editor_apps_json(NSString *iconCacheDirectory) {
     NSMutableArray<NSDictionary *> *apps = [NSMutableArray array];
     NSString *probeDirectoryName = [@"portal-editor-probe-" stringByAppendingString:[[NSUUID UUID] UUIDString]];
     NSString *probeDirectory = [NSTemporaryDirectory() stringByAppendingPathComponent:probeDirectoryName];
+    NSString *mainBundleIdentifier = [[NSBundle mainBundle] bundleIdentifier];
+    if (mainBundleIdentifier) {
+        [seenBundleIdentifiers addObject:mainBundleIdentifier];
+    }
 
     if (![fileManager createDirectoryAtPath:probeDirectory withIntermediateDirectories:YES attributes:nil error:nil]) {
         return @"[]";
