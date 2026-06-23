@@ -75,12 +75,20 @@ static NSString *editor_app_icon_path(NSWorkspace *workspace, NSURL *appURL, NSS
 NSString *scan_editor_apps_json(NSString *iconCacheDirectory) {
     NSArray<NSString *> *extensions = @[@"txt", @"md", @"swift", @"js", @"ts", @"json", @"py", @"html", @"css", @"yml"];
     NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
     NSMutableSet<NSString *> *seenBundleIdentifiers = [NSMutableSet set];
     NSMutableArray<NSDictionary *> *apps = [NSMutableArray array];
+    NSString *probeDirectoryName = [@"portal-editor-probe-" stringByAppendingString:[[NSUUID UUID] UUIDString]];
+    NSString *probeDirectory = [NSTemporaryDirectory() stringByAppendingPathComponent:probeDirectoryName];
+
+    if (![fileManager createDirectoryAtPath:probeDirectory withIntermediateDirectories:YES attributes:nil error:nil]) {
+        return @"[]";
+    }
 
     for (NSString *ext in extensions) {
         NSString *probeName = [@"portal-editor-probe" stringByAppendingPathExtension:ext];
-        NSString *probePath = [NSTemporaryDirectory() stringByAppendingPathComponent:probeName];
+        NSString *probePath = [probeDirectory stringByAppendingPathComponent:probeName];
+        [fileManager createFileAtPath:probePath contents:[NSData data] attributes:nil];
         NSURL *probeURL = [NSURL fileURLWithPath:probePath];
         NSArray<NSURL *> *appURLs = nil;
 
@@ -112,6 +120,8 @@ NSString *scan_editor_apps_json(NSString *iconCacheDirectory) {
             [apps addObject:app];
         }
     }
+
+    [fileManager removeItemAtPath:probeDirectory error:nil];
 
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:apps options:0 error:nil];
     if (!jsonData) {
