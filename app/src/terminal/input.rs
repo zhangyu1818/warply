@@ -9686,6 +9686,9 @@ impl Input {
         // If the input is itself a /queue command, unwrap the argument so we
         // queue "fix the tests" directly instead of "/queue fix the tests"
         // (which would double-hop through the /queue handler on re-submission).
+        // Any other slash command emits an immediate action (e.g. /fork) and must
+        // bypass the queue so it runs now instead of being captured as a queued
+        // prompt.
         let prompt = if let SlashCommandEntryState::SlashCommand(ref detected) = self
             .slash_command_model
             .as_ref(ctx)
@@ -9699,7 +9702,7 @@ impl Input {
                     None => return false,
                 }
             } else {
-                prompt
+                return false;
             }
         } else {
             prompt
