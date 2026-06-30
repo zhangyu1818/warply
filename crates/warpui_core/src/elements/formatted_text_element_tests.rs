@@ -9,9 +9,8 @@ use crate::platform::WindowStyle;
 use crate::text::word_boundaries::WordBoundariesPolicy;
 use crate::text::{BlockHeaderSize, SelectionDirection, SelectionType};
 use crate::{
-    fonts::FamilyId,
-    text_layout::TextFrame,
-    App, AppContext, Entity, Event, Presenter, TypedActionView,
+    fonts::FamilyId, text_layout::TextFrame, App, AppContext, Entity, Event, Presenter,
+    TypedActionView,
 };
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
