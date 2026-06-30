@@ -555,6 +555,24 @@ This map explains the large fork baseline change at a path level.
 - Broad upstream TUI framework restructuring is rejected for now because it adds a new feature/dependency surface and moves the `warpui_core` GUI element hierarchy without a retained macOS/ACP caller. Re-evaluate only when a retained feature needs that layer.
 - Cloud Agent `/continue-locally`, SuperGrok/free-AI availability, cloud tracing, managed secrets, and native Windows local TTY tests remain outside the fork contract.
 
+## 2026-06-30 Upstream Terminal, Editor, And AI Block Sync
+
+- Terminal file-link detection now excludes a trailing sentence period so `file.txt.` does not absorb the period. This is retained terminal link-detection behavior.
+- OSC 1337 parsing now guards against a missing second parameter instead of indexing out of bounds. Retained terminal parser hardening for untrusted PTY output.
+- Shell bootstrap (`zsh_body.sh`, `bash_body.sh`, `fish.sh`, `pwsh.ps1`) now allocates the next block ID once and reuses the exit-code/next-block-id pair in both `CommandFinished` and `Precmd`, and the `DProtoHook` key-value decoder accepts and ignores the two new fields. This is a protocol-only shell-integration enhancement; the upstream MSYS2 key-value emission branches were not ported because this fork is macOS-only.
+- `/open-file` no longer re-inserts a lone file when its argument is cleared. Retained slash-command behavior.
+- The `shift-?` agent-shortcuts binding now excludes the `QueuedPromptInlineEditorOpen` context so `?` is typed into a queued prompt instead of opening the help panel.
+- Markdown link clicks in AI block output now report the click as handled so an enclosing `SelectableArea` does not start a selection and dismiss the link. Added `TextFrame::mock_with_positions` as a retained test helper.
+- Vim visual paste preserves visual-mode tail anchors across the ephemeral-buffer snapshot/restore path so pasting over a selection after a history recall replaces the selection. The upstream `ephemeral_is_display_only` field was not introduced because this fork does not carry shared-session CRDT display-only buffers.
+- Requested-command approval cards scope their key bindings to a `RequestedActionBlocked` context that is only set while the action is awaiting confirmation, and the action model logs late acceptances instead of `debug_assert!` panicking. The upstream `requested_mcp_tools` card path was not ported because app-managed MCP tool calls are removed.
+- AI block selection and copy now work for text inside AI blocks using the existing terminal selection model. The upstream `view_tests.rs` fixture was not added because it references removed cloud-agent/CLI-agent harness types.
+- The warping-indicator footer reserves height for a secondary agent tip / fallback-model explanation line so the clipped footer no longer hides it.
+- AI documents gained a local Copy-as-Markdown overflow-menu action. The upstream Warp Drive link/notebook and telemetry paths around it were not ported.
+- Action-emitting slash commands (e.g. `/fork`) now bypass prompt queuing in queued-prompts mode. This fork has no `/compact`/`/plan`/`/orchestrate`, so the bypass reduces to "queue `/queue`'s argument, run every other slash command now".
+- Conversation-list hover tooltips no longer leak through modals. Retained local AgentView list UI behavior.
+- Inline-code link underlines are no longer hidden by the run background because background/border painting was split out and painted before glyphs. Retained `warpui_core` text-layout rendering fix.
+- Rejected the rest of the range as cloud-agent/Agent SDK, custom model router/BYOK, tab-groups/pinning, TUI app + ratatui element library, onboarding/auth/login, telemetry/Sentry, app-managed MCP/skills, shared-session CRDT viewer, Cloud Agent continue-locally, Grok/free-AI, native Linux/Windows host/packaging, or upstream spec docs. See `upstream-master-audit-2026-06-30.md` for the commit-by-commit record.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:

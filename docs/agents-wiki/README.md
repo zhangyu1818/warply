@@ -103,6 +103,7 @@ The fork removes:
 - `upstream-master-audit-2026-06-16.md`: Incremental audit for `c0c6cead9..d4bb3f5b7`, including retained terminal inline-image, CRLF paste, prompt-suggestion, markdown, Nix grammar, code-review, macOS UI, and dependency-security fixes, plus rejected warpctrl/GraphQL/cloud-credential/skills/tab-grouping changes.
 - `upstream-master-audit-2026-06-19.md`: Incremental audit for `d4bb3f5b7..b5d8b48b6`, including retained file-tree, editor, terminal, macOS windowing, markdown-pane, PowerShell bootstrap, and command-signature fixes, plus rejected cloud/Oz/account/Sentry/MCP/skills/tab-grouping/warpctrl changes.
 - `upstream-master-audit-2026-06-22.md`: Incremental audit for `b5d8b48b6..8cb48ba94`, including retained terminal mouse-event and integration-test render-loop fixes, plus rejected remote Agent Mode context snapshots, skills/MCP, Cloud Agent continue-locally, Grok/free-AI, cloud tracing, TUI framework, and Windows test changes.
+- `upstream-master-audit-2026-06-30.md`: Incremental audit for `8cb48ba94..c0902a246`, including retained terminal/editor/AI-block/shell-integration fixes (file-link period, OSC 1337, Precmd metadata, markdown link clicks, vim paste, requested-command crash, AI-block copy, agent tip, Copy as Markdown, queued-prompt `/fork` bypass), plus rejected cloud-agent/custom-model-router/BYOK/tab-groups/TUI/onboarding/telemetry/MCP/skills/native-Linux-Windows changes.
 
 ## Quick Merge Principle
 
