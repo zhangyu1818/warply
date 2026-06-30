@@ -845,6 +845,15 @@ fn parse_osc777_missing_parts_ignored() {
 }
 
 #[test]
+fn parse_osc1337_without_second_param_does_not_panic() {
+    let bytes: &[u8] = b"\x1b]1337\x07";
+    let (_, _handler) = parse_bytes(bytes);
+
+    let bytes: &[u8] = b"\x1b]1337\x1b\\";
+    let (_, _handler) = parse_bytes(bytes);
+}
+
+#[test]
 fn tmux_pane_writer_formats_bytes_as_send_keys() {
     // Test that TmuxPaneWriter correctly converts writes to tmux send-keys format
     let mut output = Vec::new();
