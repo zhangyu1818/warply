@@ -420,7 +420,8 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
         # executed within this block instead of the actual last
         # command that was run.
         local exit_code=$?
-        warp_send_json_message "{\"hook\": \"CommandFinished\", \"value\": {\"exit_code\": $exit_code, \"next_block_id\": \"precmd-$WARP_SESSION_ID-$((block_id++))\"}}"
+        local next_block_id="precmd-$WARP_SESSION_ID-$((block_id++))"
+        warp_send_json_message "{\"hook\": \"CommandFinished\", \"value\": {\"exit_code\": $exit_code, \"next_block_id\": \"$next_block_id\"}}"
 
         warp_maybe_send_reset_grid_osc
 
@@ -442,6 +443,8 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
 
             unset _WARP_GENERATOR_COMMAND
             warp_send_json_message "{\"hook\": \"Precmd\", \"value\": {
+            \"exit_code\": $exit_code,
+            \"next_block_id\": \"$next_block_id\",
             \"pwd\": \"\",
             \"ps1\": \"\",
             \"git_head\": \"\",
@@ -616,6 +619,8 @@ if [ -z "$WARP_BOOTSTRAPPED" ]; then
         fi
         # We send the escaped PS1, if we are in active Warp prompt mode, for prompt preview rendering (note the shell's PS1 is unset in this case).
         local escaped_json="{\"hook\": \"Precmd\", \"value\": {
+          \"exit_code\": $exit_code,
+          \"next_block_id\": \"$next_block_id\",
           \"pwd\": \"$escaped_pwd\",
           \"ps1\": \"$escaped_ps1\",
           \"honor_ps1\": $honor_ps1,
