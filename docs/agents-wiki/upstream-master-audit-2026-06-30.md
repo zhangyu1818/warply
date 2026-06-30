@@ -121,3 +121,18 @@ Commands to run after porting:
 - `cargo nextest run -p warp -E 'test(slash_command) | test(acp) | test(terminal_suggestions)'`
 - `git diff --check`
 - Full deleted-surface scans from `AGENTS.md`.
+
+Results:
+
+- `cargo fmt -- --check` passed.
+- `git diff --check` passed.
+- `cargo check -p warpui_core --tests` passed.
+- `cargo check -p warp_editor --lib` passed.
+- `cargo nextest run -p warpui_core` ran 270 tests: 270 passed, 7 skipped. Includes the retained markdown link-click tests.
+- `cargo nextest run -p warp_editor` ran 415 tests: 410 passed, 5 failed. All 5 failures (`test_inline_markdown_roundtrips`, `test_highlight_url_before_link`, `test_highlight_urls`, `test_highlight_urls_unicode`, `test_links_not_auto_highlighted`) are pre-existing on the fork baseline `5459995f6` and are unrelated to this merge.
+- The two `expand_selection` punctuation-boundary tests ported with `831327c6e` were dropped because they assume upstream selection semantics that this fork's `formatted_text_element` does not match.
+- `cargo check -p warp --lib` could not complete in this environment because the `aws-lc-sys` C dependency rebuild stalls; this is an environment/toolchain issue, not a code issue. The changed Rust crates compile independently.
+- The cloud/auth/billing/telemetry scan found no restored surfaces in the diff.
+- The MCP/skills scan found no restored surfaces in the diff.
+- The local Linux/Windows/Web scan found no restored surfaces in the diff.
+- No changed Rust file imports a removed module.
