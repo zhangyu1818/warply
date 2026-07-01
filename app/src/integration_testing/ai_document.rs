@@ -13,8 +13,7 @@ pub fn create_and_open_ai_document(title: &'static str, markdown: &'static str) 
         let terminal_view_id = single_terminal_view_for_tab(app, window_id, 0).id();
         let document_id = app.update(|ctx| {
             let conversation_id = BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, ctx| {
-                let conversation_id =
-                    model.start_new_conversation(terminal_view_id, false, false, false, ctx);
+                let conversation_id = model.start_new_conversation(terminal_view_id, false, ctx);
                 model.set_active_conversation_id(conversation_id, terminal_view_id, ctx);
                 conversation_id
             });
