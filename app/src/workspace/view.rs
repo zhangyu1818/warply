@@ -425,6 +425,7 @@ pub(crate) const TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME: &str =
     "workspace:toggle_conversation_list_view";
 pub(crate) const NEW_TAB_BINDING_NAME: &str = "workspace:new_tab";
 pub(crate) const NEW_TERMINAL_TAB_BINDING_NAME: &str = "workspace:new_terminal_tab";
+pub(crate) const NEW_FILE_BINDING_NAME: &str = "workspace:new_file";
 pub(crate) const TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME: &str = "workspace:toggle_tab_configs_menu";
 
 // Editable left panel toolbelt keybindings.
@@ -1660,6 +1661,28 @@ impl Workspace {
     pub fn dismiss_older_toasts(&mut self, object_id: &str, ctx: &mut ViewContext<Self>) {
         self.toast_stack.update(ctx, |toast_stack, ctx| {
             toast_stack.dismiss_older_toasts(object_id, ctx);
+        });
+    }
+
+    fn show_heap_profile_result(
+        &mut self,
+        result: anyhow::Result<PathBuf>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let toast = match result {
+            Ok(path) => {
+                ctx.open_file_path_in_explorer(&path);
+                DismissibleToast::success(format!("Wrote heap profile to {}", path.display()))
+                    .with_link(
+                        ToastLink::new("Show in file explorer".to_string())
+                            .with_onclick_action(WorkspaceAction::OpenInExplorer { path }),
+                    )
+            }
+            Err(err) => DismissibleToast::error(format!("Failed to write heap profile: {err:#}")),
+        };
+
+        self.toast_stack.update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(toast, ctx)
         });
     }
 
@@ -4888,10 +4911,14 @@ impl Workspace {
         // Ensure there is only one settings pane per window
         let settings_pane_manager = SettingsPaneManager::handle(ctx);
         if let Some(locator) = settings_pane_manager.as_ref(ctx).find_pane(ctx.window_id()) {
-            // Update to new page if specified
-            if let Some(page) = page {
+            // Update the page and/or search query if specified. The search query
+            // must be applied even when no page is given (e.g. `warp://settings?q=`)
+            // so an already-open settings tab reflects the new query.
+            if page.is_some() || search_query.is_some() {
                 self.settings_pane.update(ctx, |settings_pane, ctx| {
-                    settings_pane.set_and_refresh_current_page(page, ctx);
+                    if let Some(page) = page {
+                        settings_pane.set_and_refresh_current_page(page, ctx);
+                    }
                     if let Some(search_query) = search_query {
                         settings_pane.set_search_query(search_query, ctx);
                     }
@@ -7293,11 +7320,12 @@ impl Workspace {
 
         match index.cmp(&self.active_tab_index) {
             Ordering::Equal => {
-                let active_index = if uses_vertical_tabs(ctx) {
-                    index.saturating_sub(1)
-                } else {
-                    index.min(self.tabs.len() - 1)
-                };
+                // Activate the tab that was immediately after the closed one — to the
+                // right for horizontal tabs, below for vertical tabs. After removal that
+                // tab occupies the same index. If the closed tab was the last one, fall
+                // back to the new last tab (the previous neighbor). This matches the
+                // browser / macOS convention for both layouts.
+                let active_index = index.min(self.tabs.len() - 1);
                 self.activate_tab_internal(active_index, ctx);
             }
             Ordering::Less => {
@@ -14344,8 +14372,12 @@ impl TypedActionView for Workspace {
                 panic!("WorkspaceAction::Panic triggered from command palette");
             }
             DumpHeapProfile => {
-                #[cfg(feature = "dhat_heap_profiling")]
-                crate::profiling::dump_dhat_heap_profile();
+                ctx.spawn(
+                    crate::profiling::dump_heap_profile_to_disk(),
+                    |me, result, ctx| {
+                        me.show_heap_profile_result(result, ctx);
+                    },
+                );
             }
             OpenViewTreeDebugWindow => {
                 let window_id = ctx.window_id();

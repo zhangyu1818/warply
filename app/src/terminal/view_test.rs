@@ -10,6 +10,7 @@ use warpui::{notification::UserNotification, Presenter, WindowInvalidation};
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
 use crate::ai::blocklist::{agent_view::AgentViewEntryOrigin, BlocklistAIHistoryModel};
+use crate::banner::{BannerEvent, DismissalType};
 use crate::context_chips::prompt::Prompt;
 use crate::editor::{AutosuggestionLocation, AutosuggestionType};
 use crate::pane_group::focus_state::PaneGroupFocusState;
@@ -2226,6 +2227,74 @@ fn test_create_notification_char_boundaries_respected() {
     let expected_command_prefix = "😊".repeat(max_command_len - 3);
     let expected_title = format!("'{expected_command_prefix}...'{expected_title_suffix}",);
     assert_eq!(actual_content.title, expected_title);
+}
+
+// Regression test for the "Seems like your completions are not working" banner: it must
+// offer a permanent "Don't show me again" dismissal that is persisted, while the "x" close
+// button keeps its existing per-session behavior.
+#[test]
+fn test_control_master_banner_permanent_dismissal_persists() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal =
+            MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            // Temporary dismissal (the "x" button) clears the banner for this session
+            // but must not persist a "don't show again" preference.
+            view.control_master_error_banner_state.is_open = true;
+            view.handle_controlmaster_error_banner_event(
+                &BannerEvent::Dismiss(DismissalType::Temporary),
+                ctx,
+            );
+            assert!(!view.control_master_error_banner_state.is_open);
+            assert!(!view.control_master_error_banner_suppressed);
+            assert_eq!(
+                ctx.private_user_preferences()
+                    .read_value(CONTROL_MASTER_BANNER_SUPPRESSED_KEY)
+                    .unwrap(),
+                None,
+                "temporary dismissal should not persist a preference"
+            );
+
+            // Permanent dismissal ("Don't show me again") clears the banner and persists
+            // the choice so it never reopens.
+            view.control_master_error_banner_state.is_open = true;
+            view.handle_controlmaster_error_banner_event(
+                &BannerEvent::Dismiss(DismissalType::Permanent),
+                ctx,
+            );
+            assert!(!view.control_master_error_banner_state.is_open);
+            assert!(view.control_master_error_banner_suppressed);
+            assert_eq!(
+                ctx.private_user_preferences()
+                    .read_value(CONTROL_MASTER_BANNER_SUPPRESSED_KEY)
+                    .unwrap(),
+                Some("true".to_owned()),
+                "permanent dismissal should persist a preference"
+            );
+        });
+    })
+}
+
+// Regression test: once the banner has been permanently dismissed it must not reopen.
+#[test]
+fn test_control_master_banner_suppressed_does_not_reopen() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal =
+            MockTerminalManager::create_new_terminal_view_window_for_test(&mut app, None);
+
+        terminal.update(&mut app, |view, _ctx| {
+            // With no prior dismissal, the banner may open.
+            view.control_master_error_banner_suppressed = false;
+            assert!(view.should_open_control_master_banner());
+
+            // Once permanently dismissed it must never reopen.
+            view.control_master_error_banner_suppressed = true;
+            assert!(!view.should_open_control_master_banner());
+        });
+    })
 }
 
 #[test]

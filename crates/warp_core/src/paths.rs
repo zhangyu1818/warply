@@ -185,13 +185,24 @@ fn project_dirs_for_app_id(
 /// Unlike [`warpui::AssetProvider`] assets, which are generally embedded in the binary, these are
 /// stored on the filesystem alongside the rest of Warply.
 ///
-/// The resources directory is `$APP_DIR/Contents/Resources` (e.g. `/Applications/Warply.app/Contents/Resources`).
+/// For the `.app` bundle, the resources directory is `$APP_DIR/Contents/Resources`
+/// (e.g. `/Applications/Warply.app/Contents/Resources`). For the standalone CLI build
+/// (compiled with the `standalone` feature) the binary is not inside a `.app` bundle,
+/// and its resources live in a sibling `resources` directory next to the binary
+/// (e.g. `$INSTALL_DIR/resources`).
 pub fn bundled_resources_dir() -> Option<PathBuf> {
-    crate::macos::get_bundle_path().ok().map(|bundle_path| {
-        PathBuf::from(bundle_path)
-            .join("Contents")
-            .join("Resources")
-    })
+    if cfg!(feature = "standalone") {
+        std::env::current_exe()
+            .ok()
+            .and_then(|executable| std::fs::canonicalize(executable).ok())
+            .and_then(|executable| executable.parent().map(|parent| parent.join("resources")))
+    } else {
+        crate::macos::get_bundle_path().ok().map(|bundle_path| {
+            PathBuf::from(bundle_path)
+                .join("Contents")
+                .join("Resources")
+        })
+    }
 }
 
 #[cfg(all(test, feature = "local_fs"))]

@@ -892,6 +892,59 @@ fn test_selection_bounds_all_grids_single_line_lprompt_command_starting_newline(
     assert_eq!(all_grids, "lprompt%\nrprompt\ncmd1\noutput1\noutput2");
 }
 
+#[test]
+fn test_command_and_output_to_string_includes_ps1_prompt_command_rprompt_and_output() {
+    let block_index = BlockIndex::zero();
+    let mut prompt_and_command_grid = mock_blockgrid("lprompt%cmd1");
+    prompt_and_command_grid.finish();
+    let mut rprompt_grid = mock_blockgrid("rprompt");
+    rprompt_grid.finish();
+    let mut output_grid = mock_blockgrid("output1\r\noutput2\r\n");
+    output_grid.finish();
+
+    let mut block = create_test_block_with_grids(
+        block_index,
+        prompt_and_command_grid,
+        rprompt_grid,
+        output_grid,
+        true, /* honor_ps1 */
+    );
+    block.set_raw_prompt_end_point(Some(PromptEndPoint::PromptEnd {
+        point: Point::new(0, 7),
+        has_extra_trailing_newline: false,
+    }));
+
+    assert_eq!(
+        block.command_and_output_to_string(),
+        "lprompt%cmd1\nrprompt\noutput1\noutput2"
+    );
+}
+
+#[test]
+fn test_command_and_output_to_string_excludes_warp_prompt() {
+    let block_index = BlockIndex::zero();
+    let mut prompt_and_command_grid = mock_blockgrid("cmd1");
+    prompt_and_command_grid.finish();
+    let mut rprompt_grid = mock_blockgrid("rprompt");
+    rprompt_grid.finish();
+    let mut output_grid = mock_blockgrid("output1\r\noutput2\r\n");
+    output_grid.finish();
+
+    let mut block = create_test_block_with_grids(
+        block_index,
+        prompt_and_command_grid,
+        rprompt_grid,
+        output_grid,
+        false, /* honor_ps1 */
+    );
+    block.set_honor_ps1(false);
+
+    assert_eq!(
+        block.command_and_output_to_string(),
+        "cmd1\noutput1\noutput2"
+    );
+}
+
 /// Tests the multiline lprompt case, with no command content (where prompt end point is NOT defined).
 #[test]
 fn test_selection_bounds_all_grids_multiline_lprompt_no_command() {
@@ -1562,4 +1615,71 @@ fn test_calculate_optimal_row_counts_very_narrow_terminal() {
     // Bottom rows = 1,500 - 500 = 1,000
     assert_eq!(top, 500);
     assert_eq!(bottom, 1000);
+}
+
+#[test]
+fn test_multiline_preexec_reconciles_command_grid_redraw_prefix() {
+    let cases = [
+        (
+            "ececho \"line one\" && \\\r\necho \"line two\"",
+            "echo \"line one\" && \\\necho \"line two\"",
+        ),
+        ("aasdf\r\nasdf", "asdf\nasdf"),
+    ];
+
+    for (command_grid_text, reported_command) in cases {
+        let prompt_and_command_grid = mock_blockgrid(command_grid_text);
+        let mut rprompt_grid = mock_blockgrid("");
+        rprompt_grid.finish();
+        let mut output_grid = mock_blockgrid("");
+        output_grid.finish();
+
+        let mut block = create_test_block_with_grids(
+            BlockIndex::zero(),
+            prompt_and_command_grid,
+            rprompt_grid,
+            output_grid,
+            false, /* honor_ps1 */
+        );
+        block.set_honor_ps1(false);
+
+        block.preexec(crate::terminal::model::ansi::PreexecValue {
+            command: reported_command.to_owned(),
+        });
+
+        assert_eq!(block.command_to_string(), reported_command);
+        assert_eq!(
+            block.prompt_and_command_with_secrets_unobfuscated(false),
+            reported_command
+        );
+    }
+}
+
+#[test]
+fn test_multiline_preexec_preserves_legitimate_repeated_command_prefix() {
+    let reported_command = "aasdf\nasdf";
+    let prompt_and_command_grid = mock_blockgrid("aasdf\r\nasdf");
+    let mut rprompt_grid = mock_blockgrid("");
+    rprompt_grid.finish();
+    let mut output_grid = mock_blockgrid("");
+    output_grid.finish();
+
+    let mut block = create_test_block_with_grids(
+        BlockIndex::zero(),
+        prompt_and_command_grid,
+        rprompt_grid,
+        output_grid,
+        false, /* honor_ps1 */
+    );
+    block.set_honor_ps1(false);
+
+    block.preexec(crate::terminal::model::ansi::PreexecValue {
+        command: reported_command.to_owned(),
+    });
+
+    assert_eq!(block.command_to_string(), reported_command);
+    assert_eq!(
+        block.prompt_and_command_with_secrets_unobfuscated(false),
+        reported_command
+    );
 }

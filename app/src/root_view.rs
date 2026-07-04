@@ -16,6 +16,7 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_events::LaunchConfigUiLocation;
+use crate::uri::OpenSettingsArgs;
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates};
 use crate::window_settings::WindowSettings;
@@ -212,6 +213,15 @@ pub fn init(app: &mut AppContext) {
     app.add_action(
         "root_view:open_settings_page_in_existing_window",
         RootView::open_settings_page_in_existing_window,
+    );
+
+    app.add_global_action(
+        "root_view:open_settings_in_new_window",
+        open_settings_in_new_window,
+    );
+    app.add_action(
+        "root_view:open_settings_in_existing_window",
+        RootView::open_settings_in_existing_window,
     );
 
     app.add_global_action(
@@ -619,6 +629,30 @@ fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppCont
             root_view.workspace.id(),
             &WorkspaceAction::ShowSettingsPage(*section),
         );
+    });
+}
+
+/// Maps a `warp://settings` deeplink to the workspace action that opens it.
+fn workspace_action_for_open_settings(args: &OpenSettingsArgs) -> WorkspaceAction {
+    match args {
+        OpenSettingsArgs::Default => WorkspaceAction::ShowSettings,
+        OpenSettingsArgs::Search { query } => WorkspaceAction::ShowSettingsPageWithSearch {
+            search_query: query.clone(),
+            section: None,
+        },
+        OpenSettingsArgs::Widget { page, widget_id } => WorkspaceAction::ScrollToSettingsWidget {
+            page: *page,
+            widget_id,
+        },
+    }
+}
+
+fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
+    let action = workspace_action_for_open_settings(args);
+    let root_handle = open_new_window_get_handles(None, ctx).1;
+    root_handle.update(ctx, |root_view, ctx| {
+        let window_id = ctx.window_id();
+        ctx.dispatch_typed_action_for_view(window_id, root_view.workspace.id(), &action);
     });
 }
 
@@ -1210,6 +1244,18 @@ impl RootView {
             self.workspace.id(),
             &WorkspaceAction::ShowSettingsPage(*section),
         );
+        ctx.windows().show_window_and_focus_app(window_id);
+        true
+    }
+
+    pub fn open_settings_in_existing_window(
+        &mut self,
+        args: &OpenSettingsArgs,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
+        let window_id = ctx.window_id();
+        let action = workspace_action_for_open_settings(args);
+        ctx.dispatch_typed_action_for_view(window_id, self.workspace.id(), &action);
         ctx.windows().show_window_and_focus_app(window_id);
         true
     }

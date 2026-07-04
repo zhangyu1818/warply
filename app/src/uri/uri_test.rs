@@ -536,3 +536,25 @@ fn test_decode_uuid_hex_rejects_wrong_length() {
 fn test_decode_uuid_hex_rejects_invalid_chars() {
     assert!(super::decode_uuid_hex("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ").is_none());
 }
+
+// -- warp://settings deeplink parsing ----------------------------------------
+
+#[test]
+fn test_settings_widget_deeplink_target() {
+    assert_eq!(
+        settings_widget_deeplink_target("global_hotkey").map(|(section, _)| section),
+        Some(SettingsSection::Features),
+    );
+    // Unknown / empty slugs are not linkable (allowlist only).
+    assert!(settings_widget_deeplink_target("not_a_widget").is_none());
+    assert!(settings_widget_deeplink_target("").is_none());
+}
+
+#[test]
+fn test_settings_section_for_simple_subpage() {
+    assert_eq!(
+        settings_section_for_simple_subpage("appearance"),
+        Some(SettingsSection::Appearance),
+    );
+    assert!(settings_section_for_simple_subpage("not_a_subpage").is_none());
+}

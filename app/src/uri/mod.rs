@@ -13,7 +13,7 @@ use crate::workspace::util::PaneViewLocator;
 use crate::workspace::{Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
-use crate::settings_view::SettingsSection;
+use crate::settings_view::{settings_widget_deeplink_target, SettingsSection};
 use crate::user_config::{load_launch_configs, load_tab_configs, tab_configs_dir};
 use crate::{quake_mode_window_id, quake_mode_window_is_open, ChannelState, OpenPath};
 use anyhow::{anyhow, Result};
@@ -27,6 +27,32 @@ use warpui::{SingletonEntity as _, TypedActionView};
 use warpui::{AppContext, WindowId};
 
 use self::docker::open_docker_container;
+
+/// Args for the `warp://settings` deeplink family, dispatched to the
+/// `root_view:open_settings_in_{existing,new}_window` actions.
+pub enum OpenSettingsArgs {
+    /// `warp://settings` — open a settings tab on the default page.
+    Default,
+    /// `warp://settings?q=<query>` — open settings with the search bar pre-filled.
+    Search { query: String },
+    /// `warp://settings?widget=<widget_id>` — open settings scrolled to a widget.
+    Widget {
+        page: SettingsSection,
+        widget_id: &'static str,
+    },
+}
+
+/// Resolves a simple `warp://settings/<sub_page>` slug (with no query params)
+/// to the settings section it should open. Sub-pages requiring extra params
+/// (e.g. `teams`, `mcp`) are handled by their own branches in the
+/// `UriHost::Settings` arm.
+fn settings_section_for_simple_subpage(sub_page: &str) -> Option<SettingsSection> {
+    let section = match sub_page {
+        "appearance" => SettingsSection::Appearance,
+        _ => return None,
+    };
+    Some(section)
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum UriHost {
@@ -100,31 +126,84 @@ impl UriHost {
                 }
             }
             UriHost::Settings => {
+                // Supported warp://settings deep links:
+                // - warp://settings - opens a settings tab on the default page
+                // - warp://settings?q={query} - opens settings with the search bar pre-filled
+                // - warp://settings?widget={widget_id} - opens settings scrolled to a widget
+                // - warp://settings/appearance - opens the appearance settings page
+                let query_string: HashMap<_, _> = url.query_pairs().collect();
+                // A bare `warp://settings` (or a trailing slash) yields an empty path
+                // segment; treat that as "no sub-page" so the query-param routing below
+                // handles it.
                 let settings_sub_page: Option<String> = url
                     .path_segments()
                     .into_iter()
                     .flatten()
                     .last()
+                    .filter(|s| !s.is_empty())
                     .map(|s| s.to_string());
-                let _query_string: HashMap<_, _> = url.query_pairs().collect();
 
-                if let Some(settings_sub_page) = settings_sub_page {
-                    match settings_sub_page.as_str() {
-                        "appearance" => {
+                match settings_sub_page.as_deref() {
+                    // No special sub-page: route the bare host, the `q` (search) and
+                    // `widget` (scroll-to) query params, and the simple section
+                    // sub-pages (e.g. appearance) resolved via
+                    // `settings_section_for_simple_subpage`.
+                    maybe_simple_subpage => {
+                        let simple_section =
+                            maybe_simple_subpage.and_then(settings_section_for_simple_subpage);
+                        // Pull the non-empty `q` search query out of the already
+                        // parsed pairs to pre-fill the settings search bar.
+                        let search_query = query_string
+                            .get("q")
+                            .map(|query| query.to_string())
+                            .filter(|query| !query.is_empty());
+                        let widget_target = query_string
+                            .get("widget")
+                            .and_then(|slug| settings_widget_deeplink_target(slug));
+
+                        if let Some((page, widget_id)) = widget_target {
+                            // `?widget=` scrolls to a specific widget; it takes
+                            // precedence over `?q=` since searching would filter the
+                            // target widget out of view.
+                            let args = OpenSettingsArgs::Widget { page, widget_id };
+                            dispatch_action_in_new_or_existing_window(
+                                primary_window_id,
+                                "root_view:open_settings_in_existing_window",
+                                "root_view:open_settings_in_new_window",
+                                &args,
+                                ctx,
+                            );
+                        } else if let Some(query) = search_query {
+                            let args = OpenSettingsArgs::Search { query };
+                            dispatch_action_in_new_or_existing_window(
+                                primary_window_id,
+                                "root_view:open_settings_in_existing_window",
+                                "root_view:open_settings_in_new_window",
+                                &args,
+                                ctx,
+                            );
+                        } else if let Some(section) = simple_section {
                             dispatch_action_in_new_or_existing_window(
                                 primary_window_id,
                                 "root_view:open_settings_page_in_existing_window",
                                 "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::Appearance,
+                                &section,
                                 ctx,
                             );
-                        }
-                        _ => {
-                            log::warn!("Failed to open settings pane with uri={url}");
+                        } else if maybe_simple_subpage.is_none() {
+                            // Bare `warp://settings` opens the default settings page.
+                            let args = OpenSettingsArgs::Default;
+                            dispatch_action_in_new_or_existing_window(
+                                primary_window_id,
+                                "root_view:open_settings_in_existing_window",
+                                "root_view:open_settings_in_new_window",
+                                &args,
+                                ctx,
+                            );
+                        } else {
+                            log::warn!("Failed to open settings pane: unrecognized sub-page");
                         }
                     }
-                } else {
-                    log::warn!("Failed to open settings pane with uri={url}");
                 }
             }
             UriHost::Home => {

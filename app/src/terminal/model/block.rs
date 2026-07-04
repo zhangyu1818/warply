@@ -2157,6 +2157,14 @@ impl Block {
         self.output_grid().contents_to_string(false, None)
     }
 
+    pub fn command_and_output_to_string(&self) -> String {
+        if self.honor_ps1() {
+            self.bounds_to_string(self.start_point(), self.end_point())
+        } else {
+            format!("{}\n{}", self.command_to_string(), self.output_to_string())
+        }
+    }
+
     pub fn output_to_string_force_full_grid_contents(&self) -> String {
         self.output_grid()
             .contents_to_string_force_full_grid_contents(false, None)

@@ -157,6 +157,9 @@ pub struct BlocklistAIHistoryModel {
     /// Metadata for conversations. Does not include the actual content.
     all_conversations_metadata: HashMap<AIConversationId, AIConversationMetadata>,
 
+    /// Conversations that have had at least one AIBlock receive imported review comments.
+    conversations_with_imported_comments: HashSet<AIConversationId>,
+
     #[cfg(feature = "local_fs")]
     db_connection: Option<Arc<Mutex<SqliteConnection>>>,
 }
@@ -281,6 +284,14 @@ impl BlocklistAIHistoryModel {
     /// * The conversation has never been read into memory from db. Use load_conversation_from_db to handle reading from db.
     pub fn conversation(&self, conversation_id: &AIConversationId) -> Option<&AIConversation> {
         self.conversations_by_id.get(conversation_id)
+    }
+
+    pub fn mark_conversation_has_imported_comments(&mut self, id: AIConversationId) {
+        self.conversations_with_imported_comments.insert(id);
+    }
+
+    pub fn conversation_has_imported_comments(&self, id: &AIConversationId) -> bool {
+        self.conversations_with_imported_comments.contains(id)
     }
 
     pub fn conversation_mut(

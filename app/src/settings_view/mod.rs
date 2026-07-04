@@ -150,6 +150,23 @@ impl FromStr for SettingsSection {
 
 pub struct DisplayCount(pub usize);
 
+/// Resolves a stable, friendly deeplink slug (used by
+/// `warp://settings?widget=<slug>`) to the settings page and `&'static str`
+/// widget id it should scroll to.
+///
+/// Only allowlisted widgets are linkable, so the public URL contract stays
+/// stable and internal widget identifiers (Rust type names) are not exposed.
+/// Add an entry here to make a new widget deep-linkable.
+pub fn settings_widget_deeplink_target(slug: &str) -> Option<(SettingsSection, &'static str)> {
+    match slug {
+        "global_hotkey" => Some((
+            SettingsSection::Features,
+            features_page::global_hotkey_widget_id(),
+        )),
+        _ => None,
+    }
+}
+
 impl Entity for DisplayCount {
     type Event = ();
 }

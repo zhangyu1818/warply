@@ -10,6 +10,7 @@ use crate::ai::agent::{
     CreateDocumentsResult, EditDocumentsResult, ReadFilesResult, SubagentCall, SubagentType,
     TodoOperation,
 };
+use crate::util::time_format::format_elapsed_seconds;
 use crate::util::truncation::truncate_from_end;
 #[cfg(test)]
 use agent_client_protocol::schema::{ContentBlock, ToolCallContent};
@@ -93,9 +94,9 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::channel::ChannelState;
 
 use super::common::{
-    format_elapsed_seconds, render_failed_output, render_output_status_text,
-    render_scrollable_collapsible_content, render_text_sections, FailedOutputProps, FindContext,
-    TextSectionsProps, STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
+    render_failed_output, render_output_status_text, render_scrollable_collapsible_content,
+    render_text_sections, FailedOutputProps, FindContext, TextSectionsProps,
+    STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
 };
 use super::imported_comments::render_imported_comments;
 use super::todos::render_todos;

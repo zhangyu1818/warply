@@ -92,6 +92,7 @@ use crate::{
     },
     terminal::{self, TerminalModel},
     util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
+    util::time_format::format_elapsed_seconds,
 };
 use crate::{search::slash_command_menu::static_commands::commands, settings::FontSettings};
 use warp_editor::content::{
@@ -578,16 +579,6 @@ pub fn render_warping_indicator_base(
         container = container.with_padding_left(*terminal::view::PADDING_LEFT);
 
         container.finish()
-    }
-}
-
-/// Formats elapsed time as a human-readable string with proper singular/plural.
-pub fn format_elapsed_seconds(elapsed: std::time::Duration) -> String {
-    let total_seconds = elapsed.as_secs();
-    if total_seconds == 1 {
-        "1 second".to_string()
-    } else {
-        format!("{total_seconds} seconds")
     }
 }
 

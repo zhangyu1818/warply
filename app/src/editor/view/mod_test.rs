@@ -2766,7 +2766,7 @@ fn test_move_cursor() -> Result<()> {
                 ],
                 ctx,
             )?;
-            view.cursor_home(ctx);
+            view.move_to_visual_line_start(ctx);
             assert_eq!(
                 view.selected_ranges(ctx),
                 &[
@@ -2781,7 +2781,7 @@ fn test_move_cursor() -> Result<()> {
                 ],
                 ctx,
             )?;
-            view.cursor_end(ctx);
+            view.move_to_visual_line_end(ctx);
             assert_eq!(
                 view.selected_ranges(ctx),
                 &[
@@ -2809,12 +2809,12 @@ fn test_move_cursor() -> Result<()> {
 
         view.update(&mut app, |view, ctx| {
             view.select_ranges(vec![DisplayPoint::new(3, 5)..DisplayPoint::new(3, 6)], ctx)?;
-            view.cursor_home(ctx);
+            view.move_to_visual_line_start(ctx);
             assert_eq!(
                 view.selected_ranges(ctx),
                 &[DisplayPoint::new(3, 4)..DisplayPoint::new(3, 4)]
             );
-            view.cursor_home(ctx);
+            view.move_to_visual_line_start(ctx);
             assert_eq!(
                 view.selected_ranges(ctx),
                 &[DisplayPoint::new(3, 0)..DisplayPoint::new(3, 0)]
@@ -3339,7 +3339,7 @@ fn test_autocomplete_symbols() {
             };
             let mut editor = EditorView::new_with_base_text("word warp word", options, ctx);
 
-            editor.cursor_end(ctx);
+            editor.move_to_visual_line_end(ctx);
             editor.user_insert("(", ctx);
             assert_eq!(editor.buffer_text(ctx), "word warp word(");
 

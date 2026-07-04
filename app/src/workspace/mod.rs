@@ -60,10 +60,11 @@ pub fn panel_header_corner_radius() -> warpui::elements::CornerRadius {
 
 use crate::workspace::view::{
     LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME, LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME,
-    LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, NEW_TAB_BINDING_NAME, NEW_TERMINAL_TAB_BINDING_NAME,
-    OPEN_GLOBAL_SEARCH_BINDING_NAME, TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME,
-    TOGGLE_PROJECT_EXPLORER_BINDING_NAME, TOGGLE_RIGHT_PANEL_BINDING_NAME,
-    TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME, TOGGLE_VERTICAL_TABS_PANEL_BINDING_NAME,
+    LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, NEW_FILE_BINDING_NAME, NEW_TAB_BINDING_NAME,
+    NEW_TERMINAL_TAB_BINDING_NAME, OPEN_GLOBAL_SEARCH_BINDING_NAME,
+    TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME, TOGGLE_PROJECT_EXPLORER_BINDING_NAME,
+    TOGGLE_RIGHT_PANEL_BINDING_NAME, TOGGLE_TAB_CONFIGS_MENU_BINDING_NAME,
+    TOGGLE_VERTICAL_TABS_PANEL_BINDING_NAME,
 };
 pub use registry::WorkspaceRegistry;
 pub use toast_stack::ToastStack;
@@ -130,11 +131,11 @@ pub fn init(app: &mut AppContext) {
     )
     .with_context_predicate(id!("Workspace"))]);
 
-    #[cfg(feature = "dhat_heap_profiling")]
+    #[cfg(any(feature = "dhat_heap_profiling", feature = "heap_usage_tracking"))]
     {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:dump_heap_profile",
-            "Dump heap profile (can only be done once)",
+            "Write heap profile to disk",
             WorkspaceAction::DumpHeapProfile,
         )
         .with_context_predicate(id!("Workspace"))]);
@@ -160,13 +161,15 @@ pub fn init(app: &mut AppContext) {
             id!("Workspace"),
         )
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
-        FixedBinding::custom(
-            CustomAction::NewFile,
-            WorkspaceAction::NewCodeFile,
-            "New File",
-            id!("Workspace"),
-        ),
     ]);
+
+    app.register_editable_bindings([EditableBinding::new(
+        NEW_FILE_BINDING_NAME,
+        BindingDescription::new("New File"),
+        WorkspaceAction::NewCodeFile,
+    )
+    .with_custom_action(CustomAction::NewFile)
+    .with_context_predicate(id!("Workspace"))]);
 
     if FeatureFlag::UIZoom.is_enabled() {
         app.register_fixed_bindings([
