@@ -797,8 +797,8 @@ pub fn init(app: &mut AppContext) {
             "Switch Focus to Right Panel",
             WorkspaceAction::FocusRightPanel,
         )
-    .with_context_predicate(id!("Workspace"))
-    .with_key_binding("cmdorctrl-shift-)"),
+        .with_context_predicate(id!("Workspace"))
+        .with_key_binding("cmdorctrl-shift-)"),
     ]);
 
     app.register_editable_bindings([
@@ -812,7 +812,7 @@ pub fn init(app: &mut AppContext) {
         EditableBinding::new(
             "workspace:open_repository",
             BindingDescription::new("Open repository")
-            .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open Repository"),
+                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open Repository"),
             WorkspaceAction::OpenRepository { path: None },
         )
         .with_context_predicate(id!("Workspace"))

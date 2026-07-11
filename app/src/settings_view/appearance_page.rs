@@ -579,7 +579,9 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleToolsPanelConversationHistory => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     log_setting_result(
-                        settings.show_conversation_history.toggle_and_save_value(ctx),
+                        settings
+                            .show_conversation_history
+                            .toggle_and_save_value(ctx),
                         "show_conversation_history",
                     );
                 });

@@ -195,10 +195,8 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[FeatureFlag::MarkdownTables];
 /// Features enabled for all release builds (i.e.: everything but WarpLocal).
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
-pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::ImeMarkedText,
-    FeatureFlag::DragTabsToWindows,
-];
+pub const RELEASE_FLAGS: &[FeatureFlag] =
+    &[FeatureFlag::ImeMarkedText, FeatureFlag::DragTabsToWindows];
 
 /// Flags that we want to allow to switch at runtime (assuming RuntimeFeatureFlags is set)
 pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
