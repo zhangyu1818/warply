@@ -117,10 +117,13 @@ impl ShellStarter {
     }
 
     fn compute_fallback_shell() -> Option<ShellStarterSource> {
-        let pw_shell_path = nix::unistd::User::from_uid(nix::unistd::getuid())
-            .ok()
-            .flatten()
-            .map(|user| user.shell.display().to_string());
+        let pw_shell_path = super::unix::resolve_current_user().map(|user| user.shell);
+        if pw_shell_path.is_none() {
+            log::error!(
+                "could not resolve the current user (getpwuid, getent, and /etc/passwd all failed), uid={}",
+                nix::unistd::getuid().as_raw()
+            );
+        }
         if let Some((resolved_pw_shell_path, shell_type)) = pw_shell_path
             .as_deref()
             .and_then(supported_shell_path_and_type)
