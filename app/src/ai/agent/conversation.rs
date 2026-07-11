@@ -504,7 +504,7 @@ impl AIConversation {
                 task.reassign_exchange_ids();
             });
         }
-        self.task_store.rebuild_exchange_id_index();
+        self.task_store.rebuild_exchange_index();
     }
 
     /// Derive the conversation status from the root task's exchanges.
