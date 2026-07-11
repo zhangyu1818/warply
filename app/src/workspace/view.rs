@@ -2259,7 +2259,7 @@ impl Workspace {
             .enumerate()
             .for_each(|(tab_index, tab_template)| {
                 self.add_tab_with_pane_layout(
-                    PanesLayout::Template(tab_template.layout.clone()),
+                    PanesLayout::Template(tab_template.layout_with_tab_commands()),
                     Arc::new(HashMap::new()),
                     tab_template.title.clone(),
                     ctx,
@@ -7676,10 +7676,12 @@ impl Workspace {
             false
         };
 
-        // If restoring a conversation, use its initial working directory if it exists
+        // If restoring a conversation, use its startup working directory if it exists.
+        // For forks this is the conversation's latest working directory so the
+        // fork continues where the source conversation left off.
         let startup_directory_from_conversation = conversation_restoration
             .as_ref()
-            .and_then(|restoration| restoration.initial_working_directory())
+            .and_then(|restoration| restoration.startup_working_directory())
             .map(PathBuf::from)
             .filter(|path| path.is_dir());
 
@@ -14367,6 +14369,15 @@ impl TypedActionView for Workspace {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(text.to_string()));
             }
+            CopyCurrentPath => {
+                let path = self
+                    .active_tab_pane_group()
+                    .as_ref(ctx)
+                    .path_from_focused_pane(ctx);
+                if let Some(path) = path {
+                    ctx.clipboard().write(ClipboardContent::plain_text(path));
+                }
+            }
             DismissWorkspaceBanner(banner_type) => self.dismiss_workspace_banner(ctx, banner_type),
             Panic => {
                 panic!("WorkspaceAction::Panic triggered from command palette");
@@ -16414,8 +16425,15 @@ impl Workspace {
             } => {
                 if let Some(tab) = self.tabs.get(transferred_tab_index) {
                     ctx.unsubscribe_to_view(&tab.pane_group);
+                } else {
+                    log::warn!(
+                        "tab_drag: handle_drop_result RemoveSourceTab stale index={transferred_tab_index} tabs_len={} (skipping remove)",
+                        self.tabs.len()
+                    );
                 }
-                self.remove_tab_without_undo(transferred_tab_index, ctx);
+                if transferred_tab_index < self.tabs.len() {
+                    self.remove_tab_without_undo(transferred_tab_index, ctx);
+                }
             }
             DropResult::RemoveSourceTabAndClosePreview {
                 transferred_tab_index,
@@ -16423,8 +16441,15 @@ impl Workspace {
             } => {
                 if let Some(tab) = self.tabs.get(transferred_tab_index) {
                     ctx.unsubscribe_to_view(&tab.pane_group);
+                } else {
+                    log::warn!(
+                        "tab_drag: handle_drop_result RemoveSourceTabAndClosePreview stale index={transferred_tab_index} tabs_len={} (skipping remove)",
+                        self.tabs.len()
+                    );
                 }
-                self.remove_tab_without_undo(transferred_tab_index, ctx);
+                if transferred_tab_index < self.tabs.len() {
+                    self.remove_tab_without_undo(transferred_tab_index, ctx);
+                }
                 ctx.windows()
                     .close_window(preview_window_id, TerminationMode::ContentTransferred);
             }

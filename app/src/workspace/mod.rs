@@ -801,15 +801,24 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-shift-)"),
     ]);
 
-    app.register_editable_bindings([EditableBinding::new(
-        "workspace:open_repository",
-        BindingDescription::new("Open repository")
-            .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open Repository"),
-        WorkspaceAction::OpenRepository { path: None },
-    )
-    .with_context_predicate(id!("Workspace"))
-    .with_custom_action(CustomAction::OpenRepository)
-    .with_group(bindings::BindingGroup::Folders.as_str())]);
+    app.register_editable_bindings([
+        EditableBinding::new(
+            "workspace:copy_current_path",
+            BindingDescription::new("Copy current path")
+                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Copy Current Path"),
+            WorkspaceAction::CopyCurrentPath,
+        )
+        .with_context_predicate(id!("Workspace")),
+        EditableBinding::new(
+            "workspace:open_repository",
+            BindingDescription::new("Open repository")
+                .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Open Repository"),
+            WorkspaceAction::OpenRepository { path: None },
+        )
+        .with_context_predicate(id!("Workspace"))
+        .with_custom_action(CustomAction::OpenRepository)
+        .with_group(bindings::BindingGroup::Folders.as_str()),
+    ]);
 
     add_open_setting_pages_as_editable_binding(app);
 }
