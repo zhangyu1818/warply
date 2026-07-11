@@ -590,7 +590,15 @@ enum OpenFileAction {
 
 /// Pure routing decision for `open_file`. Extracted so it can be unit-tested without
 /// standing up a full `AppContext`.
-fn classify_open_file_action(path: &Path) -> OpenFileAction {
+///
+/// The Markdown Viewer preference is passed in because macOS can hand Markdown
+/// file URLs to Warp via the file type registration in `Info.plist`. Since Warp
+/// cannot easily update that registration when the user toggles the viewer
+/// preference, the URI handler must check the preference before routing a
+/// Markdown file to the in-Warp markdown viewer. The actual preference-based
+/// target resolution happens downstream in `resolve_file_target_to_open_in_warp`,
+/// but the flag is plumbed through here for routing decisions and future use.
+fn classify_open_file_action(path: &Path, _prefer_markdown_viewer: bool) -> OpenFileAction {
     if path.is_file() {
         if is_runnable_shell_script(path) {
             return OpenFileAction::ExecuteInSession;
@@ -616,7 +624,15 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
             .map(|view_id| (window_id, view_id))
     });
 
-    let action = classify_open_file_action(&path);
+    #[cfg(feature = "local_fs")]
+    let prefer_markdown_viewer = {
+        use crate::util::file::external_editor::EditorSettings;
+        *EditorSettings::as_ref(ctx).prefer_markdown_viewer
+    };
+    #[cfg(not(feature = "local_fs"))]
+    let prefer_markdown_viewer = true;
+
+    let action = classify_open_file_action(&path, prefer_markdown_viewer);
     if action == OpenFileAction::Editor {
         #[cfg(feature = "local_fs")]
         {
