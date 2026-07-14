@@ -252,6 +252,9 @@ plutil -insert NSCameraUsageDescription -string "A program in Warply wants to us
 plutil -insert NSMicrophoneUsageDescription -string "A program in Warply wants to use your microphone." "$WARPLY_PLIST_PATH"
 plutil -insert NSContactsUsageDescription -string "A program in Warply wants to use your contacts." "$WARPLY_PLIST_PATH"
 plutil -insert NSCalendarsUsageDescription -string "A program in Warply wants to use your calendar." "$WARPLY_PLIST_PATH"
+plutil -insert NSCalendarsFullAccessUsageDescription -string "A program in Warply wants full access to your calendar." "$WARPLY_PLIST_PATH"
+plutil -insert NSRemindersUsageDescription -string "A program in Warply wants to use your reminders." "$WARPLY_PLIST_PATH"
+plutil -insert NSRemindersFullAccessUsageDescription -string "A program in Warply wants full access to your reminders." "$WARPLY_PLIST_PATH"
 plutil -insert NSLocationUsageDescription -string "A program in Warply wants to use your location information." "$WARPLY_PLIST_PATH"
 plutil -insert NSPhotoLibraryUsageDescription -string "A program in Warply wants to use your photo library." "$WARPLY_PLIST_PATH"
 

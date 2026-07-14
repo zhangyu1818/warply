@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use agent_client_protocol::schema::{AvailableCommand, AvailableCommandInput};
 use fuzzy_match::FuzzyMatchResult;
 use ordered_float::OrderedFloat;
+use repo_metadata::repositories::DetectedRepositories;
+use std::path::Path;
 use warp_core::ui::appearance::Appearance;
 use warpui::fonts::FamilyId;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -135,10 +137,6 @@ impl SlashCommandDataSource {
             session_context |= Availability::TERMINAL_VIEW;
         }
 
-        if self.active_repo_root.is_some() {
-            session_context |= Availability::REPOSITORY;
-        }
-
         let is_local = self
             .active_session
             .as_ref(ctx)
@@ -146,6 +144,17 @@ impl SlashCommandDataSource {
             .is_some_and(|st| st == SessionType::Local);
         if is_local {
             session_context |= Availability::LOCAL;
+        }
+
+        // Derive REPOSITORY from the live working directory rather than the
+        // cached `active_repo_root`. The cache is only refreshed after async git
+        // detection resolves, but the pwd-changed recompute runs immediately on
+        // `cd`; keying off the cache would leave repo-gated commands (e.g.
+        // `/open-code-review`) available in the stale window after leaving a repo.
+        // `active_repo_root` is retained solely as the recompute trigger that
+        // re-runs this once detection caches a newly-entered repo's root.
+        if is_local && self.cwd_is_in_repository(ctx) {
+            session_context |= Availability::REPOSITORY;
         }
 
         if !self
@@ -186,6 +195,32 @@ impl SlashCommandDataSource {
         if self.active_commands_by_id.len() != old_active_command_count {
             ctx.emit(UpdatedActiveCommands);
         }
+    }
+
+    /// Whether the active session's current working directory is inside a
+    /// detected git repository. Uses the live cwd (not the cached
+    /// `active_repo_root`) so REPOSITORY-gated commands update immediately on
+    /// `cd`, without waiting for async repo detection to resolve. Delegates
+    /// path membership to `DetectedRepositories`, reusing its centralized
+    /// canonicalization + ancestor walk.
+    fn cwd_is_in_repository(&self, ctx: &AppContext) -> bool {
+        let active_session = self.active_session.as_ref(ctx);
+        let Some(cwd) = active_session.current_working_directory() else {
+            return false;
+        };
+
+        let path = active_session
+            .session(ctx)
+            .and_then(|session| {
+                session
+                    .launch_data()
+                    .and_then(|data| data.maybe_convert_absolute_path(cwd))
+            })
+            .unwrap_or_else(|| Path::new(cwd).to_path_buf());
+
+        DetectedRepositories::as_ref(ctx)
+            .get_root_for_path(&path)
+            .is_some()
     }
 
     /// Update the active repository root for this terminal. Called by the parent when

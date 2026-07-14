@@ -54,6 +54,11 @@ impl LineDiffContent {
             .to_string()
     }
 
+    pub(crate) fn imported_original_text(&self) -> String {
+        let s = self.content.trim_end_matches('\n');
+        s.strip_prefix(['+', '-', ' ']).unwrap_or(s).to_string()
+    }
+
     pub(crate) fn from_content(diff_line: &str) -> Self {
         let lines_added = LineCount::from(if diff_line.starts_with('+') { 1 } else { 0 });
         let lines_removed = LineCount::from(if diff_line.starts_with('-') { 1 } else { 0 });
