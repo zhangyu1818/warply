@@ -158,6 +158,11 @@ pub enum FeatureFlag {
     /// Enables summary mode in vertical tabs, showing condensed tab summaries
     /// instead of individual pane rows.
     VerticalTabsSummaryMode,
+
+    /// Renders supported solid box-drawing characters (`U+2500..=U+257F`)
+    /// procedurally as cell-filling rectangles instead of from the font,
+    /// eliminating seams between adjacent box-drawing cells in the terminal.
+    BoxDrawingGlyphs,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -186,6 +191,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::Projects,
     FeatureFlag::EditableMarkdownMermaid,
     FeatureFlag::VerticalTabsSummaryMode,
+    FeatureFlag::BoxDrawingGlyphs,
 ];
 
 /// Features enabled for feature preview build users (e.g.: Friends of Warp).
