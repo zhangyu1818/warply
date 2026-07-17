@@ -38,7 +38,7 @@ pub struct RemoteServerIdentityArgs {
     display_name = "Warply",
     about = r#"Warply command-line utilities"#
 )]
-#[clap(args_conflicts_with_subcommands = true)]
+#[clap(subcommand_precedence_over_arg = true)]
 pub struct Args {
     #[command(subcommand)]
     command: Option<Command>,

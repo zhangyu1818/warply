@@ -321,6 +321,15 @@ impl LaunchMode {
         }
     }
 
+    /// Whether this launch mode should start the local loopback HTTP server
+    /// (`crates/http_server`), which serves profiling on a fixed port. Only
+    /// non-headless GUI instances start it, since co-located headless processes
+    /// (daemon, proxy) would otherwise contend for the fixed port.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
+    fn should_start_local_http_server(&self) -> bool {
+        !self.is_headless()
+    }
+
     /// Whether profiling and tracing should be initialized.
     pub(crate) fn needs_profiling(&self) -> bool {
         match self {
@@ -993,10 +1002,13 @@ pub(crate) fn initialize_app(
         aliases.connect(ctx);
     });
 
-    ctx.add_singleton_model(move |ctx| {
-        let routers = vec![profiling::make_router()];
-        http_server::HttpServer::new(routers, ctx)
-    });
+    #[cfg(not(target_family = "wasm"))]
+    if launch_mode.should_start_local_http_server() {
+        ctx.add_singleton_model(move |ctx| {
+            let routers = vec![profiling::make_router()];
+            http_server::HttpServer::new(routers, ctx)
+        });
+    }
 
     app_state
 }
