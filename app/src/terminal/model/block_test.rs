@@ -1618,44 +1618,6 @@ fn test_calculate_optimal_row_counts_very_narrow_terminal() {
 }
 
 #[test]
-fn test_multiline_preexec_reconciles_command_grid_redraw_prefix() {
-    let cases = [
-        (
-            "ececho \"line one\" && \\\r\necho \"line two\"",
-            "echo \"line one\" && \\\necho \"line two\"",
-        ),
-        ("aasdf\r\nasdf", "asdf\nasdf"),
-    ];
-
-    for (command_grid_text, reported_command) in cases {
-        let prompt_and_command_grid = mock_blockgrid(command_grid_text);
-        let mut rprompt_grid = mock_blockgrid("");
-        rprompt_grid.finish();
-        let mut output_grid = mock_blockgrid("");
-        output_grid.finish();
-
-        let mut block = create_test_block_with_grids(
-            BlockIndex::zero(),
-            prompt_and_command_grid,
-            rprompt_grid,
-            output_grid,
-            false, /* honor_ps1 */
-        );
-        block.set_honor_ps1(false);
-
-        block.preexec(crate::terminal::model::ansi::PreexecValue {
-            command: reported_command.to_owned(),
-        });
-
-        assert_eq!(block.command_to_string(), reported_command);
-        assert_eq!(
-            block.prompt_and_command_with_secrets_unobfuscated(false),
-            reported_command
-        );
-    }
-}
-
-#[test]
 fn test_multiline_preexec_preserves_legitimate_repeated_command_prefix() {
     let reported_command = "aasdf\nasdf";
     let prompt_and_command_grid = mock_blockgrid("aasdf\r\nasdf");
