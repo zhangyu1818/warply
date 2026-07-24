@@ -17,10 +17,7 @@ fn test_config_local_dir_path() {
 #[cfg(target_os = "macos")]
 #[test]
 fn test_macos_config_dir_name_scopes_to_data_profile() {
-    assert_eq!(
-        macos_config_dir_name_for(Channel::Stable, None),
-        ".warply"
-    );
+    assert_eq!(macos_config_dir_name_for(Channel::Stable, None), ".warply");
     assert_eq!(
         macos_config_dir_name_for(Channel::Local, None),
         ".warply-local"
