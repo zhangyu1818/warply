@@ -573,6 +573,18 @@ This map explains the large fork baseline change at a path level.
 - Inline-code link underlines are no longer hidden by the run background because background/border painting was split out and painted before glyphs. Retained `warpui_core` text-layout rendering fix.
 - Rejected the rest of the range as cloud-agent/Agent SDK, custom model router/BYOK, tab-groups/pinning, TUI app + ratatui element library, onboarding/auth/login, telemetry/Sentry, app-managed MCP/skills, shared-session CRDT viewer, Cloud Agent continue-locally, Grok/free-AI, native Linux/Windows host/packaging, or upstream spec docs. See `upstream-master-audit-2026-06-30.md` for the commit-by-commit record.
 
+## 2026-07-24 Upstream Terminal, Shell, And Vim Sync
+
+- zsh prompt glitch-width constructs (`%n{...%}`, `%G`) are now stripped dynamically via a live `_warp_stripped_prompt` function that re-evaluates `$_WARP_RAW_PROMPT` on every render under `PROMPT_SUBST`, replacing the earlier static `WARP_STRIPPED_ORIGINAL_PROMPT` pre-strip. The obsolete preexec command-grid reconciliation machinery in `header_grid.rs` (`reconcile_command_grid_with_preexec_command`, `has_leading_prefix_redraw_artifact`) was removed along with its test, since the dynamic strip eliminates the root cause.
+- `macos_config_dir_name()` now scopes macOS config dirs to `WARP_DATA_PROFILE` via a `macos_config_dir_name_for(channel, data_profile)` helper, matching `warp_home_config_dir_name()`. The fork's `WARPLY_CONFIG_DIR` naming and `Stable | Oss` grouping are preserved.
+- Vim `d%`/`c%`/`y%` operators in the code editor now work with `JumpToMatchingBracket`/`JumpToUnmatchedBracket` motions instead of being dropped by a catch-all no-op arm. Vim `gg` now respects a preceding count (`5gg` → line 5).
+- Resizable pane bounds clamp to a `.max(100.0)` minimum so tiny windows don't produce zero/negative resize targets in the code-review comment list and suggestions menu.
+- Classic Completions close the stale suggestion menu when the user edits the trigger text, while still allowing Tab cycling to keep its menu open.
+- `warp_editor` render-test logging uses `try_init()` instead of `init()` to avoid `SetLoggerError` test-order failures.
+- diesel `2.3.9` → `2.3.10` and h2 `0.4.12` → `0.4.15` security/bug-fix bumps regenerated via `cargo update`.
+- Deferred the repo-metadata tree-walk cancellation port (1473 lines) to a focused follow-up.
+- Rejected the rest of the range as TUI-only (`crates/warp_tui/` absent), computer-use recording, cloud/orchestration/agent-SDK/managed-secrets, onboarding/auth, MCP/skills, telemetry/Sentry (N/A — `report_error!`/Sentry infrastructure removed), voice input, Gemini Enterprise credentials, Linux/Windows/WASM platform, Rust 2024 edition migration, or feature flags the fork does not carry. See `upstream-master-audit-2026-07-24.md` for the commit-by-commit record.
+
 ## Legacy Names Still Present
 
 These names are not enough to decide merge behavior:

@@ -14,6 +14,27 @@ fn test_config_local_dir_path() {
     assert_eq!(config_local_dir(), home_dir.join(".warply"));
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn test_macos_config_dir_name_scopes_to_data_profile() {
+    assert_eq!(macos_config_dir_name_for(Channel::Stable, None), ".warply");
+    assert_eq!(
+        macos_config_dir_name_for(Channel::Local, None),
+        ".warply-local"
+    );
+
+    // Each development profile must get its own directory so shared config
+    // (notably settings.toml) cannot leak between profiles.
+    assert_eq!(
+        macos_config_dir_name_for(Channel::Local, Some("myprofile")),
+        ".warply-local-myprofile"
+    );
+    assert_eq!(
+        macos_config_dir_name_for(Channel::Stable, Some("myprofile")),
+        ".warply-myprofile"
+    );
+}
+
 #[test]
 fn test_warp_home_config_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
