@@ -1,6 +1,14 @@
 use super::{CollapsibleElementState, CollapsibleExpansionState};
+#[cfg(feature = "local_fs")]
+use super::{AIBlockEvent, open_code_action_event};
 use crate::ai::acp::AcpToolCall;
+#[cfg(feature = "local_fs")]
+use crate::code::editor_management::CodeSource;
 use crate::settings::AISettings;
+#[cfg(feature = "local_fs")]
+use std::path::PathBuf;
+#[cfg(feature = "local_fs")]
+use warp_util::path::LineAndColumnArg;
 use crate::test_util::settings::initialize_settings_for_tests;
 use agent_client_protocol::schema::{Diff, ToolCall, ToolCallContent, ToolKind};
 use ai::diff_validation::DiffType;
@@ -115,4 +123,47 @@ fn acp_tool_call_file_diffs_convert_to_code_diff_view_model() {
         deltas[0].insertion,
         "fn main() {\n    println!(\"hi\");\n}\n"
     );
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn open_code_action_routes_links_to_configured_editor_and_non_links_to_warp() {
+    let linked_source = CodeSource::Link {
+        path: PathBuf::from("/workspace/project/src/main.rs"),
+        range_start: Some(LineAndColumnArg {
+            line_num: 42,
+            column_num: Some(7),
+        }),
+        range_end: None,
+    };
+
+    assert!(matches!(
+        open_code_action_event(
+            &linked_source,
+            crate::util::file::external_editor::settings::EditorLayout::SplitPane,
+        ),
+        AIBlockEvent::OpenDetectedFilePath {
+            absolute_path,
+            line_and_column_num: Some(LineAndColumnArg {
+                line_num: 42,
+                column_num: Some(7),
+            }),
+            target_override: None,
+        } if absolute_path.as_path() == std::path::Path::new("/workspace/project/src/main.rs")
+    ));
+
+    let non_link_source = CodeSource::ProjectRules {
+        path: PathBuf::from("/workspace/project/WARP.md"),
+    };
+
+    assert!(matches!(
+        open_code_action_event(
+            &non_link_source,
+            crate::util::file::external_editor::settings::EditorLayout::NewTab,
+        ),
+        AIBlockEvent::OpenCodeInWarp {
+            source,
+            layout: crate::util::file::external_editor::settings::EditorLayout::NewTab,
+        } if source == non_link_source
+    ));
 }
