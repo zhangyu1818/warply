@@ -1,18 +1,18 @@
-use super::{CollapsibleElementState, CollapsibleExpansionState};
 #[cfg(feature = "local_fs")]
-use super::{AIBlockEvent, open_code_action_event};
+use super::{open_code_action_event, AIBlockEvent};
+use super::{CollapsibleElementState, CollapsibleExpansionState};
 use crate::ai::acp::AcpToolCall;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::settings::AISettings;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
-#[cfg(feature = "local_fs")]
-use warp_util::path::LineAndColumnArg;
 use crate::test_util::settings::initialize_settings_for_tests;
 use agent_client_protocol::schema::{Diff, ToolCall, ToolCallContent, ToolKind};
 use ai::diff_validation::DiffType;
 use settings::Setting;
+#[cfg(feature = "local_fs")]
+use std::path::PathBuf;
+#[cfg(feature = "local_fs")]
+use warp_util::path::LineAndColumnArg;
 use warpui::{App, SingletonEntity};
 
 #[test]
