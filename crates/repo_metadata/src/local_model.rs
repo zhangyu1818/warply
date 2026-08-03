@@ -371,10 +371,12 @@ impl LocalRepoMetadataModel {
         {
             if let Some(ref watcher) = self.watcher {
                 let watch_path = local_path.clone();
+                let repo_root = watch_path.clone();
                 watcher.update(ctx, |watcher, _ctx| {
-                    use crate::entry::should_ignore_git_path;
+                    use crate::entry::{is_within_symlink, should_ignore_git_path};
                     let watch_filter = WatchFilter::with_filter(Arc::new(move |watch_path| {
                         !should_ignore_git_path(watch_path)
+                            && !is_within_symlink(watch_path, &repo_root)
                     }));
                     std::mem::drop(watcher.register_path(
                         &watch_path,

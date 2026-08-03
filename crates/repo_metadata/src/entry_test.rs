@@ -1,4 +1,4 @@
-use super::path_passes_filters;
+use super::{is_within_symlink, path_passes_filters};
 use ignore::gitignore::Gitignore;
 use virtual_fs::{Stub, VirtualFS};
 
@@ -297,4 +297,56 @@ fn test_extract_worktree_git_dir() {
         extract_worktree_git_dir(Path::new("/repo/.git/worktrees/foo")),
         None
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn is_within_symlink_prunes_directory_symlinks_and_descendants() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo_root = tmp.path().canonicalize().unwrap();
+    let target = repo_root.join("external");
+    std::fs::create_dir_all(&target).unwrap();
+    let symlink = repo_root.join("result");
+    std::os::unix::fs::symlink(&target, &symlink).unwrap();
+    let descendant = symlink.join("nested");
+
+    assert!(is_within_symlink(&symlink, &repo_root));
+    assert!(is_within_symlink(&descendant, &repo_root));
+
+    let normal_dir = repo_root.join("src");
+    std::fs::create_dir_all(&normal_dir).unwrap();
+    assert!(!is_within_symlink(&normal_dir, &repo_root));
+}
+
+#[cfg(unix)]
+#[test]
+fn is_within_symlink_allows_symlinked_repo_root() {
+    let tmp = tempfile::tempdir().unwrap();
+    let real_root = tmp.path().join("real_repo");
+    std::fs::create_dir_all(&real_root).unwrap();
+    let symlinked_root = tmp.path().join("alias");
+    std::os::unix::fs::symlink(&real_root, &symlinked_root).unwrap();
+    let repo_root = symlinked_root.canonicalize().unwrap();
+
+    assert!(!is_within_symlink(&repo_root, &repo_root));
+    let child = repo_root.join("src");
+    std::fs::create_dir_all(&child).unwrap();
+    assert!(!is_within_symlink(&child, &repo_root));
+}
+
+#[cfg(unix)]
+#[test]
+fn is_within_symlink_ignores_symlinks_above_repo_root() {
+    let tmp = tempfile::tempdir().unwrap();
+    let symlinked_parent = tmp.path().join("link_parent");
+    let real_parent = tmp.path().join("real_parent");
+    std::fs::create_dir_all(&real_parent).unwrap();
+    std::os::unix::fs::symlink(&real_parent, &symlinked_parent).unwrap();
+    let repo_root = symlinked_parent.join("repo");
+    std::fs::create_dir_all(&repo_root).unwrap();
+    let repo_root = repo_root.canonicalize().unwrap();
+
+    let child = repo_root.join("src");
+    std::fs::create_dir_all(&child).unwrap();
+    assert!(!is_within_symlink(&child, &repo_root));
 }
