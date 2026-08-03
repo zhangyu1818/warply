@@ -461,6 +461,20 @@ pub fn should_ignore_git_path(path: &Path) -> bool {
     !is_commit_related_git_file(path) && !is_index_lock_file(path)
 }
 
+/// Returns whether `path` is a symlink or is below one, relative to the watched
+/// repository root. Directory symlinks (e.g. a Nix `result -> /nix/store/...`
+/// symlink) can otherwise make the watcher traverse a large tree outside the
+/// repository. The watched root itself may still be a symlink — only symlinks
+/// strictly below the root are pruned.
+pub fn is_within_symlink(path: &Path, repo_root: &Path) -> bool {
+    path.ancestors()
+        .take_while(|ancestor| *ancestor != repo_root && ancestor.starts_with(repo_root))
+        .any(|ancestor| {
+            std::fs::symlink_metadata(ancestor)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        })
+}
+
 pub fn path_passes_filters(path: &Path, gitignores: &[Gitignore]) -> bool {
     let to_check_path = if path.exists() {
         match dunce::canonicalize(path) {

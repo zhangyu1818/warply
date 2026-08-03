@@ -1,7 +1,7 @@
 #![allow(clippy::disallowed_types)]
 
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{env, fs, process::Command};
 use walkdir::WalkDir;
 use warp_util::path::app_target_dir;
@@ -95,12 +95,14 @@ fn main() -> Result<()> {
 fn get_build_profile_name() -> String {
     // The profile name is always the 3rd last part of the path (with 1 based indexing).
     // e.g. /code/core/target/cli/build/my-build-info-9f91ba6f99d7a061/out
-    env::var("OUT_DIR")
-        .expect("OUT_DIR must be set")
-        .split(std::path::MAIN_SEPARATOR)
-        .nth_back(3)
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"));
+    out_dir
+        .ancestors()
+        .nth(3)
+        .and_then(Path::file_name)
         .expect("could not get profile name")
-        .to_string()
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn add_features() {
