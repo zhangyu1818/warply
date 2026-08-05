@@ -3839,7 +3839,7 @@ impl Workspace {
         match workspace_file_target_route(&target) {
             WorkspaceFileTargetRoute::FileNotebook(layout) => {
                 let session = self.get_active_session(ctx);
-                self.open_file_notebook(path.clone(), session, layout, ctx);
+                self.open_file_notebook(path.clone(), session, layout, Some(code_source), ctx);
             }
             WorkspaceFileTargetRoute::EnvEditor => {
                 let editor_value: Option<String> = self
@@ -3985,7 +3985,7 @@ impl Workspace {
                     line_col,
                     CodeSource::Link {
                         path,
-                        range_start: None,
+                        range_start: line_col,
                         range_end: None,
                     },
                     ctx,
@@ -4962,6 +4962,7 @@ impl Workspace {
         path: PathBuf,
         session: Option<Arc<Session>>,
         layout: EditorLayout,
+        #[cfg(feature = "local_fs")] code_source: Option<CodeSource>,
         ctx: &mut ViewContext<Self>,
     ) {
         let existing_file_pane = {
@@ -4985,7 +4986,7 @@ impl Workspace {
             });
             return;
         }
-        let pane = FilePane::new(Some(path), session, None, ctx);
+        let pane = FilePane::new(Some(path), session, code_source, ctx);
 
         match layout {
             EditorLayout::NewTab => {
@@ -6273,7 +6274,7 @@ impl Workspace {
                     *line_col,
                     CodeSource::Link {
                         path: path.clone(),
-                        range_start: None,
+                        range_start: *line_col,
                         range_end: None,
                     },
                     ctx,
@@ -7925,7 +7926,7 @@ impl Workspace {
     ) {
         let source = CodeSource::Link {
             path: file_path,
-            range_start: None,
+            range_start: line_and_column,
             range_end: None,
         };
         let pane = CodePane::new(source, line_and_column, ctx);
@@ -9494,7 +9495,7 @@ impl Workspace {
                 #[cfg(feature = "local_fs")]
                 {
                     let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
-                    self.open_file_notebook(path.clone(), Some(session.clone()), layout, ctx);
+                    self.open_file_notebook(path.clone(), Some(session.clone()), layout, None, ctx);
                 }
             }
             #[cfg(feature = "local_fs")]
@@ -10095,7 +10096,7 @@ impl Workspace {
                     *line_col,
                     CodeSource::Link {
                         path: path.clone(),
-                        range_start: None,
+                        range_start: *line_col,
                         range_end: None,
                     },
                     ctx,
@@ -12407,7 +12408,7 @@ impl Workspace {
         let tab_bar_border =
             Border::bottom(TAB_BAR_BORDER_HEIGHT).with_border_fill(appearance.theme().outline());
 
-        let mut tab_bar_container = Container::new(
+        let tab_bar_container = Container::new(
             EventHandler::new(Clipped::new(self.render_tab_bar_hoverable(bar_contents)).finish())
                 .on_back_mouse_down(move |ctx, _app, _position| {
                     ctx.dispatch_typed_action(WorkspaceAction::ActivatePrevTab);
@@ -12420,10 +12421,6 @@ impl Workspace {
                 .finish(),
         )
         .with_border(tab_bar_border);
-        if FeatureFlag::NewTabStyling.is_enabled() {
-            tab_bar_container = tab_bar_container
-                .with_background(internal_colors::fg_overlay_1(appearance.theme()));
-        }
         let tab_bar_element = tab_bar_container.finish();
 
         let dimming_color = appearance.theme().background().into();

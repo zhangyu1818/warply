@@ -167,11 +167,15 @@ lazy_static! {
     /// * `^_`: Unit Separator
     /// * `^?`: Delete
     ///
+    /// `ctrl-/` is reserved alongside these. It isn't caret notation for a distinct character, but
+    /// terminals have encoded it as the Unit Separator since xterm and editors bind against it.
+    /// See GH#4620.
+    ///
     /// ## Note
     /// Though caret notation uses uppercase letters (`^C` instead of `^c`), we validate using
     /// _lowercase_ characters because it is impossible to create a [`Keystroke`] of the form
     /// `ctrl-[A-Z]`. See [`Keystroke::parse`].
-    pub static ref CONTROL_CHARACTER_KEY_REGEX: Regex = Regex::new(r"^ctrl-[a-z@\[\\\]^_?]$").expect("should be able to construct regex");
+    pub static ref CONTROL_CHARACTER_KEY_REGEX: Regex = Regex::new(r"^ctrl-[a-z@\[\\\]^_?/]$").expect("should be able to construct regex");
 
     /// Set of actions on Mac that should be considered valid bindings even though they aren't PTY
     /// compliant. We weren't always diligent about avoiding bindings that could conflict with
@@ -284,7 +288,7 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         // differently compared to the app which saves the resulting character used with shift
         // TODO: resolve these keybinding differences
         CustomAction::ToggleResourceCenter => Keystroke::parse("ctrl-shift-/").ok(),
-        CustomAction::ToggleKeybindingsPage => Keystroke::parse("cmdorctrl-/").ok(),
+        CustomAction::ToggleKeybindingsPage => parse_keystroke("cmd-/"),
         CustomAction::ScrollToTopOfSelectedBlocks => Keystroke::parse("cmdorctrl-shift-up").ok(),
         CustomAction::ScrollToBottomOfSelectedBlocks => {
             Keystroke::parse("cmdorctrl-shift-down").ok()
