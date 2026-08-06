@@ -84,7 +84,7 @@ dependencies = [
  "schemars 1.0.4",
  "serde",
  "serde_json",
- "serde_with 3.19.0",
+ "serde_with 3.21.0",
  "strum 0.28.0",
  "tracing",
 ]
@@ -1550,6 +1550,15 @@ checksum = "74fa05ad7d803d413eb8380983b092cbbaf9a85f151b871360e7b00cd7060b37"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
+]
+
+[[package]]
+name = "bs58"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
+dependencies = [
+ "tinyvec",
 ]
 
 [[package]]
@@ -8555,11 +8564,12 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.19.0"
+version = "3.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f05839ce67618e14a09b286535c0d9c94e85ef25469b0e13cb4f844e5593eb19"
+checksum = "76a5c54c7310e7b8b9577c286d7e399ddd876c3e12b3ed917a8aabc4b96e9e8c"
 dependencies = [
  "base64 0.22.1",
+ "bs58",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -8568,7 +8578,7 @@ dependencies = [
  "schemars 1.0.4",
  "serde_core",
  "serde_json",
- "serde_with_macros 3.19.0",
+ "serde_with_macros 3.21.0",
  "time",
 ]
 
@@ -8586,9 +8596,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.19.0"
+version = "3.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf2ebbe86054f9b45bc3881e865683ccfaccce97b9b4cb53f3039d67f355a334"
+checksum = "84d57bc0c8b9a17920c178daa6bb924850d54a9c97ab45194bb8c17ad66bb660"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -10739,7 +10749,7 @@ dependencies = [
 [[package]]
 name = "warp-command-signatures"
 version = "0.0.0"
-source = "git+https://github.com/warpdotdev/command-signatures.git?rev=ec1ae8e84277b0caf46bb028c21ee592a494dc97#ec1ae8e84277b0caf46bb028c21ee592a494dc97"
+source = "git+https://github.com/warpdotdev/command-signatures.git?rev=4990fa1d4f5a9c74251c7330484a7ab6f3d38ac1#4990fa1d4f5a9c74251c7330484a7ab6f3d38ac1"
 dependencies = [
  "cfg-if",
  "itertools 0.10.5",
@@ -10750,21 +10760,21 @@ dependencies = [
  "rust-embed 6.8.1",
  "serde",
  "serde_json",
- "serde_with 2.3.3",
+ "serde_with 3.21.0",
  "warp-completion-metadata",
 ]
 
 [[package]]
 name = "warp-completion-metadata"
 version = "0.0.0"
-source = "git+https://github.com/warpdotdev/command-signatures.git?rev=ec1ae8e84277b0caf46bb028c21ee592a494dc97#ec1ae8e84277b0caf46bb028c21ee592a494dc97"
+source = "git+https://github.com/warpdotdev/command-signatures.git?rev=4990fa1d4f5a9c74251c7330484a7ab6f3d38ac1#4990fa1d4f5a9c74251c7330484a7ab6f3d38ac1"
 dependencies = [
  "html-escape",
  "itertools 0.10.5",
  "log",
  "serde",
  "serde_json",
- "serde_with 2.3.3",
+ "serde_with 3.21.0",
 ]
 
 [[package]]
