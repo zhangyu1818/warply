@@ -24,6 +24,11 @@ fn test_is_likely_shell_command_one_off_keyword_short_circuits() {
         clear_all_token_descriptions(&mut token);
 
         assert!(is_likely_shell_command(&token, word_tokens_count).await);
+
+        let mut token = mock_parsed_input_token("warp agent run").await;
+        let word_tokens_count = token.parsed_tokens.len();
+        clear_all_token_descriptions(&mut token);
+        assert!(is_likely_shell_command(&token, word_tokens_count).await);
     });
 }
 
