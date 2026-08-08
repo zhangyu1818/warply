@@ -199,6 +199,18 @@ impl WindowManager {
         CornerRadius::with_all(Radius::Pixels(radius))
     }
 
+    pub fn window_corner_radius_for_window(&self, window_id: WindowId) -> CornerRadius {
+        let is_fullscreen = self
+            .platform_window(window_id)
+            .map(|window| window.fullscreen_state() == FullscreenState::Fullscreen)
+            .unwrap_or(false);
+        if is_fullscreen {
+            CornerRadius::with_all(Radius::Pixels(0.))
+        } else {
+            self.window_corner_radius()
+        }
+    }
+
     pub(crate) fn open_window(
         &mut self,
         window_id: WindowId,
