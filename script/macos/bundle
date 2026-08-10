@@ -403,8 +403,7 @@ echo "Building and bundling $DEFAULT_TARGET for channel $RELEASE_CHANNEL and bun
 cargo bundle --profile "$CARGO_PROFILE" --bin "$WARPLY_BIN" --target "$DEFAULT_TARGET" --features "$FEATURES"
 popd > /dev/null
 
-echo "Adding rpath to support mac frameworks"
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/MacOS/$WARPLY_BIN"
+"$WORKSPACE_ROOT_DIR/script/macos/add_framework_rpath" "$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/MacOS/$WARPLY_BIN"
 
 export WARPLY_SCHEME_NAME
 export WARPLY_PLIST_PATH="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Info.plist"
