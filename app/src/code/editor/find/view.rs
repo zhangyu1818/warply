@@ -76,6 +76,8 @@ pub struct CodeEditorFind {
     replace_editor: ViewHandle<EditorView>,
     searcher: ModelHandle<Searcher>,
     button_mouse_states: ButtonMouseStates,
+    find_editor_mouse_state: MouseStateHandle,
+    find_editor_position_id: String,
     preserve_case_enabled: bool,
     is_open: bool,
     is_replace_open: bool,
@@ -96,6 +98,7 @@ pub enum FindAction {
     ToggleReplaceOpen,
     ReplaceAll,
     TogglePreserveCase,
+    FocusFindInput,
 }
 
 pub fn init(app: &mut AppContext) {
@@ -222,6 +225,8 @@ impl CodeEditorFind {
             replace_editor,
             searcher,
             button_mouse_states: Default::default(),
+            find_editor_mouse_state: Default::default(),
+            find_editor_position_id: format!("code_editor_find_query_{}", ctx.view_id()),
             preserve_case_enabled: false,
             is_open: false,
             is_replace_open: false,
@@ -272,6 +277,16 @@ impl CodeEditorFind {
             editor.set_interaction_state(state, ctx);
         });
     }
+
+    fn activate_find_input(&mut self, ctx: &mut ViewContext<Self>) {
+        self.find_editor.update(ctx, |editor, ctx| {
+            editor.set_interaction_state(InteractionState::Editable, ctx);
+            editor.select_all(ctx);
+        });
+        ctx.focus(&self.find_editor);
+        ctx.notify();
+    }
+
     fn handle_find_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {
         match event {
             EditorEvent::Edited(_) => {
@@ -744,19 +759,25 @@ impl CodeEditorFind {
         )
         .finish();
 
+        let find_editor = Hoverable::new(self.find_editor_mouse_state.clone(), |_| {
+            SavePosition::new(
+                ConstrainedBox::new(
+                    Clipped::new(ChildView::new(&self.find_editor).finish()).finish(),
+                )
+                .with_height(editor_height)
+                .finish(),
+                &self.find_editor_position_id,
+            )
+            .finish()
+        })
+        .on_mouse_down(|ctx, _, _| {
+            ctx.dispatch_typed_action(FindAction::FocusFindInput);
+        })
+        .finish();
+
         let mut query_editor_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(
-                Shrinkable::new(
-                    1.,
-                    ConstrainedBox::new(
-                        Clipped::new(ChildView::new(&self.find_editor).finish()).finish(),
-                    )
-                    .with_height(editor_height)
-                    .finish(),
-                )
-                .finish(),
-            );
+            .with_child(Shrinkable::new(1., find_editor).finish());
         query_editor_row.add_child(regex_icon);
         query_editor_row.add_child(case_sensitive_icon);
 
@@ -893,6 +914,11 @@ impl TypedActionView for CodeEditorFind {
                 self.preserve_case_enabled = !self.preserve_case_enabled;
                 ctx.notify();
             }
+            FindAction::FocusFindInput => {
+                if !self.is_find_input_editable(ctx) {
+                    self.activate_find_input(ctx);
+                }
+            }
         }
     }
 }
@@ -934,12 +960,7 @@ impl View for CodeEditorFind {
             searcher.set_auto_select(true);
         });
         if focus_ctx.is_self_focused() {
-            self.find_editor.update(ctx, |editor, ctx| {
-                editor.set_interaction_state(InteractionState::Editable, ctx);
-                editor.select_all(ctx);
-            });
-            ctx.focus(&self.find_editor);
-            ctx.notify();
+            self.activate_find_input(ctx);
         }
     }
 

@@ -23,6 +23,13 @@ use notify_debouncer_full::{
 };
 use warpui::{Entity, ModelContext};
 
+fn ensure_watchable_path(path: &Path) -> Result<PathBuf> {
+    if path.as_os_str().is_empty() {
+        anyhow::bail!("the filesystem watcher cannot watch an empty path");
+    }
+    Ok(path.to_path_buf())
+}
+
 #[derive(Debug)]
 enum BackgroundFileWatcherCommand {
     AddPath {
@@ -179,13 +186,14 @@ impl BulkFilesystemWatcher {
     /// Awaiting the future is *not* required for the path to be unregistered.
     pub fn unregister_path(&mut self, path: &Path) -> impl Future<Output = Result<()>> {
         let (tx, rx) = oneshot::channel();
-        let send_result = self.tx.send(BackgroundFileWatcherCommand::RemovePath {
-            path: path.to_path_buf(),
-            response: tx,
+        let send_result = ensure_watchable_path(path).and_then(|path| {
+            self.tx
+                .send(BackgroundFileWatcherCommand::RemovePath { path, response: tx })
+                .map_err(anyhow::Error::new)
         });
 
-        if send_result.is_err() {
-            log::warn!("Filesystem watcher thread has exited");
+        if let Err(error) = &send_result {
+            log::warn!("Failed to unregister watched path: {error:#}");
         }
 
         async move {
@@ -204,15 +212,19 @@ impl BulkFilesystemWatcher {
         recursive_mode: RecursiveMode,
     ) -> impl Future<Output = Result<()>> {
         let (tx, rx) = oneshot::channel();
-        let send_result = self.tx.send(BackgroundFileWatcherCommand::AddPath {
-            path: path.to_path_buf(),
-            filter: watch_filter,
-            response: tx,
-            recursive_mode,
+        let send_result = ensure_watchable_path(path).and_then(|path| {
+            self.tx
+                .send(BackgroundFileWatcherCommand::AddPath {
+                    path,
+                    filter: watch_filter,
+                    response: tx,
+                    recursive_mode,
+                })
+                .map_err(anyhow::Error::new)
         });
 
-        if send_result.is_err() {
-            log::warn!("Filesystem watcher thread has exited");
+        if let Err(error) = &send_result {
+            log::warn!("Failed to register watched path: {error:#}");
         }
 
         async move {

@@ -2341,6 +2341,14 @@ impl DiffStateModel {
             GitFileStatus::Untracked | GitFileStatus::New => {
                 repo_path.join(file_path).is_file().then(String::new)
             }
+            GitFileStatus::Renamed { old_path } => {
+                log::debug!(
+                    "[GIT OPERATION] diff_state.rs get_file_content_at_head git show HEAD:{old_path}"
+                );
+                run_git_command(repo_path, &["show", &format!("HEAD:{old_path}")])
+                    .await
+                    .ok()
+            }
             _ => {
                 log::debug!(
                     "[GIT OPERATION] diff_state.rs get_file_content_at_head git show HEAD:{}",
@@ -2464,15 +2472,18 @@ impl DiffStateModel {
                         file_path_str,
                     ]
                 }
-                GitFileStatus::Renamed { .. } => {
-                    // For renamed files - compare against index
+                GitFileStatus::Renamed { old_path } => {
+                    // Compare the working tree directly against HEAD, passing both the
+                    // old and new paths (mirroring the merge-base branch above).
                     vec![
                         "diff",
                         "--no-ext-diff",
                         "--patch-with-raw",
                         "-z",
                         "--no-color",
+                        "HEAD",
                         "--",
+                        old_path,
                         file_path_str,
                     ]
                 }
