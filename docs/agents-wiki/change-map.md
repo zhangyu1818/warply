@@ -624,9 +624,11 @@ The full re-audit of `27f4933b8..69254d73db` in `upstream-master-full-reaudit-20
 - A prerequisite module or data model had not yet been ported.
 - The upstream patch was large, conflicted with the fork, or crossed several retained subsystems.
 
-Queued prompts, OSC 7 terminal behavior, notebook rendering, retained SSH/remote-git functionality, and the other unresolved local/provider-backed features listed in the full re-audit remain active upstream-source port debt. Tab grouping/pinning, OSC 8 hyperlinks, Async Find, NLD evolution, repo-metadata cancellation, and DCS integrity have now been ported from their authoritative upstream histories. Historical lines in this file saying those product lines were rejected describe earlier merge decisions; they are no longer current guidance.
+Queued prompts, OSC 7 terminal behavior, retained SSH/remote-git functionality, and the other unresolved local/provider-backed features listed in the full re-audit remain active upstream-source port debt. Tab grouping/pinning, OSC 8 hyperlinks, Jupyter notebook rendering, Async Find, NLD evolution, repo-metadata cancellation, and DCS integrity have now been ported from their authoritative upstream histories. Historical lines in this file saying those product lines were rejected describe earlier merge decisions; they are no longer current guidance.
 
 OSC 8 hyperlink support comes directly from `4b39aa3163`: keep its bounded per-grid URI registry, cell/flat-storage attributes, parser and lifecycle resets, block/alternate-screen routing, hyperlink-first hover detection, click/context-menu/tooltip behavior, and tests together. The fork removes the upstream Dogfood/build flag and runs this standard terminal protocol behavior directly; do not reintroduce the rollout gate or upstream `specs/GH6393/**`.
+
+Jupyter `.ipynb` rendering comes from prerequisite `2da530282e` and client integration `13e8b61148`: keep the parser, editor content format, raw fallback, bounded data-URI image path, local notebook routing, Rendered/Raw toggle, and opening affordances together. The fork runs this local feature directly; do not reintroduce the rollout flag or reconstruct parser/rendering behavior independently of those sources.
 
 Resolve that debt only from the exact upstream source history. Existing local feature-port branches containing net-effect, simplified, or reconstructed implementations are not substitutes for source-faithful ports and must not be merged as-is.
 

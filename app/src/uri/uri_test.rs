@@ -450,6 +450,14 @@ fn test_open_file_markdown_unchanged() {
 }
 
 #[test]
+fn test_open_file_ipynb_routes_to_file_open_pipeline() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("analysis.ipynb");
+    std::fs::write(&p, b"{\"nbformat\": 4, \"cells\": []}\n").unwrap();
+    assert_eq!(classify_open_file_action(&p, false), OpenFileAction::Editor);
+}
+
+#[test]
 #[cfg(feature = "local_fs")]
 fn test_open_file_rust_source_still_opens_in_editor() {
     let dir = tempfile::tempdir().unwrap();

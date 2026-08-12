@@ -56,7 +56,7 @@ use warpui::{
 
 use crate::{
     menu::{MenuItem, MenuItemFields},
-    notebooks::file::{is_markdown_file, MarkdownDisplayMode},
+    notebooks::file::{renders_in_warp_notebook_viewer, MarkdownDisplayMode},
     search::{files::icon::icon_from_file_path, ItemHighlightState},
     tab::TAB_BAR_BORDER_HEIGHT,
     ui_components::{blended_colors, buttons::icon_button},
@@ -271,9 +271,12 @@ impl CodeView {
             })
             .or_else(|| self.source.path());
 
-        let is_markdown = path.as_ref().map(is_markdown_file).unwrap_or(false);
+        let renders_in_notebook_viewer = path
+            .as_ref()
+            .map(renders_in_warp_notebook_viewer)
+            .unwrap_or(false);
 
-        if !is_markdown {
+        if !renders_in_notebook_viewer {
             self.markdown_mode_segmented_control = None;
             ctx.notify();
             return;
@@ -2043,7 +2046,7 @@ impl CodeView {
         ];
 
         #[cfg(feature = "local_fs")]
-        if self.local_path(ctx).is_some() {
+        if let Some(local_path) = self.local_path(ctx) {
             let reveal_label = "Reveal in Finder";
             items.extend([
                 MenuItem::Separator,
@@ -2054,6 +2057,13 @@ impl CodeView {
                     .with_on_select_action(CodeViewAction::RevealInFinder)
                     .into_item(),
             ]);
+            if renders_in_warp_notebook_viewer(local_path) {
+                items.push(
+                    MenuItemFields::new("View Markdown preview")
+                        .with_on_select_action(CodeViewAction::RenderMarkdown)
+                        .into_item(),
+                );
+            }
         }
 
         items

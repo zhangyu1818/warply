@@ -5,6 +5,7 @@ use std::{
 };
 
 use pathfinder_geometry::vector::vec2f;
+use warp_editor::model::CoreEditorModel;
 use warp_util::path::user_friendly_path;
 #[cfg(feature = "local_fs")]
 use warpui::clipboard::ClipboardContent;
@@ -67,7 +68,9 @@ use warp_files::{FileModel, FileModelEvent};
 #[cfg(feature = "local_fs")]
 use warp_util::{file::FileId, path::LineAndColumnArg};
 
-pub use crate::util::openable_file_type::is_markdown_file;
+pub use crate::util::openable_file_type::{
+    is_jupyter_notebook_file, is_markdown_file, renders_in_warp_notebook_viewer,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarkdownDisplayMode {
@@ -288,9 +291,19 @@ impl FileNotebookView {
         ctx.focus(&self.editor);
     }
 
+    /// Reset the rich text contents based on the given file content.
     pub fn set_content(&mut self, content: &str, ctx: &mut ViewContext<Self>) {
+        let doc_path = self.file_state.local_path().map(Path::to_path_buf);
+        let render_as_ipynb = self.is_jupyter_notebook_file();
         self.editor.update(ctx, |editor, ctx| {
-            editor.reset_with_markdown(content, ctx);
+            if render_as_ipynb {
+                editor.reset_with_ipynb(content, ctx);
+            } else {
+                editor.reset_with_markdown(content, ctx);
+            }
+            editor.model().update(ctx, |model, ctx| {
+                model.set_document_path(doc_path, ctx);
+            });
         });
     }
 
@@ -467,6 +480,17 @@ impl FileNotebookView {
     #[cfg(not(feature = "local_fs"))]
     fn is_markdown_file(&self) -> bool {
         false
+    }
+
+    fn is_jupyter_notebook_file(&self) -> bool {
+        self.file_state
+            .local_path()
+            .map(is_jupyter_notebook_file)
+            .unwrap_or(false)
+    }
+
+    fn shows_markdown_toggle(&self) -> bool {
+        self.is_markdown_file() || self.is_jupyter_notebook_file()
     }
 
     fn handle_editor_event(
@@ -700,7 +724,9 @@ impl TypedActionView for FileNotebookView {
             }
             #[cfg(feature = "local_fs")]
             FileNotebookAction::OpenInEditor => {
-                if let Some(path) = self.local_path() {
+                if self.is_jupyter_notebook_file() {
+                    self.open_as_code(ctx);
+                } else if let Some(path) = self.local_path() {
                     let settings = EditorSettings::as_ref(ctx);
                     let target = resolve_file_target(&path, settings, None);
                     ctx.emit(FileNotebookEvent::OpenFileWithTarget {
@@ -793,7 +819,7 @@ impl BackingView for FileNotebookView {
     ) -> view::HeaderContent {
         let title = self.pane_configuration.as_ref(app).title().to_owned();
 
-        if self.is_markdown_file() {
+        if self.shows_markdown_toggle() {
             let appearance = Appearance::as_ref(app);
             let is_pane_dragging = ctx.draggable_state.is_dragging();
 
