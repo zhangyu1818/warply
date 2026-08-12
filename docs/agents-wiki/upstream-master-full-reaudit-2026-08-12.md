@@ -11,6 +11,8 @@ The previous audits used an overly restrictive interpretation of the fork contra
 
 The full range was indexed by commit, subject, touched paths, prior audit mentions, and current-fork anchors. Of 1812 commits, 1629 were named in an existing audit and 183 were not. Among the 183 unmentioned commits, 164 touched retained or mixed areas and therefore required source inspection rather than automatic rejection. This document records corrected decisions and newly found omissions; unchanged cloud-only, TUI-only, native non-macOS, app-managed MCP/skills, telemetry, and upstream-process decisions remain covered by the incremental audit files.
 
+Upstream advanced by two commits after this audit snapshot: `87b81ff00b` (cloud-agent trace spans) and `a1cc3a3df3` (TUI-only pricing feature-flag rename). Both were individually checked and remain rejected or not applicable under the fork contract. The live range is therefore 1,814 commits reviewed as 1,812 retained-history entries plus these two non-retained commits.
+
 The audit established corrected decisions; the source-faithful follow-up ports recorded below have now closed all 22 reported omission rows. The audit history remains the evidence for why each feature is retained, adapted, or conditional.
 
 ## Decision Rules Applied
