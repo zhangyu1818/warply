@@ -57,8 +57,6 @@ use crate::{
     appearance::Appearance,
     menu::{Menu, MenuItem, MenuItemFields},
     ui_components::icons::Icon,
-    view_components::DismissibleToast,
-    workspace::ToastStack,
 };
 use warp_core::ui::theme::{color::internal_colors, Fill};
 use warp_core::HostId;
@@ -1406,14 +1404,6 @@ impl FileTreeView {
                 .update(ctx, |model: &mut RepoMetadataModel, ctx| {
                     model.load_directory(&backing_root, &dir_path, ctx)
                 });
-        if matches!(
-            load_result,
-            Err(repo_metadata::RepoMetadataError::BuildTree(
-                repo_metadata::BuildTreeError::ExceededMaxFileLimit,
-            ))
-        ) {
-            Self::show_exceeded_file_limit_toast(ctx);
-        }
         if let Err(error) = load_result {
             log::warn!("Failed to load directory {dir_path}: {error}");
         }
@@ -1543,14 +1533,6 @@ impl FileTreeView {
                 .update(ctx, |model: &mut RepoMetadataModel, ctx| {
                     model.index_lazy_loaded_path(path, ctx)
                 });
-            if matches!(
-                index_result,
-                Err(repo_metadata::RepoMetadataError::BuildTree(
-                    repo_metadata::BuildTreeError::ExceededMaxFileLimit,
-                ))
-            ) {
-                Self::show_exceeded_file_limit_toast(ctx);
-            }
             if let Err(error) = &index_result {
                 log::warn!("Failed to index lazy-loaded path {path}: {error}");
             }
@@ -1580,17 +1562,6 @@ impl FileTreeView {
 
     fn create_empty_entry(path: &StandardizedPath) -> FileTreeEntry {
         FileTreeEntry::new_for_directory(Arc::new(path.clone()))
-    }
-
-    fn show_exceeded_file_limit_toast(ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(String::from(
-                "Folder has too many files to display in the file explorer.",
-            ))
-            .with_object_id("file_tree_exceeded_file_limit".to_string());
-            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-        });
     }
 
     /// Rebuilds the flattened items list for a single root directory only,

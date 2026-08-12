@@ -22,7 +22,7 @@ pub enum RepoContent<'a> {
 use warp_util::standardized_path::StandardizedPath;
 
 use crate::{
-    entry::{BuildTreeError, Entry, FileId, IgnoredPathStrategy},
+    entry::{BudgetExceededBehavior, Entry, FileId, IgnoredPathStrategy},
     gitignores_for_directory, matches_gitignores,
     repository::Repository,
     RepoMetadataError,
@@ -54,8 +54,15 @@ use warpui::ModelContext;
 /// Maximum depth to traverse when building file trees
 const MAX_TREE_DEPTH: usize = 200;
 
-/// Maximum number of files to index per repository to guard against really large codebases
-const MAX_FILES_PER_REPO: usize = 100_000;
+/// Maximum number of non-ignored files to index eagerly per repository.
+///
+/// This is a high safety ceiling, not the common case: gitignored directories
+/// are lazy placeholders and never consume this budget, so only repositories
+/// with an enormous number of *tracked* files reach it. When the budget is
+/// exhausted the builder stops descending breadth-first and leaves the
+/// remaining directories as unloaded placeholders (lazy-loaded on demand)
+/// rather than failing or collapsing the tree to a single level.
+const MAX_FILES_PER_REPO: usize = 200_000;
 
 #[derive(Debug)]
 /// Events emitted by the LocalRepoMetadataModel.
@@ -502,6 +509,7 @@ impl LocalRepoMetadataModel {
             1, // max_depth — only first level
             0,
             &IgnoredPathStrategy::Include,
+            BudgetExceededBehavior::StopAndLazyLoad,
         )
         .map_err(RepoMetadataError::BuildTree)?;
 
@@ -591,7 +599,7 @@ impl LocalRepoMetadataModel {
                 let mut files = Vec::new();
                 let mut gitignores = gitignores.to_owned();
                 let mut file_limit = MAX_FILES_PER_REPO;
-                match Entry::build_tree(
+                match Entry::build_tree_with_ignored_ancestor(
                     path_to_add,
                     &mut files,
                     &mut gitignores,
@@ -599,6 +607,7 @@ impl LocalRepoMetadataModel {
                     MAX_TREE_DEPTH,
                     0,
                     &IgnoredPathStrategy::IncludeLazy,
+                    is_ignored,
                 ) {
                     Ok(subtree) => {
                         mutations.push(FileTreeMutation::AddDirectorySubtree {
@@ -887,37 +896,28 @@ impl LocalRepoMetadataModel {
             async move {
                 let mut files: Vec<crate::entry::FileMetadata> = Vec::new();
                 let mut gitignores_for_build = gitignores_for_build;
-                let initial_gitignores = gitignores_for_build.clone();
-
+                // Budget for non-ignored files. When it is exhausted the builder
+                // stops descending breadth-first and leaves the remaining
+                // directories as unloaded placeholders (lazy-loaded on demand)
+                // instead of failing the whole build. Gitignored subtrees stay
+                // lazy inside the builder.
                 let mut file_limit = MAX_FILES_PER_REPO;
 
-                let mut build_result = Entry::build_tree(
+                let build_result = Entry::build_tree(
                     &repo_path_for_build,
                     &mut files,
                     &mut gitignores_for_build,
                     Some(&mut file_limit),
-                    MAX_TREE_DEPTH,        // max_depth
-                    0,                 // current_depth
+                    MAX_TREE_DEPTH,
+                    0,
                     &IgnoredPathStrategy::IncludeLazy,
+                    BudgetExceededBehavior::StopAndLazyLoad,
                 );
 
-                let mut indexed_with_limit = false;
-                if matches!(build_result, Err(BuildTreeError::ExceededMaxFileLimit)) {
-                    files.clear();
-                    gitignores_for_build = initial_gitignores;
-                    build_result = Entry::build_tree(
-                        &repo_path_for_build,
-                        &mut files,
-                        &mut gitignores_for_build,
-                        None,
-                        1,
-                        0,
-                        &IgnoredPathStrategy::IncludeLazy,
-                    );
-                    if build_result.is_ok() {
-                        indexed_with_limit = true;
-                    }
-                }
+                // A fully-exhausted budget means the repo was too large to index
+                // eagerly: the tree is partial (with a lazy-loaded remainder)
+                // but still browsable and searchable as far as it goes.
+                let indexed_with_limit = file_limit == 0;
 
                 (
                     build_result,
@@ -953,18 +953,17 @@ impl LocalRepoMetadataModel {
                             model
                                 .repositories
                                 .insert(std_repo_path, IndexedRepoState::Failed(e));
+                        } else if indexed_with_limit {
+                            safe_warn!(
+                                safe: ("Repository exceeded max file budget; indexed with partial coverage"),
+                                full: ("Repository {repo_path_str} exceeded the max file budget ({MAX_FILES_PER_REPO}); indexed breadth-first up to the budget — remaining directories load on expand")
+                            );
                         } else {
                             log::info!(
                                 "Successfully indexed repository: {} with {} files",
                                 repo_path_str,
                                 files.len()
                             );
-                            if indexed_with_limit {
-                                safe_warn!(
-                                    safe: ("Repository exceeded max file limit; indexed in degraded mode"),
-                                    full: ("Repository {repo_path_str} exceeded max file limit ({MAX_FILES_PER_REPO}); indexed only first level")
-                                );
-                            }
                         }
                     }
                     Err(e) => {

@@ -9,7 +9,7 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
-        use repo_metadata::entry::{Entry, FileMetadata};
+        use repo_metadata::entry::{BudgetExceededBehavior, Entry, FileMetadata};
         use repo_metadata::repository::RepositorySubscriber;
         use repo_metadata::{Repository, DirectoryWatcher, RepositoryUpdate};
         use ignore::gitignore::Gitignore;
@@ -632,6 +632,7 @@ impl ProjectContextModel {
             MAX_SCAN_DEPTH,
             0,
             &ignore_behavior,
+            BudgetExceededBehavior::StopAndLazyLoad,
         )?;
 
         // Filter files to only include those matching RULES_FILE_PATTERN

@@ -1,7 +1,7 @@
 use futures::channel::oneshot;
 use ignore::gitignore::Gitignore;
 use rayon::prelude::*;
-use repo_metadata::entry::is_file_parsable;
+use repo_metadata::entry::{is_file_parsable, BudgetExceededBehavior, IgnoredPathStrategy};
 use repo_metadata::RepositoryUpdate;
 use std::collections::HashMap;
 use std::{fs, path::Path};
@@ -15,7 +15,6 @@ use syntax_tree::TextSlice;
 use crate::index::file_outline::{FileOutline, Outline, Symbol};
 use crate::index::THREADPOOL;
 use crate::index::{Entry, FileId, FileMetadata};
-use repo_metadata::entry::IgnoredPathStrategy;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -55,6 +54,7 @@ pub async fn build_outline(
         MAX_DEPTH,
         0,
         &IgnoredPathStrategy::Exclude, // override_ignore_for_files
+        BudgetExceededBehavior::StopAndLazyLoad,
     )?;
 
     let (sender, receiver) = oneshot::channel();
