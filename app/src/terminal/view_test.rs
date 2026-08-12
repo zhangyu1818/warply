@@ -1,4 +1,11 @@
 use crate::ai::agent::task::TaskId;
+use crate::ai::agent::{
+    AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, UserQueryMode,
+};
+use crate::ai::blocklist::{BlocklistAIHistoryEvent, ResponseStreamId};
+use crate::ai::llms::LLMId;
+use crate::features::FeatureFlag;
+use chrono::Local;
 use settings::Setting as _;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -3538,5 +3545,162 @@ fn linear_deeplink_via_default_entrypoint_does_not_auto_submit_in_fullscreen() {
                 Some(ENTER_AGAIN_TO_SEND_MESSAGE_ID),
             );
         });
+    })
+}
+
+fn append_query_ai_block(
+    view: &mut TerminalView,
+    query: &str,
+    ctx: &mut ViewContext<TerminalView>,
+) {
+    let history_model = BlocklistAIHistoryModel::handle(ctx);
+    let (conversation_id, task_id, exchange_id, response_stream_id) =
+        history_model.update(ctx, |history_model, ctx| {
+            let conversation_id = history_model.start_new_conversation(view.view_id, false, ctx);
+            let task_id = history_model
+                .conversation(&conversation_id)
+                .expect("conversation should exist")
+                .get_root_task_id()
+                .clone();
+            let response_stream_id = ResponseStreamId::new_for_test();
+            let exchange = AIAgentExchange {
+                id: AIAgentExchangeId::new(),
+                input: vec![AIAgentInput::UserQuery {
+                    query: query.to_owned(),
+                    context: Default::default(),
+                    static_query_type: None,
+                    referenced_attachments: Default::default(),
+                    user_query_mode: UserQueryMode::Normal,
+                    running_command: None,
+                }],
+                output_status: AIAgentOutputStatus::Streaming { output: None },
+                added_message_ids: Default::default(),
+                start_time: Local::now(),
+                finish_time: None,
+                working_directory: None,
+                model_id: LLMId::from("test-model"),
+                coding_model_id: LLMId::from("test-coding-model"),
+                cli_agent_model_id: LLMId::from("test-cli-agent-model"),
+                computer_use_model_id: LLMId::from("test-computer-use-model"),
+            };
+            let exchange_id = exchange.id;
+            history_model
+                .conversation_mut(&conversation_id)
+                .expect("conversation should exist")
+                .append_reassigned_exchange(&response_stream_id, exchange, view.view_id, ctx)
+                .expect("exchange should append");
+            (conversation_id, task_id, exchange_id, response_stream_id)
+        });
+
+    view.handle_ai_history_model_event(
+        history_model,
+        &BlocklistAIHistoryEvent::AppendedExchange {
+            exchange_id,
+            task_id,
+            terminal_view_id: view.view_id,
+            conversation_id,
+            is_hidden: false,
+            response_stream_id: Some(response_stream_id),
+        },
+        ctx,
+    );
+}
+
+/// Regression test for https://github.com/warpdotdev/warp/issues/11212.
+///
+/// Closing the find bar must immediately clear find highlights on AI blocks.
+/// AI blocks are separate child views, so unless `close_find_bar` clears find
+/// state they keep stale highlights until the pane is refocused.
+#[test]
+fn close_find_bar_clears_ai_block_find_highlights() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            append_query_ai_block(view, "highlight the needle here", ctx);
+        });
+
+        let ai_block = terminal.read(&app, |view, _| {
+            view.rich_content_views
+                .iter()
+                .find_map(|rich_content| {
+                    rich_content
+                        .ai_block_metadata()
+                        .map(|metadata| metadata.ai_block_handle.clone())
+                })
+                .expect("an AI block should have been inserted")
+        });
+
+        let find_options = || FindOptions {
+            query: Some("needle".to_owned().into()),
+            ..Default::default()
+        };
+        terminal.update(&mut app, |view, ctx| {
+            view.show_find_bar(ctx);
+            view.run_find(find_options(), ctx);
+        });
+        ai_block.update(&mut app, |block, ctx| {
+            crate::terminal::find::FindableRichContentView::run_find(block, &find_options(), ctx);
+        });
+
+        assert_eq!(
+            ai_block.read(&app, |block, _| block.find_match_count()),
+            1,
+            "running find should highlight the match inside the AI block"
+        );
+
+        terminal.update(&mut app, |view, ctx| {
+            view.close_find_bar(ctx);
+        });
+
+        assert_eq!(
+            ai_block.read(&app, |block, _| block.find_match_count()),
+            0,
+            "closing the find bar should immediately clear AI block find highlights"
+        );
+    })
+}
+
+#[test]
+fn close_find_bar_preserves_options_on_async_find_path() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _async_find = FeatureFlag::AsyncFind.override_enabled(true);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        let needle_options = || FindOptions {
+            query: Some("needle".to_owned().into()),
+            ..Default::default()
+        };
+
+        terminal.update(&mut app, |view, ctx| {
+            view.show_find_bar(ctx);
+            view.run_find(needle_options(), ctx);
+        });
+
+        assert_eq!(
+            terminal.read(&app, |view, ctx| view
+                .find_model
+                .as_ref(ctx)
+                .active_find_options()
+                .map(|options| options.query.clone())),
+            Some(needle_options().query),
+            "running find on the async path must save the active query"
+        );
+
+        terminal.update(&mut app, |view, ctx| {
+            view.close_find_bar(ctx);
+        });
+
+        assert_eq!(
+            terminal.read(&app, |view, ctx| view
+                .find_model
+                .as_ref(ctx)
+                .active_find_options()
+                .map(|options| options.query.clone())),
+            Some(needle_options().query),
+            "closing the find bar must preserve the saved query on the async path"
+        );
     })
 }

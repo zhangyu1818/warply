@@ -73,7 +73,7 @@ dunce.workspace = true
 embed_plist = "1.2"
 enclose = "1.1.8"
 enum-iterator.workspace = true
-event-listener = "5.4.0"
+event-listener.workspace = true
 field_mask.workspace = true
 flate2 = "1.0.17"
 float-cmp.workspace = true
@@ -301,6 +301,7 @@ warp_util.workspace = true
 
 # Note that we support channel-specific enables for these features
 [features]
+async_find = []
 changelog = []
 completions_v2 = [
     "plugin_host",
@@ -327,6 +328,7 @@ default = [
     "vim_code_editor",
     "expand_edit_to_pane",
     "ui_zoom",
+    "async_find",
     "classic_completions",
     "force_classic_completions",
     "pluggable_notifications",

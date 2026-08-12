@@ -1481,6 +1481,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]
         FeatureFlag::PluggableNotifications,
+        #[cfg(feature = "async_find")]
+        FeatureFlag::AsyncFind,
         #[cfg(feature = "new_tab_styling")]
         FeatureFlag::NewTabStyling,
         #[cfg(feature = "incremental_auto_reload")]
