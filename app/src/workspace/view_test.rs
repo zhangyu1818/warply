@@ -60,6 +60,21 @@ use warp_editor::editor::NavigationKey;
 use warpui::AddSingletonModel;
 use warpui::{platform::WindowStyle, App, ViewHandle};
 
+#[test]
+fn test_tab_bar_traffic_light_space_regression_for_resource_center_overlap() {
+    let cases = [
+        (TrafficLightSide::Left, false),
+        (TrafficLightSide::Right, true),
+    ];
+
+    for (side, should_reserve_space) in cases {
+        assert_eq!(
+            super::should_reserve_traffic_light_space_in_tab_bar(side),
+            should_reserve_space
+        );
+    }
+}
+
 #[cfg(feature = "local_fs")]
 #[test]
 fn markdown_viewer_file_target_routes_to_file_notebook() {
