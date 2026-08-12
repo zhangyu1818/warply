@@ -2,11 +2,13 @@
 //!
 //! Queries are not rendered in blocks corresponding to requested command or requested action responses.
 
+use pathfinder_geometry::vector::vec2f;
+use warp_core::ui::color::Opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
     elements::{
-        Container, CornerRadius, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Radius,
-        Shrinkable, Wrap,
+        Border, Container, CornerRadius, DropShadow, Flex, MainAxisAlignment, MainAxisSize,
+        ParentElement, Radius, Shrinkable, Wrap,
     },
     fonts::{Properties, Style, Weight},
     ui_components::{
@@ -25,6 +27,16 @@ use crate::{
     ui_components::{blended_colors, icons::Icon},
 };
 
+/// Width of the accent ring drawn around the user query while agent-view transcript
+/// navigation targets this query.
+const NAVIGATION_RING_BORDER_WIDTH: f32 = 2.;
+/// Blur radius of the accent halo behind the navigation ring.
+const NAVIGATION_HALO_BLUR_RADIUS: f32 = 6.;
+/// How far the accent halo extends beyond the query.
+const NAVIGATION_HALO_SPREAD_RADIUS: f32 = 1.5;
+/// Opacity (in percent) of the accent halo.
+const NAVIGATION_HALO_OPACITY: Opacity = 60;
+
 /// Data required to render the AI block query component.
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Props<'a> {
@@ -36,6 +48,7 @@ pub(super) struct Props<'a> {
     pub(super) is_ai_input_enabled: bool,
     pub(super) attachments: &'a [(AttachmentType, String)],
     pub(super) find_context: Option<FindContext<'a>>,
+    pub(super) is_agent_transcript_navigation_target: bool,
 }
 
 pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Element>> {
@@ -50,6 +63,7 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
             props.is_ai_input_enabled,
             props.attachments,
             props.find_context,
+            props.is_agent_transcript_navigation_target,
             app,
         )
     })
@@ -66,6 +80,7 @@ pub(crate) fn render_query(
     is_ai_input_enabled: bool,
     attachments: &[(AttachmentType, String)],
     find_context: Option<FindContext>,
+    is_agent_transcript_navigation_target: bool,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let properties = Properties {
@@ -93,9 +108,25 @@ pub(crate) fn render_query(
 
     query = query.with_child(render_attachments(attachments, appearance));
 
+    let mut query_container = Container::new(query.finish());
+    if is_agent_transcript_navigation_target {
+        let accent = appearance.theme().accent();
+        query_container = query_container
+            .with_foreground_border(
+                Border::all(NAVIGATION_RING_BORDER_WIDTH).with_border_fill(accent),
+            )
+            .with_drop_shadow(DropShadow {
+                color: accent.with_opacity(NAVIGATION_HALO_OPACITY).into_solid(),
+                offset: vec2f(0., 0.),
+                blur_radius: NAVIGATION_HALO_BLUR_RADIUS,
+                spread_radius: NAVIGATION_HALO_SPREAD_RADIUS,
+            })
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(5.)));
+    }
+
     Flex::row()
         .with_cross_axis_alignment(warpui::elements::CrossAxisAlignment::Start)
-        .with_child(Shrinkable::new(1., query.finish()).finish())
+        .with_child(Shrinkable::new(1., query_container.finish()).finish())
         .finish()
 }
 
