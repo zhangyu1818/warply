@@ -161,6 +161,12 @@ The local branches `merge/upstream-local-2026-08-12-batch2` through `batch13`, `
 
 At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a “net-effect manual port,” and the branch history contains simplified/reconstructed implementations and conclusions that Async Find and repo-metadata cancellation are not applicable. Those conclusions conflict with this re-audit and the source-fidelity rule. Do not merge these branches as-is. Rebuild each accepted feature from the exact upstream source history, retaining only independently verifiable integration glue where it can be traced back to upstream behavior.
 
+## Source-faithful Implementation Progress
+
+| Feature | Upstream source | Result | Verification |
+| --- | --- | --- | --- |
+| zsh default bracketed-paste restoration | `43e3f58cf5` | Applied the upstream bootstrap hunk unchanged. | `zsh -n app/assets/bundled/bootstrap/zsh_body.sh`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
+
 ## Port Order
 
 1. Direct, cleanly applicable correctness/security fixes: zsh paste, SVG cache, flat-storage underflow, decoded branch click, unsaved indicator, local history cap, macOS termination, and remote child-exit race.
