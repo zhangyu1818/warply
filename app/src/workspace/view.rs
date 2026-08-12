@@ -256,7 +256,9 @@ use warpui::{elements::MouseStateHandle, fonts::Properties};
 
 use crate::channel::ChannelState;
 
-use crate::ai::blocklist::{BlocklistAIHistoryEvent, PendingQueryState, SerializedBlockListItem};
+use crate::ai::blocklist::{
+    BlocklistAIHistoryEvent, PendingAttachment, PendingQueryState, SerializedBlockListItem,
+};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -9790,6 +9792,7 @@ impl Workspace {
         conversation_id: AIConversationId,
         fork_from_exchange: Option<ForkFromExchange>,
         initial_prompt: Option<String>,
+        initial_attachments: Vec<PendingAttachment>,
         destination: ForkedConversationDestination,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -9879,6 +9882,7 @@ impl Workspace {
                     Self::handle_forked_conversation_prompts(
                         terminal_view,
                         initial_prompt,
+                        initial_attachments,
                         forked_conversation_id,
                         ctx,
                     );
@@ -9923,7 +9927,8 @@ impl Workspace {
 
                     Self::handle_forked_conversation_prompts(
                         terminal_view,
-                        initial_prompt,
+                        initial_prompt.clone(),
+                        initial_attachments.clone(),
                         forked_conversation_id,
                         ctx,
                     );
@@ -9964,7 +9969,8 @@ impl Workspace {
 
                 Self::handle_forked_conversation_prompts(
                     terminal_view,
-                    initial_prompt,
+                    initial_prompt.clone(),
+                    initial_attachments.clone(),
                     forked_conversation_id,
                     ctx,
                 );
@@ -9983,6 +9989,7 @@ impl Workspace {
     fn handle_forked_conversation_prompts(
         terminal_view: ViewHandle<TerminalView>,
         initial_prompt: Option<String>,
+        initial_attachments: Vec<PendingAttachment>,
         forked_conversation_id: AIConversationId,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -9991,6 +9998,13 @@ impl Workspace {
         };
 
         terminal_view.update(ctx, |terminal_view, terminal_view_ctx| {
+            if !initial_attachments.is_empty() {
+                terminal_view
+                    .ai_context_model()
+                    .update(terminal_view_ctx, |context_model, ctx| {
+                        context_model.append_pending_attachments(initial_attachments, ctx);
+                    });
+            }
             terminal_view
                 .ai_controller()
                 .update(terminal_view_ctx, |controller, ctx| {
@@ -16809,12 +16823,14 @@ impl TypedActionView for Workspace {
                 conversation_id,
                 fork_from_exchange,
                 initial_prompt,
+                initial_attachments,
                 destination,
             } => {
                 self.fork_ai_conversation(
                     *conversation_id,
                     *fork_from_exchange,
                     initial_prompt.clone(),
+                    initial_attachments.clone(),
                     *destination,
                     ctx,
                 );
@@ -16824,6 +16840,7 @@ impl TypedActionView for Workspace {
                     *conversation_id,
                     None,
                     None,
+                    Vec::new(),
                     ForkedConversationDestination::SplitPane,
                     ctx,
                 );

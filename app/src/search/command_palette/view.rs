@@ -820,6 +820,7 @@ impl View {
                     conversation_id,
                     fork_from_exchange: None,
                     initial_prompt: None,
+                    initial_attachments: Vec::new(),
                     destination: ForkedConversationDestination::SplitPane,
                 });
             }

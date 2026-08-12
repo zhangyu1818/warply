@@ -305,6 +305,7 @@ impl ConversationDetailsPanel {
                     conversation_id: *conversation_id,
                     fork_from_exchange: None,
                     initial_prompt: None,
+                    initial_attachments: Vec::new(),
                     destination: ForkedConversationDestination::NewTab,
                 });
             }

@@ -8,6 +8,7 @@ use warp_core::execution_mode::AppExecutionMode;
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::blocklist::PendingAttachment;
 use crate::root_view::OpenPath;
 use crate::undo_close::UndoCloseStack;
 use crate::workspace::{Workspace, WorkspaceAction};
@@ -53,6 +54,7 @@ pub struct ForkAIConversationParams {
     pub conversation_id: AIConversationId,
     pub fork_from_exchange: Option<ForkFromExchange>,
     pub initial_prompt: Option<String>,
+    pub initial_attachments: Vec<PendingAttachment>,
     pub destination: ForkedConversationDestination,
 }
 
@@ -176,6 +178,7 @@ fn fork_ai_conversation(params: &ForkAIConversationParams, ctx: &mut AppContext)
             conversation_id: params.conversation_id,
             fork_from_exchange: params.fork_from_exchange,
             initial_prompt: params.initial_prompt.clone(),
+            initial_attachments: params.initial_attachments.clone(),
             destination: params.destination,
         },
     );

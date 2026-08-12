@@ -6,6 +6,7 @@ use warp_util::path::LineAndColumnArg;
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::blocklist::PendingAttachment;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::drive::CloudObjectTypeAndId;
 use crate::object_ids::SyncId;
@@ -494,6 +495,7 @@ pub enum WorkspaceAction {
         fork_from_exchange: Option<ForkFromExchange>,
         /// Initial prompt to send in the forked conversation.
         initial_prompt: Option<String>,
+        initial_attachments: Vec<PendingAttachment>,
         /// Where to open the forked conversation.
         destination: ForkedConversationDestination,
     },

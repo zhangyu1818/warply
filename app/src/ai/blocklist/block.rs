@@ -4514,6 +4514,7 @@ impl TypedActionView for AIBlock {
                             conversation_id: self.client_ids.conversation_id,
                             fork_from_exchange: None,
                             initial_prompt: None,
+                            initial_attachments: Vec::new(),
                             destination: ForkedConversationDestination::SplitPane,
                         },
                     );

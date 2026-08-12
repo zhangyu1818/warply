@@ -16,8 +16,8 @@ use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::{
-    BlocklistAIHistoryModel, InputConfig, InputType, QueuedQuery, QueuedQueryModel,
-    QueuedQueryOrigin,
+    BlocklistAIHistoryModel, InputConfig, InputType, PendingAttachment, QueuedQuery,
+    QueuedQueryModel, QueuedQueryOrigin,
 };
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
@@ -604,10 +604,14 @@ impl Input {
                     ForkedConversationDestination::SplitPane
                 };
 
+                let initial_attachments =
+                    self.maybe_take_attachments_for_initial_prompt(argument, ctx);
+
                 ctx.dispatch_typed_action(&WorkspaceAction::ForkAIConversation {
                     conversation_id,
                     fork_from_exchange: None,
                     initial_prompt: argument.cloned(),
+                    initial_attachments,
                     destination,
                 });
             }
@@ -765,5 +769,18 @@ impl Input {
                 false
             }
         }
+    }
+
+    fn maybe_take_attachments_for_initial_prompt(
+        &mut self,
+        argument: Option<&String>,
+        ctx: &mut ViewContext<Self>,
+    ) -> Vec<PendingAttachment> {
+        if argument.is_none_or(|argument| argument.trim().is_empty()) {
+            return Vec::new();
+        }
+        self.ai_context_model.update(ctx, |context_model, ctx| {
+            context_model.take_pending_attachments(ctx)
+        })
     }
 }

@@ -3271,6 +3271,7 @@ impl Input {
                         exchange_id: *exchange_id,
                     }),
                     initial_prompt: None,
+                    initial_attachments: Vec::new(),
                     destination,
                 });
 

@@ -18364,6 +18364,7 @@ impl TerminalView {
                         conversation_id: *conversation_id,
                         fork_from_exchange: None,
                         initial_prompt: None,
+                        initial_attachments: Vec::new(),
                         destination: ForkedConversationDestination::SplitPane,
                     },
                 );
@@ -18417,6 +18418,7 @@ impl TerminalView {
                             exchange_id: *exchange_id,
                         }),
                         initial_prompt: None,
+                        initial_attachments: Vec::new(),
                         destination: ForkedConversationDestination::SplitPane,
                     },
                 );
@@ -20254,6 +20256,7 @@ impl TypedActionView for TerminalView {
                             conversation_id,
                             fork_from_exchange: Some(ForkFromExchange { exchange_id }),
                             initial_prompt: None,
+                            initial_attachments: Vec::new(),
                             destination: ForkedConversationDestination::SplitPane,
                         });
                     }

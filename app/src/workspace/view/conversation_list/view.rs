@@ -1023,6 +1023,7 @@ impl TypedActionView for ConversationListView {
                     conversation_id: ai_conversation_id,
                     fork_from_exchange: None,
                     initial_prompt: None,
+                    initial_attachments: Vec::new(),
                     destination: *destination,
                 });
             }
