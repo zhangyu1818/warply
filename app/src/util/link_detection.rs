@@ -48,9 +48,18 @@ pub(crate) struct DetectedLinksState {
     // on a link to open the tooltip, this link should remain highlighted and the tooltip in place
     // even if we hover over other links.
     pub(crate) link_location_open_tooltip: Option<LinkLocation>,
+    pub(crate) tooltip_position_id: String,
 }
 
 impl DetectedLinksState {
+    pub(crate) fn resolved_tooltip_position_id(&self) -> String {
+        if self.tooltip_position_id.is_empty() {
+            RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID.to_owned()
+        } else {
+            self.tooltip_position_id.clone()
+        }
+    }
+
     /// Given a text location and char range, returns the detected link there if any.
     pub fn link_at(
         &self,

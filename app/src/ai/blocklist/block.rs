@@ -183,6 +183,10 @@ const AUTO_EXPAND_REQUESTED_COMMAND_DELAY: std::time::Duration =
 pub const RICH_CONTENT_SECRET_FIRST_CHAR_POSITION_ID: &str =
     "ai_block:rich_content_secret_first_char_position";
 
+fn rich_content_link_tooltip_position_id(view_id: &EntityId) -> String {
+    format!("{RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID}_{view_id}")
+}
+
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
@@ -3532,9 +3536,11 @@ impl AIBlock {
             link_range: link_range.clone(),
             location: *location,
         });
+        let position_id = rich_content_link_tooltip_position_id(&ctx.view_id());
+        self.detected_links_state.tooltip_position_id = position_id.clone();
         ctx.emit(AIBlockEvent::ShowLinkTooltip(RichContentLinkTooltipInfo {
             link: rich_content_link,
-            position_id: RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID.to_owned(),
+            position_id,
         }));
     }
 
@@ -4517,10 +4523,13 @@ impl TypedActionView for AIBlock {
             AIBlockAction::SelectText => {
                 // If there's an ongoing text selection, clear all other selections within the
                 // `AIBlock`'s view sub-hierarchy to ensure only one component has a selection at a time.
+                let has_selection = self.selected_text.read().is_some();
                 self.clear_other_selections(None, ctx.window_id(), ctx);
                 // If we have a selection, we should use the default cursor, even if it's over a link.
                 ctx.reset_cursor();
-                self.dismiss_ai_tooltips(ctx);
+                if has_selection {
+                    self.dismiss_ai_tooltips(ctx);
+                }
                 // Notify the terminal view so it can keep the model's record of which rich
                 // content block has an active selection in sync (rich content selections are
                 // not tied to the point-based model selection used for regular blocks).

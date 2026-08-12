@@ -202,3 +202,26 @@ fn test_possible_file_paths_in_word_accepts_token_at_separator_count_cap() {
     }
     assert!(possible_file_paths_in_word(&at_cap).next().is_some());
 }
+
+#[test]
+fn link_tooltip_anchor_ids_are_unique_per_block() {
+    let mut block_a = DetectedLinksState::default();
+    let mut block_b = DetectedLinksState::default();
+    block_a.tooltip_position_id = format!("{RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID}_1");
+    block_b.tooltip_position_id = format!("{RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID}_2");
+
+    assert_ne!(
+        block_a.resolved_tooltip_position_id(),
+        block_b.resolved_tooltip_position_id()
+    );
+    assert_eq!(
+        block_a.resolved_tooltip_position_id(),
+        block_a.tooltip_position_id
+    );
+
+    let unset = DetectedLinksState::default();
+    assert_eq!(
+        unset.resolved_tooltip_position_id(),
+        RICH_CONTENT_LINK_FIRST_CHAR_POSITION_ID
+    );
+}
