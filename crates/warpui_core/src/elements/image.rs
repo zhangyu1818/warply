@@ -20,6 +20,7 @@ pub struct Image {
     size: Option<Vector2F>,
     origin: Option<Point>,
     fit_type: FitType,
+    layout_using_paint_bounds: bool,
     animated_image_behavior: AnimatedImageBehavior,
     cache_option: CacheOption,
     started_at: Option<Instant>,
@@ -58,6 +59,7 @@ impl Image {
             size: None,
             origin: None,
             fit_type: FitType::Contain,
+            layout_using_paint_bounds: false,
             animated_image_behavior: AnimatedImageBehavior::default(),
             cache_option,
             started_at: None,
@@ -132,6 +134,11 @@ impl Image {
 
     pub fn before_load(mut self, element: Box<dyn Element>) -> Self {
         self.before_load_element = Some(element);
+        self
+    }
+
+    pub fn layout_using_paint_bounds(mut self) -> Self {
+        self.layout_using_paint_bounds = true;
         self
     }
 
@@ -278,7 +285,16 @@ impl Element for Image {
         ctx: &mut LayoutContext,
         app: &AppContext,
     ) -> Vector2F {
-        let size = constraint.max;
+        let mut size = constraint.max;
+
+        if self.layout_using_paint_bounds {
+            let asset_cache = AssetCache::as_ref(app);
+            let image_size = ImageCache::as_ref(app).image_size(self.source.clone(), asset_cache);
+            if let Some(image_size) = image_size {
+                size = dimensions(image_size.to_f32(), size, self.fit_type);
+            }
+        }
+
         self.size = Some(size);
 
         if let Some(before_load_element) = self.before_load_element.as_mut() {
