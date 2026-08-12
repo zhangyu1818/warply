@@ -152,6 +152,8 @@ pub use working_directories::{WorkingDirectoriesEvent, WorkingDirectoriesModel};
 
 use self::pane::{DetachType, PaneViewEvent};
 
+pub const TOGGLE_MAXIMIZE_PANE_BINDING_NAME: &str = "pane_group:toggle_maximize_pane";
+
 lazy_static! {
     // The value to use as the initial window bounds if we are unable to
     // determine them for any reason.
@@ -400,7 +402,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::SplitPaneRight)
         .with_enabled(|| ContextFlag::CreateNewSession.is_enabled()),
         EditableBinding::new(
-            "pane_group:toggle_maximize_pane",
+            TOGGLE_MAXIMIZE_PANE_BINDING_NAME,
             "Toggle Maximize Active Pane",
             PaneGroupAction::ToggleMaximizePane,
         )

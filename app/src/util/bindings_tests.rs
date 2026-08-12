@@ -1,5 +1,6 @@
 use warpui::{
     keymap::{EditableBinding, Keystroke, Trigger},
+    platform::OperatingSystem,
     App,
 };
 
@@ -55,6 +56,44 @@ fn test_keybinding_name_to_display_string() {
             assert_eq!(
                 Some("⌥⌘/"),
                 keybinding_name_to_display_string("workspace:toggle_resource_center", ctx)
+                    .as_deref()
+            );
+        });
+    });
+}
+
+#[test]
+fn test_toggle_maximize_pane_binding_is_editable() {
+    App::test((), |mut app| async move {
+        app.update(crate::pane_group::init);
+
+        app.update(|ctx| {
+            use crate::pane_group::TOGGLE_MAXIMIZE_PANE_BINDING_NAME;
+
+            assert!(ctx
+                .editable_bindings()
+                .any(|binding| binding.name == TOGGLE_MAXIMIZE_PANE_BINDING_NAME));
+
+            let default = keybinding_name_to_display_string(TOGGLE_MAXIMIZE_PANE_BINDING_NAME, ctx);
+            if OperatingSystem::get().is_mac() {
+                assert_eq!(Some("⇧⌘⏎"), default.as_deref());
+            } else {
+                assert_eq!(None, default);
+            }
+
+            ctx.set_custom_trigger(
+                TOGGLE_MAXIMIZE_PANE_BINDING_NAME.to_owned(),
+                Trigger::Keystrokes(vec![Keystroke::parse("cmd-shift-M").unwrap()]),
+            );
+
+            let displayed_keybinding = if OperatingSystem::get().is_mac() {
+                "⇧⌘M"
+            } else {
+                "Shift Logo M"
+            };
+            assert_eq!(
+                Some(displayed_keybinding),
+                keybinding_name_to_display_string(TOGGLE_MAXIMIZE_PANE_BINDING_NAME, ctx)
                     .as_deref()
             );
         });
