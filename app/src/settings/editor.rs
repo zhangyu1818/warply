@@ -77,6 +77,38 @@ impl Display for CursorDisplayType {
     }
 }
 
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Deserialize,
+    Serialize,
+    Sequence,
+    schemars::JsonSchema,
+    settings_value::SettingsValue,
+)]
+#[schemars(
+    description = "How line numbers are displayed in code editors.",
+    rename_all = "snake_case"
+)]
+pub enum CodeEditorLineNumberMode {
+    #[default]
+    Absolute,
+    Relative,
+}
+
+impl CodeEditorLineNumberMode {
+    pub fn dropdown_item_label(&self) -> &'static str {
+        match self {
+            Self::Absolute => "Absolute",
+            Self::Relative => "Relative",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TabBehavior {
     #[default]
@@ -187,6 +219,14 @@ define_settings_group!(AppEditorSettings, settings: [
         private: false,
         toml_path: "text_editing.vim_status_bar",
         description: "Whether the Vim status bar is displayed.",
+    },
+    code_editor_line_number_mode: CodeEditorLineNumberModeSetting {
+        type: CodeEditorLineNumberMode,
+        default: CodeEditorLineNumberMode::default(),
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "text_editing.code_editor_line_number_mode",
+        description: "How line numbers are displayed in code editors.",
     },
     autocomplete_symbols: AutocompleteSymbols {
         type: bool,
