@@ -1,15 +1,13 @@
 ---
 name: merge-upstream-master
-description: Use when porting commits or changes from upstream Warp master into this ACP-only macOS fork, including merge, cherry-pick, rebase, restack, sync, or manual apply requests.
+description: Reviews and ports commits or changes from upstream Warp master into this ACP-only macOS fork. Use for merges, cherry-picks, rebases, restacks, syncs, or selective upstream ports.
 ---
 
 # Merge Upstream Master
 
 ## Purpose
 
-Port upstream Warp changes into this fork without restoring removed product areas. Every upstream commit must be reviewed before it is applied.
-
-The fork's purpose is to remove Warp **server/cloud/account/telemetry dependencies** — not to freeze the feature set at the baseline date. New upstream features that are purely local (no Warp server API, cloud account, billing, auth, or telemetry dependency) are in scope and should be accepted after review. Tab grouping, keyboard shortcuts, editor improvements, and other client-only features belong to the fork's terminal product direction as much as the features that existed at baseline.
+Continuously bring compatible upstream terminal and macOS product improvements into this fork without restoring Warp-owned services. This fork changes service ownership and supported platforms; it is not frozen at the fork baseline. Every upstream commit must be reviewed before it is applied.
 
 ## Required Reading
 
@@ -27,62 +25,71 @@ Read these before touching code for upstream merge work:
 This fork is a macOS terminal client with ACP-backed AI surfaces.
 
 - The maintained app target is macOS only.
-- Warp-hosted Agent, Warp cloud accounts, and Warp server APIs are removed.
+- The app must not require Warp-hosted Agent, Warp cloud accounts, Warp server APIs, Warp telemetry, or tracking.
 - AgentView remains the UI shell, but agent backend behavior is ACP-only.
 - Next Command and Prompt Suggestions remain OpenAI-compatible terminal suggestion flows.
 - SSH remote terminal, SSH remote server, ControlMaster transport, remote file tree, remote command execution, and Warpify remain terminal features.
 - MCP and skills belong to the ACP agent process, not the Warp app bundle or app settings.
+- New upstream features are in scope when they can run locally or through a retained provider without depending on Warp services.
 - Do not add backward-compatibility shims for deleted product areas, deleted settings, old persisted formats, or removed platform branches.
+
+## Feature Preservation Rules
+
+- Treat upstream as the source of truth for Warp's local terminal and macOS product behavior. The retained-area list is illustrative, not a closed allowlist.
+- Decide from runtime ownership, data flow, and dependencies, not from whether the feature existed at the fork baseline or is already named in fork documentation.
+- For every user-visible change, determine whether its core behavior still works with all Warp-owned endpoints, identities, hosted execution, telemetry, and tracking removed. If it does, accept it or adapt away only its incidental dependencies, including when the feature is new or absent from existing fork inventories.
+- Adapt mixed changes by keeping their local UI, state model, persistence, and behavior while removing Warp service, account, sync, marketing, telemetry, and tracking integration. A removable reference to deleted plumbing is not a reason to drop the whole feature.
+- For AgentView or AI features, retain upstream UI and local behavior only when execution can use ACP or an existing configurable provider boundary. Never restore Warp-hosted execution.
+- Reject a feature only when its essential behavior depends on a removed Warp service or unsupported local platform and cannot operate through a retained local or provider-backed architecture.
+- Never silently omit a user-visible local feature. Investigate its upstream dependencies and record the concrete reason for any rejected portion.
+
+## Upstream Source Fidelity
+
+- Treat the exact upstream source and commit history as the implementation authority for every accepted or adapted change.
+- Begin by applying the original upstream commit or patch, or by copying its exact files and hunks. Only then make the smallest adaptations required by the fork contract.
+- Do not independently rewrite, approximate, or recreate upstream core behavior from descriptions, release notes, screenshots, observed behavior, or memory. Use those materials only to locate or verify the authoritative source.
+- A selective or manual port means selecting upstream code and modifying it for this fork; it never means writing an equivalent implementation from scratch.
+- Preserve upstream structure, algorithms, tests, assets, and user-visible behavior wherever compatible.
+- If the code does not apply cleanly, inspect upstream parents, call sites, history, and prerequisite commits. If the authoritative source cannot be inspected, do not reconstruct it by guessing.
+- Limit new handwritten code to necessary fork integration glue and provider-boundary replacements around the copied upstream core implementation.
 
 ## Merge Workflow
 
-1. Inspect the upstream commit before applying it.
+1. Inspect the upstream commit, its feature context, and any dependent upstream commits before applying it.
 
 ```bash
-git show --stat <commit>
-git show --name-only <commit>
-git show <commit> -- <path>
+git show --stat --summary <commit>
+git show --name-status <commit>
+git diff <commit>^ <commit> -- <path>
+git log --oneline --reverse <base>..<commit>
 ```
 
 2. Classify every touched area as `accept`, `adapt`, `reject`, or `not applicable`.
 
-- `accept`: The change improves retained or **new purely-local** terminal/macOS/UI behavior and does not restore deleted systems or add any Warp server/account/telemetry dependency.
-- `adapt`: The feature is retained or new-local, but upstream code depends on removed auth/cloud/telemetry/MCP/skills/platform plumbing. Port only the useful part.
+- `accept`: The change improves local macOS, terminal, or provider-backed behavior and does not restore deleted systems.
+- `adapt`: The feature is retained, but upstream code also depends on removed auth, cloud, telemetry, tracking, MCP, skills, or platform plumbing. Port the upstream feature and remove or replace only those dependencies.
 - `reject`: The change is for deleted product areas, deleted platform targets, specs, or compatibility shims.
 - `not applicable`: The change touches code that no longer exists or only served removed systems.
 
-### New local features
-
-Upstream may add features after the fork baseline date that are purely local — no Warp server API, cloud account, billing, telemetry, or auth dependency. These are **in scope**. The fork removes Warp server dependencies, not local terminal features. Do not reject a feature merely because it did not exist at baseline.
-
-Accept a new local feature when review confirms all of:
-
-- No Warp server/cloud/account/billing/auth/telemetry dependency anywhere in the implementation.
-- No rollout flag that gates on server-side state. If upstream gates the feature behind a `FeatureFlag`, strip the flag and run the feature directly (same as retained features).
-- It runs on macOS with the fork's local architecture: ACP for agent surfaces, OpenAI-compatible endpoints for suggestions, local persistence, AppKit windowing.
-- It does not depend on a removed module to function. If it does, adapt the dependency or defer with a recorded rationale.
-
-Examples of features that qualify: tab grouping, tab color cycling, editor/viewer improvements, new local slash commands, keyboard shortcuts, pane/window management, completion enhancements — anything that is client-side only.
-
-3. Apply only the accepted or adapted parts.
+3. Port accepted or adapted behavior according to Upstream Source Fidelity.
 
 - Do not blindly cherry-pick a commit just because it builds.
-- If only part of a commit fits, manually port that part.
-- If a retained feature is involved, adapt it to the current fork architecture instead of restoring upstream dependency chains.
-- Compare against master behavior when debugging regressions, then decide whether matching master or intentionally diverging better preserves the fork contract.
+- Remove Warp service and tracking hooks from otherwise retained features instead of rejecting the local functionality with them.
+- Compare the result with current upstream behavior and account explicitly for every intentionally omitted hunk or behavior.
 
-4. Record meaningful decisions in `docs/agents-wiki/`.
+4. Record meaningful decisions and upstream provenance in `docs/agents-wiki/`.
 
-- Write short merge rationale for accepted/adapted/rejected areas.
+- Record source commits and paths, plus short rationale for accepted, adapted, rejected, and intentionally omitted areas.
 - Use `docs/agents-wiki/change-map.md` for durable path-level decisions.
 - Do not add upstream `specs/**`, standalone `PRODUCT.md` or `TECH.md`, or `docs/superpowers/plans/**` documents.
 - Do not recreate `llms.txt` or `llms-full.txt` for fork memory. This repo uses `docs/agents-wiki/` as its local LLM wiki and `.agents/skills/` for task procedures.
 
 ## Retained Areas
 
-This list covers features that existed at baseline. It is **not exhaustive** — new upstream features that are purely local (see "New local features" above) belong here too once accepted. Usually accept or adapt compatible upstream fixes for:
+Usually accept or adapt compatible upstream fixes and new features for:
 
-- Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions.
+- Local-first terminal interaction, organization, and productivity behavior whose state and execution remain on-device.
+- Terminal emulator, shell integration, PTY/session handling, input editor, completions.
 - Natural language detection and input classification.
 - AgentView shell, conversation navigation, help shortcuts, code review side panel, context chips, local attachments.
 - ACP implementation under `app/src/ai/acp/`.

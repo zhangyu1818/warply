@@ -4,7 +4,7 @@ This contract defines what must remain true after local development or upstream 
 
 ## Fork Purpose
 
-The fork removes Warp **server/cloud/account/telemetry dependencies**. It does not freeze the feature set at the baseline date. Purely local upstream features — those with no Warp server API, cloud account, billing, auth, or telemetry dependency — are in scope and should be accepted after review, whether or not they existed at baseline. Tab grouping, keyboard shortcuts, editor/UI improvements, and other client-only features are part of the fork's terminal product direction.
+The fork removes Warp **server/cloud/account/telemetry dependencies**. It does not freeze the feature set at the baseline date. Upstream behavior is in scope when its core can run locally or through a retained provider without those dependencies, whether or not it existed at baseline.
 
 ## Maintained Product Surface
 

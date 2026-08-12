@@ -14,6 +14,7 @@ The fork's purpose is to remove Warp **server/cloud/account/telemetry dependenci
 - Next Command and Prompt Suggestions remain OpenAI-compatible terminal suggestion flows, not Warp-hosted AI APIs.
 - SSH remote terminal, SSH remote server, and Warpify are retained terminal features.
 - MCP and skills belong to the ACP agent process, not the Warp app bundle or app settings.
+- New upstream features remain in scope when they can run locally or through a retained provider without depending on Warp services.
 - Do not add backward-compatibility shims for deleted product areas, deleted settings, old persisted formats, or removed platform branches.
 
 Fork baseline:
@@ -32,15 +33,28 @@ Every upstream commit must be reviewed before it is applied.
 
 - Inspect the commit and its touched paths.
 - Classify each change as accept, adapt, reject, or not applicable.
-- If only part of a commit fits this fork, port only that part.
+- Treat retained areas as directions, not a closed allowlist. Judge new features by runtime ownership, data flow, and service dependencies rather than whether they existed at the fork baseline.
+- If only part of a commit fits this fork, select and port the corresponding upstream code for that part.
 - If a retained feature is involved, adapt it to the current fork architecture instead of restoring upstream dependency chains.
 - Record meaningful merge decisions and cleanup rationale in `docs/agents-wiki/`.
 - Do not treat passing tests as proof that product boundaries are preserved; inspect the actual code paths.
 
+## Upstream Source Fidelity
+
+For upstream merge work, the exact upstream source and commit history are the implementation authority.
+
+- Every accepted or adapted change must begin from the actual upstream commit, patch, file, or hunk. Apply or copy that implementation first, then make the smallest changes required for this fork.
+- Do not independently rewrite, approximate, or recreate upstream core behavior from descriptions, release notes, screenshots, observed behavior, or memory. Those materials may help locate or verify the source, but they are not implementation sources.
+- A selective or manual port means selecting upstream code and modifying it for this fork; it never means writing an equivalent implementation from scratch.
+- Preserve upstream structure, algorithms, tests, assets, and user-visible behavior wherever they are compatible with the fork contract.
+- If the code cannot be applied cleanly, inspect upstream parents, call sites, history, and prerequisite commits. If the authoritative source cannot be inspected, do not reconstruct it by guessing.
+- New handwritten code is limited to necessary fork integration glue and provider-boundary replacements around the copied upstream core implementation.
+
 ## Retained Areas
 
-These are part of the fork and should receive compatible upstream fixes:
+These directions are part of the fork and should receive compatible upstream fixes and new features:
 
+- Local-first terminal interaction, organization, and productivity behavior whose state and execution remain on-device.
 - Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions.
 - Natural language detection and input classification.
 - AgentView shell, conversation navigation, help shortcuts, code review side panel, context chips, local attachments.
@@ -76,9 +90,9 @@ Do not restore these systems from upstream:
 | Upstream change area | Decision |
 | --- | --- |
 | Terminal, shell integration, PTY, blocks, editor, completions | Usually accept or port directly after review. |
-| New purely-local features (tab grouping, shortcuts, editor/UI improvements, etc.) | Accept after review if no Warp server/account/telemetry dependency. Strip rollout flags; run directly. Not rejected just because they postdate the baseline. |
+| New local or provider-backed product behavior | Accept or adapt after reviewing runtime ownership and data flow. Remove rollout/service plumbing as needed; do not reject behavior merely because it postdates the baseline. |
 | GPUI/Warp UI framework, macOS windowing, rendering | Usually accept if it does not depend on removed product surfaces. |
-| ACP, AgentView, `blocklist`, conversation history, AI settings | Port manually and preserve ACP-only backend behavior. |
+| ACP, AgentView, `blocklist`, conversation history, AI settings | Selectively port the upstream implementation and preserve ACP-only backend behavior. |
 | Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep the OpenAI-compatible provider. |
 | SSH, remote terminal, remote server, Warpify | Keep when it supports terminal behavior without Warp account auth. Reject Warp-hosted downloads, token auth, and cloud remote-control semantics. |
 | Persistence and migrations | Accept only for retained local data. Reject account/team/billing/cloud/MCP/skills compatibility migrations. |

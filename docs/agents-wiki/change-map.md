@@ -615,6 +615,19 @@ These names are not enough to decide merge behavior:
 
 Always inspect call sites and data flow before making a merge decision.
 
+## 2026-08-12 Full Upstream Re-audit Correction
+
+The full re-audit of `27f4933b8..69254d73db` in `upstream-master-full-reaudit-2026-08-12.md` supersedes historical blanket rejection or deferral decisions based on any of these reasons:
+
+- A feature or rollout flag was absent from the fork.
+- A local feature had not previously been declared a retained product surface.
+- A prerequisite module or data model had not yet been ported.
+- The upstream patch was large, conflicted with the fork, or crossed several retained subsystems.
+
+In particular, tab grouping/pinning, Async Find, queued prompts, NLD evolution, OSC 7/8 terminal behavior, notebook rendering, repo-metadata cancellation, DCS integrity, retained SSH/remote-git functionality, and the other local/provider-backed features listed in the full re-audit are active upstream-source port debt. Historical lines in this file saying those product lines were rejected describe earlier merge decisions; they are no longer current guidance.
+
+Resolve that debt only from the exact upstream source history. Existing local feature-port branches containing net-effect, simplified, or reconstructed implementations are not substitutes for source-faithful ports and must not be merged as-is.
+
 ## Required Audit Queries
 
 Before finishing a major upstream merge, run:

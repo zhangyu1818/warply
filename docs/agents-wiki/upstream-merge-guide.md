@@ -35,7 +35,7 @@ Accept or cherry-pick directly when the change is limited to local generic behav
 - Remote terminal fixes that do not require Warp account tokens.
 - Warpify fixes for subshell and SSH sessions, including tmux wrapper behavior.
 - ACP protocol rendering, including generic tool-call display.
-- **New purely-local features** added by upstream after the baseline date. Accept after confirming no Warp server/cloud/account/billing/auth/telemetry dependency. If upstream gates the feature behind a rollout flag, strip the flag and run the feature directly. Examples: tab grouping, tab color cycling, editor/viewer improvements, new local commands, keyboard shortcuts, pane/window management.
+- New local or provider-backed behavior added by upstream after the baseline date. Accept or adapt after inspecting runtime ownership, data flow, and service dependencies. Strip rollout/service plumbing only after applying the authoritative upstream implementation.
 
 ## Adapt
 
