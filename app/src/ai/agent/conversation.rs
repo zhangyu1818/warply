@@ -52,7 +52,7 @@ use super::{
     },
     AIAgentAction, AIAgentActionId, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentTodo, AIAgentTodoId, FinishedAIAgentOutput,
-    MessageId, RenderableAIError, UserQueryMode,
+    MessageId, RenderableAIError, SummarizationType, UserQueryMode,
 };
 use super::{AIAgentOutput, OutputModelInfo, Shared};
 
@@ -581,6 +581,25 @@ impl AIConversation {
         self.status_error_message.as_deref()
     }
 
+    pub fn is_summarizing(&self) -> bool {
+        let Some(exchange) = self.latest_visible_exchange() else {
+            return false;
+        };
+        let Some(output) = exchange.output_status.output() else {
+            return false;
+        };
+        output.get().messages.last().is_some_and(|m| {
+            matches!(
+                m.message,
+                AIAgentOutputMessageType::Summarization {
+                    finished_duration: None,
+                    summarization_type: SummarizationType::ConversationSummary,
+                    ..
+                }
+            )
+        })
+    }
+
     pub fn update_status(
         &mut self,
         status: ConversationStatus,
@@ -845,6 +864,11 @@ impl AIConversation {
         self.exchanges_reversed()
             .skip_while(|e| e.has_passive_request())
             .nth(0)
+    }
+
+    pub fn latest_visible_exchange(&self) -> Option<&AIAgentExchange> {
+        self.exchanges_reversed()
+            .find(|e| !e.has_passive_request() && !self.is_exchange_hidden(e.id))
     }
 
     pub fn first_exchange(&self) -> Option<&AIAgentExchange> {

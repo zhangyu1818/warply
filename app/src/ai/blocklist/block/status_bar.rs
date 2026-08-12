@@ -31,7 +31,8 @@ use crate::{
             },
             BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIContextEvent,
             BlocklistAIContextModel, BlocklistAIController, BlocklistAIHistoryEvent,
-            BlocklistAIInputEvent, BlocklistAIInputModel, ResponseStreamId,
+            BlocklistAIInputEvent, BlocklistAIInputModel, QueuedQueryEvent, QueuedQueryModel,
+            ResponseStreamId,
         },
     },
     settings::InputModeSettings,
@@ -39,7 +40,7 @@ use crate::{
     terminal::{
         model::block::LONG_RUNNING_COMMAND_DURATION_MS,
         model_events::{ModelEvent, ModelEventDispatcher},
-        TerminalModel, CANCEL_COMMAND_KEYBINDING,
+        TerminalModel, CANCEL_COMMAND_KEYBINDING, TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
     },
     util::bindings::keybinding_name_to_keystroke,
     BlocklistAIHistoryModel,
@@ -65,6 +66,7 @@ pub fn init(app: &mut AppContext) {
 
 #[derive(Default)]
 struct StateHandles {
+    queue_next_prompt_button: MouseStateHandle,
     stop_button: MouseStateHandle,
 }
 
@@ -79,6 +81,7 @@ pub struct BlocklistAIStatusBar {
     shimmering_text_handle: ShimmeringTextStateHandle,
     state_handles: StateHandles,
 
+    queue_next_prompt_keystroke: Option<Keystroke>,
     stop_keystroke: Option<Keystroke>,
     // Whether the summarization cancellation confirmation dialog is open.
     is_summarization_cancel_dialog_open: bool,
@@ -179,10 +182,15 @@ impl BlocklistAIStatusBar {
             }
         });
         ctx.subscribe_to_model(&context_model, |_, _, event, ctx| {
+            if matches!(event, BlocklistAIContextEvent::PendingQueryStateUpdated) {
+                ctx.notify();
+            }
+        });
+        ctx.subscribe_to_model(&QueuedQueryModel::handle(ctx), |_, _, event, ctx| {
             if matches!(
                 event,
-                BlocklistAIContextEvent::PendingQueryStateUpdated
-                    | BlocklistAIContextEvent::QueueNextPromptToggled
+                QueuedQueryEvent::QueueNextPromptToggled { .. }
+                    | QueuedQueryEvent::DefaultModeChanged
             ) {
                 ctx.notify();
             }
@@ -227,8 +235,12 @@ impl BlocklistAIStatusBar {
         let input_mode_settings = InputModeSettings::handle(ctx);
         ctx.subscribe_to_model(&input_mode_settings, |_, _, _, ctx| ctx.notify());
         let stop_keystroke = keybinding_name_to_keystroke(CANCEL_COMMAND_KEYBINDING, ctx);
+        let queue_next_prompt_keystroke =
+            keybinding_name_to_keystroke(TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, ctx);
         ctx.subscribe_to_model(&KeybindingChangedNotifier::handle(ctx), |me, _, _, ctx| {
             me.stop_keystroke = keybinding_name_to_keystroke(CANCEL_COMMAND_KEYBINDING, ctx);
+            me.queue_next_prompt_keystroke =
+                keybinding_name_to_keystroke(TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, ctx);
             ctx.notify();
         });
 
@@ -301,6 +313,7 @@ impl BlocklistAIStatusBar {
             agent_view_controller,
             cli_subagent_controller,
             state_handles: Default::default(),
+            queue_next_prompt_keystroke,
             stop_keystroke,
             summarization_cancel_dialog,
             latest_response_stream_id: None,
@@ -648,6 +661,15 @@ impl BlocklistAIStatusBar {
                 action_model: self.action_model.as_ref(app),
                 shimmering_text_handle: &self.shimmering_text_handle,
                 summarization_start_time: self.summarization_start_time,
+                queue_next_prompt_button: Some(ButtonProps {
+                    button_handle: &self.state_handles.queue_next_prompt_button,
+                    keystroke: self.queue_next_prompt_keystroke.as_ref(),
+                    is_active: QueuedQueryModel::as_ref(app).is_queue_next_prompt_enabled(
+                        conversation.id(),
+                        active_block,
+                        app,
+                    ),
+                }),
                 stop_button: Some(ButtonProps {
                     button_handle: &self.state_handles.stop_button,
                     keystroke: self.stop_keystroke.as_ref(),

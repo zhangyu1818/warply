@@ -95,6 +95,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
+    app.add_singleton_model(crate::ai::blocklist::QueuedQueryModel::new);
     app.add_singleton_model(AcpRegistryModel::new_for_test);
     app.add_singleton_model(AcpAgentModel::new_for_test);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());

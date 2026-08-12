@@ -13,6 +13,7 @@ mod input_model;
 mod permissions;
 mod persistence;
 pub mod prompt;
+pub(crate) mod queued_query;
 pub mod summarization_cancel_dialog;
 
 pub(super) mod view_util;
@@ -46,6 +47,10 @@ pub(crate) use passive_suggestions::{
 };
 pub(crate) use persistence::PersistedAIInputType;
 pub(crate) use persistence::{PersistedAIInput, SerializedBlockListItem};
+pub(crate) use queued_query::{
+    is_lrc_auto_queue_active, AutofireAction, QueuedQuery, QueuedQueryEvent, QueuedQueryId,
+    QueuedQueryModel, QueuedQueryOrigin,
+};
 pub(crate) use view_util::{
     ai_brand_color, ai_indicator_height, get_ai_block_overflow_menu_element_position_id,
     get_attached_blocks_chip_element_position_id, render_ai_agent_mode_icon,

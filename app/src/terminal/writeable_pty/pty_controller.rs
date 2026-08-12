@@ -536,7 +536,9 @@ impl<T: EventLoopSender> PtyController<T> {
                 CommandExecutionSource::AI { metadata } => {
                     model.start_command_execution_with_ai_metadata(metadata)
                 }
-                CommandExecutionSource::User => model.start_command_execution(),
+                CommandExecutionSource::User | CommandExecutionSource::QueuedCommand => {
+                    model.start_command_execution()
+                }
                 CommandExecutionSource::EnvVarCollection { metadata } => {
                     model.start_command_execution_from_env_var_collection(metadata)
                 }

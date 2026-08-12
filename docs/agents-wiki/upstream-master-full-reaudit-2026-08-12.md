@@ -57,16 +57,14 @@ These were not fully represented in the reported 22-feature list.
 
 ### Queued Prompts And Terminal Command Queueing
 
-The current fork still has the old single queued-callback path and lacks the upstream queued-prompts model and panel. This is retained local AgentView behavior.
-
-Port from the upstream source chain beginning with:
+The fork now carries the retained local queued-prompts model, panel, settings, AgentView integration, attachment queueing, terminal-command queueing, and long-running-command drain behavior from the upstream source chain:
 
 - Core panel/model and local interaction: `98af7b654b`, `eadc05e6e9`, `fb8d00b073`, `c6b842fe7a`, `1aa03f9c83`, `86a602b990`, `0aee45df21`, `c4b0829094`.
 - Attachments, terminal commands, and notifications: `19018bf4ab`, `e367c9de8b`, `16ab972974`.
 - Correctness follow-ups: `53e6cd1933`, `9e3d6826b0`, `5ce6dd2dcd`.
-- Inspect `6fe675601c` for shared source, but omit its cloud-mode-only wiring.
+- Shared-source follow-ups: `6fe675601c`, `099855bfe8`, `2d8587373d`.
 
-The old audit already called parts of this an adapt candidate, but never completed the source port.
+The port keeps the final upstream local queue model and tests as its authority. It removes only cloud-mode locked rows, shared-session/cloud-agent behavior, telemetry, rollout gates, and upstream specs. ACP submission remains the fork's backend boundary.
 
 ### Natural Language Detection Evolution
 
@@ -193,12 +191,13 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 | OSC 8 terminal hyperlinks | `4b39aa3163` | Applied the upstream OSC parameter parser, bounded per-grid hyperlink registry, flat-storage hyperlink attribute map, cell stamping and lifecycle resets, block/alternate-screen/model lookup, hover precedence, Cmd-click/action opening, context-menu copy/open behavior, URI tooltip, and all source tests. The feature is directly enabled in the fork, so only the upstream `OscHyperlinks` build/channel flag and its disabled-state tests were removed. Upstream `specs/GH6393/**` and an unrelated `.gitignore` entry were omitted; test macro/type paths were mapped to the fork's current `warpui` re-export. | 22 focused `warp_terminal` tests and 10 focused `warp` tests passed; `cargo check -p warp --all-targets`; `cargo check -p integration --all-targets`; all five source integration tests compiled and registered, but the local UI driver stopped each after terminal bootstrap because no frame rendered before the first command assertion; `cargo fmt --all -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 22.6 GiB of generated build artifacts. |
 | Jupyter `.ipynb` rendering | `2da530282e`, `13e8b61148` | Applied the upstream v4 notebook parser and raw fallback, editor `Ipynb` content format, bounded base64 data-URI image handling, notebook-model reset path, local file routing, Rendered/Raw toggle, code-editor and terminal menus, open-in-Warp banner behavior, tooltip suppression, and source tests. The fork enables this retained local feature directly, so the upstream `JupyterNotebookRendering` rollout flag was removed. Upstream remote-file-tree branches whose `LocalOrRemotePath` opening entry point is absent were not recreated, and removed cloud/telemetry/WASM dependency chains were not restored. | 24 `ipynb_parser` tests, six `asset_cache` tests, the focused editor data-URI fallback test, the `warp_util` file-type test, and three `warp` routing tests passed; `cargo check -p warp --all-targets`; `cargo fmt --all -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 16.9 GiB of generated build artifacts. The broader editor suite had 411 passes and five pre-existing Markdown/URL round-trip assertion failures outside the added parser/data-URI branches. |
 | OSC 7 working-directory propagation | `08996b5601` | Applied the upstream strict local-host OSC 7 parser, percent-decoding rules, dedicated `BlockWorkingDirectoryUpdated` event, per-block CWD updates, terminal/session/AgentView propagation, tab subtitle and prompt-chip refresh, and repository-detection trigger. Preserved the upstream SSH/Warpify spoofing guard and the invariant that OSC 7 neither emits `BlockMetadataReceived` nor drains command-finish callbacks. Adapted the upstream `LocalOrRemotePath` call to the fork's retained local `PathBuf` repository detector without changing the source event flow. | 19 OSC 7 parser tests, the block CWD event test, and the command-finish callback isolation test passed; `cargo check -p warp --all-targets`; `cargo check -p integration --all-targets`; `cargo fmt --all`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 15.5 GiB of generated build artifacts. |
+| Queued prompts and terminal command queueing | `98af7b654b`, `eadc05e6e9`, `6fe675601c`, `fb8d00b073`, `c6b842fe7a`, `1aa03f9c83`, `86a602b990`, `0aee45df21`, `099855bfe8`, `19018bf4ab`, `e367c9de8b`, `53e6cd1933`, `16ab972974`, `5a35550d38`, `c29cf0fde6`, `2d8587373d`, `9e3d6826b0`, `5ce6dd2dcd` | Applied the upstream conversation-scoped queue model, editable/reorderable panel, prompt-submission and long-running-command settings, status-bar and command-palette controls, attachment preservation, terminal-command rows, in-flight drain rules, and conversation lifecycle cleanup. Kept the final upstream model and test suite as the source baseline; removed only cloud-mode locked rows, shared-session/cloud-agent behavior, telemetry, rollout flags, and upstream specs, while routing sends through the retained ACP controller. | 41 focused queued-query/panel tests and three slash-command integration tests passed; `cargo check -p warp --all-targets`; `cargo fmt --all`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 21.8 GiB of generated build artifacts. |
 
 ## Port Order
 
 1. Direct, cleanly applicable correctness/security fixes: zsh paste, SVG cache, flat-storage underflow, decoded branch click, unsaved indicator, local history cap, macOS termination, and remote child-exit race.
 2. Complete prerequisite stacks: DCS integrity, repo metadata, Async Find, NLD, and Rich Input footer/settings.
-3. Remaining major local feature cluster: queued prompts.
+3. Completed major local feature cluster: queued prompts.
 4. Remaining AgentView, Project Explorer, editor/settings, Markdown, menu, and toast features.
 
 Each port should use a dedicated upstream-source commit series with provenance recorded per commit. A feature is complete only after upstream tests or faithful fork adaptations cover its retained behavior and deleted-surface scans confirm that Warp services and tracking were not restored.

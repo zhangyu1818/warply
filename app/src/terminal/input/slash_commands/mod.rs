@@ -15,7 +15,10 @@ use warpui::clipboard::ClipboardContent;
 use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, InputType};
+use crate::ai::blocklist::{
+    BlocklistAIHistoryModel, InputConfig, InputType, QueuedQuery, QueuedQueryModel,
+    QueuedQueryOrigin,
+};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::object_ids::SyncId;
@@ -634,11 +637,22 @@ impl Input {
                     .is_some_and(|c| c.status().is_in_progress() || c.status().is_blocked());
 
                 if is_in_progress {
-                    ctx.dispatch_typed_action(&WorkspaceAction::QueuePromptForConversation {
-                        prompt,
+                    let attachments = self.ai_context_model.update(ctx, |context_model, ctx| {
+                        context_model.take_pending_attachments(ctx)
+                    });
+                    QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.append(
+                            conversation_id,
+                            QueuedQuery::new_with_attachments(
+                                prompt,
+                                QueuedQueryOrigin::QueueSlashCommand,
+                                attachments,
+                            ),
+                            ctx,
+                        );
                     });
                 } else {
-                    self.submit_queued_prompt(prompt, ctx);
+                    self.submit_user_query_now(prompt, ctx);
                 }
             }
             open_repo if command.name == commands::OPEN_REPO.name => {

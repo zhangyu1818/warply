@@ -89,7 +89,7 @@ use crate::{
         },
         loading::shimmering_warp_loading_text,
     },
-    terminal::{self, TerminalModel},
+    terminal::{self, view::TerminalAction, TerminalModel},
     util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
     util::time_format::format_elapsed_seconds,
 };
@@ -155,6 +155,7 @@ pub struct WarpingProps<'a, V> {
     pub model: &'a dyn AIBlockModel<View = V>,
     pub shimmering_text_handle: &'a ShimmeringTextStateHandle,
     pub summarization_start_time: Option<instant::Instant>,
+    pub queue_next_prompt_button: Option<ButtonProps<'a>>,
     pub stop_button: Option<ButtonProps<'a>>,
     pub action_model: &'a BlocklistAIActionModel,
     pub terminal_model: &'a TerminalModel,
@@ -374,6 +375,13 @@ pub fn render_warping_indicator<V: View>(
 
     let mut buttons_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
     let mut has_buttons = false;
+    if let Some(queue_button_props) = props.queue_next_prompt_button {
+        has_buttons = true;
+        buttons_row.add_child(render_queue_next_prompt_button(
+            queue_button_props,
+            appearance,
+        ));
+    }
     if let Some(stop_button_props) = props.stop_button {
         has_buttons = true;
         buttons_row = buttons_row
@@ -670,6 +678,43 @@ fn render_stop_button(props: ButtonProps, appearance: &Appearance) -> Box<dyn El
         props.is_active,
         |ctx: &mut EventContext<'_>| {
             ctx.dispatch_typed_action(BlocklistAIStatusBarAction::Stop);
+        },
+    )
+}
+
+fn render_queue_next_prompt_button(
+    props: ButtonProps,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let icon_color = if props.is_active {
+        appearance.theme().accent()
+    } else {
+        appearance.theme().disabled_ui_text_color()
+    };
+    let icon_size = get_icon_size(appearance);
+    let icon = Container::new(
+        ConstrainedBox::new(Icon::ClockPlus.to_warpui_icon(icon_color).finish())
+            .with_height(icon_size)
+            .with_width(icon_size)
+            .finish(),
+    )
+    .finish();
+
+    let tooltip_text = if props.is_active {
+        "Auto-queue is on: your next prompt will be queued"
+    } else {
+        "Auto-queue next prompt while agent is responding"
+    };
+
+    render_warping_indicator_button(
+        props.button_handle.clone(),
+        appearance,
+        icon,
+        props.keystroke,
+        tooltip_text.to_string(),
+        props.is_active,
+        |ctx| {
+            ctx.dispatch_typed_action(TerminalAction::ToggleQueueNextPrompt);
         },
     )
 }

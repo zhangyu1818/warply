@@ -15,8 +15,7 @@ use warpui::{platform::WindowStyle, App, ViewHandle, WindowId};
 use watcher::HomeDirectoryWatcher;
 
 use super::settings::initialize_settings_for_tests;
-use crate::ai::blocklist::BlocklistAIPermissions;
-use crate::ai::blocklist::SerializedBlockListItem;
+use crate::ai::blocklist::{BlocklistAIPermissions, QueuedQueryModel, SerializedBlockListItem};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::restored_conversations::RestoredAgentConversations;
@@ -59,6 +58,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(LocalWorkflows::new);
     app.add_singleton_model(|_| History::default());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
+    app.add_singleton_model(QueuedQueryModel::new);
     app.add_singleton_model(AcpAgentModel::new_for_test);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());

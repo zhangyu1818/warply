@@ -2,8 +2,12 @@ use crate::ai::acp::config_options::{probe_config_options, AcpConfigOption};
 use crate::ai::acp::registry::AcpRegistryModel;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors};
-use crate::settings::{AISettings, TerminalSuggestionEffort};
+use crate::settings::{
+    AISettings, AISettingsChangedEvent, LongRunningCommandSubmissionMode, PromptSubmissionMode,
+    TerminalSuggestionEffort,
+};
 use crate::terminal::local_shell::LocalShellState;
+use crate::util::bindings::BindingGroup;
 use crate::view_components::{Dropdown, DropdownItem};
 use agent_client_protocol::schema::SessionConfigOptionCategory;
 use settings::{Setting, ToggleableSetting};
@@ -22,8 +26,8 @@ use warpui::ui_components::{
     switch::SwitchStateHandle,
 };
 use warpui::{
-    Action, AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    id, keymap::FixedBinding, Action, AppContext, Element, Entity, SingletonEntity,
+    TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use super::settings_page::{
@@ -31,7 +35,7 @@ use super::settings_page::{
     render_dropdown_item_label, render_separator, MatchData, PageType, SettingsPageMeta,
     SettingsPageViewHandle, SettingsWidget, ToggleState, HEADER_PADDING,
 };
-use super::{SettingsAction, SettingsSection};
+use super::{flags, SettingsAction, SettingsSection};
 
 const CONTENT_FONT_SIZE: f32 = 12.;
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
@@ -45,10 +49,50 @@ fn ai_text_colors(appearance: &Appearance) -> TextColors {
 }
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
-    _app: &mut AppContext,
-    _context: &warpui::keymap::ContextPredicate,
-    _builder: fn(SettingsAction) -> T,
+    app: &mut AppContext,
+    context: &warpui::keymap::ContextPredicate,
+    builder: fn(SettingsAction) -> T,
 ) {
+    let ai_context = context.clone() & id!(flags::IS_ANY_AI_ENABLED);
+    let prompt_mode_bindings: Vec<FixedBinding> = PromptSubmissionMode::iter()
+        .map(|mode| {
+            let context_flag = match mode {
+                PromptSubmissionMode::Interrupt => flags::PROMPT_SUBMISSION_INTERRUPT,
+                PromptSubmissionMode::Queue => flags::PROMPT_SUBMISSION_QUEUE,
+            };
+            FixedBinding::empty(
+                mode.command_palette_description(),
+                builder(SettingsAction::AI(
+                    AISettingsPageAction::SetPromptSubmissionMode(mode),
+                )),
+                ai_context.clone() & !id!(context_flag),
+            )
+            .with_group(BindingGroup::Ai.as_str())
+        })
+        .collect();
+    app.register_fixed_bindings(prompt_mode_bindings);
+
+    let lrc_mode_bindings: Vec<FixedBinding> = LongRunningCommandSubmissionMode::iter()
+        .map(|mode| {
+            let context_flag = match mode {
+                LongRunningCommandSubmissionMode::SendImmediately => {
+                    flags::LRC_SUBMISSION_SEND_IMMEDIATELY
+                }
+                LongRunningCommandSubmissionMode::QueueUntilCommandCompletes => {
+                    flags::LRC_SUBMISSION_QUEUE_UNTIL_COMMAND_COMPLETES
+                }
+            };
+            FixedBinding::empty(
+                mode.command_palette_description(),
+                builder(SettingsAction::AI(
+                    AISettingsPageAction::SetLongRunningCommandSubmissionMode(mode),
+                )),
+                ai_context.clone() & id!(flags::PROMPT_SUBMISSION_INTERRUPT) & !id!(context_flag),
+            )
+            .with_group(BindingGroup::Ai.as_str())
+        })
+        .collect();
+    app.register_fixed_bindings(lrc_mode_bindings);
 }
 
 pub struct AISettingsPageView {
@@ -61,6 +105,8 @@ pub struct AISettingsPageView {
     terminal_suggestions_api_key_editor: ViewHandle<EditorView>,
     terminal_suggestions_model_editor: ViewHandle<EditorView>,
     terminal_suggestions_effort_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
+    default_prompt_submission_mode_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
+    lrc_submission_mode_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
 }
 
 fn acp_config_option_selected_value(
@@ -230,6 +276,9 @@ impl AISettingsPageView {
 
         let terminal_suggestions_effort_dropdown =
             Self::create_terminal_suggestions_effort_dropdown(ctx);
+        let default_prompt_submission_mode_dropdown =
+            Self::create_default_prompt_submission_mode_dropdown(ctx);
+        let lrc_submission_mode_dropdown = Self::create_lrc_submission_mode_dropdown(ctx);
 
         let terminal_suggestions_editors = [
             terminal_suggestions_endpoint_editor.clone(),
@@ -253,6 +302,34 @@ impl AISettingsPageView {
             me.refresh_acp_config_options(ctx);
             ctx.notify();
         });
+        ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
+            match event {
+                AISettingsChangedEvent::PromptSubmissionMode { .. } => {
+                    let current_mode = AISettings::as_ref(ctx).default_prompt_submission_mode;
+                    me.default_prompt_submission_mode_dropdown
+                        .update(ctx, |dropdown, ctx| {
+                            dropdown.set_selected_by_action(
+                                AISettingsPageAction::SetPromptSubmissionMode(current_mode),
+                                ctx,
+                            );
+                        });
+                }
+                AISettingsChangedEvent::LongRunningCommandSubmissionMode { .. } => {
+                    let current_mode = AISettings::as_ref(ctx).long_running_command_submission_mode;
+                    me.lrc_submission_mode_dropdown
+                        .update(ctx, |dropdown, ctx| {
+                            dropdown.set_selected_by_action(
+                                AISettingsPageAction::SetLongRunningCommandSubmissionMode(
+                                    current_mode,
+                                ),
+                                ctx,
+                            );
+                        });
+                }
+                _ => {}
+            }
+            ctx.notify();
+        });
 
         let mut view = Self {
             page: Self::build_page(ctx),
@@ -264,6 +341,8 @@ impl AISettingsPageView {
             terminal_suggestions_api_key_editor,
             terminal_suggestions_model_editor,
             terminal_suggestions_effort_dropdown,
+            default_prompt_submission_mode_dropdown,
+            lrc_submission_mode_dropdown,
         };
         view.refresh_acp_config_options(ctx);
         view
@@ -467,6 +546,60 @@ impl AISettingsPageView {
         })
     }
 
+    fn create_default_prompt_submission_mode_dropdown(
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
+        let current = AISettings::as_ref(ctx).default_prompt_submission_mode;
+        ctx.add_typed_action_view(move |ctx| {
+            let mut dropdown = Dropdown::new(ctx);
+            dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
+            dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
+            dropdown.add_items(
+                PromptSubmissionMode::iter()
+                    .map(|mode| {
+                        DropdownItem::new(
+                            mode.display_name(),
+                            AISettingsPageAction::SetPromptSubmissionMode(mode),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetPromptSubmissionMode(current),
+                ctx,
+            );
+            dropdown
+        })
+    }
+
+    fn create_lrc_submission_mode_dropdown(
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
+        let current = AISettings::as_ref(ctx).long_running_command_submission_mode;
+        ctx.add_typed_action_view(move |ctx| {
+            let mut dropdown = Dropdown::new(ctx);
+            dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
+            dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
+            dropdown.add_items(
+                LongRunningCommandSubmissionMode::iter()
+                    .map(|mode| {
+                        DropdownItem::new(
+                            mode.display_name(),
+                            AISettingsPageAction::SetLongRunningCommandSubmissionMode(mode),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_action(
+                AISettingsPageAction::SetLongRunningCommandSubmissionMode(current),
+                ctx,
+            );
+            dropdown
+        })
+    }
+
     fn build_page(_ctx: &mut ViewContext<Self>) -> PageType<Self> {
         PageType::new_uncategorized(vec![Box::new(AIWidget::default())], None)
     }
@@ -495,6 +628,8 @@ pub enum AISettingsPageAction {
     SetAcpAgentBackend(String),
     SetAcpDefaultConfigOption { config_id: String, value_id: String },
     SetTerminalSuggestionsEffort(TerminalSuggestionEffort),
+    SetPromptSubmissionMode(PromptSubmissionMode),
+    SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
     ToggleTerminalNextCommand,
     ToggleTerminalPromptSuggestions,
     ToggleSubmitRichInputOnCtrlEnter,
@@ -542,6 +677,28 @@ impl TypedActionView for AISettingsPageView {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     if let Err(err) = settings.terminal_suggestions_effort.set_value(*effort, ctx) {
                         log::warn!("Failed to set Terminal Suggestions effort: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::SetPromptSubmissionMode(mode) => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .default_prompt_submission_mode
+                        .set_value(*mode, ctx)
+                    {
+                        log::warn!("Failed to set default prompt submission mode: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::SetLongRunningCommandSubmissionMode(mode) => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .long_running_command_submission_mode
+                        .set_value(*mode, ctx)
+                    {
+                        log::warn!("Failed to set long-running command submission mode: {err:?}");
                     }
                 });
                 ctx.notify();
@@ -790,7 +947,7 @@ impl SettingsWidget for AIWidget {
     type View = AISettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning next command prompt suggestions terminal suggestions third party cli agent rich input ctrl enter submit newline"
+        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning next command prompt suggestions terminal suggestions third party cli agent rich input ctrl enter submit newline queue interrupt submission auto-queue response long-running lrc"
     }
 
     fn render(
@@ -818,6 +975,20 @@ impl SettingsWidget for AIWidget {
             .with_child(Self::render_acp_default_config_options(
                 view, appearance, app,
             ))
+            .with_child(Self::render_dropdown(
+                "Default prompt submission mode",
+                "What happens when you submit a new prompt while the agent is still responding. You can override this per conversation using the auto-queue toggle.",
+                &view.default_prompt_submission_mode_dropdown,
+                appearance,
+            ))
+            .with_children((settings.default_prompt_submission_mode == PromptSubmissionMode::Interrupt).then(|| {
+                Self::render_dropdown(
+                    "Default long-running command submission mode",
+                    "What happens when you submit a prompt while an agent is driving an agent-requested long-running command. Queued prompts are sent when the command finishes.",
+                    &view.lrc_submission_mode_dropdown,
+                    appearance,
+                )
+            }))
             .with_child(render_separator(appearance))
             .with_child(Self::render_section_header(
                 "Terminal Suggestions",

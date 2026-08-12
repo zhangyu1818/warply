@@ -141,11 +141,6 @@ pub struct BlocklistAIContextModel {
 
     /// Block IDs of user-executed commands to be auto-attached as context.
     auto_attached_agent_view_user_block_ids: Vec<BlockId>,
-
-    /// When true, submitting a prompt while the agent is responding will queue it
-    /// instead of sending it immediately.
-    /// Persists across exchanges in the same conversation (like fast-forward).
-    queue_next_prompt_enabled: bool,
 }
 
 pub fn block_context_from_terminal_model(
@@ -265,7 +260,6 @@ impl BlocklistAIContextModel {
             pending_inline_diff_hunk_attachments: Default::default(),
             pending_document_id: None,
             auto_attached_agent_view_user_block_ids: Vec::new(),
-            queue_next_prompt_enabled: false,
         }
     }
 
@@ -293,7 +287,6 @@ impl BlocklistAIContextModel {
             pending_inline_diff_hunk_attachments: Default::default(),
             pending_document_id: None,
             auto_attached_agent_view_user_block_ids: Vec::new(),
-            queue_next_prompt_enabled: false,
         }
     }
 
@@ -449,13 +442,6 @@ impl BlocklistAIContextModel {
             // Add selected text
             if let Some(selected_text) = &self.pending_context_selected_text {
                 context.push(AIAgentContext::SelectedText(selected_text.clone()));
-            }
-
-            // Add images from pending attachments
-            for attachment in &self.pending_attachments {
-                if let PendingAttachment::Image(image) = attachment {
-                    context.push(AIAgentContext::Image(image.clone()));
-                }
             }
         }
 
@@ -791,15 +777,6 @@ impl BlocklistAIContextModel {
         }
     }
 
-    pub fn is_queue_next_prompt_enabled(&self) -> bool {
-        self.queue_next_prompt_enabled
-    }
-
-    pub fn toggle_queue_next_prompt(&mut self, ctx: &mut ModelContext<Self>) {
-        self.queue_next_prompt_enabled = !self.queue_next_prompt_enabled;
-        ctx.emit(BlocklistAIContextEvent::QueueNextPromptToggled);
-    }
-
     pub fn toggle_pending_query_autoexecute(&mut self, ctx: &mut ModelContext<Self>) {
         if let Some(conversation_id) = self
             .agent_view_controller
@@ -907,6 +884,23 @@ impl BlocklistAIContextModel {
         }
         self.pending_attachments.clear();
     }
+
+    /// Drains all pending attachments, returning them, and emits the same update event as
+    /// [`Self::clear_pending_attachments`] so the input's attachment chips disappear. Used to
+    /// move staged attachments onto a queued prompt row at enqueue time.
+    pub fn take_pending_attachments(
+        &mut self,
+        ctx: &mut ModelContext<Self>,
+    ) -> Vec<PendingAttachment> {
+        if !self.pending_attachments.is_empty() {
+            ctx.emit(BlocklistAIContextEvent::UpdatedPendingContext {
+                previous_block_ids: self.pending_context_block_ids.clone(),
+                requires_block_resync: false,
+                requires_text_resync: false,
+            });
+        }
+        std::mem::take(&mut self.pending_attachments)
+    }
 }
 
 pub enum BlocklistAIContextEvent {
@@ -920,7 +914,6 @@ pub enum BlocklistAIContextEvent {
     },
     /// Emitted whenever the value changes.
     PendingQueryStateUpdated,
-    QueueNextPromptToggled,
 }
 
 impl Entity for BlocklistAIContextModel {

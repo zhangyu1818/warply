@@ -4,7 +4,9 @@ use super::*;
 use crate::ai::acp::model::{AcpAgentModel, AcpAgentState};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::blocklist::{AIQueryHistory, AcpResponseStreamTarget, BlocklistAIPermissions};
+use crate::ai::blocklist::{
+    AIQueryHistory, AcpResponseStreamTarget, BlocklistAIPermissions, QueuedQueryModel,
+};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::outline::RepoOutlines;
 use crate::ai::persisted_workspace::PersistedWorkspace;
@@ -176,6 +178,7 @@ pub fn initialize_app(app: &mut App) {
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
+    app.add_singleton_model(QueuedQueryModel::new);
     app.add_singleton_model(crate::ai::acp::registry::AcpRegistryModel::new_for_test);
     app.add_singleton_model(AcpAgentModel::new_for_test);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());

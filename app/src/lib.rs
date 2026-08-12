@@ -932,6 +932,7 @@ pub(crate) fn initialize_app(
         let conversations = &agent_conversations;
         ctx.add_singleton_model(move |_| BlocklistAIHistoryModel::new(ai_queries, conversations));
     }
+    ctx.add_singleton_model(ai::blocklist::QueuedQueryModel::new);
     ctx.add_singleton_model(move |_| RestoredAgentConversations::new(agent_conversations));
     ctx.add_singleton_model(ai::acp::registry::AcpRegistryModel::new);
     ctx.add_singleton_model(ai::acp::model::AcpAgentModel::new);
