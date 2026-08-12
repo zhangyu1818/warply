@@ -6,6 +6,7 @@ use warpui::{AppContext, Entity, EntityId, WindowId};
 
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
 use crate::terminal::model::blockgrid::BlockGrid;
+use crate::themes::theme::AnsiColorIdentifier;
 use crate::{
     pane_group::PaneId,
     workspace::{PaneViewLocator, Workspace},
@@ -214,4 +215,5 @@ pub struct TabNavigationData {
     pub subtitle: Option<String>,
     pub window_id: WindowId,
     pub tab_index: usize,
+    pub color: Option<AnsiColorIdentifier>,
 }
