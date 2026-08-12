@@ -426,6 +426,7 @@ pub enum AppearancePageAction {
     TogglePreserveActiveTabColor,
     ToggleVerticalTabs,
     ToggleShowVerticalTabPanelInRestoredWindows,
+    ToggleHideTitleBarSearchBarInVerticalTabs,
     ToggleUseLatestUserPromptAsConversationTitleInTabNames,
     ToggleLigatureRendering,
     ToggleLeftPanelVisibility,
@@ -606,6 +607,9 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleVerticalTabs => self.toggle_vertical_tabs(ctx),
             ToggleShowVerticalTabPanelInRestoredWindows => {
                 self.toggle_show_vertical_tab_panel_in_restored_windows(ctx)
+            }
+            ToggleHideTitleBarSearchBarInVerticalTabs => {
+                self.toggle_hide_title_bar_search_bar_in_vertical_tabs(ctx)
             }
             ToggleUseLatestUserPromptAsConversationTitleInTabNames => {
                 self.toggle_use_latest_user_prompt_as_conversation_title_in_tab_names(ctx)
@@ -1399,6 +1403,9 @@ impl AppearanceSettingsPageView {
             tab_settings_widgets.push(Box::new(VerticalTabsWidget::default()));
             tab_settings_widgets.push(Box::new(
                 ShowVerticalTabPanelInRestoredWindowsWidget::default(),
+            ));
+            tab_settings_widgets.push(Box::new(
+                HideTitleBarSearchBarInVerticalTabsWidget::default(),
             ));
             tab_settings_widgets.push(Box::new(
                 UseLatestUserPromptAsConversationTitleInTabNamesWidget::default(),
@@ -2287,6 +2294,17 @@ impl AppearanceSettingsPageView {
                     .show_vertical_tab_panel_in_restored_windows
                     .toggle_and_save_value(ctx),
                 "show_vertical_tab_panel_in_restored_windows",
+            );
+        });
+    }
+
+    fn toggle_hide_title_bar_search_bar_in_vertical_tabs(&mut self, ctx: &mut ViewContext<Self>) {
+        TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+            log_setting_result(
+                settings
+                    .hide_title_bar_search_bar_in_vertical_tabs
+                    .toggle_and_save_value(ctx),
+                "hide_title_bar_search_bar_in_vertical_tabs",
             );
         });
     }
@@ -4491,6 +4509,50 @@ impl SettingsWidget for ShowVerticalTabPanelInRestoredWindowsWidget {
                 .finish(),
             Some(
                 "When enabled, reopening or restoring a window opens the vertical tabs panel even if it was closed when the window was last saved."
+                    .to_string(),
+            ),
+        )
+    }
+}
+
+#[derive(Default)]
+struct HideTitleBarSearchBarInVerticalTabsWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for HideTitleBarSearchBarInVerticalTabsWidget {
+    type View = AppearanceSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "hide title bar search bar vertical tabs chrome minimal"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let tab_settings = TabSettings::as_ref(app);
+
+        render_body_item::<AppearancePageAction>(
+            "Hide search bar in vertical tab layout".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*tab_settings.hide_title_bar_search_bar_in_vertical_tabs)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(
+                        AppearancePageAction::ToggleHideTitleBarSearchBarInVerticalTabs,
+                    );
+                })
+                .finish(),
+            Some(
+                "When using the vertical tab layout, hide the search bar in the title bar. Search stays available via the command palette and keyboard shortcuts."
                     .to_string(),
             ),
         )
