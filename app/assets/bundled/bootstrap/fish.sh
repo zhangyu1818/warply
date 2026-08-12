@@ -573,6 +573,23 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
             return
         end
 
+        set -l control_path "$SSH_SOCKET_DIR/$WARP_SESSION_ID"
+        set -l control_master_mode yes
+        set -l external_control_master false
+        if test "$WARP_SSH_REUSE_CONTROL_MASTER" = "1"
+            set -l user_control_path (command ssh -G $argv 2>/dev/null | command sed -n 's/^controlpath //p')
+            if test (count $user_control_path) -eq 1
+                set user_control_path $user_control_path[1]
+                if test -n "$user_control_path"; and test "$user_control_path" != "none"; and string match -rq '^[[:alnum:]_./~@:+,-]+$' -- "$user_control_path"
+                    if command ssh -O check -o ControlPath="$user_control_path" $argv >/dev/null 2>&1
+                        set control_path "$user_control_path"
+                        set control_master_mode no
+                        set external_control_master true
+                    end
+                end
+            end
+        end
+
         # Hex-encode the ZSH environment script we use to bootstrap remote zsh b/c it contains control characters
         # We decode on the SSH server using xxd if its available, otherwise fall back to a for-loop over each byte
         # and use printf to convert back to plaintext
@@ -584,14 +601,14 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
         # determine what shell is the login shell on the remote machine.  We perform a preliminary check to see if
         # the remote shell is the Bourne shell to avoid asking it to parse later lines that use syntax it doesn't
         # support.
-        command ssh -o ControlMaster=yes -o ControlPath=$SSH_SOCKET_DIR/$WARP_SESSION_ID \
+        command ssh -o ControlMaster=$control_master_mode -o ControlPath="$control_path" \
         -t $argv \
 "
 export TERM_PROGRAM='WarpTerminal'
 test -n '$WARP_CLIENT_VERSION' && export WARP_CLIENT_VERSION='$WARP_CLIENT_VERSION'
 # Only forward the protocol version if it was set locally (i.e. the HOANotifications feature flag is on).
 test -n '$WARP_CLI_AGENT_PROTOCOL_VERSION' && export WARP_CLI_AGENT_PROTOCOL_VERSION='$WARP_CLI_AGENT_PROTOCOL_VERSION'
-hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$SSH_SOCKET_DIR/$WARP_SESSION_ID'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"'}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
+hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$control_path'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"', \"external_control_master\": '"$external_control_master"'}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
 printf '$DCS_START$DCS_JSON_MARKER%s$DCS_END' "'$hook'"
 
 if test "'"${SHELL##*/}" != "bash" -a "${SHELL##*/}" != "zsh"'"; then

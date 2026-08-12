@@ -67,6 +67,7 @@ const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
 const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_MARGIN;
 
 const SSH_TMUX_WARPIFICATION_DESCRIPTION: &str = "Tmux Warpification keeps Warp features available inside SSH sessions, and may require you to confirm Warpification. Takes effect in new tabs.";
+const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster already configured for the destination host instead of creating a Warp-owned one. Takes effect in new tabs.";
 
 const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str =
     "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
@@ -404,6 +405,7 @@ pub enum WarpifyPageAction {
     /// If disabled, auto-Warpification and the SSH Warpification prompt will be disabled.
     ToggleTmuxWarpification,
     ToggleSshWarpification,
+    ToggleReuseSshControlMaster,
     /// Set the SSH extension installation mode (always ask / always install / always skip).
     SetSshExtensionInstallMode(SshExtensionInstallMode),
     OpenUrl(String),
@@ -443,6 +445,16 @@ impl TypedActionView for WarpifyPageView {
                     log_setting_result(
                         ssh_settings.use_ssh_tmux_wrapper.toggle_and_save_value(ctx),
                         "use_ssh_tmux_wrapper",
+                    );
+                });
+            }
+            ToggleReuseSshControlMaster => {
+                WarpifySettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
+                    log_setting_result(
+                        ssh_settings
+                            .reuse_existing_control_master
+                            .toggle_and_save_value(ctx),
+                        "reuse_existing_control_master",
                     );
                 });
             }
@@ -618,6 +630,7 @@ impl SettingsWidget for SubshellsWidget {
 struct SSHWidget {
     tmux_warpification_switch_state: SwitchStateHandle,
     enable_ssh_warpification_switch_state: SwitchStateHandle,
+    reuse_control_master_switch_state: SwitchStateHandle,
     additional_info_mouse_state: MouseStateHandle,
 }
 
@@ -646,6 +659,9 @@ impl SettingsWidget for SSHWidget {
 
         let should_prompt_ssh_tmux_wrapper =
             *WarpifySettings::as_ref(app).use_ssh_tmux_wrapper.value();
+        let reuse_existing_control_master = *WarpifySettings::as_ref(app)
+            .reuse_existing_control_master
+            .value();
 
         add_setting(
             &mut column,
@@ -766,6 +782,52 @@ impl SettingsWidget for SSHWidget {
                 column.finish()
             },
         );
+
+        if !should_prompt_ssh_tmux_wrapper {
+            add_setting(
+                &mut column,
+                &WarpifySettings::as_ref(app).reuse_existing_control_master,
+                move || {
+                    let mut column = Flex::column();
+                    column.add_child(render_body_item::<WarpifyPageAction>(
+                        "Reuse existing SSH ControlMaster".into(),
+                        None,
+                        enable_ssh_warpification.into(),
+                        appearance,
+                        ui_builder
+                            .switch(self.reuse_control_master_switch_state.clone())
+                            .check(reuse_existing_control_master)
+                            .with_disabled(!enable_ssh_warpification)
+                            .build()
+                            .on_click(move |ctx, _, _| {
+                                if enable_ssh_warpification {
+                                    ctx.dispatch_typed_action(
+                                        WarpifyPageAction::ToggleReuseSshControlMaster,
+                                    );
+                                }
+                            })
+                            .finish(),
+                        None,
+                    ));
+                    column.add_child(
+                        ui_builder
+                            .paragraph(SSH_REUSE_CONTROL_MASTER_DESCRIPTION.to_owned())
+                            .with_style(UiComponentStyles {
+                                font_color: Some(description_text_color.into_solid()),
+                                margin: Some(
+                                    Coords::default()
+                                        .top(styles::DESCRIPTION_NEGATIVE_MARGIN_OFFSET)
+                                        .bottom(styles::DESCRIPTION_LINE_MARGIN_BOTTOM),
+                                ),
+                                ..Default::default()
+                            })
+                            .build()
+                            .finish(),
+                    );
+                    column.finish()
+                },
+            );
+        }
 
         column.finish()
     }

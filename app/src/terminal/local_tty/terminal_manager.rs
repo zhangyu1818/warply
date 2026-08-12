@@ -563,6 +563,8 @@ impl TerminalManager {
         let warpify_settings = WarpifySettings::as_ref(ctx);
         let enable_ssh_wrapper = *warpify_settings.enable_ssh_warpification.value()
             && !*warpify_settings.use_ssh_tmux_wrapper.value();
+        let reuse_ssh_control_master =
+            enable_ssh_wrapper && *warpify_settings.reuse_existing_control_master.value();
 
         let size: crate::terminal::SizeInfo = model.lock().block_list().size().to_owned();
         let options = PtyOptions {
@@ -572,6 +574,7 @@ impl TerminalManager {
             start_dir: startup_directory,
             env_vars,
             enable_ssh_wrapper,
+            reuse_ssh_control_master,
             shell_debug_mode: is_shell_debug_mode_enabled,
             honor_ps1: is_honor_ps1_enabled,
             close_fds: true,

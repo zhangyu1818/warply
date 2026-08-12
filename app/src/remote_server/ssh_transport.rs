@@ -31,26 +31,37 @@ use remote_server::transport::{Connection, Error, RemoteTransport};
 pub struct SshTransport {
     socket_path: PathBuf,
     identity_context: Arc<RemoteServerIdentityContext>,
+    warp_owns_control_master: bool,
 }
 
 impl fmt::Debug for SshTransport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SshTransport")
             .field("socket_path", &self.socket_path)
+            .field("warp_owns_control_master", &self.warp_owns_control_master)
             .finish_non_exhaustive()
     }
 }
 
 impl SshTransport {
-    pub fn new(socket_path: PathBuf, identity_context: Arc<RemoteServerIdentityContext>) -> Self {
+    pub fn new(
+        socket_path: PathBuf,
+        identity_context: Arc<RemoteServerIdentityContext>,
+        warp_owns_control_master: bool,
+    ) -> Self {
         Self {
             socket_path,
             identity_context,
+            warp_owns_control_master,
         }
     }
 
     pub fn socket_path(&self) -> &PathBuf {
         &self.socket_path
+    }
+
+    pub fn warp_owns_control_master(&self) -> bool {
+        self.warp_owns_control_master
     }
 
     pub fn remote_daemon_socket_path(&self) -> String {
@@ -225,6 +236,7 @@ impl RemoteTransport for SshTransport {
         executor: Arc<executor::Background>,
     ) -> Pin<Box<dyn Future<Output = Result<Connection>> + Send>> {
         let socket_path = self.socket_path.clone();
+        let warp_owns_control_master = self.warp_owns_control_master;
         let remote_proxy_command = self.remote_proxy_command();
         Box::pin(async move {
             let mut args = ssh_args(&socket_path);
@@ -262,7 +274,11 @@ impl RemoteTransport for SshTransport {
                 client,
                 event_rx,
                 child,
-                control_path: Some(socket_path),
+                control_path: if warp_owns_control_master {
+                    Some(socket_path)
+                } else {
+                    None
+                },
             })
         })
     }

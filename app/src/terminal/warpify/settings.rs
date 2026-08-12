@@ -58,6 +58,15 @@ maybe_define_setting!(UseSshTmuxWrapper, group: WarpifySettings, {
     description: "Whether to use a tmux-based wrapper for SSH warpification.",
 });
 
+maybe_define_setting!(ReuseExistingSshControlMaster, group: WarpifySettings, {
+    type: bool,
+    default: false,
+    supported_platforms: SupportedPlatforms::MAC,
+    private: false,
+    toml_path: "warpify.ssh.reuse_existing_control_master",
+    description: "Whether the legacy SSH wrapper attaches to an existing SSH ControlMaster for the destination host instead of always creating its own.",
+});
+
 /// Controls how Warp handles the SSH extension (remote server binary) when connecting
 /// to a remote host that does not already have it installed.
 #[derive(
@@ -148,6 +157,8 @@ pub struct WarpifySettings {
     /// This setting controls whether we should prompt the user to warpify an ssh session using tmux.
     pub use_ssh_tmux_wrapper: UseSshTmuxWrapper,
 
+    pub reuse_existing_control_master: ReuseExistingSshControlMaster,
+
     /// Controls the installation behavior for the SSH extension (remote server) when the binary
     /// is not installed on the remote host.
     pub ssh_extension_install_mode: SshExtensionInstallModeSetting,
@@ -203,6 +214,7 @@ impl WarpifySettings {
             ssh_hosts_denylist,
             enable_ssh_warpification: EnableSshWarpification::new_from_storage(ctx),
             use_ssh_tmux_wrapper: UseSshTmuxWrapper::new_from_storage(ctx),
+            reuse_existing_control_master: ReuseExistingSshControlMaster::new_from_storage(ctx),
             ssh_extension_install_mode: SshExtensionInstallModeSetting::new_from_storage(ctx),
         }
     }
@@ -226,6 +238,7 @@ impl WarpifySettings {
             ssh_hosts_denylist,
             enable_ssh_warpification: EnableSshWarpification::new(None),
             use_ssh_tmux_wrapper: UseSshTmuxWrapper::new(None),
+            reuse_existing_control_master: ReuseExistingSshControlMaster::new(None),
             ssh_extension_install_mode: SshExtensionInstallModeSetting::new(None),
         }
     }
@@ -251,6 +264,7 @@ impl WarpifySettings {
                 }
                 WarpifySettingsChangedEvent::EnableSshWarpification { .. } => {}
                 WarpifySettingsChangedEvent::UseSshTmuxWrapper { .. } => {}
+                WarpifySettingsChangedEvent::ReuseExistingSshControlMaster { .. } => {}
                 WarpifySettingsChangedEvent::SshExtensionInstallModeSetting { .. } => {}
             })
         });
@@ -283,6 +297,14 @@ impl WarpifySettings {
             WarpifySettings,
             use_ssh_tmux_wrapper,
             UseSshTmuxWrapper,
+            handle.clone(),
+            ctx
+        );
+
+        register_settings_events!(
+            WarpifySettings,
+            reuse_existing_control_master,
+            ReuseExistingSshControlMaster,
             handle.clone(),
             ctx
         );
@@ -322,6 +344,9 @@ pub enum WarpifySettingsChangedEvent {
         change_event_reason: ChangeEventReason,
     },
     UseSshTmuxWrapper {
+        change_event_reason: ChangeEventReason,
+    },
+    ReuseExistingSshControlMaster {
         change_event_reason: ChangeEventReason,
     },
     SshExtensionInstallModeSetting {

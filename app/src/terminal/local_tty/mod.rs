@@ -82,6 +82,8 @@ pub struct PtyOptions {
     // Refers to the original SSH wrapper that uses ControlMaster and
     // requires overwriting the user's SSH command at the shell layer.
     pub enable_ssh_wrapper: bool,
+    #[serde(default)]
+    pub reuse_ssh_control_master: bool,
     pub shell_debug_mode: bool,
     pub honor_ps1: bool,
     pub close_fds: bool,

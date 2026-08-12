@@ -161,7 +161,11 @@ impl<T: EventLoopSender> RemoteServerController<T> {
 
     /// Idle -> AwaitingCheck
     fn on_ssh_init_shell_requested(&mut self, info: SessionInfo, ctx: &mut ModelContext<Self>) {
-        let IsLegacySSHSession::Yes { socket_path } = &info.is_legacy_ssh_session else {
+        let IsLegacySSHSession::Yes {
+            socket_path,
+            external_control_master,
+        } = &info.is_legacy_ssh_session
+        else {
             return;
         };
         let session_id = info.session_id;
@@ -188,7 +192,11 @@ impl<T: EventLoopSender> RemoteServerController<T> {
                 self.flush_stashed_bootstrap(old_info, ctx);
             }
         }
-        let transport = SshTransport::new(socket_path, self.build_identity_context(ctx));
+        let transport = SshTransport::new(
+            socket_path,
+            self.build_identity_context(ctx),
+            !external_control_master,
+        );
         self.did_install = false;
         self.remote_platform = None;
         self.preinstall_check = None;
@@ -254,12 +262,18 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         match result {
             Ok(true) => {
                 let socket_path = transport.socket_path().clone();
+                let warp_owns_control_master = transport.warp_owns_control_master();
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
                     setup_start,
                 };
-                self.connect_session_for_current_identity(session_id, socket_path, ctx);
+                self.connect_session_for_current_identity(
+                    session_id,
+                    socket_path,
+                    warp_owns_control_master,
+                    ctx,
+                );
             }
             Ok(false) if has_old_binary => {
                 // Auto-update: a prior install exists, so skip the modal
@@ -470,12 +484,18 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         match result {
             Ok(()) => {
                 let socket_path = transport.socket_path().clone();
+                let warp_owns_control_master = transport.warp_owns_control_master();
                 self.state = SshInitState::AwaitingConnect {
                     session_id,
                     session_info,
                     setup_start,
                 };
-                self.connect_session_for_current_identity(session_id, socket_path, ctx);
+                self.connect_session_for_current_identity(
+                    session_id,
+                    socket_path,
+                    warp_owns_control_master,
+                    ctx,
+                );
             }
             Err(err) => {
                 log::warn!(
@@ -495,10 +515,15 @@ impl<T: EventLoopSender> RemoteServerController<T> {
         &mut self,
         session_id: SessionId,
         socket_path: PathBuf,
+        warp_owns_control_master: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         let identity_context = self.build_identity_context(ctx);
-        let transport = SshTransport::new(socket_path, identity_context.clone());
+        let transport = SshTransport::new(
+            socket_path,
+            identity_context.clone(),
+            warp_owns_control_master,
+        );
         RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
             mgr.connect_session(session_id, transport, identity_context, ctx);
         });

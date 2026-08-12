@@ -220,7 +220,8 @@ fn new_command_executor_for_local_tty_session(
                 && !FeatureFlag::InBandGeneratorsForSSH.is_enabled()
                 && !force_use_in_band_generators =>
         {
-            if let IsLegacySSHSession::Yes { socket_path } = &session_info.is_legacy_ssh_session {
+            if let IsLegacySSHSession::Yes { socket_path, .. } = &session_info.is_legacy_ssh_session
+            {
                 log::info!("creating a ControlMaster ssh executor!");
                 Arc::new(RemoteCommandExecutor::new(socket_path.clone()))
             } else {

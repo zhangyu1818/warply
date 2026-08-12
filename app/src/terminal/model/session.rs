@@ -477,7 +477,10 @@ impl From<&SessionType> for command_corrections::SessionType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IsLegacySSHSession {
-    Yes { socket_path: PathBuf },
+    Yes {
+        socket_path: PathBuf,
+        external_control_master: bool,
+    },
     No,
 }
 
@@ -560,6 +563,7 @@ impl SessionInfo {
         let is_legacy_ssh_session = match legacy_ssh_session {
             Some(ssh_value) => IsLegacySSHSession::Yes {
                 socket_path: ssh_value.socket_path,
+                external_control_master: ssh_value.external_control_master,
             },
             None => IsLegacySSHSession::No,
         };
@@ -1433,7 +1437,10 @@ pub mod testing {
             if let BootstrapSessionType::Local = self.session_type {
                 self.session_type = BootstrapSessionType::WarpifiedRemote;
             }
-            self.is_legacy_ssh_session = IsLegacySSHSession::Yes { socket_path };
+            self.is_legacy_ssh_session = IsLegacySSHSession::Yes {
+                socket_path,
+                external_control_master: false,
+            };
             self
         }
 
