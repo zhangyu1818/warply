@@ -537,6 +537,14 @@ pub fn init(app: &mut AppContext) {
         .with_enabled(|| FeatureFlag::GlobalSearch.is_enabled())
         .with_custom_action(CustomAction::ToggleGlobalSearch),
         EditableBinding::new(
+            "file_tree:toggle_hidden_files",
+            BindingDescription::new("Toggle hidden files in Project Explorer"),
+            WorkspaceAction::ToggleHiddenFiles,
+        )
+        .with_group(bindings::BindingGroup::Navigation.as_str())
+        .with_context_predicate(id!("Workspace") & id!(flags::SHOW_PROJECT_EXPLORER))
+        .with_mac_key_binding("cmd-shift->"),
+        EditableBinding::new(
             TOGGLE_PROJECT_EXPLORER_BINDING_NAME,
             BindingDescription::new("Toggle project explorer")
                 .with_custom_description(bindings::MAC_MENUS_CONTEXT, "Project Explorer"),

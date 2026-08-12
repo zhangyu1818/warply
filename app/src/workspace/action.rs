@@ -539,6 +539,7 @@ pub enum WorkspaceAction {
     NavigateNextPaneOrPanel,
     ToggleProjectExplorer,
     ToggleGlobalSearch,
+    ToggleHiddenFiles,
     OpenGlobalSearch,
     ToggleConversationListView,
     /// Take a process sample of the app (equivalent to Activity Monitor > Sample Process).
@@ -810,6 +811,7 @@ impl WorkspaceAction {
             | NavigateNextPaneOrPanel
             | ToggleProjectExplorer
             | ToggleGlobalSearch
+            | ToggleHiddenFiles
             | OpenGlobalSearch
             | ToggleConversationListView
             | ToggleAIDocumentPane { .. }

@@ -16897,6 +16897,14 @@ impl TypedActionView for Workspace {
                     );
                 }
             }
+            ToggleHiddenFiles => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.show_hidden_files.toggle_and_save_value(ctx),
+                        "show_hidden_files",
+                    );
+                });
+            }
             OpenGlobalSearch => {
                 if FeatureFlag::GlobalSearch.is_enabled()
                     && *CodeSettings::as_ref(ctx).show_global_search
@@ -17183,6 +17191,9 @@ impl View for Workspace {
         }
         if *CodeSettings::as_ref(app).show_global_search {
             context.set.insert(flags::SHOW_GLOBAL_SEARCH);
+        }
+        if *CodeSettings::as_ref(app).show_hidden_files {
+            context.set.insert(flags::SHOW_HIDDEN_FILES);
         }
 
         self.add_toggle_setting_context_flags(app, &mut context);

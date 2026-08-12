@@ -46,4 +46,13 @@ define_settings_group!(CodeSettings, settings: [
         toml_path: "code.editor.auto_save",
         description: "Whether the Warp text editor automatically saves changes as you type and when the editor loses focus.",
     },
+    // Controls whether hidden files (dotfiles) are shown in the project explorer.
+    show_hidden_files: ShowHiddenFiles {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "code.editor.show_hidden_files",
+        description: "Whether hidden files (dotfiles) are shown in the project explorer.",
+    },
 ]);

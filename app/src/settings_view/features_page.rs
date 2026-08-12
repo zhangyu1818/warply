@@ -326,6 +326,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ),
     );
 
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "show hidden files in project explorer",
+        builder(SettingsAction::FeaturesPageToggle(
+            FeaturesPageAction::ToggleShowHiddenFiles,
+        )),
+        context,
+        flags::SHOW_HIDDEN_FILES,
+    ));
+
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
             "input hint text",
@@ -499,6 +508,7 @@ pub enum FeaturesPageAction {
     ToggleCodeAsDefaultEditor,
     ToggleFormatOnSave,
     ToggleAutoSave,
+    ToggleShowHiddenFiles,
     ToggleShowInputHintText,
     ToggleUseAudibleBell,
     ToggleShowTerminalZeroStateBlock,
@@ -765,6 +775,15 @@ impl TypedActionView for FeaturesPageView {
                 );
                 ctx.notify();
             }),
+            ToggleShowHiddenFiles => {
+                CodeSettings::handle(ctx).update(ctx, |code_settings, ctx| {
+                    log_setting_result(
+                        code_settings.show_hidden_files.toggle_and_save_value(ctx),
+                        "show_hidden_files",
+                    );
+                    ctx.notify();
+                });
+            }
             ToggleNotifications => {
                 ctx.dispatch_typed_action(&WorkspaceAction::ToggleNotifications);
             }
@@ -1969,6 +1988,12 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             text_editing_widgets.push(Box::new(VimModeWidget::default()));
+        }
+        if CodeSettings::as_ref(ctx)
+            .show_hidden_files
+            .is_supported_on_current_platform()
+        {
+            text_editing_widgets.push(Box::new(ShowHiddenFilesWidget::default()));
         }
         if CodeSettings::as_ref(ctx)
             .format_on_save
@@ -4341,6 +4366,47 @@ impl SettingsWidget for FormatOnSaveWidget {
                 })
                 .finish(),
             Some("Only applies when a language server is active for the file.".into()),
+        )
+    }
+}
+
+#[derive(Default)]
+struct ShowHiddenFilesWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for ShowHiddenFilesWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "show hidden files dotfiles project explorer file tree"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<FeaturesPageAction>(
+            "Show hidden files in project explorer".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.show_hidden_files)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleShowHiddenFiles);
+                })
+                .finish(),
+            Some(
+                "Show dotfiles and hidden files (starting with .) in the project explorer.".into(),
+            ),
         )
     }
 }
