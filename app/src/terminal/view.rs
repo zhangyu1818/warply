@@ -44,10 +44,11 @@ use std::ops::Deref as _;
 
 use crate::ai::blocklist::agent_view::fork_from_last_known_good_state_exchange_id;
 use crate::ai::blocklist::agent_view::{
-    agent_view_bg_fill, AgentViewController, AgentViewControllerEvent, AgentViewDisplayMode,
-    AgentViewEntryBlockParams, AgentViewEntryOrigin, AgentViewHeaderDisabledTheme,
-    AgentViewHeaderTheme, AgentViewZeroStateBlock, AgentViewZeroStateEvent, EphemeralMessageModel,
-    ExitAgentViewError, ExitConfirmationTrigger, InlineAgentViewHeader,
+    agent_view_bg_fill, get_agent_view_entry_block_position_id, AgentViewController,
+    AgentViewControllerEvent, AgentViewDisplayMode, AgentViewEntryBlockParams,
+    AgentViewEntryOrigin, AgentViewHeaderDisabledTheme, AgentViewHeaderTheme,
+    AgentViewZeroStateBlock, AgentViewZeroStateEvent, EphemeralMessageModel, ExitAgentViewError,
+    ExitConfirmationTrigger, InlineAgentViewHeader,
 };
 use crate::ai::conversation_utils;
 use crate::ai::predict::prompt_suggestions::{
@@ -1163,6 +1164,12 @@ pub enum ContextMenuAction {
     CopyAIBlockConversation {
         ai_block_view_id: EntityId,
     },
+    CopyConversationText {
+        conversation_id: AIConversationId,
+    },
+    ForkAIConversation {
+        conversation_id: AIConversationId,
+    },
     CopyAgentCommand {
         ai_block_view_id: EntityId,
     },
@@ -1234,6 +1241,8 @@ impl fmt::Debug for ContextMenuAction {
             CopyAIBlockOutput { .. } => f.write_str("CopyAIBlockOutput"),
             CopyAIBlock { .. } => f.write_str("CopyAIBlockBoth"),
             CopyAIBlockConversation { .. } => f.write_str("CopyAIBlockConversation"),
+            CopyConversationText { .. } => f.write_str("CopyConversationText"),
+            ForkAIConversation { .. } => f.write_str("ForkAIConversation"),
             CopyAgentCommand { .. } => f.write_str("CopyAgentCommand"),
             CopyAgentGitBranch { .. } => f.write_str("CopyAgentGitBranch"),
             ForkAIConversationFromBlock { .. } => f.write_str("ForkAIConversationFromBlock"),
@@ -1604,6 +1613,10 @@ pub enum ContextMenuType {
     /// Shows the overflow menu with copy options for an AI block. The menu is opened by clicking
     /// on the overflow (three dots) button inside the AI block header.
     AIBlockOverflowMenu { ai_block_view_id: EntityId },
+    AgentViewEntryConversation {
+        agent_view_entry_block_id: EntityId,
+        position: Vector2F,
+    },
 }
 
 impl ContextMenuType {
@@ -1635,6 +1648,7 @@ impl ContextMenuType {
             ContextMenuType::Input { position } => Some(*position),
             ContextMenuType::AIBlockAttachedContext { .. } => None,
             ContextMenuType::AIBlockOverflowMenu { .. } => None,
+            ContextMenuType::AgentViewEntryConversation { .. } => None,
         }
     }
 }
@@ -12196,6 +12210,70 @@ impl TerminalView {
         );
     }
 
+    fn conversation_text(
+        &self,
+        conversation_id: AIConversationId,
+        ctx: &AppContext,
+    ) -> Option<String> {
+        let conversation = BlocklistAIHistoryModel::as_ref(ctx).conversation(&conversation_id)?;
+        let exchanges: Vec<_> = conversation
+            .root_task_exchanges()
+            .filter_map(|exchange| {
+                let formatted = exchange.format_for_copy(Some(self.ai_action_model.as_ref(ctx)));
+                (!formatted.is_empty()).then_some(formatted)
+            })
+            .collect();
+        (!exchanges.is_empty()).then(|| exchanges.join("\n\n"))
+    }
+
+    fn copy_conversation_text(
+        &self,
+        conversation_id: AIConversationId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if let Some(conversation_text) = self.conversation_text(conversation_id, ctx) {
+            ctx.clipboard()
+                .write(ClipboardContent::plain_text(conversation_text));
+        }
+    }
+
+    fn conversation_menu_items(
+        &self,
+        conversation_id: AIConversationId,
+    ) -> Vec<MenuItem<TerminalAction>> {
+        vec![
+            MenuItemFields::new("Copy conversation text")
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::CopyConversationText { conversation_id },
+                ))
+                .into_item(),
+            MenuItemFields::new("Fork")
+                .with_on_select_action(TerminalAction::ContextMenu(
+                    ContextMenuAction::ForkAIConversation { conversation_id },
+                ))
+                .into_item(),
+        ]
+    }
+
+    pub(super) fn open_agent_view_entry_context_menu(
+        &mut self,
+        conversation_id: AIConversationId,
+        agent_view_entry_block_id: EntityId,
+        position: Vector2F,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.show_context_menu(
+            ContextMenuState {
+                menu_type: ContextMenuType::AgentViewEntryConversation {
+                    agent_view_entry_block_id,
+                    position,
+                },
+            },
+            self.conversation_menu_items(conversation_id),
+            ctx,
+        );
+    }
+
     fn ai_block_copying_menu_items(
         &self,
         ai_block_view_id: EntityId,
@@ -18276,6 +18354,20 @@ impl TerminalView {
                     }
                 }
             }
+            CopyConversationText { conversation_id } => {
+                self.copy_conversation_text(*conversation_id, ctx);
+            }
+            ForkAIConversation { conversation_id } => {
+                ctx.dispatch_global_action(
+                    "workspace:fork_ai_conversation",
+                    ForkAIConversationParams {
+                        conversation_id: *conversation_id,
+                        fork_from_exchange: None,
+                        initial_prompt: None,
+                        destination: ForkedConversationDestination::SplitPane,
+                    },
+                );
+            }
             CopyAgentCommand { ai_block_view_id } => {
                 for rich_content in self.rich_content_views.iter() {
                     if let Some(ai_metadata) = rich_content.ai_block_metadata() {
@@ -20552,6 +20644,19 @@ impl View for TerminalView {
                         ChildAnchor::TopRight,
                     ),
                 ),
+            Some(ContextMenuType::AgentViewEntryConversation {
+                agent_view_entry_block_id,
+                position,
+            }) => stack.add_positioned_overlay_child(
+                ChildView::new(&self.context_menu).finish(),
+                OffsetPositioning::offset_from_save_position_element(
+                    get_agent_view_entry_block_position_id(*agent_view_entry_block_id),
+                    *position,
+                    PositionedElementOffsetBounds::WindowByPosition,
+                    PositionedElementAnchor::TopLeft,
+                    ChildAnchor::TopLeft,
+                ),
+            ),
             None => {}
         }
 

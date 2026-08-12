@@ -300,6 +300,27 @@ impl TerminalView {
                     *conversation_id,
                     ctx,
                 ),
+            AgentViewEntryBlockEvent::OpenConversationContextMenu {
+                conversation_id,
+                agent_view_entry_block_id,
+                position,
+            } => me.open_agent_view_entry_context_menu(
+                *conversation_id,
+                *agent_view_entry_block_id,
+                *position,
+                ctx,
+            ),
+            AgentViewEntryBlockEvent::ForkConversation { conversation_id } => {
+                ctx.dispatch_global_action(
+                    "workspace:fork_ai_conversation",
+                    crate::workspace::ForkAIConversationParams {
+                        conversation_id: *conversation_id,
+                        fork_from_exchange: None,
+                        initial_prompt: None,
+                        destination: crate::workspace::ForkedConversationDestination::SplitPane,
+                    },
+                );
+            }
         });
         self.insert_rich_content(
             Some(RichContentType::EnterAgentView),
