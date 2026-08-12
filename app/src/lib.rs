@@ -142,7 +142,7 @@ use ::settings::{Setting, ToggleableSetting};
 
 #[cfg(feature = "plugin_host")]
 pub use plugin::{run_plugin_host, PLUGIN_HOST_FLAG};
-use warpui::platform::app::ApproveTerminateResult;
+use warpui::platform::app::{ApproveTerminateResult, TerminationRequestSource};
 use window_settings::WindowSettings;
 use workflows::manager::WorkflowManager;
 
@@ -1109,7 +1109,10 @@ pub(crate) fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppC
                 ApproveTerminateResult::Terminate
             }
         })),
-        on_should_terminate_app: Some(Box::new(move |ctx| {
+        on_should_terminate_app: Some(Box::new(move |source, ctx| {
+            if source == TerminationRequestSource::System {
+                return ApproveTerminateResult::Terminate;
+            }
             let summary = UnsavedStateSummary::for_app(ctx);
             // Don't show dialog on integration test. Machine can't press buttons.
             if !is_integration_test && summary.should_display_warning(ctx) {

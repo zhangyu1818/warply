@@ -172,6 +172,7 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 | Filterable dropdown empty-state width | `f16b26052b` | Applied the upstream generic dropdown width fix unchanged; retained local consumers set explicit menu widths. | `cargo fmt -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
 | Single-tab code-editor unsaved indicator | `112e842cd0` | Applied the upstream header invalidation and unsaved-dot rendering fix unchanged. | `cargo fmt -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
 | Local AI-query persistence cap | `a30cc7a331` | Applied the upstream FIFO cap, empty-input skip, and regression tests. Omitted the removed ambient/cloud-session guard and its deleted `intended_agent` test field. | Four upstream `warp` regression tests; `cargo fmt -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
+| macOS system-initiated termination | `ebe8be8459` | Applied the upstream Apple Event detection and termination-source plumbing to retained macOS/headless paths. Kept winit deleted and omitted removed telemetry/autoupdate paths. | 308 `warpui_core`/`warpui` tests passed with 8 existing skips; `cargo fmt -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
 
 ## Port Order
 
