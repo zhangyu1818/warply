@@ -256,6 +256,7 @@ pub enum WorkspaceAction {
         open_source: PromptEditorOpenSource,
     },
     OpenAgentToolbarEditor,
+    OpenCLIAgentToolbarEditor,
     OpenHeaderToolbarEditor,
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
@@ -618,6 +619,7 @@ impl WorkspaceAction {
             | HandleConflictingEnvVarCollection(_)
             | OpenPromptEditor { .. }
             | OpenAgentToolbarEditor
+            | OpenCLIAgentToolbarEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
             | OpenCurrentDirectoryInSystemEditor

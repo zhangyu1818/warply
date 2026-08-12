@@ -1022,7 +1022,9 @@ impl CodeView {
                 build_selection_line_range_prompt(&file_path, start_line, end_line)
             };
             if terminal_view
-                .update(ctx, |tv, ctx| tv.try_send_text_to_cli_agent(prompt, ctx))
+                .update(ctx, |tv, ctx| {
+                    tv.try_send_text_to_cli_agent_or_rich_input(prompt, ctx)
+                })
                 .is_some()
             {
                 return;

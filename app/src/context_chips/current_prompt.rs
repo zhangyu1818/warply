@@ -1128,6 +1128,15 @@ impl CurrentPrompt {
                     chips.push(chip_kind);
                 }
             }
+
+            let cli_footer_chips = SessionSettings::as_ref(ctx)
+                .cli_agent_footer_chip_selection
+                .all_chips();
+            for chip_kind in cli_footer_chips {
+                if !chips.contains(&chip_kind) {
+                    chips.push(chip_kind);
+                }
+            }
         }
 
         chips
@@ -1205,6 +1214,10 @@ impl CurrentPrompt {
 
         if let SessionSettingsChangedEvent::AgentToolbarChipSelectionSetting { .. } = event {
             // Recompute which chips to run when the agent footer config changes.
+            self.update_states_with_new_context(ctx);
+        }
+
+        if let SessionSettingsChangedEvent::CLIAgentToolbarChipSelectionSetting { .. } = event {
             self.update_states_with_new_context(ctx);
         }
     }

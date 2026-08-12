@@ -1,5 +1,9 @@
 use super::event::{parse_event, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventType};
-use super::{CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus};
+use super::{
+    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
+    CLIAgentSessionStatus,
+};
+use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;
 
 #[test]
@@ -232,13 +236,24 @@ fn parse_pi_stop_notification() {
 }
 
 #[test]
-fn apply_event_updates_status_without_replacing_session_identity() {
+fn apply_event_preserves_input_session() {
+    let input_state = CLIAgentInputState::Open {
+        entrypoint: CLIAgentInputEntrypoint::CtrlG,
+        previous_input_config: InputConfig {
+            input_type: InputType::Shell,
+            is_locked: false,
+        },
+        previous_was_lock_set_with_empty_buffer: true,
+    };
     let mut session = CLIAgentSession {
         agent: CLIAgent::Claude,
         status: CLIAgentSessionStatus::InProgress,
         session_context: CLIAgentSessionContext::default(),
+        input_state,
+        should_auto_toggle_input: false,
         listener: None,
         remote_host: None,
+        draft_text: None,
     };
 
     let event = CLIAgentEvent {
@@ -256,11 +271,5 @@ fn apply_event_updates_status_without_replacing_session_identity() {
 
     session.apply_event(&event);
 
-    assert_eq!(session.agent, CLIAgent::Claude);
-    assert_eq!(
-        session.status,
-        CLIAgentSessionStatus::Blocked {
-            message: Some("Needs approval".to_string())
-        }
-    );
+    assert_eq!(session.input_state, input_state);
 }

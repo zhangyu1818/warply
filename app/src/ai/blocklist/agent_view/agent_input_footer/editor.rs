@@ -13,7 +13,7 @@ use crate::chip_configurator::{
 };
 use crate::settings::log_setting_result;
 use crate::terminal::session_settings::{
-    AgentToolbarChipSelection, SessionSettings, ToolbarChipSelection,
+    AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings, ToolbarChipSelection,
 };
 use crate::Appearance;
 
@@ -22,6 +22,15 @@ use settings::Setting as _;
 use super::toolbar_item::AgentToolbarItemKind;
 
 const AGENT_MODAL_TITLE: &str = "Edit agent toolbelt";
+const CLI_MODAL_TITLE: &str = "Edit CLI agent toolbelt";
+
+/// Controls which set of items and settings the editor modal operates on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AgentToolbarEditorMode {
+    #[default]
+    AgentView,
+    CLIAgent,
+}
 pub enum AgentToolbarEditorEvent {
     Close,
 }
@@ -29,6 +38,7 @@ pub enum AgentToolbarEditorEvent {
 pub struct AgentToolbarEditorModal {
     mouse_handles: ChipEditorMouseHandles,
     chip_configurator: ChipConfigurator,
+    mode: AgentToolbarEditorMode,
     is_dirty: bool,
 }
 
@@ -43,16 +53,29 @@ pub enum AgentToolbarEditorAction {
 
 fn open_toolbar_items_from_settings<V: View>(
     chip_configurator: &mut ChipConfigurator,
+    mode: AgentToolbarEditorMode,
     ctx: &mut ViewContext<V>,
 ) {
     let appearance = Appearance::as_ref(ctx);
     let session_settings = SessionSettings::as_ref(ctx);
-    let selection = session_settings.agent_footer_chip_selection.clone();
-    let (current_left, current_right, available) = (
-        selection.left_items(),
-        selection.right_items(),
-        AgentToolbarItemKind::all_available(),
-    );
+    let (current_left, current_right, available) = match mode {
+        AgentToolbarEditorMode::AgentView => {
+            let selection = session_settings.agent_footer_chip_selection.clone();
+            (
+                selection.left_items(),
+                selection.right_items(),
+                AgentToolbarItemKind::all_available(),
+            )
+        }
+        AgentToolbarEditorMode::CLIAgent => {
+            let selection = session_settings.cli_agent_footer_chip_selection.clone();
+            (
+                selection.left_items(),
+                selection.right_items(),
+                AgentToolbarItemKind::all_available_for_cli_input(),
+            )
+        }
+    };
 
     let filter_unavailable = |items: Vec<AgentToolbarItemKind>| -> Vec<AgentToolbarItemKind> {
         items
@@ -73,24 +96,29 @@ fn open_toolbar_items_from_settings<V: View>(
 
 fn open_default_toolbar_items<V: View>(
     chip_configurator: &mut ChipConfigurator,
+    mode: AgentToolbarEditorMode,
     ctx: &mut ViewContext<V>,
 ) {
     let appearance = Appearance::as_ref(ctx);
-    let (left, right, available) = AgentToolbarItemKind::defaults();
+    let (left, right, available) = AgentToolbarItemKind::defaults_for_mode(mode);
     chip_configurator.open_left_right_zones_with_items(left, right, available, appearance);
 }
 
-fn is_toolbar_editor_at_defaults(chip_configurator: &ChipConfigurator) -> bool {
+fn is_toolbar_editor_at_defaults(
+    mode: AgentToolbarEditorMode,
+    chip_configurator: &ChipConfigurator,
+) -> bool {
     let left = chip_configurator.left_item_kinds();
     let right = chip_configurator.right_item_kinds();
-    toolbar_items_match_defaults(&left, &right)
+    toolbar_items_match_defaults(mode, &left, &right)
 }
 
 fn toolbar_items_match_defaults(
+    mode: AgentToolbarEditorMode,
     left: &[AgentToolbarItemKind],
     right: &[AgentToolbarItemKind],
 ) -> bool {
-    let (default_left, default_right, _) = AgentToolbarItemKind::defaults();
+    let (default_left, default_right, _) = AgentToolbarItemKind::defaults_for_mode(mode);
     default_left.as_slice() == left && default_right.as_slice() == right
 }
 
@@ -105,24 +133,44 @@ pub fn init(app: &mut AppContext) {
 }
 
 fn save_toolbar_selection<V: View>(
+    mode: AgentToolbarEditorMode,
     left: Vec<AgentToolbarItemKind>,
     right: Vec<AgentToolbarItemKind>,
     ctx: &mut ViewContext<V>,
 ) {
-    let is_default = toolbar_items_match_defaults(&left, &right);
-    let selection = if is_default {
-        AgentToolbarChipSelection::Default
-    } else {
-        AgentToolbarChipSelection::Custom { left, right }
-    };
-    SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
-        log_setting_result(
-            settings
-                .agent_footer_chip_selection
-                .set_value(selection, ctx),
-            "agent_footer_chip_selection",
-        );
-    });
+    let is_default = toolbar_items_match_defaults(mode, &left, &right);
+    match mode {
+        AgentToolbarEditorMode::AgentView => {
+            let selection = if is_default {
+                AgentToolbarChipSelection::Default
+            } else {
+                AgentToolbarChipSelection::Custom { left, right }
+            };
+            SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings
+                        .agent_footer_chip_selection
+                        .set_value(selection, ctx),
+                    "agent_footer_chip_selection",
+                );
+            });
+        }
+        AgentToolbarEditorMode::CLIAgent => {
+            let selection = if is_default {
+                CLIAgentToolbarChipSelection::Default
+            } else {
+                CLIAgentToolbarChipSelection::Custom { left, right }
+            };
+            SessionSettings::handle(ctx).update(ctx, |settings, ctx| {
+                log_setting_result(
+                    settings
+                        .cli_agent_footer_chip_selection
+                        .set_value(selection, ctx),
+                    "cli_agent_footer_chip_selection",
+                );
+            });
+        }
+    }
 }
 
 impl AgentToolbarEditorModal {
@@ -130,13 +178,15 @@ impl AgentToolbarEditorModal {
         Self {
             mouse_handles: Default::default(),
             chip_configurator: ChipConfigurator::new(ChipConfiguratorLayout::LeftRightZones),
+            mode: AgentToolbarEditorMode::default(),
             is_dirty: false,
         }
     }
 
-    pub fn open(&mut self, ctx: &mut ViewContext<Self>) {
+    pub fn open(&mut self, mode: AgentToolbarEditorMode, ctx: &mut ViewContext<Self>) {
         self.reset();
-        open_toolbar_items_from_settings(&mut self.chip_configurator, ctx);
+        self.mode = mode;
+        open_toolbar_items_from_settings(&mut self.chip_configurator, mode, ctx);
         ctx.notify();
     }
 
@@ -147,7 +197,7 @@ impl AgentToolbarEditorModal {
 
         let left = self.chip_configurator.left_item_kinds();
         let right = self.chip_configurator.right_item_kinds();
-        save_toolbar_selection(left, right, ctx);
+        save_toolbar_selection(self.mode, left, right, ctx);
     }
 
     fn reset(&mut self) {
@@ -156,7 +206,10 @@ impl AgentToolbarEditorModal {
     }
 
     fn modal_title(&self) -> &'static str {
-        AGENT_MODAL_TITLE
+        match self.mode {
+            AgentToolbarEditorMode::AgentView => AGENT_MODAL_TITLE,
+            AgentToolbarEditorMode::CLIAgent => CLI_MODAL_TITLE,
+        }
     }
 }
 
@@ -186,7 +239,7 @@ impl TypedActionView for AgentToolbarEditorModal {
             }
             Self::Action::ResetDefault => {
                 self.is_dirty = true;
-                open_default_toolbar_items(&mut self.chip_configurator, ctx);
+                open_default_toolbar_items(&mut self.chip_configurator, self.mode, ctx);
                 ctx.notify();
             }
             Self::Action::Activate => {
@@ -198,7 +251,7 @@ impl TypedActionView for AgentToolbarEditorModal {
 
 impl AgentToolbarEditorModal {
     fn is_at_defaults(&self) -> bool {
-        is_toolbar_editor_at_defaults(&self.chip_configurator)
+        is_toolbar_editor_at_defaults(self.mode, &self.chip_configurator)
     }
 }
 
