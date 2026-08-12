@@ -152,6 +152,10 @@ pub enum AgentViewEntryOrigin {
     /// Entered agent view by clearing the buffer (Cmd+K) while already in agent view.
     ClearBuffer,
 
+    /// Entered agent view via the "Jump to Latest Agent Message" command, which
+    /// returns to the most recent conversation from the terminal.
+    JumpToLatestAgentMessage,
+
     ContinueConversationButton,
 }
 
