@@ -4524,6 +4524,7 @@ impl Workspace {
             Image::new(
                 AssetSource::LocalFile {
                     path: icon_path.to_string(),
+                    content_version: None,
                 },
                 CacheOption::BySize,
             )
