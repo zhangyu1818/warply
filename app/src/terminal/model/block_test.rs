@@ -643,6 +643,7 @@ pub fn test_block_emits_block_completed_event_for_in_band_command() {
     block.precmd(Default::default());
     block.preexec(PreexecValue {
         command: "warp_run_generator_command 1234 foo".to_owned(),
+        session_id: None,
     });
     block.finish(0);
 
@@ -1637,6 +1638,7 @@ fn test_multiline_preexec_preserves_legitimate_repeated_command_prefix() {
 
     block.preexec(crate::terminal::model::ansi::PreexecValue {
         command: reported_command.to_owned(),
+        session_id: None,
     });
 
     assert_eq!(block.command_to_string(), reported_command);

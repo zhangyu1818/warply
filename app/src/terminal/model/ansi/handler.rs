@@ -16,6 +16,7 @@ use crate::terminal::model::{
     completions::ShellData as CompletionsShellData, index::VisibleRow, selection::ScrollDelta,
     tmux::ControlModeEvent,
 };
+use warp_core::SessionId;
 
 /// Trait to be implemented by model objects that handle pty output. The
 /// ansi::Performer (our pty output parser) delegates handling of specific
@@ -235,6 +236,19 @@ pub trait Handler {
 
     /// Report text area size in characters.
     fn text_area_size_chars<W: io::Write>(&mut self, _: &mut W);
+
+    /// Returns whether the given session_id is recognized as a client-generated
+    /// session. Used to validate DCS hook integrity: hooks carrying an
+    /// unrecognized session_id are rejected before dispatch. Defaults to false
+    /// so implementors must explicitly opt into accepting integrity-protected hooks.
+    fn is_registered_session(&self, _session_id: SessionId) -> bool {
+        false
+    }
+
+    /// Returns whether DCS hooks should require a registered session ID.
+    fn should_validate_dcs_hook_session_id(&self) -> bool {
+        true
+    }
 
     /// Callback for the Warp CommandFinished hook.
     fn command_finished(&mut self, _data: CommandFinishedValue) {}

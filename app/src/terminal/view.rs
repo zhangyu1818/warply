@@ -9679,8 +9679,10 @@ impl TerminalView {
         shell_type: Option<ShellType>,
         ctx: &mut ViewContext<Self>,
     ) {
+        let session_id = crate::terminal::bootstrap::generate_session_id();
+        self.model.lock().register_session_id(session_id);
         self.clear_line_editor_and_write_to_pty(
-            init_subshell_command(shell_type, &self.env_vars, ctx).into_bytes(),
+            init_subshell_command(shell_type, &self.env_vars, session_id, ctx).into_bytes(),
             ctx,
         );
         self.write_to_pty(vec![escape_sequences::C0::CR], ctx);
@@ -18147,10 +18149,14 @@ impl TerminalView {
     }
 
     fn warpify_ssh_session(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(session_id) = self.active_block_session_id() else {
+            return;
+        };
         self.warpify_state.set_shell_detection_in_progress();
         self.begin_ssh_warpify_timeout(SSH_WARPIFY_TIMEOUT_DURATION, ctx);
         self.clear_line_editor_and_write_to_pty(
-            convert_script_to_one_line(&begin_warpify_ssh_session_command(ctx)).into_bytes(),
+            convert_script_to_one_line(&begin_warpify_ssh_session_command(ctx, session_id))
+                .into_bytes(),
             ctx,
         );
     }

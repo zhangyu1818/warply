@@ -149,7 +149,7 @@ end
 # Run before a command is executed.
 function warp_preexec --on-event fish_preexec
     set -l command (warp_escape_json "$argv")
-    warp_send_json_message "{\"hook\": \"Preexec\", \"value\": {\"command\": \"$command\"}}"
+    warp_send_json_message "{\"hook\": \"Preexec\", \"value\": {\"command\": \"$command\", \"session_id\": $WARP_SESSION_ID}}"
     warp_maybe_send_reset_grid_osc
 
     # If this preexec is called for user command, kill ongoing generator command jobs.
@@ -265,7 +265,7 @@ function warp_precmd --on-event fish_prompt --on-event fish_posterror
     end
 
     set -l next_block_id "precmd-$WARP_SESSION_ID-$block_id"
-    warp_send_json_message "{\"hook\": \"CommandFinished\", \"value\": {\"exit_code\": $exit_code, \"next_block_id\": \"$next_block_id\"}}"
+    warp_send_json_message "{\"hook\": \"CommandFinished\", \"value\": {\"exit_code\": $exit_code, \"next_block_id\": \"$next_block_id\", \"session_id\": $WARP_SESSION_ID}}"
     warp_maybe_send_reset_grid_osc
 
     set block_id (math $block_id + 1)
@@ -500,7 +500,7 @@ function warp_bootstrapped
   # part of its builtins (e.g. "for", "while", etc.).
   set -l escaped_editor (warp_escape_json "$EDITOR")
   set -l escaped_shell_path (warp_escape_json (status fish-path))
-  set -l escaped_json "{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"shell\": \"fish\", \"home_dir\": \"$HOME\", \"path\": \"$PATH\", \"editor\": \"$escaped_editor\", \"abbreviations\": \"$escaped_abbr\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$function_names\", \"env_var_names\": \"$env_var_names\", \"builtins\": \"$escaped_builtins\", \"keywords\": \"\", \"shell_version\": \"$FISH_VERSION\", \"vi_mode_enabled\": \"$vi_mode_enabled\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
+  set -l escaped_json "{\"hook\": \"Bootstrapped\", \"value\": {\"histfile\": \"$escaped_histfile\", \"session_id\": $WARP_SESSION_ID, \"shell\": \"fish\", \"home_dir\": \"$HOME\", \"path\": \"$PATH\", \"editor\": \"$escaped_editor\", \"abbreviations\": \"$escaped_abbr\", \"aliases\": \"$escaped_aliases\", \"function_names\": \"$function_names\", \"env_var_names\": \"$env_var_names\", \"builtins\": \"$escaped_builtins\", \"keywords\": \"\", \"shell_version\": \"$FISH_VERSION\", \"vi_mode_enabled\": \"$vi_mode_enabled\", \"os_category\": \"$os_category\", \"linux_distribution\": \"$linux_distribution\", \"shell_path\": \"$escaped_shell_path\"}}"
   warp_send_json_message $escaped_json
 end
 
@@ -516,13 +516,13 @@ end
 # Binding to ESC-1 caused bootstrap failures with vi keybindings.
 function warp_report_input
     set -l escaped_input (warp_escape_json (commandline))
-    warp_send_json_message "{ \"hook\": \"InputBuffer\", \"value\": { \"buffer\": \"$escaped_input\" } }"
+    warp_send_json_message "{ \"hook\": \"InputBuffer\", \"value\": { \"buffer\": \"$escaped_input\", \"session_id\": $WARP_SESSION_ID } }"
     # This prevents fish from rendering typeahead as background output once we've collected it.
     commandline ''
 end
 
 function clear
-    warp_send_json_message "{\"hook\": \"Clear\", \"value\": {}}"
+    warp_send_json_message "{\"hook\": \"Clear\", \"value\": {\"session_id\": $WARP_SESSION_ID}}"
 end
 
 # The SSH logic only applies to local sessions, because we don't yet have support for bootstrapping
@@ -555,6 +555,12 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
     function warp_ssh_helper
         set -l init_shell_zsh (warp_init_shell "zsh")
         set -l init_shell_bash (warp_init_shell "bash")
+        set -l remote_session_id (command od -An -N8 -tu8 /dev/urandom 2>/dev/null | command tr -d ' \n')
+        if test -z "$remote_session_id"; or test "$remote_session_id" = "0"
+            # If we cannot generate a non-zero random token, run plain SSH instead.
+            command ssh $argv
+            return
+        end
 
         # If the user's SSH config sets a RemoteCommand for this destination,
         # OpenSSH refuses to also run our bootstrap as a command-line remote
@@ -570,7 +576,7 @@ if test "$WARP_IS_LOCAL_SHELL_SESSION" = "1"
         # Hex-encode the ZSH environment script we use to bootstrap remote zsh b/c it contains control characters
         # We decode on the SSH server using xxd if its available, otherwise fall back to a for-loop over each byte
         # and use printf to convert back to plaintext
-        set -l zsh_env_script (printf '%s' 'unsetopt ZLE RCS GLOBAL_RCS; WARP_SESSION_ID="$(command -p date +%s)$RANDOM"; WARP_HONOR_PS1='$WARP_HONOR_PS1'; _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || uname -n); _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER); _msg=$(printf "{\"hook\": \"InitShell\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"shell\": \"zsh\", \"user\": \"%s\", \"hostname\": \"%s\"}}" "$_user" "$_hostname" | command -p od -An -v -tx1 | command -p tr -d " \n"); printf '"'"'\x1b\x50\x24\x64%s\x1b\x5c'"'"' $_msg; unset _hostname _user _msg' | command od -An -v -tx1 | command tr -d ' \n')
+        set -l zsh_env_script (printf '%s' 'unsetopt ZLE RCS GLOBAL_RCS; WARP_SESSION_ID='$remote_session_id'; WARP_HONOR_PS1='$WARP_HONOR_PS1'; _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || uname -n); _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER); _msg=$(printf "{\"hook\": \"InitShell\", \"value\": {\"session_id\": $WARP_SESSION_ID, \"shell\": \"zsh\", \"user\": \"%s\", \"hostname\": \"%s\"}}" "$_user" "$_hostname" | command -p od -An -v -tx1 | command -p tr -d " \n"); printf '"'"'\x1b\x50\x24\x64%s\x1b\x5c'"'"' $_msg; unset _hostname _user _msg' | command od -An -v -tx1 | command tr -d ' \n')
 
         # Note that in this command, we're passing a string to the remote shell. Any variable expansions need to be
         # escaped with "''" to avoid the local shell from expanding them before they're passed to the remote shell.
@@ -585,7 +591,7 @@ export TERM_PROGRAM='WarpTerminal'
 test -n '$WARP_CLIENT_VERSION' && export WARP_CLIENT_VERSION='$WARP_CLIENT_VERSION'
 # Only forward the protocol version if it was set locally (i.e. the HOANotifications feature flag is on).
 test -n '$WARP_CLI_AGENT_PROTOCOL_VERSION' && export WARP_CLI_AGENT_PROTOCOL_VERSION='$WARP_CLI_AGENT_PROTOCOL_VERSION'
-hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$SSH_SOCKET_DIR/$WARP_SESSION_ID'\", \"remote_shell\": \"%s\"}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
+hook="'$(printf "{\"hook\": \"SSH\", \"value\": {\"socket_path\": \"'$SSH_SOCKET_DIR/$WARP_SESSION_ID'\", \"remote_shell\": \"%s\", \"session_id\": '"$WARP_SESSION_ID"', \"remote_session_id\": '"$remote_session_id"'}}" "${SHELL##*/}" | command od -An -v -tx1 | command tr -d " \n")'"
 printf '$DCS_START$DCS_JSON_MARKER%s$DCS_END' "'$hook'"
 
 if test "'"${SHELL##*/}" != "bash" -a "${SHELL##*/}" != "zsh"'"; then
@@ -620,7 +626,7 @@ bash)
       stty raw
       HISTCONTROL=ignorespace
       HISTIGNORE=" *"
-      WARP_SESSION_ID="$(command -p date +%s)$RANDOM"
+      WARP_SESSION_ID='$remote_session_id'
       WARP_HONOR_PS1="'$WARP_HONOR_PS1'"
       _hostname=$(command -pv hostname >/dev/null 2>&1 && command -p hostname 2>/dev/null || uname -n)
       _user=$(command -pv whoami >/dev/null 2>&1 && command -p whoami 2>/dev/null || echo $USER)
@@ -650,7 +656,7 @@ esac
 
     function ssh
         if is_interactive_ssh_session $argv
-            warp_send_json_message '{"hook": "PreInteractiveSSHSession", "value": {}}'
+            warp_send_json_message "{\"hook\": \"PreInteractiveSSHSession\", \"value\": {\"session_id\": $WARP_SESSION_ID}}"
 
             if [ "$WARP_USE_SSH_WRAPPER" = "1" ]
                 if test $WARP_SHELL_DEBUG_MODE
