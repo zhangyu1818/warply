@@ -434,6 +434,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::SHOW_TERMINAL_INPUT_MESSAGE_LINE_FLAG,
     ));
 
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        "preserve input focus on block selection",
+        builder(SettingsAction::FeaturesPageToggle(
+            FeaturesPageAction::TogglePreserveInputFocusOnBlockSelection,
+        )),
+        context,
+        flags::PRESERVE_INPUT_FOCUS_ON_BLOCK_SELECTION_FLAG,
+    ));
+
     if AISettings::as_ref(app).is_any_ai_enabled(app) {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
@@ -567,6 +576,7 @@ pub enum FeaturesPageAction {
     ToggleSlashCommandsInTerminalMode,
     ToggleOutlineCodebaseSymbolsForAtContextMenu,
     ToggleShowTerminalInputMessageLine,
+    TogglePreserveInputFocusOnBlockSelection,
     MakeWarpDefaultTerminal,
     SetCodeEditorLineNumberMode(CodeEditorLineNumberMode),
 }
@@ -1165,6 +1175,16 @@ impl TypedActionView for FeaturesPageView {
                             .show_terminal_input_message_bar
                             .toggle_and_save_value(ctx),
                         "show_terminal_input_message_bar",
+                    );
+                });
+            }
+            TogglePreserveInputFocusOnBlockSelection => {
+                BlockListSettings::handle(ctx).update(ctx, |blocklist_settings, ctx| {
+                    log_setting_result(
+                        blocklist_settings
+                            .preserve_input_focus_on_block_selection
+                            .toggle_and_save_value(ctx),
+                        "preserve_input_focus_on_block_selection",
                     );
                 });
             }
@@ -2105,6 +2125,14 @@ impl FeaturesPageView {
         }
 
         editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
+
+        let blocklist_settings = BlockListSettings::as_ref(ctx);
+        if blocklist_settings
+            .preserve_input_focus_on_block_selection
+            .is_supported_on_current_platform()
+        {
+            editor_widgets.push(Box::new(PreserveInputFocusOnBlockSelectionWidget::default()));
+        }
 
         editor_widgets.push(Box::new(TabKeyBehaviorWidget::default()));
 
@@ -5020,6 +5048,45 @@ impl SettingsWidget for ShowTerminalInputMessageLineWidget {
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(
                         FeaturesPageAction::ToggleShowTerminalInputMessageLine,
+                    );
+                })
+                .finish(),
+            None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct PreserveInputFocusOnBlockSelectionWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for PreserveInputFocusOnBlockSelectionWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "preserve input focus block selection navigate arrow keys"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Preserve input focus on block selection".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(*BlockListSettings::as_ref(app).preserve_input_focus_on_block_selection)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(
+                        FeaturesPageAction::TogglePreserveInputFocusOnBlockSelection,
                     );
                 })
                 .finish(),

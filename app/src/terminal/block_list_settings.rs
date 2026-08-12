@@ -17,7 +17,15 @@ define_settings_group!(BlockListSettings, settings: [
        private: false,
        toml_path: "general.snackbar_enabled",
        description: "Whether to show snackbar notifications.",
-   }
+   },
+   preserve_input_focus_on_block_selection: PreserveInputFocusOnBlockSelection {
+       type: bool,
+       default: false,
+       supported_platforms: SupportedPlatforms::ALL,
+       private: false,
+       toml_path: "general.preserve_input_focus_on_block_selection",
+       description: "Whether to preserve input box focus when selecting a block.",
+   },
    show_block_dividers: ShowBlockDividers {
        type: bool,
        default: true,

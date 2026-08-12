@@ -3189,10 +3189,14 @@ impl TerminalView {
         );
 
         let block_list_settings_handle = BlockListSettings::handle(ctx);
-        ctx.subscribe_to_model(&block_list_settings_handle, |_, _, evt, ctx| match evt {
-            BlockListSettingsChangedEvent::ShowJumpToBottomOfBlockButton { .. } => ctx.notify(),
-            BlockListSettingsChangedEvent::SnackbarEnabled { .. } => ctx.notify(),
-            BlockListSettingsChangedEvent::ShowBlockDividers { .. } => ctx.notify(),
+        ctx.subscribe_to_model(&block_list_settings_handle, |me, _, evt, ctx| match evt {
+            BlockListSettingsChangedEvent::ShowJumpToBottomOfBlockButton { .. }
+            | BlockListSettingsChangedEvent::SnackbarEnabled { .. }
+            | BlockListSettingsChangedEvent::ShowBlockDividers { .. } => ctx.notify(),
+            BlockListSettingsChangedEvent::PreserveInputFocusOnBlockSelection { .. } => {
+                me.redetermine_terminal_focus(ctx);
+                ctx.notify();
+            }
         });
 
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), move |me, _, evt, ctx| {
@@ -12659,7 +12663,9 @@ impl TerminalView {
                     // of knowing whether the user just clicked on a rich content block. To allow
                     // users to attach blocks as context and submit queries quickly, we only divert
                     // the focus away from the input box when we're not in Agent Mode.
-                    if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled() {
+                    if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
+                        && !*BlockListSettings::as_ref(ctx).preserve_input_focus_on_block_selection
+                    {
                         self.focus_terminal(ctx);
                     }
                     // As part of Code Mode V2, we're introducing left and right panels which might be focused
@@ -14072,6 +14078,11 @@ impl TerminalView {
         {
             ctx.emit_a11y_content(accessibility_contents);
         }
+        if !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
+            && !*BlockListSettings::as_ref(ctx).preserve_input_focus_on_block_selection
+        {
+            self.focus_terminal(ctx);
+        }
         ctx.notify();
     }
 
@@ -15109,8 +15120,10 @@ impl TerminalView {
                     self.is_selecting || self.mouse_down_block_index.is_some()
                 }
             };
-            let has_block_or_text_selection_in_shell_mode =
-                is_shell_mode && (are_blocks_selected || is_text_selected) && selection_holds_focus;
+            let has_block_or_text_selection_in_shell_mode = is_shell_mode
+                && !*BlockListSettings::as_ref(ctx).preserve_input_focus_on_block_selection
+                && (are_blocks_selected || is_text_selected)
+                && selection_holds_focus;
 
             has_active_user_terminal_command || has_block_or_text_selection_in_shell_mode
         };
