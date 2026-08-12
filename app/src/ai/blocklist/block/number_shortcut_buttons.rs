@@ -130,6 +130,10 @@ impl NumberShortcutButtonBuilder {
             on_click: Box::new(on_click),
         }
     }
+
+    pub fn build_measurement_element(&self, app: &AppContext) -> Box<dyn Element> {
+        (self.button_builder)(false, app).build().finish()
+    }
 }
 
 pub fn numbered_shortcut_button<A: warpui::Action + Clone + 'static>(
