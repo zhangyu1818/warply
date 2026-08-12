@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
-use warp_core::safe_warn;
+use warp_core::{safe_info, safe_warn};
 
 fn kill_all_processes_in_process_group(pid: u32) -> Result<(), nix::Error> {
     use nix::sys::signal::{kill, Signal};
@@ -19,14 +19,31 @@ fn kill_all_processes_in_process_group(pid: u32) -> Result<(), nix::Error> {
 }
 
 fn terminate_process_group(process_group_id: u32) {
-    if let Err(error) = kill_all_processes_in_process_group(process_group_id) {
-        match error {
-            nix::errno::Errno::ESRCH | nix::errno::Errno::EPERM => {}
-            _ => safe_warn!(
-                safe: ("failed to kill process group"),
-                full: ("failed to kill process group {process_group_id}: {error}")
-            ),
-        }
+    if process_group_id < 2 {
+        safe_warn!(
+            safe: ("refusing to signal process group: pid below 2"),
+            full: ("refusing to signal process group {process_group_id}: pid is below 2")
+        );
+        return;
+    }
+
+    match kill_all_processes_in_process_group(process_group_id) {
+        Ok(()) => safe_info!(
+            safe: ("sent SIGKILL to process group"),
+            full: ("sent SIGKILL to process group {process_group_id}")
+        ),
+        Err(error @ nix::errno::Errno::ESRCH) => safe_info!(
+            safe: ("process group had already exited"),
+            full: ("process group {process_group_id} had already exited: {error}")
+        ),
+        Err(error @ nix::errno::Errno::EPERM) => safe_warn!(
+            safe: ("not permitted to kill process group"),
+            full: ("not permitted to kill process group {process_group_id}: {error}")
+        ),
+        Err(error) => safe_warn!(
+            safe: ("failed to kill process group"),
+            full: ("failed to kill process group {process_group_id}: {error}")
+        ),
     }
 }
 

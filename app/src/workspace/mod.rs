@@ -664,6 +664,14 @@ pub fn init(app: &mut AppContext) {
     .with_custom_action(CustomAction::RenameTab)
     .with_context_predicate(id!("Workspace"))]);
 
+    app.register_editable_bindings([EditableBinding::new(
+        "workspace:cycle_active_tab_color",
+        "Cycle current tab color",
+        WorkspaceAction::CycleActiveTabColor,
+    )
+    .with_group(bindings::BindingGroup::Settings.as_str())
+    .with_context_predicate(id!("Workspace"))]);
+
     // Pane rename — same shape as RenameActiveTab but acts on the focused pane
     // in the active tab. Ships with no default keybinding so it surfaces in
     // Settings → Keyboard shortcuts as remappable; resolves issue #9351, where
