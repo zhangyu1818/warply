@@ -84,7 +84,7 @@ The security stack `32d21d15c9`, `ca745b402c`, and `51bd326780` was deferred onl
 
 - `0d24d2cffa`: reuse a user's existing SSH ControlMaster without taking ownership or killing it.
 - `f0ca7861fe`: wait briefly for the remote-server child exit status before presenting an error, avoiding the retained manager race.
-- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling.
+- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling; this is the one remaining major feature group in the current port pass.
 - `a18da95904`: avoid registering macOS secure storage inside the remote daemon.
 
 These commits are local/SSH functionality. Remote Linux/macOS host code needed by the SSH server is retained even though native Linux/Windows clients are not.
@@ -204,6 +204,19 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 | Command-palette file-search directory exclusion | `3bf0899d57`, `74a0d6758f` | Applied the upstream file-only repository traversal with `GetContentsArgs::exclude_folders()`, shared include-folders/query filtering, uncached file-only queries, file-only Command Palette routing, and zero-state/fuzzy directory exclusion. Adapted the source's `LocalOrRemotePath` implementation to the fork's retained local repository path API and imported the fork's `QueryFilter` path in the source regression test; did not alter directory-inclusive callers. | 17 focused file-search/model tests passed, including the upstream-derived folder-option and `files:` palette regression tests; `cargo check -p warp --all-targets --message-format short`; `cargo fmt --all -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 13.8 GiB of generated build artifacts. |
 | Refresh changed local Markdown images | `a926a145f0`, `be547674a5` | Applied the upstream local-file content-version metadata, asset-cache keying, decoded-image invalidation, and Markdown resolver wiring. The fork retained only local file metadata and adapted constructor/import paths to its current ACP-only tree; the upstream source tests were carried over for changing and non-changing content versions. | Three focused `resolve_asset_source` tests passed; `cargo check -p warp --all-targets --message-format short`; `cargo fmt --all -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 15.3 GiB of generated build artifacts. |
 | Fixed-height expandable toasts | `c20645b9b0` | Applied the upstream bounded dismissible-toast stack: maximum three active toasts, oldest eviction with ephemeral timer abort, per-toast expansion, two-line truncation, accessible Show more/less action with keyboard activation, and source regression tests. Reused the fork's existing `warpui_core` accessibility and button variants; omitted only upstream specs and the cloud-object naming difference. | Ten focused `dismissible_toast` tests passed; `cargo check -p warp --all-targets --message-format short`; `cargo fmt --all -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed 13.8 GiB of generated build artifacts. |
+
+### 2026-08-13 continuation
+
+The re-audit currently tracks 41 major retained feature groups. 40 are now complete; one group remains in progress. The following source-led ports closed the remaining local AgentView, terminal, Markdown, and attachment gaps:
+
+- `170b791b8f`: local AgentView conversation-row fork/open/context actions, with cloud sharing, debug-only actions, and telemetry removed.
+- `bcfd978737`, `a8df317229`, `d58850b2cc`, `b9d1c0ebdb`: local link-tooltip, block-selection focus, ask-question focus, and Droid rich-status behavior.
+- `65381be1f0`: Cmd-Enter starts a new AgentView conversation while preserving selected terminal-block context; three focused terminal tests pass.
+- `83c11f155b`, `a90be740b2`: ask-question option alignment and content-sized cards; 26 focused ask-question tests pass.
+- `d9c4c1a70b`: `/fork` carries pending local image attachments into the new ACP conversation; the fork path drains attachments only when an initial prompt is present.
+- `2e5ff6f429`, `912e4540f8`: copied the upstream paint-bound image sizing prerequisite and Mermaid fit-width rendering; `cargo build -p warp --all-targets --message-format short` passed and build artifacts were cleaned.
+
+The remaining group is the complete remote Code Review Git stack from `08487819fe` and `4b5c94d434`. It depends on the upstream split local/remote diff-state model, host-scoped remote-server protocol, and remote code-review entrypoints that were removed during the ACP fork. It is retained SSH functionality, not a reason to reject the behavior; it is being ported as a complete upstream source stack and must not be replaced with a hand-written substitute or with Warp server/AI API calls.
 
 ## Port Order
 
