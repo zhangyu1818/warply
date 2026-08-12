@@ -166,6 +166,7 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 | Feature | Upstream source | Result | Verification |
 | --- | --- | --- | --- |
 | zsh default bracketed-paste restoration | `43e3f58cf5` | Applied the upstream bootstrap hunk unchanged. | `zsh -n app/assets/bundled/bootstrap/zsh_body.sh`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
+| SVG rendered-image cache identity and reuse | `5c57b38503` | Applied the upstream cache implementation and regression tests unchanged. | Three upstream `warpui_core` regression tests; `cargo fmt -- --check`; `cargo build -p warp --all-targets --message-format short`; `cargo clean` removed the generated build artifacts. |
 
 ## Port Order
 
