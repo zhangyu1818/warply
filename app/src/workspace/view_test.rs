@@ -267,7 +267,10 @@ fn test_tools_panel_does_not_suppress_vertical_tab_bar_traffic_light_padding() {
 #[cfg(feature = "local_fs")]
 fn open_worktree_sidecar(workspace: &ViewHandle<Workspace>, app: &mut App) {
     workspace.update(app, |workspace, ctx| {
-        workspace.open_new_session_dropdown_menu(Vector2F::zero(), ctx);
+        workspace.open_new_session_dropdown_menu(
+            crate::workspace::action::NewSessionMenuAnchor::AddTabButton(Vector2F::zero()),
+            ctx,
+        );
 
         let worktree_index = workspace
             .new_session_dropdown_menu
@@ -365,7 +368,10 @@ fn test_worktree_sidecar_pointer_entry_does_not_select_top_repo() {
         });
 
         workspace.update(&mut app, |workspace, ctx| {
-            workspace.open_new_session_dropdown_menu(Vector2F::zero(), ctx);
+            workspace.open_new_session_dropdown_menu(
+                crate::workspace::action::NewSessionMenuAnchor::AddTabButton(Vector2F::zero()),
+                ctx,
+            );
 
             let worktree_index = workspace
                 .new_session_dropdown_menu
@@ -807,6 +813,181 @@ fn test_set_active_tab_color() {
             assert_eq!(
                 workspace.tabs[active].selected_color,
                 SelectedTabColor::Unset,
+            );
+        });
+    });
+}
+
+#[test]
+fn test_cycle_active_tab_color_uses_resolved_color_and_only_mutates_the_active_tab() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+            let active = workspace.active_tab_index;
+            let inactive = 0;
+            workspace.tabs[inactive].selected_color =
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta);
+            workspace.tabs[inactive].in_multi_selection = true;
+            workspace.tabs[active].in_multi_selection = true;
+
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Red),
+                "an uncolored active tab should start at red"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Green),
+                "red should advance to green"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Yellow),
+                "green should advance to yellow"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Blue),
+                "yellow should advance to blue"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta),
+                "blue should advance to magenta"
+            );
+            workspace.tabs[active].default_directory_color = Some(AnsiColorIdentifier::Yellow);
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Cyan),
+                "magenta should advance to cyan"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Cleared,
+                "cyan should advance to an explicit clear"
+            );
+            assert_eq!(
+                workspace.tabs[active].color(),
+                None,
+                "an explicit clear should suppress the directory-derived color"
+            );
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Red),
+                "the invocation after an explicit clear should restart at red"
+            );
+
+            assert_eq!(
+                workspace.tabs[inactive].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta),
+                "the inactive tab should not change"
+            );
+            assert!(workspace.tabs[inactive].in_multi_selection);
+            assert!(workspace.tabs[active].in_multi_selection);
+
+            workspace.tabs[active].selected_color = SelectedTabColor::Unset;
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Blue),
+                "a directory-derived yellow should advance to blue"
+            );
+
+            workspace.active_tab_index = workspace.tabs.len();
+            let active_selection = workspace.tabs[active].selected_color;
+            let inactive_selection = workspace.tabs[inactive].selected_color;
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            workspace.active_tab_index = active;
+            assert_eq!(workspace.tabs[active].selected_color, active_selection);
+            assert_eq!(workspace.tabs[inactive].selected_color, inactive_selection);
+        });
+    });
+}
+
+#[test]
+fn test_cycle_active_tab_color_mutates_group_color_without_member_overrides() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            let active = workspace.active_tab_index;
+            let grouped_sibling = active - 1;
+            let unrelated = 0;
+
+            let mut group = TabGroup::new();
+            let group_id = group.id;
+            group.color = SelectedTabColor::Color(AnsiColorIdentifier::Yellow);
+            workspace.tab_groups.insert(group_id, group);
+            let mut unrelated_group = TabGroup::new();
+            let unrelated_group_id = unrelated_group.id;
+            unrelated_group.color = SelectedTabColor::Color(AnsiColorIdentifier::Magenta);
+            workspace
+                .tab_groups
+                .insert(unrelated_group_id, unrelated_group);
+            workspace.tabs[active].group_id = Some(group_id);
+            workspace.tabs[grouped_sibling].group_id = Some(group_id);
+            workspace.tabs[active].selected_color =
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta);
+            workspace.tabs[grouped_sibling].selected_color =
+                SelectedTabColor::Color(AnsiColorIdentifier::Green);
+            workspace.tabs[unrelated].selected_color =
+                SelectedTabColor::Color(AnsiColorIdentifier::Red);
+            workspace.tabs[active].in_multi_selection = true;
+            workspace.tabs[unrelated].in_multi_selection = true;
+
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+
+            assert_eq!(
+                workspace.tab_groups[&group_id].color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Blue),
+                "the active tab's group should advance from yellow to blue"
+            );
+            assert_eq!(
+                workspace.tabs[active].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta),
+                "the active member override should remain unchanged"
+            );
+            assert_eq!(
+                workspace.tabs[grouped_sibling].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Green),
+                "the sibling member override should remain unchanged"
+            );
+            assert_eq!(
+                workspace.tabs[unrelated].selected_color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Red),
+                "an unrelated tab should remain unchanged"
+            );
+            assert_eq!(
+                workspace.tab_groups[&unrelated_group_id].color,
+                SelectedTabColor::Color(AnsiColorIdentifier::Magenta),
+                "an unrelated group should remain unchanged"
+            );
+            assert!(workspace.tabs[active].in_multi_selection);
+            assert!(workspace.tabs[unrelated].in_multi_selection);
+
+            workspace.tab_groups.get_mut(&group_id).unwrap().color =
+                SelectedTabColor::Color(AnsiColorIdentifier::Cyan);
+            workspace.handle_action(&WorkspaceAction::CycleActiveTabColor, ctx);
+            assert_eq!(
+                workspace.tab_groups[&group_id].color,
+                SelectedTabColor::Cleared,
+                "cyan should explicitly clear the group color"
             );
         });
     });
@@ -1741,6 +1922,37 @@ fn test_vertical_tabs_panel_auto_shows_when_setting_enabled() {
 }
 
 #[test]
+fn test_active_tab_bar_position_id_tracks_layout() {
+    // Cross-window drag hit-testing (`tab_bar_rects_for_window`) targets only
+    // the active tab presentation. Regression guard for the bug where the
+    // inactive horizontal bar registered as a drop zone while vertical tabs
+    // were enabled, lighting up a spurious placeholder over the top bar.
+    let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        // Horizontal tabs (setting off): the horizontal bar is the drop zone.
+        app.read(|ctx| {
+            assert_eq!(active_tab_bar_position_id(ctx), TAB_BAR_POSITION_ID);
+        });
+
+        // Vertical tabs (setting on): only the vertical panel is the drop zone,
+        // so the horizontal bar no longer registers as a cross-window target.
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                let _ = settings.use_vertical_tabs.set_value(true, ctx);
+            });
+        });
+        app.read(|ctx| {
+            assert_eq!(
+                active_tab_bar_position_id(ctx),
+                VERTICAL_TABS_PANEL_POSITION_ID
+            );
+        });
+    });
+}
+
+#[test]
 fn test_toggle_tab_configs_menu_opens_vertical_tabs_panel_and_menu() {
     let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
 
@@ -1802,7 +2014,10 @@ fn test_pointer_opened_tab_configs_menu_does_not_select_top_item() {
         let workspace = mock_workspace(&mut app);
 
         workspace.update(&mut app, |workspace, ctx| {
-            workspace.toggle_new_session_dropdown_menu(Vector2F::zero(), ctx);
+            workspace.toggle_new_session_dropdown_menu(
+                crate::workspace::action::NewSessionMenuAnchor::Pointer(Vector2F::zero()),
+                ctx,
+            );
 
             assert!(workspace.show_new_session_dropdown_menu.is_some());
             assert_eq!(
@@ -2258,6 +2473,527 @@ fn test_tab_mru_order() {
             workspace.handle_action(&WorkspaceAction::ActivateTab(0), ctx);
 
             assert_eq!(workspace.tab_mru_order(), &[id_a, id_c, id_b]);
+        });
+    });
+}
+
+#[test]
+fn test_create_new_tab_group_groups_active_tab() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Workspace starts with one tab from `Empty` source. Create a tab
+            // group and verify the active tab is assigned to it.
+            assert_eq!(workspace.tab_count(), 1);
+            assert!(workspace.tabs[0].group_id.is_none());
+            assert!(workspace.tab_groups.is_empty());
+
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+
+            assert_eq!(workspace.tab_groups.len(), 1);
+            let group_id = workspace.tabs[0]
+                .group_id
+                .expect("active tab should be assigned to the new group");
+            assert!(workspace.tab_groups.contains_key(&group_id));
+            // New groups start expanded so members are visible.
+            assert!(!workspace.tab_groups[&group_id].collapsed);
+        });
+    });
+}
+
+#[test]
+fn test_toggle_tab_group_collapsed_flips_state() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[0]
+                .group_id
+                .expect("active tab should be in a group");
+            assert!(!workspace.tab_groups[&group_id].collapsed);
+
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(workspace.tab_groups[&group_id].collapsed);
+
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(!workspace.tab_groups[&group_id].collapsed);
+        });
+    });
+}
+
+#[test]
+fn test_close_tab_group_removes_group_and_members() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Create a group, then add another tab which inherits the
+            // active tab's group_id via `add_tab_with_pane_layout`.
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[workspace.active_tab_index()]
+                .group_id
+                .expect("active tab should be in a group");
+
+            workspace.add_terminal_tab(false, ctx);
+
+            let group_members: Vec<usize> = workspace
+                .tabs
+                .iter()
+                .enumerate()
+                .filter(|(_, tab)| tab.group_id == Some(group_id))
+                .map(|(idx, _)| idx)
+                .collect();
+            assert_eq!(
+                group_members.len(),
+                2,
+                "new tab should inherit the active tab's group_id"
+            );
+
+            workspace.handle_action(&WorkspaceAction::CloseTabGroup(group_id), ctx);
+
+            // All group members are closed and the group entry is removed.
+            assert!(!workspace.tab_groups.contains_key(&group_id));
+            assert!(workspace
+                .tabs
+                .iter()
+                .all(|tab| tab.group_id != Some(group_id)));
+        });
+    });
+}
+
+#[test]
+fn test_new_tab_with_after_all_tabs_setting_lands_top_level_at_end() {
+    // With `new_tab_placement = AfterAllTabs`, a new tab lands at the very end
+    // of the tab bar, outside any group — even when the active tab is in a
+    // group.
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                let _ = settings
+                    .new_tab_placement
+                    .set_value(NewTabPlacement::AfterAllTabs, ctx);
+            });
+        });
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Build [g0, g1, ungrouped] by assigning membership directly, so the
+            // setup doesn't depend on new-tab placement behavior.
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            assert_eq!(workspace.tab_count(), 3);
+
+            let group = TabGroup::new();
+            let group_id = group.id;
+            workspace.tab_groups.insert(group_id, group);
+            workspace.tabs[0].group_id = Some(group_id);
+            workspace.tabs[1].group_id = Some(group_id);
+
+            // Activate a member of the group, then add a new tab.
+            workspace.activate_tab(0, ctx);
+            workspace.add_terminal_tab(false, ctx);
+
+            // The new tab lands at the very end of the bar and is top-level.
+            let last = workspace.tab_count() - 1;
+            assert_eq!(workspace.active_tab_index(), last);
+            assert_eq!(workspace.tabs[last].group_id, None);
+
+            // The group keeps exactly its original two contiguous members.
+            let group_members: Vec<usize> = workspace
+                .tabs
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.group_id == Some(group_id))
+                .map(|(idx, _)| idx)
+                .collect();
+            assert_eq!(group_members, vec![0, 1]);
+        });
+    });
+}
+
+#[test]
+fn test_new_tab_with_after_current_tab_setting_lands_after_active_tab_in_group() {
+    // With `new_tab_placement = AfterCurrentTab` and the active tab in the
+    // middle of a group, a new tab should land immediately after the active
+    // tab and inherit the group_id, preserving group contiguity rather than
+    // jumping to the end of the group or past it.
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                let _ = settings
+                    .new_tab_placement
+                    .set_value(NewTabPlacement::AfterCurrentTab, ctx);
+            });
+        });
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Create a group and grow it to two contiguous members so we can
+            // activate the first one (i.e. a member that isn't at the end of
+            // the group's run).
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[workspace.active_tab_index()]
+                .group_id
+                .expect("active tab should be in a group");
+            workspace.add_terminal_tab(false, ctx);
+
+            // Activate the first grouped tab so the next insertion happens in
+            // the middle of the group's contiguous run.
+            let first_grouped_idx = workspace
+                .tabs
+                .iter()
+                .position(|t| t.group_id == Some(group_id))
+                .expect("expected at least one grouped tab");
+            workspace.activate_tab(first_grouped_idx, ctx);
+
+            let expected_new_idx = first_grouped_idx + 1;
+
+            workspace.add_terminal_tab(false, ctx);
+
+            // The new tab lands immediately after the previously-active
+            // grouped tab, inherits its group_id, and keeps the group's run
+            // contiguous.
+            assert_eq!(workspace.active_tab_index(), expected_new_idx);
+            assert_eq!(
+                workspace.tabs[expected_new_idx].group_id,
+                Some(group_id),
+                "new tab should inherit the active tab's group_id"
+            );
+
+            let group_indices: Vec<usize> = workspace
+                .tabs
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.group_id == Some(group_id))
+                .map(|(idx, _)| idx)
+                .collect();
+            assert_eq!(
+                group_indices.len(),
+                3,
+                "group should have grown to three members"
+            );
+            assert!(
+                group_indices.windows(2).all(|w| w[1] == w[0] + 1),
+                "group's tab indices should be contiguous, got {group_indices:?}"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_move_tab_to_group_expands_collapsed_group() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Create a group and a second ungrouped tab.
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[workspace.active_tab_index()]
+                .group_id
+                .expect("active tab should be in a group");
+            workspace.add_terminal_tab(false, ctx);
+
+            // Find the ungrouped tab.
+            let ungrouped_idx = workspace
+                .tabs
+                .iter()
+                .position(|t| t.group_id.is_none())
+                .expect("expected an ungrouped tab");
+
+            // Collapse the group, then move the ungrouped tab into it.
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(
+                workspace.tab_groups[&group_id].collapsed,
+                "group should be collapsed"
+            );
+
+            workspace.handle_action(
+                &WorkspaceAction::MoveTabToGroup {
+                    tab_index: ungrouped_idx,
+                    group_id,
+                },
+                ctx,
+            );
+
+            assert!(
+                !workspace.tab_groups[&group_id].collapsed,
+                "group should expand when a tab is moved into it"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_move_selected_tabs_to_group_expands_collapsed_group() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Add two extra tabs while no group exists so they remain ungrouped.
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+
+            // Create a group from the first tab (moves it to index 0) leaving
+            // the other two tabs ungrouped.
+            workspace.handle_action(&WorkspaceAction::NewTabGroupFromTab(0), ctx);
+            let group_id = workspace.tabs[0]
+                .group_id
+                .expect("tab 0 should be in the new group");
+
+            // Collapse the group.
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(
+                workspace.tab_groups[&group_id].collapsed,
+                "group should be collapsed"
+            );
+
+            // Select the two ungrouped tabs and move them to the group.
+            let ungrouped_indices: Vec<usize> = workspace
+                .tabs
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.group_id.is_none())
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(ungrouped_indices.len(), 2);
+            workspace.activate_tab(ungrouped_indices[0], ctx);
+            workspace.tabs[ungrouped_indices[0]].in_multi_selection = true;
+            workspace.tabs[ungrouped_indices[1]].in_multi_selection = true;
+
+            workspace.handle_action(&WorkspaceAction::MoveSelectedTabsToGroup { group_id }, ctx);
+
+            assert!(
+                !workspace.tab_groups[&group_id].collapsed,
+                "group should expand when selected tabs are moved into it"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_new_tab_in_group_expands_collapsed_group_non_member_active() {
+    // When the active tab is NOT a member of the group, `new_tab_in_group`
+    // must still expand the target group.
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            // Create a group, then activate an ungrouped tab so the active
+            // tab is NOT a member of the group.
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[workspace.active_tab_index()]
+                .group_id
+                .expect("active tab should be in a group");
+            workspace.add_terminal_tab(false, ctx);
+
+            let ungrouped_idx = workspace
+                .tabs
+                .iter()
+                .position(|t| t.group_id.is_none())
+                .expect("expected an ungrouped tab");
+            workspace.activate_tab(ungrouped_idx, ctx);
+
+            // Collapse the group, then open a new tab inside it.
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(
+                workspace.tab_groups[&group_id].collapsed,
+                "group should be collapsed"
+            );
+
+            workspace.handle_action(&WorkspaceAction::NewTabInGroup(group_id), ctx);
+
+            assert!(
+                !workspace.tab_groups[&group_id].collapsed,
+                "group should expand when a new tab is opened in it"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_new_tab_in_group_expands_collapsed_group_member_active() {
+    // When the active tab IS a member of the group, `new_tab_in_group` takes
+    // the inheritance path; the group must still expand.
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[workspace.active_tab_index()]
+                .group_id
+                .expect("active tab should be in a group");
+
+            // Collapse the group, keeping the group member as the active tab.
+            workspace.handle_action(&WorkspaceAction::ToggleTabGroupCollapsed(group_id), ctx);
+            assert!(
+                workspace.tab_groups[&group_id].collapsed,
+                "group should be collapsed"
+            );
+
+            workspace.handle_action(&WorkspaceAction::NewTabInGroup(group_id), ctx);
+
+            assert!(
+                !workspace.tab_groups[&group_id].collapsed,
+                "group should expand when a new tab is opened in it"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_pin_unpin_ungrouped_tab_moves_to_and_from_boundary() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            assert_eq!(workspace.tab_count(), 3);
+
+            let id0 = workspace.tabs[0].pane_group.id();
+            let id1 = workspace.tabs[1].pane_group.id();
+            let id2 = workspace.tabs[2].pane_group.id();
+
+            // Pin tab at index 2: it should move to the front of the list.
+            workspace.handle_action(&WorkspaceAction::PinTab(2), ctx);
+            let order: Vec<_> = workspace.tabs.iter().map(|t| t.pane_group.id()).collect();
+            assert_eq!(order, vec![id2, id0, id1]);
+            assert!(workspace.tabs[0].pinned);
+            assert!(!workspace.tabs[1].pinned);
+            assert!(!workspace.tabs[2].pinned);
+
+            // Unpin tab at index 0: it should move to the start of the unpinned region.
+            workspace.handle_action(&WorkspaceAction::UnpinTab(0), ctx);
+            let order: Vec<_> = workspace.tabs.iter().map(|t| t.pane_group.id()).collect();
+            assert_eq!(order, vec![id2, id0, id1]);
+            assert!(workspace.tabs.iter().all(|t| !t.pinned));
+        });
+    });
+}
+
+#[test]
+fn test_pin_unpin_tab_group_moves_block_without_syncing_members() {
+    // The group's own `pinned` flag is the sole source of truth for grouped
+    // tabs — members keep `tab.pinned = false` regardless.
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            assert_eq!(workspace.tab_count(), 4);
+
+            let id0 = workspace.tabs[0].pane_group.id();
+            let id1 = workspace.tabs[1].pane_group.id();
+            let id2 = workspace.tabs[2].pane_group.id();
+            let id3 = workspace.tabs[3].pane_group.id();
+
+            // Group tabs at indices 2, 3.
+            let group = TabGroup::new();
+            let group_id = group.id;
+            workspace.tab_groups.insert(group_id, group);
+            workspace.tabs[2].group_id = Some(group_id);
+            workspace.tabs[3].group_id = Some(group_id);
+
+            // Pin the group: the block moves to the front; only the group's
+            // flag flips — member tabs keep `pinned = false`.
+            workspace.handle_action(&WorkspaceAction::PinTabGroup(group_id), ctx);
+            let order: Vec<_> = workspace.tabs.iter().map(|t| t.pane_group.id()).collect();
+            assert_eq!(order, vec![id2, id3, id0, id1]);
+            assert!(workspace.tab_groups[&group_id].pinned);
+            assert!(workspace.tabs.iter().all(|t| !t.pinned));
+
+            // Unpin the group: block moves to the start of the unpinned
+            // region; group's flag clears.
+            workspace.handle_action(&WorkspaceAction::UnpinTabGroup(group_id), ctx);
+            assert!(!workspace.tab_groups[&group_id].pinned);
+            assert!(workspace.tabs.iter().all(|t| !t.pinned));
+
+            // Group is still contiguous.
+            let group_indices: Vec<usize> = workspace
+                .tabs
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.group_id == Some(group_id))
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(group_indices.len(), 2);
+            assert_eq!(group_indices[1] - group_indices[0], 1);
+        });
+    });
+}
+
+#[test]
+fn test_pin_tab_on_grouped_tab_extracts_then_pins() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.add_terminal_tab(false, ctx);
+            workspace.add_terminal_tab(false, ctx);
+            assert_eq!(workspace.tab_count(), 3);
+
+            let id0 = workspace.tabs[0].pane_group.id();
+            let id1 = workspace.tabs[1].pane_group.id();
+            let id2 = workspace.tabs[2].pane_group.id();
+
+            // Group tabs 0 and 1; tab 1 is the target.
+            let group = TabGroup::new();
+            let group_id = group.id;
+            workspace.tab_groups.insert(group_id, group);
+            workspace.tabs[0].group_id = Some(group_id);
+            workspace.tabs[1].group_id = Some(group_id);
+
+            // Pin tab at index 1: extracts from group, then pins as ungrouped.
+            workspace.handle_action(&WorkspaceAction::PinTab(1), ctx);
+
+            // Pinned tab (id1) is at the front, ungrouped.
+            assert_eq!(workspace.tabs[0].pane_group.id(), id1);
+            assert!(workspace.tabs[0].pinned);
+            assert!(workspace.tabs[0].group_id.is_none());
+
+            // Source group still has its one remaining member (id0).
+            assert_eq!(workspace.tabs[1].pane_group.id(), id0);
+            assert_eq!(workspace.tabs[1].group_id, Some(group_id));
+            assert!(!workspace.tabs[1].pinned);
+
+            // Ungrouped tab id2 remains untouched.
+            assert_eq!(workspace.tabs[2].pane_group.id(), id2);
+            assert!(workspace.tabs[2].group_id.is_none());
+            assert!(!workspace.tabs[2].pinned);
         });
     });
 }

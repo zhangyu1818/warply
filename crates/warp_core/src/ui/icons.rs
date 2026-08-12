@@ -285,6 +285,8 @@ pub enum Icon {
     HeartHand,
     MessageChatSquare,
     Pin,
+    PinFilledDiagonal,
+    LayersThree01,
 }
 
 impl From<Icon> for &'static str {
@@ -292,6 +294,7 @@ impl From<Icon> for &'static str {
         match icon {
             Icon::Menu => "bundled/svg/layout-left.svg",
             Icon::Pin => "bundled/svg/pin-01.svg",
+            Icon::PinFilledDiagonal => "bundled/svg/pin-filled-diagonal.svg",
             Icon::AtSign => "bundled/svg/at-sign.svg",
             Icon::Plus => "bundled/svg/plus.svg",
             Icon::Copy => "bundled/svg/copy.svg",
@@ -567,6 +570,7 @@ impl From<Icon> for &'static str {
             Icon::ClockPlus => "bundled/svg/clock-plus.svg",
             Icon::HeartHand => "bundled/svg/heart-hand.svg",
             Icon::MessageChatSquare => "bundled/svg/message-chat-square.svg",
+            Icon::LayersThree01 => "bundled/svg/layers-three-01.svg",
         }
     }
 }

@@ -111,6 +111,7 @@ use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 
 use crate::palette::PaletteMode;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
+use crate::workspace::tab_group::TabGroupId;
 use crate::workspace::{self, CommandSearchOptions, PaneViewLocator, TabBarLocation};
 use crate::{
     http_api::HttpApi,
@@ -521,6 +522,9 @@ pub enum Event {
     /// as a header is dragged
     UpdateHoveredTabIndex {
         tab_hover_index: TabBarHoverIndex,
+        /// Drag cursor rect. The workspace uses it to resolve which tab group a
+        /// `BeforeTab` insertion lands.
+        drag_position: RectF,
     },
     /// Clears the hovered tab index so it no longer appears as highlighted drop target
     ClearHoveredTabIndex,
@@ -630,8 +634,24 @@ pub enum Event {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabBarHoverIndex {
-    BeforeTab(usize),
+    /// Insert the dragged pane as a new tab at `index`. `group` is the tab
+    /// group the insertion lands inside, so the new tab can inherit that
+    /// group's membership. `None` for an ungrouped insertion or a group
+    /// boundary (before/after a group). This is used to differentiate a drop
+    /// right before/after a group from a drop inside the group at its boundaries.
+    BeforeTab {
+        index: usize,
+        group: Option<TabGroupId>,
+    },
     OverTab(usize),
+}
+
+/// Axis of the tab bar a pane is being dragged over. Selects horizontal vs
+/// vertical-axis geometry when resolving the hovered insertion point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TabBarAxis {
+    Horizontal,
+    Vertical,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1001,13 +1021,14 @@ impl PaneGroup {
                     origin,
                     tab_hover_index,
                     hidden_pane_preview_direction,
+                    drag_position,
                 } => {
                     if matches!(origin, ActionOrigin::Pane) {
                         // Clear hidden closed panes since dragging invalidates undo functionality
                         self.clear_hidden_closed_panes(ctx);
 
                         match tab_hover_index {
-                            TabBarHoverIndex::BeforeTab(_) => {
+                            TabBarHoverIndex::BeforeTab { .. } => {
                                 self.hide_pane_for_move(pane_id, ctx);
                             }
                             TabBarHoverIndex::OverTab(tab_idx) => {
@@ -1023,6 +1044,7 @@ impl PaneGroup {
 
                     ctx.emit(Event::UpdateHoveredTabIndex {
                         tab_hover_index: *tab_hover_index,
+                        drag_position: *drag_position,
                     })
                 }
 
@@ -5150,6 +5172,19 @@ impl View for PaneGroup {
         };
 
         ctx
+    }
+
+    fn child_view_ids(&self, _app: &AppContext) -> Vec<EntityId> {
+        // Modals and banners owned directly by the pane group are only
+        // rendered while open, so they're usually absent from the render-time
+        // parent graph. Report them explicitly so they move with the pane
+        // group when it is transferred to another window; otherwise a later
+        // render of one of these handles in the new window would look the
+        // view up in a window that no longer holds it and panic with a
+        // "circular view reference". The per-pane views (and their backing
+        // terminal/editor views) are reached via the structural parent graph
+        // and `PaneView::child_view_ids`.
+        vec![self.user_default_shell_changed_banner.id()]
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {

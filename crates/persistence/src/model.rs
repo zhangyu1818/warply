@@ -11,8 +11,8 @@ use super::schema::{
     code_panes, code_review_panes, commands, env_var_collection_panes, folders,
     generic_string_objects, ignored_suggestions, object_actions, object_metadata,
     object_permissions, pane_branches, pane_leaves, pane_nodes, panels, project_rules, projects,
-    settings_panes, tabs, terminal_panes, welcome_panes, windows, workflow_panes, workflows,
-    workspace_language_server, workspace_metadata, workspaces,
+    settings_panes, tab_groups, tabs, terminal_panes, welcome_panes, windows, workflow_panes,
+    workflows, workspace_language_server, workspace_metadata, workspaces,
 };
 
 #[derive(Insertable)]
@@ -249,6 +249,8 @@ pub struct Tab {
     pub window_id: i32,
     pub custom_title: Option<String>,
     pub color: Option<String>,
+    pub tab_group_id: Option<i32>,
+    pub pinned: bool,
 }
 
 #[derive(Insertable)]
@@ -257,6 +259,32 @@ pub struct NewTab {
     pub window_id: i32,
     pub custom_title: Option<String>,
     pub color: Option<String>,
+    pub tab_group_id: Option<i32>,
+    pub pinned: bool,
+}
+
+/// Persisted form of a tab group. `name` is optional — untitled groups omit
+/// it and the UI falls back to a default label.
+#[derive(Identifiable, Queryable, Associations)]
+#[diesel(belongs_to(Window))]
+#[diesel(table_name = tab_groups)]
+pub struct TabGroup {
+    pub id: i32,
+    pub window_id: i32,
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub collapsed: bool,
+    pub pinned: bool,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = tab_groups)]
+pub struct NewTabGroup {
+    pub window_id: i32,
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub collapsed: bool,
+    pub pinned: bool,
 }
 
 /// The panes data model includes pane_nodes, pane_leaves and pane_branches.

@@ -38,10 +38,10 @@ Ported parts:
 - `app/src/workspace/view.rs`: imported `next_tab_color` and handled `CycleActiveTabColor` in `TypedActionView`.
 
 Adaptations from upstream:
-- The fork has **no tab grouping** (`group_id`, `tab_groups`, `TabGroup`, `set_tab_group_color`, and the `GroupedTabs` feature are all absent). The upstream handler's grouped-tab branch (`set_tab_group_color`) was not ported; only the ungrouped `set_tab_color` path applies.
-- Upstream also removed a `ctx.dispatch_global_action("workspace:save_app", ())` from `set_tab_group_color` — not applicable since that function does not exist in the fork. The fork's `set_tab_color` already dispatches `workspace:save_app` itself.
+- This incremental port initially omitted the grouped-tab branch because grouping infrastructure was absent at that point. After the source-faithful grouping/pinning stack was ported, the exact upstream `group_id`/`tab_groups` branch was restored: cycling a grouped active tab now advances the shared group color without overwriting member overrides.
+- The upstream removal of the duplicate `ctx.dispatch_global_action("workspace:save_app", ())` from `set_tab_group_color` is now applied; the typed action's save path persists the change.
 - The upstream specs under `specs/GH14069/` were rejected.
-- The upstream unit tests (`tab_tests.rs`, `workspace/view_tests.rs`) and integration tests live under different filenames in the fork (`view_test.rs`, `action_tests.rs`, etc.) and were not ported; the action is exercised by the existing workspace/tab test suites.
+- The upstream canonical-palette, ungrouped-color, and grouped-color unit tests were ported to the fork's `tab_tests.rs` and singular `workspace/view_test.rs` modules. Upstream specs remain rejected.
 
 ## Rejected / Not Applicable
 
