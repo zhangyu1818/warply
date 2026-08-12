@@ -1,5 +1,8 @@
 use super::{AskAISource, ContextMenuAction, TerminalAction};
 
+use crate::ai::blocklist::agent_view::{
+    AgentViewEntryOrigin, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
+};
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 
 use crate::settings_view::flags;
@@ -821,20 +824,36 @@ fn register_input_mode_bindings(app: &mut AppContext) {
 
     let agent_mode_predicate = base_context.clone() & id!(flags::TERMINAL_MODE_INPUT);
 
+    let command_predicate = id!("LongRunningCommand") | id!("AltScreen");
+
     let terminal_mode_predicate = base_context.clone()
         & id!(flags::AGENT_MODE_INPUT)
         & (id!(flags::ACTIVE_AGENT_VIEW)
             | id!(flags::ACTIVE_INLINE_AGENT_VIEW)
             | !id!(flags::LOCKED_INPUT));
 
-    app.register_fixed_bindings([FixedBinding::new_per_platform(
-        PerPlatformKeystroke { mac: "cmd-enter" },
-        TerminalAction::SetInputModeAgent,
-        agent_mode_predicate.clone()
-            & !id!("Input")
-            & !id!(flags::HAS_PENDING_PROMPT_SUGGESTION)
-            & !id!(SSH_ERROR_BLOCK_VISIBLE_KEY),
-    )]);
+    let agent_conversation_predicate = base_context.clone()
+        & id!("Terminal")
+        & !id!("Input")
+        & !id!(flags::HAS_PENDING_PROMPT_SUGGESTION)
+        & !id!(SSH_ERROR_BLOCK_VISIBLE_KEY);
+
+    app.register_fixed_bindings([
+        FixedBinding::new_per_platform(
+            PerPlatformKeystroke { mac: "cmd-enter" },
+            TerminalAction::StartNewAgentConversation {
+                origin: AgentViewEntryOrigin::Keybinding(
+                    ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
+                ),
+            },
+            agent_conversation_predicate.clone() & !command_predicate.clone(),
+        ),
+        FixedBinding::new_per_platform(
+            PerPlatformKeystroke { mac: "cmd-enter" },
+            TerminalAction::SetInputModeAgent,
+            agent_conversation_predicate & agent_mode_predicate.clone() & command_predicate,
+        ),
+    ]);
 
     app.register_editable_bindings([
         EditableBinding::new(

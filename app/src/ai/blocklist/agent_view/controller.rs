@@ -96,7 +96,7 @@ impl PendingConfirmation {
 ///
 /// Depending on the entrypoint, an `AgentView` block representing the entry may be inserted into
 /// the terminal blocklist.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentViewEntryOrigin {
     /// Entered agent view from user input (e.g. /agent or cmd-enter keypress).
     Input {
@@ -129,8 +129,8 @@ pub enum AgentViewEntryOrigin {
         trigger: SlashCommandTrigger,
     },
     SlashInit,
-    /// Entered agent view by executing a slash command that requires agent mode.
-    Keybinding,
+    /// Entered agent view from the new-conversation keybinding.
+    Keybinding(Keystroke),
     /// Entered agent view by attaching context from the code review panel.
     CodeReviewContext,
     /// Entered agent view by selecting a conversation from the inline history menu.
@@ -520,6 +520,26 @@ impl AgentViewController {
         keybinding_name: &str,
         ctx: &mut ModelContext<Self>,
     ) -> bool {
+        let Some(keystroke) = keybinding_name_to_keystroke(keybinding_name, ctx) else {
+            log::warn!(
+                "Expected keybinding for slash command {keybinding_name}, but none was found"
+            );
+            return true;
+        };
+
+        self.should_start_new_conversation_for_keystroke(keystroke, ctx)
+    }
+
+    /// Decides whether a keybinding-triggered new conversation should proceed immediately.
+    ///
+    /// We only require a second press when the user is already in an active, non-empty
+    /// conversation. This protects against accidental conversation resets from muscle-memory
+    /// keypresses, while preserving single-step behavior for explicit typed/slash-menu execution.
+    pub fn should_start_new_conversation_for_keystroke(
+        &mut self,
+        keystroke: Keystroke,
+        ctx: &mut ModelContext<Self>,
+    ) -> bool {
         enum Decision {
             StartNewConversation,
             ArmConfirmation {
@@ -545,13 +565,6 @@ impl AgentViewController {
             if conversation.is_empty() {
                 break 'decision Decision::StartNewConversation;
             }
-
-            let Some(keystroke) = keybinding_name_to_keystroke(keybinding_name, ctx) else {
-                log::warn!(
-                    "Expected keybinding for slash command {keybinding_name}, but none was found"
-                );
-                break 'decision Decision::StartNewConversation;
-            };
 
             let normalized_keystroke = keystroke.normalized();
             if self.is_new_conversation_keybinding_confirmation_active_for(
@@ -735,7 +748,7 @@ impl AgentViewController {
 
         self.agent_view_state = AgentViewState::Active {
             conversation_id,
-            origin,
+            origin: origin.clone(),
             display_mode,
             original_conversation_length: exchange_count,
         };
@@ -747,7 +760,7 @@ impl AgentViewController {
         ctx.emit(AgentViewControllerEvent::EnteredAgentView {
             conversation_id,
             is_new: exchange_count == 0,
-            origin,
+            origin: origin.clone(),
             display_mode,
         });
 

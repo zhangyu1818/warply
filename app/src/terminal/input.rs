@@ -875,7 +875,9 @@ pub enum InputAction {
     /// Toggles the inline conversation menu for selecting AI conversations.
     ToggleConversationsMenu,
 
-    StartNewAgentConversation,
+    StartNewAgentConversation {
+        origin: AgentViewEntryOrigin,
+    },
 
     /// Triggers the lightbulb button click behavior to enable/toggle auto-detection
     EnableAutoDetection,
@@ -11293,15 +11295,31 @@ impl TypedActionView for Input {
                 };
                 self.select_slash_command(command, SlashCommandTrigger::keybinding(), ctx);
             }
-            InputAction::StartNewAgentConversation => {
-                if self.should_show_universal_developer_input(ctx) {
+            InputAction::StartNewAgentConversation { origin } => {
+                if let AgentViewEntryOrigin::Keybinding(keystroke) = origin {
+                    let should_start_new_conversation =
+                        self.agent_view_controller.update(ctx, |controller, ctx| {
+                            controller
+                                .should_start_new_conversation_for_keystroke(keystroke.clone(), ctx)
+                        });
+                    if !should_start_new_conversation {
+                        return;
+                    }
+                    ctx.emit(Event::EnterAgentView {
+                        initial_prompt: None,
+                        conversation_id: None,
+                        origin: origin.clone(),
+                    });
+                } else if self.should_show_universal_developer_input(ctx) {
+                    ctx.emit(Event::EnterAgentView {
+                        initial_prompt: None,
+                        conversation_id: None,
+                        origin: origin.clone(),
+                    });
+                } else {
                     self.ai_context_model.update(ctx, |ai_context_model, ctx| {
-                        ai_context_model.set_pending_query_state_for_new_conversation(
-                            AgentViewEntryOrigin::Input {
-                                was_prompt_autodetected: false,
-                            },
-                            ctx,
-                        );
+                        ai_context_model
+                            .set_pending_query_state_for_new_conversation(origin.clone(), ctx);
                     });
                     self.enter_ai_mode(ctx);
                 }

@@ -43,6 +43,7 @@ use crate::terminal::event::SshLoginStatus;
 
 use crate::terminal::model::ansi::{self, InitShellValue};
 use crate::terminal::model::ansi::{BootstrappedValue, PreexecValue};
+use crate::terminal::model::block::AgentViewVisibility;
 use crate::terminal::model::blocks::{insert_block, TotalIndex};
 use crate::terminal::model::grid::grid_handler::TermMode;
 use crate::terminal::model::grid::Dimensions as _;
@@ -5399,6 +5400,185 @@ fn close_find_bar_clears_ai_block_find_highlights() {
             "closing the find bar should immediately clear AI block find highlights"
         );
     })
+}
+
+#[test]
+fn cmd_enter_from_terminal_without_selected_block_enters_agent_view() {
+    App::test((), |mut app| async move {
+        initialize_agent_transcript_navigation_test(&mut app);
+        app.add_singleton_model(ImportedConfigModel::new);
+        app.update(|ctx| {
+            crate::terminal::init(ctx);
+            crate::editor::init(ctx);
+        });
+
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            assert!(view
+                .ai_context_model
+                .as_ref(ctx)
+                .pending_context_block_ids()
+                .is_empty());
+            view.focus_terminal(ctx);
+        });
+
+        let keystroke = "cmd-enter";
+        let handled = app
+            .dispatch_keystroke(
+                window_id,
+                &[terminal.id()],
+                &warpui::keymap::Keystroke::parse(keystroke).expect("valid keystroke"),
+                false,
+            )
+            .expect("dispatch should succeed");
+        assert!(
+            handled,
+            "{keystroke} should be handled from terminal context"
+        );
+
+        terminal.read(&app, |view, ctx| {
+            assert!(view
+                .agent_view_controller()
+                .as_ref(ctx)
+                .agent_view_state()
+                .is_fullscreen());
+            assert!(view
+                .ai_context_model
+                .as_ref(ctx)
+                .pending_context_block_ids()
+                .is_empty());
+        });
+    });
+}
+
+#[test]
+fn cmd_enter_from_terminal_with_selected_block_enters_agent_view_with_context() {
+    App::test((), |mut app| async move {
+        initialize_agent_transcript_navigation_test(&mut app);
+        app.add_singleton_model(ImportedConfigModel::new);
+        app.update(|ctx| {
+            crate::terminal::init(ctx);
+            crate::editor::init(ctx);
+        });
+
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let selected_block_id = terminal.update(&mut app, |view, ctx| {
+            let (selected_block_index, selected_block_id) = {
+                let mut model = view.model.lock();
+                model.simulate_block("echo selected", "selected");
+                let block = model
+                    .block_list()
+                    .blocks()
+                    .iter()
+                    .find(|block| block.command_to_string() == "echo selected")
+                    .expect("simulated block should exist");
+                (block.index(), block.id().clone())
+            };
+
+            view.integration_test_change_block_selection_to_single(selected_block_index, ctx);
+            assert!(view
+                .ai_context_model
+                .as_ref(ctx)
+                .pending_context_block_ids()
+                .contains(&selected_block_id));
+            view.focus_terminal(ctx);
+            selected_block_id
+        });
+
+        let handled = app
+            .dispatch_keystroke(
+                window_id,
+                &[terminal.id()],
+                &warpui::keymap::Keystroke::parse("cmd-enter").expect("valid keystroke"),
+                false,
+            )
+            .expect("dispatch should succeed");
+        assert!(handled, "cmd-enter should be handled from terminal context");
+
+        terminal.read(&app, |view, ctx| {
+            let conversation_id = view
+                .agent_view_controller()
+                .as_ref(ctx)
+                .agent_view_state()
+                .active_conversation_id()
+                .expect("agent view should be active");
+
+            let model = view.model.lock();
+            let block = model
+                .block_list()
+                .block_with_id(&selected_block_id)
+                .expect("selected block should still exist");
+            assert!(!block.should_hide_block(model.block_list().agent_view_state()));
+            match block.agent_view_visibility() {
+                AgentViewVisibility::Terminal {
+                    pending_conversation_ids,
+                    ..
+                } => assert!(pending_conversation_ids.contains(&conversation_id)),
+                visibility => panic!("expected terminal block visibility, got {visibility:?}"),
+            }
+        });
+    });
+}
+
+#[test]
+fn cmd_enter_from_active_non_empty_agent_view_requires_confirmation() {
+    App::test((), |mut app| async move {
+        initialize_agent_transcript_navigation_test(&mut app);
+        app.add_singleton_model(ImportedConfigModel::new);
+        app.update(|ctx| {
+            crate::terminal::init(ctx);
+            crate::editor::init(ctx);
+        });
+
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let original_conversation_id = terminal.update(&mut app, |view, ctx| {
+            let (conversation_id, _, _, _) =
+                append_exchange_and_handle_event(view, agent_jump_user_query("first"), ctx);
+            view.enter_agent_view_for_conversation(
+                None,
+                AgentViewEntryOrigin::ConversationSelector,
+                conversation_id,
+                ctx,
+            );
+            view.focus_terminal(ctx);
+            conversation_id
+        });
+
+        let keystroke = warpui::keymap::Keystroke::parse("cmd-enter").expect("valid keystroke");
+
+        let handled = app
+            .dispatch_keystroke(window_id, &[terminal.id()], &keystroke, false)
+            .expect("dispatch should succeed");
+        assert!(handled, "new conversation keybinding should be handled");
+
+        terminal.read(&app, |view, ctx| {
+            assert_eq!(
+                view.agent_view_controller()
+                    .as_ref(ctx)
+                    .agent_view_state()
+                    .active_conversation_id(),
+                Some(original_conversation_id)
+            );
+        });
+
+        let handled = app
+            .dispatch_keystroke(window_id, &[terminal.id()], &keystroke, false)
+            .expect("dispatch should succeed");
+        assert!(handled, "new conversation keybinding should be handled");
+
+        terminal.read(&app, |view, ctx| {
+            let new_conversation_id = view
+                .agent_view_controller()
+                .as_ref(ctx)
+                .agent_view_state()
+                .active_conversation_id()
+                .expect("agent view should be active");
+            assert_ne!(new_conversation_id, original_conversation_id);
+        });
+    });
 }
 
 #[test]

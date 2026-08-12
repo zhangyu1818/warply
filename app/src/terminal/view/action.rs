@@ -13,6 +13,7 @@ use warpui::EntityId;
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::model::completions::ShellCompletion;
@@ -319,7 +320,9 @@ pub enum TerminalAction {
     StartLspServer,
     ToggleHideCliResponses,
     ExitAgentView,
-    StartNewAgentConversation,
+    StartNewAgentConversation {
+        origin: AgentViewEntryOrigin,
+    },
     ToggleConversationDetailsPanel,
     OpenInlineHistoryMenu,
     ResolvePromptSuggestion(PromptSuggestionResolution),
@@ -542,7 +545,9 @@ impl fmt::Debug for TerminalAction {
             StartLspServer => write!(f, "StartLspServer"),
             ToggleHideCliResponses => write!(f, "ToggleHideCliResponses"),
             ExitAgentView => write!(f, "ExitAgentView"),
-            StartNewAgentConversation => write!(f, "StartNewAgentConversation"),
+            StartNewAgentConversation { origin } => {
+                write!(f, "StartNewAgentConversation {{ origin: {origin:?} }}")
+            }
             ToggleConversationDetailsPanel => write!(f, "ToggleConversationDetailsPanel"),
             OpenInlineHistoryMenu => write!(f, "OpenInlineHistoryMenu"),
             ResolvePromptSuggestion(..) => write!(f, "ResolvePromptSuggestion"),

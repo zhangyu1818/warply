@@ -17,7 +17,9 @@ use self::vertical_tabs::{
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 #[cfg(feature = "local_fs")]
-use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
+use crate::ai::blocklist::agent_view::{
+    AgentViewEntryOrigin, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
+};
 use crate::ai::blocklist::history_model::RestoredConversationData;
 use crate::ai::blocklist::FORK_PREFIX;
 #[cfg(feature = "local_fs")]
@@ -16011,7 +16013,9 @@ impl TypedActionView for Workspace {
             }
             AddTabWithShell { shell } => self.add_tab_with_shell(shell.clone(), ctx),
             AddAgentTab => self.add_terminal_tab_with_new_agent_view(
-                AgentViewEntryOrigin::Keybinding,
+                AgentViewEntryOrigin::Keybinding(
+                    ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
+                ),
                 None,
                 ctx,
             ),
@@ -16416,7 +16420,9 @@ impl TypedActionView for Workspace {
             NewTabInAgentMode {
                 zero_state_prompt_suggestion_type,
             } => self.add_terminal_tab_with_new_agent_view(
-                AgentViewEntryOrigin::Keybinding,
+                AgentViewEntryOrigin::Keybinding(
+                    ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE.clone(),
+                ),
                 *zero_state_prompt_suggestion_type,
                 ctx,
             ),

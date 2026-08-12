@@ -67,10 +67,10 @@ impl TerminalView {
             return;
         }
 
-        if let Err(e) = self.try_enter_agent_view(initial_prompt, origin, None, ctx) {
+        if let Err(e) = self.try_enter_agent_view(initial_prompt, origin.clone(), None, ctx) {
             log::error!(
                 "Failed to enter agent view for new conversation from origin {:?}: {:?}",
-                origin,
+                origin.clone(),
                 e
             );
             self.show_error_toast(e.to_string(), ctx);
@@ -95,7 +95,7 @@ impl TerminalView {
         if is_conversation_in_memory && is_live {
             if let Err(e) = self.try_enter_agent_view(
                 initial_prompt.clone(),
-                origin,
+                origin.clone(),
                 Some(conversation_id),
                 ctx,
             ) {
@@ -159,7 +159,7 @@ impl TerminalView {
             .is_fullscreen();
 
         let conversation_id = self.agent_view_controller.update(ctx, |controller, ctx| {
-            controller.try_enter_agent_view(conversation_id, origin, ctx)
+            controller.try_enter_agent_view(conversation_id, origin.clone(), ctx)
         })?;
 
         // Associate pending context blocks with the new conversation so they remain
@@ -289,7 +289,7 @@ impl TerminalView {
             return;
         }
         let conversation_id = params.conversation_id;
-        let origin = params.origin;
+        let origin = params.origin.clone();
         let agent_view_block =
             ctx.add_typed_action_view(|ctx| AgentViewEntryBlock::new(params, ctx));
         ctx.subscribe_to_view(&agent_view_block, |me, _, event, ctx| match event {
