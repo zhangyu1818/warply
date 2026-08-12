@@ -497,6 +497,7 @@ pub enum AISettingsPageAction {
     SetTerminalSuggestionsEffort(TerminalSuggestionEffort),
     ToggleTerminalNextCommand,
     ToggleTerminalPromptSuggestions,
+    ToggleSubmitRichInputOnCtrlEnter,
 }
 
 impl TypedActionView for AISettingsPageView {
@@ -563,6 +564,14 @@ impl TypedActionView for AISettingsPageView {
                         .toggle_and_save_value(ctx)
                     {
                         log::warn!("Failed to toggle Prompt Suggestions: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleSubmitRichInputOnCtrlEnter => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings.submit_on_ctrl_enter.toggle_and_save_value(ctx) {
+                        log::warn!("Failed to toggle Rich Input Ctrl+Enter submission: {err:?}");
                     }
                 });
                 ctx.notify();
@@ -634,6 +643,7 @@ fn render_ai_setting_toggle(
 struct AIWidget {
     next_command_toggle: SwitchStateHandle,
     prompt_suggestions_toggle: SwitchStateHandle,
+    submit_on_ctrl_enter_toggle: SwitchStateHandle,
 }
 
 impl AIWidget {
@@ -780,7 +790,7 @@ impl SettingsWidget for AIWidget {
     type View = AISettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning next command prompt suggestions terminal suggestions"
+        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning next command prompt suggestions terminal suggestions third party cli agent rich input ctrl enter submit newline"
     }
 
     fn render(
@@ -853,6 +863,20 @@ impl SettingsWidget for AIWidget {
                 AISettingsPageAction::ToggleTerminalPromptSuggestions,
                 *settings.terminal_prompt_suggestions_enabled,
                 self.prompt_suggestions_toggle.clone(),
+                app,
+            ))
+            .with_child(render_separator(appearance))
+            .with_child(Self::render_section_header(
+                "Third-party CLI Agent",
+                appearance,
+                app,
+            ))
+            .with_child(Self::render_toggle(
+                "Submit Rich Input with Ctrl+Enter",
+                "When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter. Enter inserts a newline.",
+                AISettingsPageAction::ToggleSubmitRichInputOnCtrlEnter,
+                *settings.submit_on_ctrl_enter,
+                self.submit_on_ctrl_enter_toggle.clone(),
                 app,
             ))
             .finish()

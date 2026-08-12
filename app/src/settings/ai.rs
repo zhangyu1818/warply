@@ -577,6 +577,21 @@ define_settings_group!(AISettings, settings: [
         description: "Whether CLI agent Rich Input automatically closes after the user submits a prompt.",
     }
 
+    // When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter.
+    // Enter inserts a newline; Ctrl+Enter submits.
+    submit_on_ctrl_enter: SubmitRichInputOnCtrlEnter {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "agents.third_party.submit_on_ctrl_enter",
+        description: "When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter. Enter inserts a newline.",
+    }
+
+    // Maps custom toolbar command regex patterns to specific CLI agents.
+    // Keys are regex patterns matched against the full command string.
+    // Values are serialized CLIAgent names (empty string = any agent).
+    // Supports migration from the legacy Vec<String> format.
     cli_agent_footer_enabled_commands: CLIAgentToolbarEnabledCommands {
         type: ToolbarCommandMap,
         default: ToolbarCommandMap::default(),
