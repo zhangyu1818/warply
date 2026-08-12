@@ -707,10 +707,13 @@ impl<'a> TabComponent<'a> {
         let appearance = Appearance::as_ref(ctx);
         let title = tab.pane_group.as_ref(ctx).display_title(ctx);
 
+        // Auto-save persists edits automatically, so the tab-level unsaved
+        // indicator is suppressed for changes it can persist (avoiding flicker
+        // as the user types); unsaveable untitled buffers still surface it.
         let active_pane_has_unsaved_code_changes = tab
             .pane_group
             .as_ref(ctx)
-            .has_active_code_pane_with_unsaved_changes(ctx);
+            .has_active_code_pane_with_unsaved_indicator(ctx);
         let should_show_indicators = *TabSettings::as_ref(ctx).show_indicators.value();
         let are_inputs_synced = SyncedInputState::as_ref(ctx)
             .should_sync_this_pane_group(tab.pane_group.id(), tab.pane_group.window_id(ctx));
