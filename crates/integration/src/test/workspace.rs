@@ -1150,11 +1150,7 @@ pub fn test_multi_tab_drag_back_to_source_and_out_again() -> Builder {
 
 /// Dispatches a drag event whose cursor lands on the target window's tab bar,
 /// addressed to the source window (which owns the active drag gesture).
-fn drag_over_target_tab_bar(
-    app: &mut warpui_core::App,
-    _window_id: WindowId,
-    data: &mut StepDataMap,
-) {
+fn drag_over_target_tab_bar(app: &mut warpui::App, _window_id: WindowId, data: &mut StepDataMap) {
     let source_window_id = *data
         .get::<_, WindowId>(SOURCE_WINDOW_KEY)
         .expect("saved source window id should exist");
@@ -1183,11 +1179,7 @@ fn drag_over_target_tab_bar(
 
 /// Dispatches a drag event whose cursor lands back on the source window's own
 /// tab bar (the put-back case), addressed to the source window.
-fn drag_over_source_tab_bar(
-    app: &mut warpui_core::App,
-    _window_id: WindowId,
-    data: &mut StepDataMap,
-) {
+fn drag_over_source_tab_bar(app: &mut warpui::App, _window_id: WindowId, data: &mut StepDataMap) {
     let source_window_id = *data
         .get::<_, WindowId>(SOURCE_WINDOW_KEY)
         .expect("saved source window id should exist");
