@@ -7,6 +7,7 @@
 #[path = "mac.rs"]
 mod imp;
 mod noop;
+mod unavailable;
 
 pub type Model = Box<dyn SecureStorage>;
 
@@ -22,6 +23,10 @@ pub fn register(service_name: &str, ctx: &mut warpui::AppContext) {
 /// Registers a no-op Secure Storage provider with the application.
 pub fn register_noop(service_name: &str, ctx: &mut warpui::AppContext) {
     ctx.add_singleton_model(|_| -> Model { Box::new(noop::SecureStorage::new(service_name)) });
+}
+
+pub fn register_unavailable(ctx: &mut warpui::AppContext) {
+    ctx.add_singleton_model(|_| -> Model { Box::new(unavailable::SecureStorage) });
 }
 
 /// A trait representing a secure store for key-value pairs.

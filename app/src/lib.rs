@@ -647,12 +647,15 @@ pub(crate) fn initialize_app(
 ) -> Option<AppState> {
     let data_domain = ChannelState::data_domain();
 
-    // Register an implementation of the secure storage service.
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "integration_tests")] {
-            warpui_extras::secure_storage::register_noop(&data_domain, ctx);
-        } else {
-            warpui_extras::secure_storage::register(&data_domain, ctx);
+    if matches!(launch_mode, LaunchMode::RemoteServerDaemon { .. }) {
+        warpui_extras::secure_storage::register_unavailable(ctx);
+    } else {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "integration_tests")] {
+                warpui_extras::secure_storage::register_noop(&data_domain, ctx);
+            } else {
+                warpui_extras::secure_storage::register(&data_domain, ctx);
+            }
         }
     }
 
