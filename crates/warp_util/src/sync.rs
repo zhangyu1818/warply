@@ -16,22 +16,21 @@ mod tests;
 ///
 /// Generally, a [condition variable](http://www.cs.cornell.edu/courses/cs3110/2012fa/recitations/rec16.html)
 /// lets tasks wait until some condition becomes true (for example, we might want to wait for the
-/// initial load of local objects to have finished). When
+/// user to have logged in, or for the initial load of Warp Drive objects to have finished). When
 /// the condition becomes true, one or all of the waiting tasks can wake up and do their work.
 ///
 /// This [`Condition`] implementation models the simpler case where a condition becomes true and
-/// is then *always* true (unless reset explicitly). This allows waiting for something to happen at least once. If a task
-/// starts waiting before the condition is met, it will block, but if the condition is already true,
-/// it continues immediately.
+/// is then *always* true (unless reset explicitly). This allows waiting for something to happen at
+/// least once. If a task starts waiting before the condition is met, it will block, but if the
+/// condition is already true, it continues immediately.
 ///
-/// We use this to wait for the initial load of changed objects to finish. Regular UI
-/// framework events aren't suitable, because they don't tell us if the load had *already*
-/// finished - a task that subscribed too late would block forever!
+/// This is useful when regular UI framework events are not suitable because they do not tell us if
+/// the event had *already* happened - a task that subscribed too late would block forever.
 ///
 /// Also see [`std::sync::Condvar`].
 #[derive(Debug, Clone)]
 pub struct Condition {
-    // This is more or less the reference example for async-listener:
+    // This is more or less the reference example for event-listener:
     // https://github.com/smol-rs/event-listener
     flag: Arc<AtomicBool>,
     event: Arc<Event>,

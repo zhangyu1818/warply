@@ -246,55 +246,62 @@ impl FileSearchModel {
             return Vec::new();
         };
         let args = Self::contents_args(query, canonical_repo_path.clone());
-        if let Some(contents) = repo_metadata.get_repo_contents(&id, args, app) {
-            contents
-                .iter()
-                .filter_map(|content| {
-                    match content {
-                        repo_metadata::RepoContent::File(file_metadata) => {
-                            let file_local = file_metadata.path.to_local_path_lossy();
-                            // Convert absolute path to relative path from the canonical repository root
-                            if let Ok(relative_path) = file_local.strip_prefix(&canonical_repo_path)
-                            {
-                                let path = relative_path.to_string_lossy().to_string();
-                                Some(FileSearchResult {
-                                    path,
-                                    project_directory: canonical_repo_path
-                                        .to_string_lossy()
-                                        .to_string(),
-                                    is_directory: false,
-                                })
-                            } else {
-                                None
-                            }
-                        }
-                        repo_metadata::RepoContent::Directory(dir_entry) => {
-                            let dir_local = dir_entry.path.to_local_path_lossy();
-                            // Convert absolute path to relative path from the canonical repository root
-                            if let Ok(relative_path) = dir_local.strip_prefix(&canonical_repo_path)
-                            {
-                                let mut path = relative_path.to_string_lossy().to_string();
-                                // Add trailing slash for directories using platform-specific separator
-                                if !path.ends_with(std::path::MAIN_SEPARATOR) {
-                                    path.push(std::path::MAIN_SEPARATOR);
-                                }
-                                Some(FileSearchResult {
-                                    path,
-                                    project_directory: canonical_repo_path
-                                        .to_string_lossy()
-                                        .to_string(),
-                                    is_directory: true,
-                                })
-                            } else {
-                                None
-                            }
+        let contents = match repo_metadata.get_repo_contents(&id, args, app) {
+            Ok(contents) => contents,
+            Err(
+                repo_metadata::RepoMetadataError::RepositoryNotIndexed
+                | repo_metadata::RepoMetadataError::RepositoryIndexingPending
+                | repo_metadata::RepoMetadataError::RepositoryIndexingFailed,
+            ) => {
+                return Vec::new();
+            }
+            Err(_) => {
+                return Vec::new();
+            }
+        };
+        contents
+            .iter()
+            .filter_map(|content| {
+                match content {
+                    repo_metadata::RepoContent::File(file_metadata) => {
+                        let file_local = file_metadata.path.to_local_path_lossy();
+                        // Convert absolute path to relative path from the canonical repository root
+                        if let Ok(relative_path) = file_local.strip_prefix(&canonical_repo_path) {
+                            let path = relative_path.to_string_lossy().to_string();
+                            Some(FileSearchResult {
+                                path,
+                                project_directory: canonical_repo_path
+                                    .to_string_lossy()
+                                    .to_string(),
+                                is_directory: false,
+                            })
+                        } else {
+                            None
                         }
                     }
-                })
-                .collect()
-        } else {
-            Vec::new()
-        }
+                    repo_metadata::RepoContent::Directory(dir_entry) => {
+                        let dir_local = dir_entry.path.to_local_path_lossy();
+                        // Convert absolute path to relative path from the canonical repository root
+                        if let Ok(relative_path) = dir_local.strip_prefix(&canonical_repo_path) {
+                            let mut path = relative_path.to_string_lossy().to_string();
+                            // Add trailing slash for directories using platform-specific separator
+                            if !path.ends_with(std::path::MAIN_SEPARATOR) {
+                                path.push(std::path::MAIN_SEPARATOR);
+                            }
+                            Some(FileSearchResult {
+                                path,
+                                project_directory: canonical_repo_path
+                                    .to_string_lossy()
+                                    .to_string(),
+                                is_directory: true,
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                }
+            })
+            .collect()
     }
 
     /// Performs a fuzzy search on the given path with the query

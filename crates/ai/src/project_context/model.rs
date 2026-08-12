@@ -633,7 +633,8 @@ impl ProjectContextModel {
             0,
             &ignore_behavior,
             BudgetExceededBehavior::StopAndLazyLoad,
-        )?;
+        )
+        .await?;
 
         // Filter files to only include those matching RULES_FILE_PATTERN
         for file_metadata in files {

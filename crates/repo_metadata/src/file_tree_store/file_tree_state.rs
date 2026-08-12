@@ -182,7 +182,7 @@ impl FileTreeMapStore {
         Some(child_path)
     }
 
-    pub fn load_at_path(
+    pub async fn load_at_path(
         &mut self,
         path: &StandardizedPath,
         gitignores: &mut Vec<Gitignore>,
@@ -195,7 +195,7 @@ impl FileTreeMapStore {
             loaded: true,
         });
 
-        entry.load(gitignores)?;
+        entry.load(gitignores).await?;
         self.insert_entry_at_path(child_path, entry);
         Ok(())
     }

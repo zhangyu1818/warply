@@ -203,13 +203,39 @@ impl RepoMetadataModel {
         }
     }
 
+    /// Returns a future that resolves once repository indexing has completed at least once.
+    ///
+    /// Callers should inspect [`Self::repository_state`] after awaiting this future to see whether
+    /// indexing succeeded or failed.
+    pub fn repository_indexed(
+        &self,
+        id: &RepositoryIdentifier,
+        ctx: &mut ModelContext<Self>,
+    ) -> futures::future::BoxFuture<'static, ()> {
+        match id {
+            RepositoryIdentifier::Local(path) => {
+                let path = path.clone();
+                self.local
+                    .update(ctx, |local, _| local.repository_indexed(&path))
+            }
+            RepositoryIdentifier::Remote(remote_id) => {
+                let remote_id = remote_id.clone();
+                self.remote
+                    .update(ctx, |remote, _| remote.repository_indexed(&remote_id))
+            }
+        }
+    }
+
     /// Returns repository contents for the specified repository.
+    ///
+    /// Returns an error if the number of results exceeds MAX_REPO_CONTENTS_RESULTS.
+    /// Returns an error if the repository is not indexed, indexing is pending, or indexing failed.
     pub fn get_repo_contents<'a>(
         &self,
         id: &RepositoryIdentifier,
         args: GetContentsArgs,
         ctx: &'a AppContext,
-    ) -> Option<Vec<RepoContent<'a>>> {
+    ) -> Result<Vec<RepoContent<'a>>, RepoMetadataError> {
         match id {
             RepositoryIdentifier::Local(path) => {
                 self.local.as_ref(ctx).get_repo_contents(path, args)
@@ -272,6 +298,22 @@ impl RepoMetadataModel {
         })
     }
 
+    /// Loads a specific directory inside an already-tracked local tree and returns a future that
+    /// resolves once the async load has been applied or rejected.
+    #[cfg(feature = "local_fs")]
+    pub fn load_directory_with_completion(
+        &self,
+        repo_root: &StandardizedPath,
+        dir_path: &StandardizedPath,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<futures::future::BoxFuture<'static, Result<(), RepoMetadataError>>, RepoMetadataError>
+    {
+        let repo_root = repo_root.clone();
+        let dir_path = dir_path.clone();
+        self.local.update(ctx, |local, ctx| {
+            local.load_directory_with_completion(&repo_root, &dir_path, ctx)
+        })
+    }
     /// Removes a lazily-loaded local standalone path from tracking.
     #[cfg(feature = "local_fs")]
     pub fn remove_lazy_loaded_path(&self, path: &StandardizedPath, ctx: &mut ModelContext<Self>) {

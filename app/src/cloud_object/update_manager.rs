@@ -13,7 +13,6 @@ use crate::{
     env_vars::{EnvVarCollection, SavedEnvVarCollectionModel},
     object_ids::{ClientId, HashableId, ObjectUid, SyncId, ToServerId},
     persistence::ModelEvent,
-    util::sync::Condition,
     workflows::{
         workflow::Workflow,
         workflow_enum::{SavedWorkflowEnumModel, WorkflowEnum},
@@ -26,6 +25,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::future::Future;
 use std::sync::mpsc::SyncSender;
+use warp_util::sync::Condition;
 use warpui::AppContext;
 use warpui::{Entity, ModelContext, SingletonEntity};
 

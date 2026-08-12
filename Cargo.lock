@@ -11063,6 +11063,8 @@ dependencies = [
  "content_inspector",
  "dirs",
  "dunce",
+ "event-listener",
+ "futures-lite 1.13.0",
  "futures-util",
  "lazy_static",
  "mime_guess",

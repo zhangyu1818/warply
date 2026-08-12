@@ -1,7 +1,12 @@
 use super::{is_within_symlink, path_passes_filters};
 use ignore::gitignore::Gitignore;
 use std::fs;
+use std::future::Future;
 use virtual_fs::{Stub, VirtualFS};
+
+fn run<T>(future: impl Future<Output = T>) -> T {
+    futures::executor::block_on(future)
+}
 
 #[test]
 fn test_path_passes_filters() {
@@ -370,7 +375,7 @@ fn build_with_budget(root: &std::path::Path, budget: usize) -> super::Entry {
     let mut files = Vec::new();
     let mut gitignores = Vec::new();
     let mut file_limit = budget;
-    super::Entry::build_tree(
+    run(super::Entry::build_tree(
         root,
         &mut files,
         &mut gitignores,
@@ -379,7 +384,7 @@ fn build_with_budget(root: &std::path::Path, budget: usize) -> super::Entry {
         0,
         &super::IgnoredPathStrategy::IncludeLazy,
         super::BudgetExceededBehavior::StopAndLazyLoad,
-    )
+    ))
     .unwrap()
 }
 
@@ -503,7 +508,7 @@ fn build_tree_fail_fast_errors_when_budget_exceeded() {
     let mut files = Vec::new();
     let mut gitignores = Vec::new();
     let mut file_limit = 5;
-    let result = super::Entry::build_tree(
+    let result = run(super::Entry::build_tree(
         &root,
         &mut files,
         &mut gitignores,
@@ -512,7 +517,7 @@ fn build_tree_fail_fast_errors_when_budget_exceeded() {
         0,
         &super::IgnoredPathStrategy::Exclude,
         super::BudgetExceededBehavior::FailFast,
-    );
+    ));
     assert!(
         matches!(result, Err(super::BuildTreeError::ExceededMaxFileLimit)),
         "FailFast must abort when the file budget is exceeded"
@@ -530,7 +535,7 @@ fn build_tree_fail_fast_succeeds_within_budget() {
     let mut files = Vec::new();
     let mut gitignores = Vec::new();
     let mut file_limit = 10;
-    let result = super::Entry::build_tree(
+    let result = run(super::Entry::build_tree(
         &root,
         &mut files,
         &mut gitignores,
@@ -539,6 +544,6 @@ fn build_tree_fail_fast_succeeds_within_budget() {
         0,
         &super::IgnoredPathStrategy::Exclude,
         super::BudgetExceededBehavior::FailFast,
-    );
+    ));
     assert!(result.is_ok(), "FailFast must succeed when within budget");
 }

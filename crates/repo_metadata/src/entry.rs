@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 
+use futures_lite::StreamExt;
 use ignore::gitignore::Gitignore;
 use std::collections::VecDeque;
 use std::io;
@@ -112,7 +113,7 @@ impl Entry {
     /// `budget_exceeded_behavior` controls what happens once the file budget is
     /// exhausted (see [`BudgetExceededBehavior`]).
     #[allow(clippy::too_many_arguments)]
-    pub fn build_tree(
+    pub async fn build_tree(
         path: impl Into<PathBuf>,
         files: &mut Vec<FileMetadata>,
         gitignores: &mut Vec<Gitignore>,
@@ -135,10 +136,11 @@ impl Entry {
             },
             false,
         )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn build_tree_with_ignored_ancestor(
+    pub(crate) async fn build_tree_with_ignored_ancestor(
         path: impl Into<PathBuf>,
         files: &mut Vec<FileMetadata>,
         gitignores: &mut Vec<Gitignore>,
@@ -161,10 +163,11 @@ impl Entry {
             },
             ancestor_is_ignored,
         )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn build_tree_with_ancestor(
+    async fn build_tree_with_ancestor(
         path: impl Into<PathBuf>,
         files: &mut Vec<FileMetadata>,
         gitignores: &mut Vec<Gitignore>,
@@ -242,7 +245,7 @@ impl Entry {
                         continue;
                     }
 
-                    let entries = match std::fs::read_dir(&job.path) {
+                    let entry_paths = match read_dir_entry_paths(&job.path).await {
                         Ok(entries) => entries,
                         Err(e) => {
                             // Preserve existing behavior: failing to read the
@@ -260,12 +263,7 @@ impl Entry {
                     }
 
                     let child_depth = job.depth + 1;
-                    for entry in entries {
-                        let Ok(entry) = entry else {
-                            continue;
-                        };
-                        let entry_path = entry.path();
-
+                    for entry_path in entry_paths {
                         // Skip symlinks to folders before canonicalization to
                         // prevent duplicates. Symlinks to files are kept as-is,
                         // since canonicalization would point at the real file.
@@ -366,7 +364,7 @@ impl Entry {
     }
 
     /// Loads an unloaded directory
-    pub fn load(&mut self, gitignores: &mut Vec<Gitignore>) -> Result<(), BuildTreeError> {
+    pub async fn load(&mut self, gitignores: &mut Vec<Gitignore>) -> Result<(), BuildTreeError> {
         // TODO: Consider a similar `unload` method if we run into performance issues.
         let Self::Directory(directory) = self else {
             return Ok(());
@@ -385,7 +383,8 @@ impl Entry {
             0, /* current_depth */
             &IgnoredPathStrategy::Include,
             ancestor_is_ignored,
-        );
+        )
+        .await;
 
         result.map(|entry| match entry {
             Entry::Directory(entry) => {
@@ -430,6 +429,17 @@ impl Entry {
         log::debug!("target path not found under the current directory node");
         None
     }
+}
+
+async fn read_dir_entry_paths(path: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut entries = async_fs::read_dir(path).await?;
+    let mut paths = Vec::new();
+    while let Some(entry) = entries.next().await {
+        if let Ok(entry) = entry {
+            paths.push(entry.path());
+        }
+    }
+    Ok(paths)
 }
 
 /// A node in the breadth-first build arena. Directory children are referenced by
