@@ -290,8 +290,8 @@ use crate::code::editor::{add_color, remove_color};
 use crate::palette::PaletteMode;
 use crate::search::command_palette::view::{Event as CommandPaletteEvent, View as CommandPalette};
 use crate::tab::{
-    tab_position_id, uses_vertical_tabs, NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor,
-    TabBarState, TabComponent, TabData, TAB_BAR_BORDER_HEIGHT,
+    next_tab_color, tab_position_id, uses_vertical_tabs, NewSessionMenuItem, PaneNameMenuTarget,
+    SelectedTabColor, TabBarState, TabComponent, TabData, TAB_BAR_BORDER_HEIGHT,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::ui_components::icons;
@@ -13849,6 +13849,13 @@ impl TypedActionView for Workspace {
                 );
             }
             SetActiveTabName(name) => self.set_active_tab_name(name, ctx),
+            CycleActiveTabColor => {
+                let Some(tab_color) = self.tabs.get(self.active_tab_index).map(|tab| tab.color())
+                else {
+                    return;
+                };
+                self.set_tab_color(self.active_tab_index, next_tab_color(tab_color), ctx);
+            }
             SetActiveTabColor(color) => self.set_tab_color(self.active_tab_index, *color, ctx),
             ToggleTabRightClickMenu { tab_index, anchor } => {
                 self.toggle_tab_right_click_menu(*tab_index, *anchor, ctx)
