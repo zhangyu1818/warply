@@ -3364,6 +3364,8 @@ impl TerminalView {
                     session_id,
                     phase: _,
                     error,
+                    is_cancelled,
+                    ..
                 } => {
                     me.model.lock().event_proxy.send_terminal_event(
                         crate::terminal::event::Event::RemoteServerFailed {
@@ -3371,18 +3373,20 @@ impl TerminalView {
                             error: error.clone(),
                         },
                     );
-                    me.show_ssh_remote_server_failed_banner(
-                        *session_id,
-                        remote_server::transport::UserFacingError {
-                            body: "Failed to start SSH extension".into(),
-                            detail: if error.is_empty() {
-                                None
-                            } else {
-                                Some(error.clone())
+                    if !is_cancelled {
+                        me.show_ssh_remote_server_failed_banner(
+                            *session_id,
+                            remote_server::transport::UserFacingError {
+                                body: "Failed to start SSH extension".into(),
+                                detail: if error.is_empty() {
+                                    None
+                                } else {
+                                    Some(error.clone())
+                                },
                             },
-                        },
-                        ctx,
-                    );
+                            ctx,
+                        );
+                    }
                 }
                 RemoteServerManagerEvent::SessionDisconnected { .. } => {}
                 RemoteServerManagerEvent::SessionDeregistered { session_id } => {
