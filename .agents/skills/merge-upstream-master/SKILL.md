@@ -9,6 +9,8 @@ description: Use when porting commits or changes from upstream Warp master into 
 
 Port upstream Warp changes into this fork without restoring removed product areas. Every upstream commit must be reviewed before it is applied.
 
+The fork's purpose is to remove Warp **server/cloud/account/telemetry dependencies** — not to freeze the feature set at the baseline date. New upstream features that are purely local (no Warp server API, cloud account, billing, auth, or telemetry dependency) are in scope and should be accepted after review. Tab grouping, keyboard shortcuts, editor improvements, and other client-only features belong to the fork's terminal product direction as much as the features that existed at baseline.
+
 ## Required Reading
 
 Read these before touching code for upstream merge work:
@@ -44,10 +46,23 @@ git show <commit> -- <path>
 
 2. Classify every touched area as `accept`, `adapt`, `reject`, or `not applicable`.
 
-- `accept`: The change directly improves retained local/macOS/terminal behavior and does not restore deleted systems.
-- `adapt`: The feature is retained, but upstream code depends on removed auth/cloud/telemetry/MCP/skills/platform plumbing. Port only the useful part.
+- `accept`: The change improves retained or **new purely-local** terminal/macOS/UI behavior and does not restore deleted systems or add any Warp server/account/telemetry dependency.
+- `adapt`: The feature is retained or new-local, but upstream code depends on removed auth/cloud/telemetry/MCP/skills/platform plumbing. Port only the useful part.
 - `reject`: The change is for deleted product areas, deleted platform targets, specs, or compatibility shims.
 - `not applicable`: The change touches code that no longer exists or only served removed systems.
+
+### New local features
+
+Upstream may add features after the fork baseline date that are purely local — no Warp server API, cloud account, billing, telemetry, or auth dependency. These are **in scope**. The fork removes Warp server dependencies, not local terminal features. Do not reject a feature merely because it did not exist at baseline.
+
+Accept a new local feature when review confirms all of:
+
+- No Warp server/cloud/account/billing/auth/telemetry dependency anywhere in the implementation.
+- No rollout flag that gates on server-side state. If upstream gates the feature behind a `FeatureFlag`, strip the flag and run the feature directly (same as retained features).
+- It runs on macOS with the fork's local architecture: ACP for agent surfaces, OpenAI-compatible endpoints for suggestions, local persistence, AppKit windowing.
+- It does not depend on a removed module to function. If it does, adapt the dependency or defer with a recorded rationale.
+
+Examples of features that qualify: tab grouping, tab color cycling, editor/viewer improvements, new local slash commands, keyboard shortcuts, pane/window management, completion enhancements — anything that is client-side only.
 
 3. Apply only the accepted or adapted parts.
 
@@ -65,7 +80,7 @@ git show <commit> -- <path>
 
 ## Retained Areas
 
-Usually accept or adapt compatible upstream fixes for:
+This list covers features that existed at baseline. It is **not exhaustive** — new upstream features that are purely local (see "New local features" above) belong here too once accepted. Usually accept or adapt compatible upstream fixes for:
 
 - Terminal emulator, blocks, shell integration, PTY/session handling, input editor, completions.
 - Natural language detection and input classification.

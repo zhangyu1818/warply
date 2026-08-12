@@ -2,6 +2,10 @@
 
 This contract defines what must remain true after local development or upstream merges.
 
+## Fork Purpose
+
+The fork removes Warp **server/cloud/account/telemetry dependencies**. It does not freeze the feature set at the baseline date. Purely local upstream features — those with no Warp server API, cloud account, billing, auth, or telemetry dependency — are in scope and should be accepted after review, whether or not they existed at baseline. Tab grouping, keyboard shortcuts, editor/UI improvements, and other client-only features are part of the fork's terminal product direction.
+
 ## Maintained Product Surface
 
 The fork is a local-first terminal application:

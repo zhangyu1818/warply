@@ -7,10 +7,10 @@ Use this guide when pulling commits from original Warp into this fork.
 For every upstream commit, ask:
 
 ```text
-Does this improve a retained local terminal/ACP/suggestions feature, or does it restore a removed Warp cloud product feature?
+Does this improve a local terminal/ACP/suggestions feature (retained or new), or does it restore a removed Warp cloud product feature?
 ```
 
-That answer decides the merge path.
+That answer decides the merge path. A feature need not have existed at baseline to qualify — purely local features that upstream adds later are in scope.
 
 ## Decision Process
 
@@ -24,7 +24,7 @@ Prefer small upstream batches. Large upstream merges are likely to reintroduce d
 
 ## Accept
 
-Accept or cherry-pick directly when the change is limited to retained generic behavior:
+Accept or cherry-pick directly when the change is limited to local generic behavior (retained **or new**):
 
 - Terminal rendering, blocks, PTY, shell integration, session restoration.
 - Input editor, completions, command parsing, natural language detection.
@@ -35,6 +35,7 @@ Accept or cherry-pick directly when the change is limited to retained generic be
 - Remote terminal fixes that do not require Warp account tokens.
 - Warpify fixes for subshell and SSH sessions, including tmux wrapper behavior.
 - ACP protocol rendering, including generic tool-call display.
+- **New purely-local features** added by upstream after the baseline date. Accept after confirming no Warp server/cloud/account/billing/auth/telemetry dependency. If upstream gates the feature behind a rollout flag, strip the flag and run the feature directly. Examples: tab grouping, tab color cycling, editor/viewer improvements, new local commands, keyboard shortcuts, pane/window management.
 
 ## Adapt
 

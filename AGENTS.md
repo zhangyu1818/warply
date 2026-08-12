@@ -6,6 +6,8 @@ This is the repository-level entry point for agents working in this fork. It def
 
 This fork is a macOS terminal client with ACP-backed AI surfaces.
 
+The fork's purpose is to remove Warp **server/cloud/account/telemetry dependencies** — not to freeze the feature set at the baseline date. Purely local upstream features (no Warp server API, cloud account, billing, auth, or telemetry dependency) are in scope and should be accepted after review, whether or not they existed at baseline.
+
 - The maintained app target is macOS only.
 - Warp-hosted Agent, Warp cloud accounts, and Warp server APIs are removed.
 - AgentView remains the UI shell, but all agent backend behavior is ACP-only.
@@ -74,6 +76,7 @@ Do not restore these systems from upstream:
 | Upstream change area | Decision |
 | --- | --- |
 | Terminal, shell integration, PTY, blocks, editor, completions | Usually accept or port directly after review. |
+| New purely-local features (tab grouping, shortcuts, editor/UI improvements, etc.) | Accept after review if no Warp server/account/telemetry dependency. Strip rollout flags; run directly. Not rejected just because they postdate the baseline. |
 | GPUI/Warp UI framework, macOS windowing, rendering | Usually accept if it does not depend on removed product surfaces. |
 | ACP, AgentView, `blocklist`, conversation history, AI settings | Port manually and preserve ACP-only backend behavior. |
 | Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep the OpenAI-compatible provider. |
