@@ -266,6 +266,12 @@ pub trait Handler {
     /// keeping a shadow copy that could go stale.
     fn set_hyperlink(&mut self, _hyperlink: Option<Hyperlink>) {}
 
+    /// Update the active block's current working directory, independent of the
+    /// prompt cycle. Invoked from OSC 7 (`\e]7;file://host/path`) so external
+    /// tools can notify the terminal of CWD changes mid-command, without
+    /// waiting for the shell to redraw its prompt.
+    fn set_current_working_directory(&mut self, _path: String) {}
+
     /// Callback for the Warp preexec hook.
     fn preexec(&mut self, _data: PreexecValue) {}
 

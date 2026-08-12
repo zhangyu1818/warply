@@ -31,7 +31,10 @@ use crate::{
     },
     terminal::{
         event::{BlockCompletedEvent, BlockType},
-        model::{block::BlockId, session::Sessions},
+        model::{
+            block::{BlockId, BlockMetadata},
+            session::Sessions,
+        },
         model_events::{ModelEvent, ModelEventDispatcher},
         TerminalModel,
     },
@@ -40,7 +43,6 @@ use crate::{
 use super::{
     block::DirectoryContext, history_model::BlocklistAIHistoryModel, BlocklistAIHistoryEvent,
 };
-
 /// A non-image file picked via the "attach file" button, stored until query submission.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingFile {
@@ -201,23 +203,11 @@ impl BlocklistAIContextModel {
                         .push(block_id.clone());
                 }
             }
-            ModelEvent::BlockMetadataReceived(block_metadata_received) => {
-                let pwd = block_metadata_received
-                    .block_metadata
-                    .current_working_directory()
-                    .map(|s| PathBuf::from(s.to_owned()));
-                let session_id = block_metadata_received.block_metadata.session_id();
-
-                if let Some(session_id) = session_id {
-                    let active_session = sessions.as_ref(ctx).get(session_id);
-                    if let Some(active_session) = active_session {
-                        me.update_directory_context(
-                            pwd.map(|p| p.to_string_lossy().to_string()),
-                            active_session.home_dir().map(|sq| sq.to_owned()),
-                            ctx,
-                        );
-                    }
-                }
+            ModelEvent::BlockMetadataReceived(e) => {
+                me.apply_block_metadata_directory_context(&e.block_metadata, &sessions, ctx);
+            }
+            ModelEvent::BlockWorkingDirectoryUpdated(e) => {
+                me.apply_block_metadata_directory_context(&e.block_metadata, &sessions, ctx);
             }
             _ => {}
         });
@@ -493,6 +483,26 @@ impl BlocklistAIContextModel {
             requires_block_resync: true,
             requires_text_resync: false,
         });
+    }
+
+    fn apply_block_metadata_directory_context(
+        &mut self,
+        block_metadata: &BlockMetadata,
+        sessions: &ModelHandle<Sessions>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let pwd = block_metadata
+            .current_working_directory()
+            .map(|s| PathBuf::from(s.to_owned()));
+        if let Some(session_id) = block_metadata.session_id() {
+            if let Some(active_session) = sessions.as_ref(ctx).get(session_id) {
+                self.update_directory_context(
+                    pwd.map(|p| p.to_string_lossy().to_string()),
+                    active_session.home_dir().map(|sq| sq.to_owned()),
+                    ctx,
+                );
+            }
+        }
     }
 
     /// Set `requires_visual_resync` to `false` only if the pending context was modified as a result
