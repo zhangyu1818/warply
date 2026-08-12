@@ -52,7 +52,7 @@ fn enter_on_other_row_focuses_the_other_input() {
             highlighted_index: Some(1),
             active_other_text: None,
         }),
-        AskUserQuestionEffect::FocusOtherInput
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
 }
 
@@ -106,8 +106,8 @@ fn enter_with_blank_other_input_submits_the_last_question_immediately() {
     let mut session = build_session(vec![build_question("q1", "Only", false, true, &["Stable"])]);
 
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
 
     assert_eq!(
@@ -126,8 +126,8 @@ fn enter_with_active_other_text_schedules_auto_advance() {
     let mut session = build_session(vec![build_question("q1", "Only", false, true, &["Stable"])]);
 
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
     assert_eq!(
         session.apply(AskUserQuestionAction::PressEnter {
@@ -304,8 +304,8 @@ fn drafts_survive_navigation_and_submit_skips_only_unanswered_questions() {
         AskUserQuestionEffect::ShowQuestion
     );
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
     assert_eq!(
         session.apply(AskUserQuestionAction::SaveOtherText {
@@ -348,8 +348,8 @@ fn multi_select_other_text_does_not_auto_advance_before_last_question() {
     ]);
 
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
     assert_eq!(
         session.apply(AskUserQuestionAction::SaveOtherText {
@@ -373,7 +373,7 @@ fn skip_all_moves_session_to_completed_with_skipped_answers() {
 
     session.apply(AskUserQuestionAction::ToggleOption { option_index: 0 });
     session.apply(AskUserQuestionAction::NavigateNext);
-    session.apply(AskUserQuestionAction::OpenOtherInput);
+    session.apply(AskUserQuestionAction::EnterCustomAnswerEditing);
     session.apply(AskUserQuestionAction::SaveOtherText {
         text: Some("nightly".to_string()),
     });
@@ -402,8 +402,8 @@ fn other_text_submission_exits_input_and_submits_last_question() {
     let mut session = build_session(vec![build_question("q1", "Only", false, true, &["Stable"])]);
 
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
     assert!(view_state_for(&session).show_other_input);
 
@@ -429,6 +429,23 @@ fn other_text_submission_exits_input_and_submits_last_question() {
             other_text: "nightly".to_string(),
         }])
     );
+}
+
+#[test]
+fn exiting_custom_answer_editing_preserves_saved_text() {
+    let mut session = build_session(vec![build_question("q1", "Only", false, true, &["Stable"])]);
+    session.apply(AskUserQuestionAction::SaveOtherText {
+        text: Some("nightly".to_string()),
+    });
+    session.apply(AskUserQuestionAction::EnterCustomAnswerEditing);
+
+    assert_eq!(
+        session.apply(AskUserQuestionAction::ExitCustomAnswerEditing),
+        AskUserQuestionEffect::RefreshCurrent
+    );
+    let draft = current_draft(&session).expect("draft should remain");
+    assert_eq!(draft.other_text.as_deref(), Some("nightly"));
+    assert!(!draft.is_other_input_active);
 }
 
 #[test]
@@ -468,8 +485,8 @@ fn view_state_shows_other_input() {
     );
 
     assert_eq!(
-        session.apply(AskUserQuestionAction::OpenOtherInput),
-        AskUserQuestionEffect::FocusOtherInput
+        session.apply(AskUserQuestionAction::EnterCustomAnswerEditing),
+        AskUserQuestionEffect::FocusCustomAnswerInput
     );
     assert_eq!(
         view_state_for(&session),
