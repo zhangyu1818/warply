@@ -49,14 +49,20 @@ impl AppearanceManager {
             me.refresh_theme_state(ctx);
         });
 
-        ctx.subscribe_to_model(
-            &AppIconSettings::handle(ctx),
-            move |me, event, ctx| match event {
-                AppIconSettingsChangedEvent::AppIconState { .. } => {
-                    me.set_app_icon(ctx);
-                }
-            },
-        );
+        #[cfg(target_os = "macos")]
+        {
+            ctx.subscribe_to_model(
+                &AppIconSettings::handle(ctx),
+                move |me, event, ctx| match event {
+                    AppIconSettingsChangedEvent::AppIconState { .. } => {
+                        me.set_app_icon(ctx);
+                    }
+                    AppIconSettingsChangedEvent::ShowDockIconState { .. } => {
+                        me.apply_dock_icon_visibility(ctx);
+                    }
+                },
+            );
+        }
 
         ctx.subscribe_to_model(
             &FontSettings::handle(ctx),
@@ -151,6 +157,11 @@ impl AppearanceManager {
 
     pub fn app_icon_at_startup(&self) -> AppIcon {
         self.app_icon_at_startup
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn apply_dock_icon_visibility(&self, app: &AppContext) {
+        app.set_dock_icon_visible(*AppIconSettings::as_ref(app).show_dock_icon.value());
     }
 
     pub fn clear_transient_theme(&mut self, ctx: &mut ModelContext<Self>) {
