@@ -624,7 +624,7 @@ The full re-audit of `27f4933b8..69254d73db` in `upstream-master-full-reaudit-20
 - A prerequisite module or data model had not yet been ported.
 - The upstream patch was large, conflicted with the fork, or crossed several retained subsystems.
 
-Retained SSH/remote-git functionality and the other unresolved local/provider-backed features listed in the full re-audit remain active upstream-source port debt. Tab grouping/pinning, queued prompts, AgentView transcript navigation and latest-message jumping, Project Explorer hidden-file filtering, OSC 7/OSC 8 terminal protocol support, OSC 52 settings/security UI, the scrollable height-capped new-session menu, command-palette file-only search, Jupyter notebook rendering, Async Find, NLD evolution, repo-metadata cancellation, and DCS integrity have now been ported from their authoritative upstream histories. Historical lines in this file saying those product lines were rejected describe earlier merge decisions; they are no longer current guidance.
+Retained SSH/remote-git functionality and the other unresolved local/provider-backed features listed in the full re-audit remain active upstream-source port debt. Tab grouping/pinning, queued prompts, AgentView transcript navigation and latest-message jumping, Project Explorer hidden-file filtering, OSC 7/OSC 8 terminal protocol support, OSC 52 settings/security UI, the scrollable height-capped new-session menu, command-palette file-only search, local Markdown image invalidation, bounded expandable toasts, Jupyter notebook rendering, Async Find, NLD evolution, repo-metadata cancellation, and DCS integrity have now been ported from their authoritative upstream histories. Historical lines in this file saying those product lines were rejected describe earlier merge decisions; they are no longer current guidance.
 
 OSC 8 hyperlink support comes directly from `4b39aa3163`: keep its bounded per-grid URI registry, cell/flat-storage attributes, parser and lifecycle resets, block/alternate-screen routing, hyperlink-first hover detection, click/context-menu/tooltip behavior, and tests together. The fork removes the upstream Dogfood/build flag and runs this standard terminal protocol behavior directly; do not reintroduce the rollout gate or upstream `specs/GH6393/**`.
 
@@ -646,7 +646,13 @@ The scrollable, height-capped new-session menu comes from `51dae19e92`: keep the
 
 Command-palette file-only search comes from `3bf0899d57` and `74a0d6758f`: keep the traversal-time `exclude_folders` option, shared query/include-folders path, uncached file-only repository query, file-only palette routing, and both zero-state and fuzzy-result directory filtering together. The fork adapts only the source's remote/local path boundary to its retained local repository API; directory-inclusive callers must continue using `get_repo_contents`.
 
+Changed local Markdown images come from prerequisite `a926a145f0` and `be547674a5`: keep the upstream `LocalFileContentVersion` metadata, asset-source resolver wiring, cache-key propagation, decoded-image invalidation, and source tests together. The fork computes this metadata from the local file only; do not replace the content-version key with a guessed timestamp or restore cloud asset synchronization.
+
+Bounded expandable toasts come from `c20645b9b0`: keep the three-active-toast limit, oldest-toast eviction with ephemeral timer cancellation, per-toast expanded state, two-line truncation, accessible Show more/less control, keyboard activation, and source regression tests together. The fork reuses its existing `warpui_core` accessibility/ButtonVariant infrastructure and retains local-object toast naming; do not rebuild a simplified toast from the feature description or import upstream specs.
+
 Resolve that debt only from the exact upstream source history. Existing local feature-port branches containing net-effect, simplified, or reconstructed implementations are not substitutes for source-faithful ports and must not be merged as-is.
+
+The reported 22-row omission list is now **22/22 resolved**: 19 source-faithful ports, two behaviors already present in the fork, and `JsonTreeView` retained as a conditional prerequisite until an ACP structured tool-call consumer requires it. The source commits and focused verification for the final Markdown-image and toast ports are recorded in `upstream-master-full-reaudit-2026-08-12.md`.
 
 ## Required Audit Queries
 
