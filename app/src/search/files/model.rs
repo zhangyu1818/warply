@@ -140,17 +140,46 @@ impl FileSearchModel {
     /// Results are cached per repo root and invalidated when the file tree changes.
     #[cfg(feature = "local_fs")]
     pub fn get_repo_contents(&self, query: &str, app: &AppContext) -> Arc<Vec<FileSearchResult>> {
+        self.get_repo_contents_with_options(query, true, app)
+    }
+
+    /// Gets repository files (no directories) for the current working directory.
+    ///
+    /// Intended for search surfaces that only ever open files and cannot act on
+    /// directory entries, such as the Command Palette file filter. Excluding
+    /// directories keeps them from consuming the repo-metadata result cap, which
+    /// otherwise starves file matches when many directories match the query.
+    #[cfg(feature = "local_fs")]
+    pub fn get_repo_file_contents(
+        &self,
+        query: &str,
+        app: &AppContext,
+    ) -> Arc<Vec<FileSearchResult>> {
+        self.get_repo_contents_with_options(query, false, app)
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn get_repo_contents_with_options(
+        &self,
+        query: &str,
+        include_folders: bool,
+        app: &AppContext,
+    ) -> Arc<Vec<FileSearchResult>> {
         let Some(repo_root) = self.repo_root(app) else {
             return Arc::new(Vec::new());
         };
 
-        if !query.is_empty() {
+        // Query-filtered results are query-specific, so bypass the per-repo
+        // cache and traverse the in-memory index fresh. The file-only variant
+        // (`!include_folders`) is likewise uncached, since the shared cache
+        // holds the directory-inclusive contents.
+        if !query.is_empty() || !include_folders {
             let repo_metadata = RepoMetadataModel::as_ref(app);
             let Some(id) = repo_metadata::RepositoryIdentifier::try_local(&repo_root) else {
                 return Arc::new(Vec::new());
             };
             let contents = if repo_metadata.has_repository(&id, app) {
-                self.get_contents_from_repo(&repo_root, repo_metadata, query, app)
+                self.get_contents_from_repo(&repo_root, repo_metadata, query, include_folders, app)
             } else {
                 Vec::new()
             };
@@ -166,7 +195,7 @@ impl FileSearchModel {
             return Arc::new(Vec::new());
         };
         let contents = if repo_metadata.has_repository(&id, app) {
-            self.get_contents_from_repo(&repo_root, repo_metadata, query, app)
+            self.get_contents_from_repo(&repo_root, repo_metadata, query, include_folders, app)
         } else {
             Vec::new()
         };
@@ -199,7 +228,17 @@ impl FileSearchModel {
         Arc::new(Vec::new())
     }
 
-    /// Gets repository contents with git status information for prioritization.
+    /// Gets repository files (no directories) for the current working directory (WASM stub)
+    #[cfg(not(feature = "local_fs"))]
+    pub fn get_repo_file_contents(
+        &self,
+        _query: &str,
+        _app: &AppContext,
+    ) -> Arc<Vec<FileSearchResult>> {
+        Arc::new(Vec::new())
+    }
+
+    /// Gets repository contents with git status information for prioritization (WASM stub)
     #[cfg(not(feature = "local_fs"))]
     pub fn get_repo_contents_with_git_status(
         &self,
@@ -209,22 +248,23 @@ impl FileSearchModel {
     }
 
     #[cfg(feature = "local_fs")]
-    fn contents_args(query: &str, canonical_repo_path: PathBuf) -> GetContentsArgs {
+    fn contents_args<F>(query: &str, include_folders: bool, relative_path: F) -> GetContentsArgs
+    where
+        F: for<'a> Fn(&repo_metadata::RepoContent<'a>) -> Option<String> + Send + Sync + 'static,
+    {
+        let base = if include_folders {
+            GetContentsArgs::default()
+        } else {
+            GetContentsArgs::default().exclude_folders()
+        };
         if query.is_empty() {
-            return GetContentsArgs::default();
+            return base;
         }
 
         let query = query.to_string();
-        GetContentsArgs::default().with_filter(move |content| {
-            let local = match content {
-                repo_metadata::RepoContent::File(file) => file.path.to_local_path_lossy(),
-                repo_metadata::RepoContent::Directory(dir) => dir.path.to_local_path_lossy(),
-            };
-            local
-                .strip_prefix(&canonical_repo_path)
-                .ok()
-                .and_then(|relative| relative.to_str())
-                .is_some_and(|path| FileSearchModel::fuzzy_match_path(path, &query).is_some())
+        base.with_filter(move |content| {
+            relative_path(content)
+                .is_some_and(|path| FileSearchModel::fuzzy_match_path(&path, &query).is_some())
         })
     }
 
@@ -235,6 +275,7 @@ impl FileSearchModel {
         repo_path: &Path,
         repo_metadata: &repo_metadata::wrapper_model::RepoMetadataModel,
         query: &str,
+        include_folders: bool,
         app: &AppContext,
     ) -> Vec<FileSearchResult> {
         // Canonicalize the repository path to handle symlinks consistently
@@ -245,19 +286,22 @@ impl FileSearchModel {
         let Some(id) = repo_metadata::RepositoryIdentifier::try_local(repo_path) else {
             return Vec::new();
         };
-        let args = Self::contents_args(query, canonical_repo_path.clone());
+        let args = Self::contents_args(query, include_folders, {
+            let canonical_repo_path = canonical_repo_path.clone();
+            move |content| {
+                let local = match content {
+                    repo_metadata::RepoContent::File(file) => file.path.to_local_path_lossy(),
+                    repo_metadata::RepoContent::Directory(dir) => dir.path.to_local_path_lossy(),
+                };
+                local
+                    .strip_prefix(&canonical_repo_path)
+                    .ok()
+                    .map(|relative| relative.to_string_lossy().to_string())
+            }
+        });
         let contents = match repo_metadata.get_repo_contents(&id, args, app) {
             Ok(contents) => contents,
-            Err(
-                repo_metadata::RepoMetadataError::RepositoryNotIndexed
-                | repo_metadata::RepoMetadataError::RepositoryIndexingPending
-                | repo_metadata::RepoMetadataError::RepositoryIndexingFailed,
-            ) => {
-                return Vec::new();
-            }
-            Err(_) => {
-                return Vec::new();
-            }
+            Err(_) => return Vec::new(),
         };
         contents
             .iter()
