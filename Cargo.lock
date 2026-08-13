@@ -10892,6 +10892,7 @@ dependencies = [
  "thiserror 2.0.17",
  "url",
  "warp_features",
+ "warp_util",
  "warpui",
  "warpui_extras",
 ]

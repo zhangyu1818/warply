@@ -59,6 +59,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 url.workspace = true
 warp_features.workspace = true
+warp_util.workspace = true
 warpui.workspace = true
 warpui_extras = { workspace = true, features = ["default"] }
 

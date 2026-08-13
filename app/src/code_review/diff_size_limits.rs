@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 use super::diff_state::{DiffHunk, DiffLineType};
@@ -6,7 +8,7 @@ use super::diff_state::{DiffHunk, DiffLineType};
  * Maximum diff size that we will attempt to render. Diffs larger than this
  * should not be rendered to avoid performance issues.
  */
-const MAX_DIFF_SIZE: usize = 4_375_000; // 4.375MB in decimal
+pub const MAX_DIFF_SIZE: usize = 4_375_000; // 4.375MB in decimal
 
 /**
  * Reasonable limit for diff size. Diffs bigger than this _could_ be displayed
@@ -39,7 +41,22 @@ pub enum DiffSize {
     /// Large diff that should be collapsed by default but can be expanded
     Large,
     /// Diff that's too large to render safely
-    Unrenderable,
+    Unrenderable(UnrenderableReason),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum UnrenderableReason {
+    DiffTooLarge,
+    FileTooLarge,
+}
+
+impl fmt::Display for UnrenderableReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DiffTooLarge => write!(f, "Diff is too large to render"),
+            Self::FileTooLarge => write!(f, "File is too large to render"),
+        }
+    }
 }
 
 /// Determines if a diff size exceeds the maximum renderable limit
@@ -62,7 +79,7 @@ fn is_diff_too_large(diff: &[DiffHunk]) -> bool {
 /// Categorizes a diff based on multiple size heuristics
 pub fn compute_diff_size(diffs: &[DiffHunk], diff_size: usize) -> DiffSize {
     if is_diff_unrenderable(diff_size) {
-        return DiffSize::Unrenderable;
+        return DiffSize::Unrenderable(UnrenderableReason::DiffTooLarge);
     }
 
     let additions = diffs
@@ -79,7 +96,7 @@ pub fn compute_diff_size(diffs: &[DiffHunk], diff_size: usize) -> DiffSize {
 
     // To avoid performance issues, set a lower render limit for deletion lines.
     if deletions > DELETION_LINE_RENDER_LIMIT {
-        return DiffSize::Unrenderable;
+        return DiffSize::Unrenderable(UnrenderableReason::DiffTooLarge);
     }
 
     if is_buffer_too_large(diff_size)

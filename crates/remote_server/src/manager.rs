@@ -9,6 +9,11 @@ use crate::setup::{PreinstallCheckResult, PreinstallStatus};
 use crate::transport::Connection;
 use crate::transport::{Error, RemoteTransport};
 use crate::HostId;
+use crate::proto::{
+    diff_state, get_diff_state_response, DiffMode, DiffState, DiffStateErrorValue,
+    DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, FileStatusInfo,
+    GetDiffStateResponse,
+};
 use repo_metadata::RepoMetadataUpdate;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -17,6 +22,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use warp_core::channel::ChannelState;
 use warp_core::SessionId;
+use warp_util::remote_path::RemotePath;
+use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::FutureExt as _;
 use warpui::{Entity, ModelContext, ModelSpawner, SingletonEntity};
 
@@ -255,6 +262,25 @@ pub enum RemoteServerManagerEvent {
         update: RepoMetadataUpdate,
     },
 
+    DiffStateSnapshotReceived {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        snapshot: DiffStateSnapshot,
+    },
+    DiffStateMetadataUpdateReceived {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        update: DiffStateMetadataUpdate,
+    },
+    DiffStateFileDeltaReceived {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        delta: DiffStateFileDelta,
+    },
+
     // --- Setup events ---
     /// Intermediate state change during the binary check/install flow.
     SetupStateChanged {
@@ -316,7 +342,10 @@ impl RemoteServerManagerEvent {
             | RemoteServerManagerEvent::HostDisconnected { .. }
             | RemoteServerManagerEvent::RepoMetadataSnapshot { .. }
             | RemoteServerManagerEvent::RepoMetadataUpdated { .. }
-            | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. } => None,
+            | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
+            | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
+            | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
+            | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. } => None,
         }
     }
 }
@@ -388,6 +417,119 @@ impl RemoteServerManager {
         sessions
             .iter()
             .find_map(|session_id| self.client_for_session(*session_id))
+    }
+
+    pub fn get_diff_state(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        mode: DiffMode,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            log::warn!("Remote server get_diff_state: no connected client session={session_id:?}");
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let mode_for_event = mode.clone();
+        let repo_path_for_event = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client.get_diff_state(&repo_path, mode).await;
+                let snapshot = match result {
+                    Ok(GetDiffStateResponse {
+                        result: Some(get_diff_state_response::Result::Snapshot(snapshot)),
+                    }) => snapshot,
+                    Ok(GetDiffStateResponse {
+                        result: Some(get_diff_state_response::Result::Error(error)),
+                    }) => DiffStateSnapshot {
+                        repo_path: repo_path_for_event.to_string(),
+                        mode: Some(mode_for_event.clone()),
+                        metadata: None,
+                        state: Some(DiffState {
+                            state: Some(diff_state::State::Error(DiffStateErrorValue {
+                                message: error.message,
+                            })),
+                        }),
+                        diffs: None,
+                    },
+                    Ok(_) => DiffStateSnapshot {
+                        repo_path: repo_path_for_event.to_string(),
+                        mode: Some(mode_for_event.clone()),
+                        metadata: None,
+                        state: Some(DiffState {
+                            state: Some(diff_state::State::Error(DiffStateErrorValue {
+                                message: "Remote server returned an empty GetDiffStateResponse"
+                                    .to_string(),
+                            })),
+                        }),
+                        diffs: None,
+                    },
+                    Err(error) => DiffStateSnapshot {
+                        repo_path: repo_path_for_event.to_string(),
+                        mode: Some(mode_for_event.clone()),
+                        metadata: None,
+                        state: Some(DiffState {
+                            state: Some(diff_state::State::Error(DiffStateErrorValue {
+                                message: error.to_string(),
+                            })),
+                        }),
+                        diffs: None,
+                    },
+                };
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::DiffStateSnapshotReceived {
+                            host_id,
+                            repo_path: repo_path_for_event,
+                            mode: mode_for_event,
+                            snapshot,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
+    }
+
+    pub fn unsubscribe_diff_state(
+        &self,
+        session_id: SessionId,
+        remote_path: &RemotePath,
+        mode: DiffMode,
+    ) {
+        if let Some(client) = self.client_for_session(session_id) {
+            client.unsubscribe_diff_state(&remote_path.path, mode);
+        }
+    }
+
+    pub fn discard_files(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        files: Vec<FileStatusInfo>,
+        should_stash: bool,
+        branch_name: Option<String>,
+        mode: DiffMode,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        ctx.background_executor()
+            .spawn(async move {
+                if let Err(error) = client
+                    .discard_files(&repo_path, files, should_stash, branch_name, mode)
+                    .await
+                {
+                    log::warn!("Remote server discard_files failed: {error}");
+                }
+            })
+            .detach();
     }
 
     /// Checks if the remote server binary is installed and executable.
@@ -1202,6 +1344,42 @@ impl RemoteServerManager {
             }
             ClientEvent::RepoMetadataUpdated { update } => {
                 ctx.emit(RemoteServerManagerEvent::RepoMetadataUpdated { host_id, update });
+            }
+            ClientEvent::DiffStateSnapshotReceived {
+                repo_path,
+                mode,
+                snapshot,
+            } => {
+                ctx.emit(RemoteServerManagerEvent::DiffStateSnapshotReceived {
+                    host_id,
+                    repo_path,
+                    mode,
+                    snapshot,
+                });
+            }
+            ClientEvent::DiffStateMetadataUpdateReceived {
+                repo_path,
+                mode,
+                update,
+            } => {
+                ctx.emit(RemoteServerManagerEvent::DiffStateMetadataUpdateReceived {
+                    host_id,
+                    repo_path,
+                    mode,
+                    update,
+                });
+            }
+            ClientEvent::DiffStateFileDeltaReceived {
+                repo_path,
+                mode,
+                delta,
+            } => {
+                ctx.emit(RemoteServerManagerEvent::DiffStateFileDeltaReceived {
+                    host_id,
+                    repo_path,
+                    mode,
+                    delta,
+                });
             }
             ClientEvent::MessageDecodingError => {
                 log::warn!("Remote server message decoding error: session={session_id:?}");

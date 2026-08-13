@@ -2373,6 +2373,16 @@ impl CodeReviewView {
                 // e.g. committing shows "Push" instead of staying on "Commit".
                 self.update_git_operations_ui(ctx);
             }
+            DiffStateModelEvent::SingleFileUpdated { path, .. } => {
+                self.invalidate_files(vec![path.clone()], ctx);
+                self.update_aggregate_stats(ctx);
+                self.update_git_operations_ui(ctx);
+            }
+            DiffStateModelEvent::MetadataRefreshed(_) => {
+                self.update_aggregate_stats(ctx);
+                self.update_git_operations_ui(ctx);
+            }
+            DiffStateModelEvent::ConnectionLost => {}
         }
     }
 
@@ -2629,6 +2639,9 @@ impl CodeReviewView {
                 ctx.notify();
                 return;
             }
+            DiffState::Disconnected => {
+                return;
+            }
             DiffState::Error(err) => {
                 if let Some(repo) = self.active_repo.as_mut() {
                     repo.state = CodeReviewViewState::Error(err);
@@ -2636,7 +2649,7 @@ impl CodeReviewView {
                 ctx.notify();
                 return;
             }
-            DiffState::Loaded(_) => (),
+            DiffState::Loaded => (),
         };
 
         let Some(diff_data) = diff_data else {
@@ -5247,10 +5260,10 @@ impl CodeReviewView {
         let theme = appearance.theme();
 
         let diff_size = file.file_diff.size;
-        if diff_size == DiffSize::Unrenderable {
+        if let DiffSize::Unrenderable(reason) = diff_size {
             return Self::styled_file_content_container(
                 Text::new(
-                    "Diff is too large to render",
+                    reason.to_string(),
                     appearance.monospace_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -5612,6 +5625,8 @@ impl CodeReviewView {
                 .unwrap_or(GitFileStatus::Modified),
             _ => GitFileStatus::Modified,
         };
+        let path = warp_util::standardized_path::StandardizedPath::try_from_local(&path)
+            .unwrap_or_else(|_| warp_util::standardized_path::StandardizedPath::from_local_absolute_unchecked(&path));
         FileStatusInfo { path, status }
     }
 

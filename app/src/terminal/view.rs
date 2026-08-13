@@ -3606,7 +3606,10 @@ impl TerminalView {
                 | RemoteServerManagerEvent::HostDisconnected { .. }
                 | RemoteServerManagerEvent::RepoMetadataSnapshot { .. }
                 | RemoteServerManagerEvent::RepoMetadataUpdated { .. }
-                | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. } => {}
+                | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
+                | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
+                | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
+                | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. } => {}
             }
         });
         terminal_view.any_session_contains_restored_remote_blocks =

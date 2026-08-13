@@ -33,6 +33,7 @@ use crate::util::git::{
 };
 
 use crate::code_review::diff_size_limits::compute_diff_size;
+use warp_util::standardized_path::StandardizedPath;
 
 use warp_core::channel::ChannelState;
 use warp_core::safe_warn;
@@ -102,7 +103,7 @@ impl GitFileStatus {
 
 #[derive(Clone, Debug)]
 pub struct FileStatusInfo {
-    pub path: PathBuf,
+    pub path: StandardizedPath,
     pub status: GitFileStatus,
 }
 
@@ -299,7 +300,8 @@ pub enum DiffState {
     NotInRepository,
     Loading,
     Error(String),
-    Loaded(GitDiffData),
+    Loaded,
+    Disconnected,
 }
 
 #[derive(Clone)]
@@ -333,21 +335,21 @@ struct DiffsWithBaseContent {
     repository_path: PathBuf,
 }
 
-#[derive(Default)]
-struct DiffMetadata {
-    main_branch_name: String,
-    current_branch_name: String,
-    against_head: DiffMetadataAgainstBase,
-    against_base_branch: Option<DiffMetadataAgainstBase>,
-    has_head_commit: bool,
-    unpushed_commits: Vec<Commit>,
-    upstream_ref: Option<String>,
-    pr_info: Option<PrInfo>,
+#[derive(Clone, Debug, Default)]
+pub struct DiffMetadata {
+    pub main_branch_name: String,
+    pub current_branch_name: String,
+    pub against_head: DiffMetadataAgainstBase,
+    pub against_base_branch: Option<DiffMetadataAgainstBase>,
+    pub has_head_commit: bool,
+    pub unpushed_commits: Vec<Commit>,
+    pub upstream_ref: Option<String>,
+    pub pr_info: Option<PrInfo>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct DiffMetadataAgainstBase {
-    pub(crate) aggregate_stats: DiffStats,
+    pub aggregate_stats: DiffStats,
 }
 
 impl DiffMetadataAgainstBase {
@@ -476,10 +478,14 @@ impl LocalDiffStateModel {
             InternalDiffState::NotInRepository => DiffState::NotInRepository,
             InternalDiffState::Loading => DiffState::Loading,
             InternalDiffState::Loaded(diffs) => match &diffs.changes {
-                Ok(git_diff_data) => DiffState::Loaded(git_diff_data.clone()),
+                Ok(_) => DiffState::Loaded,
                 Err(err) => DiffState::Error(err.clone()),
             },
         }
+    }
+
+    pub fn metadata(&self) -> Option<&DiffMetadata> {
+        self.metadata.as_ref()
     }
 
     pub fn get_metadata(&self) -> Option<&DiffMetadataAgainstBase> {
@@ -886,11 +892,15 @@ impl LocalDiffStateModel {
     /// Removes files based on the operation type
     #[cfg(feature = "local_fs")]
     async fn discard_files_impl(
-        repo_path: &Path,
+        repo_sp: &StandardizedPath,
         file_infos: Vec<FileStatusInfo>,
         should_stash: bool,
         branch: &str,
     ) -> Result<()> {
+        let Some(repo_path) = repo_sp.to_local_path() else {
+            anyhow::bail!("discard_files_impl called with non-local path: {repo_sp}");
+        };
+
         let mut renamed_file_infos = Vec::new();
         let mut other_file_infos = Vec::new();
 
@@ -907,20 +917,22 @@ impl LocalDiffStateModel {
             if branch == "HEAD" && should_stash {
                 let renamed_paths: Vec<String> = renamed_file_infos
                     .iter()
-                    .map(|info| match info.path.strip_prefix(repo_path) {
-                        Ok(rel_path) => rel_path.to_string_lossy().to_string(),
-                        Err(_) => info.path.to_string_lossy().to_string(),
+                    .map(|info| {
+                        info.path
+                            .strip_prefix(repo_sp)
+                            .unwrap_or(info.path.as_str())
+                            .to_string()
                     })
                     .collect();
-                Self::stash_uncommitted_changes(repo_path, &renamed_paths).await?;
+                Self::stash_uncommitted_changes(&repo_path, &renamed_paths).await?;
 
                 for info in &renamed_file_infos {
                     if let GitFileStatus::Renamed { old_path } = &info.status {
                         log::debug!(
-                            "[GIT OPERATION] diff_state.rs discard_files_impl git restore --staged --worktree -- {old_path}"
+                            "[GIT OPERATION] local.rs discard_files_impl git restore --staged --worktree -- {old_path}"
                         );
                         let _ = run_git_command(
-                            repo_path,
+                            &repo_path,
                             &["restore", "--staged", "--worktree", "--", old_path],
                         )
                         .await;
@@ -929,17 +941,18 @@ impl LocalDiffStateModel {
             } else {
                 for info in renamed_file_infos {
                     if let GitFileStatus::Renamed { old_path } = &info.status {
-                        let relative_new_path = match info.path.strip_prefix(repo_path) {
-                            Ok(rel) => rel.to_string_lossy().to_string(),
-                            Err(_) => info.path.to_string_lossy().to_string(),
-                        };
+                        let relative_new_path = info
+                            .path
+                            .strip_prefix(repo_sp)
+                            .unwrap_or(info.path.as_str())
+                            .to_string();
 
                         // Remove the new file
                         log::debug!(
-                            "[GIT OPERATION] diff_state.rs discard_files_impl git rm -f -- {relative_new_path}"
+                            "[GIT OPERATION] local.rs discard_files_impl git rm -f -- {relative_new_path}"
                         );
                         if let Err(e) =
-                            run_git_command(repo_path, &["rm", "-f", "--", &relative_new_path])
+                            run_git_command(&repo_path, &["rm", "-f", "--", &relative_new_path])
                                 .await
                         {
                             log::warn!("Failed to remove renamed file '{relative_new_path}': {e}");
@@ -949,10 +962,10 @@ impl LocalDiffStateModel {
                         // We use checkout instead of restore because the old path doesn't exist in the
                         // working directory yet, and git restore requires the path to exist
                         log::debug!(
-                            "[GIT OPERATION] diff_state.rs discard_files_impl git checkout {branch} -- {old_path}"
+                            "[GIT OPERATION] local.rs discard_files_impl git checkout {branch} -- {old_path}"
                         );
                         if let Err(e) =
-                            run_git_command(repo_path, &["checkout", branch, "--", old_path]).await
+                            run_git_command(&repo_path, &["checkout", branch, "--", old_path]).await
                         {
                             log::error!(
                                 "Failed to restore old file '{old_path}' from branch '{branch}': {e}"
@@ -967,16 +980,18 @@ impl LocalDiffStateModel {
         if !other_file_infos.is_empty() {
             let relative_paths: Vec<String> = other_file_infos
                 .iter()
-                .map(|info| match info.path.strip_prefix(repo_path) {
-                    Ok(rel_path) => rel_path.to_string_lossy().to_string(),
-                    Err(_) => info.path.to_string_lossy().to_string(),
+                .map(|info| {
+                    info.path
+                        .strip_prefix(repo_sp)
+                        .unwrap_or(info.path.as_str())
+                        .to_string()
                 })
                 .collect();
 
             if branch == "HEAD" && should_stash {
-                Self::stash_uncommitted_changes(repo_path, &relative_paths).await?;
+                Self::stash_uncommitted_changes(&repo_path, &relative_paths).await?;
             } else {
-                Self::git_restore_and_clean(repo_path, &relative_paths, branch).await?;
+                Self::git_restore_and_clean(&repo_path, &relative_paths, branch).await?;
             }
         }
         Ok(())
@@ -994,10 +1009,7 @@ impl LocalDiffStateModel {
         let Some(current_repository) = &self.repository else {
             return;
         };
-        let current_repository_path = current_repository
-            .as_ref(ctx)
-            .root_dir()
-            .to_local_path_lossy();
+        let current_repository_path = current_repository.as_ref(ctx).root_dir().clone();
 
         let branch = branch_name.unwrap_or_else(|| "HEAD".to_string());
         ctx.spawn(
@@ -1450,6 +1462,15 @@ impl LocalDiffStateModel {
     ) -> Option<GitDiffData> {
         let diffs = Self::load_diffs_for_repo(repo_path, mode, false).await;
         diffs.changes.ok().map(|diff| diff.into())
+    }
+
+    #[cfg(feature = "local_fs")]
+    pub async fn load_diffs_with_content_for_mode(
+        mode: DiffMode,
+        repo_path: PathBuf,
+    ) -> Option<GitDiffWithBaseContent> {
+        let diffs = Self::load_diffs_for_repo(repo_path, mode, false).await;
+        diffs.changes.ok()
     }
 
     async fn load_diffs_for_repo(
@@ -2979,6 +3000,12 @@ pub enum DiffStateModelEvent {
     DiffMetadataChanged(InvalidationBehavior),
     /// Event dispatched when new diffs are computed.
     NewDiffsComputed(Option<Arc<GitDiffWithBaseContent>>),
+    SingleFileUpdated {
+        path: PathBuf,
+        diff: Option<Arc<FileDiffAndContent>>,
+    },
+    MetadataRefreshed(DiffMetadata),
+    ConnectionLost,
     /// Event dispatched when new diff mode is set.
     /// The boolean indicates whether the next diff load should attempt to
     /// fetch the base branch from origin if it is not available locally.

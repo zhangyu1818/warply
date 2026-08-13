@@ -10,16 +10,19 @@ use futures::io::{AsyncRead, AsyncWrite};
 use warpui::r#async::{executor, FutureExt as _};
 
 use crate::proto::{
-    client_message, server_message, Abort, ClientMessage, DeleteFile, ErrorCode, Initialize,
-    InitializeResponse, LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse,
-    ReadFileContextRequest, ReadFileContextResponse, RunCommandRequest, RunCommandResponse,
-    ServerMessage, SessionBootstrapped, WriteFile,
+    client_message, server_message, Abort, ClientMessage, DeleteFile, DiffMode,
+    DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, DiscardFilesRequest, ErrorCode,
+    FileStatusInfo, GetDiffState, GetDiffStateResponse, Initialize, InitializeResponse,
+    LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, ReadFileContextRequest,
+    ReadFileContextResponse, RunCommandRequest, RunCommandResponse, ServerMessage,
+    SessionBootstrapped, UnsubscribeDiffState, WriteFile,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
 
 use warp_core::SessionId;
 use warp_core::{safe_error, safe_warn};
+use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::TransportStream;
 
 /// Default request timeout (2 minutes).
@@ -48,6 +51,9 @@ pub enum ClientError {
 
     #[error("File operation failed: {0}")]
     FileOperationFailed(String),
+
+    #[error("Discard files failed: {0}")]
+    DiscardFailed(String),
 }
 
 /// Events received from the remote server, delivered through the event
@@ -67,6 +73,21 @@ pub enum ClientEvent {
     /// An incremental repo metadata update was pushed by the server.
     RepoMetadataUpdated {
         update: repo_metadata::RepoMetadataUpdate,
+    },
+    DiffStateSnapshotReceived {
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        snapshot: DiffStateSnapshot,
+    },
+    DiffStateMetadataUpdateReceived {
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        update: DiffStateMetadataUpdate,
+    },
+    DiffStateFileDeltaReceived {
+        repo_path: StandardizedPath,
+        mode: DiffMode,
+        delta: DiffStateFileDelta,
     },
     /// A server message could not be decoded and had no parseable request_id.
     MessageDecodingError,
@@ -378,6 +399,33 @@ impl RemoteServerClient {
                 let update = crate::repo_metadata_proto::proto_to_repo_metadata_update(&push)?;
                 Some(ClientEvent::RepoMetadataUpdated { update })
             }
+            server_message::Message::DiffStateSnapshot(snapshot) => {
+                let repo_path = StandardizedPath::try_new(&snapshot.repo_path).ok()?;
+                let mode = snapshot.mode.clone()?;
+                Some(ClientEvent::DiffStateSnapshotReceived {
+                    repo_path,
+                    mode,
+                    snapshot,
+                })
+            }
+            server_message::Message::DiffStateMetadataUpdate(update) => {
+                let repo_path = StandardizedPath::try_new(&update.repo_path).ok()?;
+                let mode = update.mode.clone()?;
+                Some(ClientEvent::DiffStateMetadataUpdateReceived {
+                    repo_path,
+                    mode,
+                    update,
+                })
+            }
+            server_message::Message::DiffStateFileDelta(delta) => {
+                let repo_path = StandardizedPath::try_new(&delta.repo_path).ok()?;
+                let mode = delta.mode.clone()?;
+                Some(ClientEvent::DiffStateFileDeltaReceived {
+                    repo_path,
+                    mode,
+                    delta,
+                })
+            }
             other => {
                 safe_warn!(
                     safe: ("Unhandled push message variant"),
@@ -385,6 +433,70 @@ impl RemoteServerClient {
                 );
                 None
             }
+        }
+    }
+
+    pub async fn get_diff_state(
+        &self,
+        repo_path: &StandardizedPath,
+        mode: DiffMode,
+    ) -> Result<GetDiffStateResponse, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GetDiffState(GetDiffState {
+                repo_path: repo_path.to_string(),
+                mode: Some(mode),
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GetDiffStateResponse(response)) => Ok(response),
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub fn unsubscribe_diff_state(&self, repo_path: &StandardizedPath, mode: DiffMode) {
+        self.send_notification(ClientMessage {
+            request_id: String::new(),
+            message: Some(client_message::Message::UnsubscribeDiffState(
+                UnsubscribeDiffState {
+                    repo_path: repo_path.to_string(),
+                    mode: Some(mode),
+                },
+            )),
+        });
+    }
+
+    pub async fn discard_files(
+        &self,
+        repo_path: &StandardizedPath,
+        files: Vec<FileStatusInfo>,
+        should_stash: bool,
+        branch_name: Option<String>,
+        mode: DiffMode,
+    ) -> Result<(), ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::DiscardFiles(DiscardFilesRequest {
+                repo_path: repo_path.to_string(),
+                files,
+                should_stash,
+                branch_name,
+                mode: Some(mode),
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::DiscardFilesResponse(response)) => match response.result {
+                Some(crate::proto::discard_files_response::Result::Success(_)) => Ok(()),
+                Some(crate::proto::discard_files_response::Result::Error(error)) => {
+                    Err(ClientError::DiscardFailed(error.message))
+                }
+                None => Err(ClientError::UnexpectedResponse),
+            },
+            _ => Err(ClientError::UnexpectedResponse),
         }
     }
 

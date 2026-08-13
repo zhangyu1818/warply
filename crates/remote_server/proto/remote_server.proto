@@ -7,6 +7,8 @@ syntax = "proto3";
 
 package remote_server;
 
+import "diff_state.proto";
+
 // ── Top-level envelopes ───────────────────────────────────────────
 
 // Top-level envelope for all client → server messages.
@@ -22,6 +24,9 @@ message ClientMessage {
     DeleteFile delete_file = 8;
     RunCommandRequest run_command = 9;
     ReadFileContextRequest read_file_context = 10;
+    GetDiffState get_diff_state = 12;
+    UnsubscribeDiffState unsubscribe_diff_state = 13;
+    DiscardFilesRequest discard_files = 14;
   }
 }
 // Top-level envelope for all server → client messages.
@@ -40,6 +45,11 @@ message ServerMessage {
     DeleteFileResponse delete_file_response = 9;
     RunCommandResponse run_command_response = 10;
     ReadFileContextResponse read_file_context_response = 11;
+    GetDiffStateResponse get_diff_state_response = 12;
+    DiffStateSnapshot diff_state_snapshot = 13;
+    DiffStateMetadataUpdate diff_state_metadata_update = 14;
+    DiffStateFileDelta diff_state_file_delta = 15;
+    DiscardFilesResponse discard_files_response = 16;
   }
 }
 

@@ -152,6 +152,9 @@ impl Sessions {
                 | RemoteServerManagerEvent::RepoMetadataSnapshot { .. }
                 | RemoteServerManagerEvent::RepoMetadataUpdated { .. }
                 | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
+                | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
+                | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
+                | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. }
                 | RemoteServerManagerEvent::BinaryCheckComplete { .. }
                 | RemoteServerManagerEvent::BinaryInstallComplete { .. } => {}
                 RemoteServerManagerEvent::SessionReconnected {

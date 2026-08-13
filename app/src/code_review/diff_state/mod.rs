@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 use crate::util::git::{Commit, PrInfo};
 use anyhow::Result;
+use warp_core::SessionId;
+use warp_util::remote_path::RemotePath;
 use warpui::{AppContext, ModelContext, ModelHandle};
 
 mod local;
@@ -33,10 +35,13 @@ impl DiffStateModel {
     }
 
     pub fn new_remote(
-        remote_path: repo_metadata::RemoteRepositoryIdentifier,
+        remote_path: RemotePath,
+        session_id: SessionId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
-        let remote = ctx.add_model(|ctx| RemoteDiffStateModel::new(remote_path, ctx));
+        let remote = ctx.add_model(|ctx| {
+            RemoteDiffStateModel::new(remote_path, DiffMode::default(), session_id, ctx)
+        });
         ctx.subscribe_to_model(&remote, Self::forward_event);
         Self::Remote(remote)
     }
@@ -200,7 +205,7 @@ impl DiffStateModel {
                 model.set_diff_mode(mode, should_fetch_base, ctx)
             }),
             Self::Remote(model) => model.update(ctx, |model, ctx| {
-                model.set_diff_mode(mode, should_fetch_base, ctx)
+                model.set_diff_mode(mode, ctx)
             }),
         }
     }
@@ -211,7 +216,7 @@ impl DiffStateModel {
                 model.set_diff_mode_and_fetch_base(mode, ctx)
             }),
             Self::Remote(model) => model.update(ctx, |model, ctx| {
-                model.set_diff_mode_and_fetch_base(mode, ctx)
+                model.set_diff_mode(mode, ctx)
             }),
         }
     }
