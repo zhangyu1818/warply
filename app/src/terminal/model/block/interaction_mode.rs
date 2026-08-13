@@ -209,7 +209,7 @@ impl Block {
             InteractionMode::Agent(AgentInteractionMetadata {
                 long_running_control_state:
                     Some(LongRunningCommandControlState::Agent {
-                        ref mut should_hide_responses,
+                        should_hide_responses,
                         ..
                     }),
                 ..
@@ -312,7 +312,7 @@ impl InteractionMode {
         reason: UserTakeOverReason,
     ) -> Result<(), UpdateInteractionModeError> {
         let Self::Agent(AgentInteractionMetadata {
-            ref mut long_running_control_state,
+            long_running_control_state,
             ..
         }) = self
         else {
@@ -332,7 +332,7 @@ impl InteractionMode {
 
     fn handoff_to_agent(&mut self) -> Result<(), UpdateInteractionModeError> {
         let Self::Agent(AgentInteractionMetadata {
-            ref mut long_running_control_state,
+            long_running_control_state,
             ..
         }) = self
         else {

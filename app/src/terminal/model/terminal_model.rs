@@ -1461,7 +1461,7 @@ impl TerminalModel {
     pub fn possible_file_paths_at_point(
         &self,
         point: WithinModel<Point>,
-    ) -> impl Iterator<Item = WithinModel<PossiblePath>> {
+    ) -> impl Iterator<Item = WithinModel<PossiblePath>> + use<> {
         match point {
             WithinModel::AltScreen(inner_point) => Either::Left(
                 self.alt_screen

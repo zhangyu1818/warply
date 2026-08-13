@@ -100,7 +100,7 @@ impl UpdateManager {
     }
 
     /// Wait for an initial load to complete.
-    pub fn initial_load_complete(&self) -> impl Future<Output = ()> {
+    pub fn initial_load_complete(&self) -> impl Future<Output = ()> + use<> {
         // We're not using `async fn` here so that the returned Future doesn't borrow self.
         self.has_initial_load.wait()
     }

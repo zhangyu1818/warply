@@ -49,7 +49,7 @@ impl DetectedRepositories {
         active_directory: &str,
         source: RepoDetectionSource,
         ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = Option<PathBuf>> {
+    ) -> impl Future<Output = Option<PathBuf>> + use<> {
         #[cfg(feature = "local_fs")]
         {
             use futures::channel::oneshot;

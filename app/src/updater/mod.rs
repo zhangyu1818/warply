@@ -189,7 +189,7 @@ fn format_update_version_for_display(version: &str) -> String {
     formatted
 }
 
-extern "C" {
+unsafe extern "C" {
     fn warply_sparkle_set_event_callback(
         callback: Option<extern "C" fn(i32, *const c_char, *const c_char)>,
     );

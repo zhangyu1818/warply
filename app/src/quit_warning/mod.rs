@@ -76,7 +76,7 @@ impl QuitScope<'_> {
                 .map(|pane| pane.session_navigation_data(*pane_group_id, *window_id, ctx))
                 .into_iter()
                 .collect_vec(),
-            Self::Tabs(ref tabs) => {
+            Self::Tabs(tabs) => {
                 // We can't use SessionNavigationData::all_sessions here, as the caller is likely
                 // updating the tab's Workspace. This temporarily removes it from the app context,
                 // so it's not visible to all_sessions.
@@ -111,7 +111,7 @@ impl QuitScope<'_> {
                 .map(|code_pane| code_pane.editor_status(ctx))
                 .into_iter()
                 .collect(),
-            Self::Tabs(ref tabs) => tabs
+            Self::Tabs(tabs) => tabs
                 .iter()
                 .filter_map(|tab| tab.upgrade(ctx))
                 .flat_map(|pane_group| CodeEditorStatus::editors_in_tab(&pane_group, ctx))
@@ -130,7 +130,7 @@ impl QuitScope<'_> {
             Self::Pane { .. } => {
                 vec![] // There cannot be a code review view in a pane.
             }
-            Self::Tabs(ref tabs) => {
+            Self::Tabs(tabs) => {
                 let window_ids: Vec<_> = tabs
                     .iter()
                     .filter_map(|tab| tab.upgrade(ctx))
@@ -166,7 +166,7 @@ impl QuitScope<'_> {
                 .map(|code_pane| code_pane.file_view(ctx))
                 .into_iter()
                 .collect(),
-            Self::Tabs(ref tabs) => tabs
+            Self::Tabs(tabs) => tabs
                 .iter()
                 .filter_map(|tab| tab.upgrade(ctx))
                 .flat_map(|pane_group| {
@@ -198,7 +198,7 @@ impl QuitScope<'_> {
     fn code_review_view_handles(&self, ctx: &AppContext) -> Vec<ViewHandle<CodeReviewView>> {
         match self {
             Self::Pane { .. } | Self::EditorTab { .. } => Vec::new(),
-            Self::Tabs(ref tabs) => {
+            Self::Tabs(tabs) => {
                 let window_ids: Vec<_> = tabs
                     .iter()
                     .filter_map(|tab| tab.upgrade(ctx))

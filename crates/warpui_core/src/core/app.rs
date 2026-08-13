@@ -425,7 +425,7 @@ impl App {
     }
 
     #[cfg(test)]
-    pub fn finish_pending_tasks(&self) -> impl Future<Output = ()> {
+    pub fn finish_pending_tasks(&self) -> impl Future<Output = ()> + use<> {
         self.0.borrow().finish_pending_tasks()
     }
 
@@ -4336,7 +4336,7 @@ impl AppContext {
     }
 
     #[cfg(test)]
-    pub fn finish_pending_tasks(&self) -> impl Future<Output = ()> {
+    pub fn finish_pending_tasks(&self) -> impl Future<Output = ()> + use<> {
         let mut pending_tasks = self.task_callbacks.keys().cloned().collect::<HashSet<_>>();
         let task_done = self.task_done.1.clone();
 

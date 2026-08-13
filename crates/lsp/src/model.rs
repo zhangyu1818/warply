@@ -462,7 +462,7 @@ impl LspServerModel {
         path: PathBuf,
         content: String,
         initial_version: usize,
-    ) -> Result<impl Future<Output = Result<()>>> {
+    ) -> Result<impl Future<Output = Result<()>> + use<>> {
         let service = self.service()?;
         Ok(async move {
             service
@@ -472,7 +472,10 @@ impl LspServerModel {
         })
     }
 
-    pub fn did_close_document(&self, path: PathBuf) -> Result<impl Future<Output = Result<()>>> {
+    pub fn did_close_document(
+        &self,
+        path: PathBuf,
+    ) -> Result<impl Future<Output = Result<()>> + use<>> {
         let service = self.service()?;
         Ok(async move { service.text_document().did_close(&path).await })
     }
@@ -482,7 +485,7 @@ impl LspServerModel {
         path: PathBuf,
         version: DocumentVersion,
         deltas: Vec<TextDocumentContentChangeEvent>,
-    ) -> Result<impl Future<Output = Result<()>>> {
+    ) -> Result<impl Future<Output = Result<()>> + use<>> {
         let service = self.service()?;
         Ok(async move {
             service
@@ -501,7 +504,7 @@ impl LspServerModel {
         &self,
         path: PathBuf,
         position: Location,
-    ) -> Result<impl Future<Output = Result<Vec<DefinitionLocation>>>> {
+    ) -> Result<impl Future<Output = Result<Vec<DefinitionLocation>>> + use<>> {
         let service = self.service()?;
         Ok(async move {
             let result = service
@@ -655,7 +658,7 @@ impl LspServerModel {
         &self,
         path: PathBuf,
         options: FormattingOptions,
-    ) -> Result<impl Future<Output = Result<Option<Vec<TextEdit>>>>> {
+    ) -> Result<impl Future<Output = Result<Option<Vec<TextEdit>>>> + use<>> {
         let service = self.service()?;
         Ok(async move { service.text_document().format(&path, options).await })
     }
@@ -664,7 +667,7 @@ impl LspServerModel {
         &self,
         path: PathBuf,
         position: Location,
-    ) -> Result<impl Future<Output = Result<Option<HoverResult>>>> {
+    ) -> Result<impl Future<Output = Result<Option<HoverResult>>> + use<>> {
         let service = self.service()?;
         Ok(async move {
             service
@@ -682,7 +685,7 @@ impl LspServerModel {
         &self,
         path: PathBuf,
         position: Location,
-    ) -> Result<impl Future<Output = Result<Vec<ReferenceLocation>>>> {
+    ) -> Result<impl Future<Output = Result<Vec<ReferenceLocation>>> + use<>> {
         let service = self.service()?;
         Ok(async move {
             service

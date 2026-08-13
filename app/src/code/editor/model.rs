@@ -1700,7 +1700,7 @@ impl CodeEditorModel {
         &self,
         config: &SearchConfig,
         ctx: &AppContext,
-    ) -> anyhow::Result<impl Future<Output = SearchResults>> {
+    ) -> anyhow::Result<impl Future<Output = SearchResults> + use<>> {
         let buffer = self.content().as_ref(ctx);
         let search_future = buffer.search(buffer.prepare_search(config)?);
 

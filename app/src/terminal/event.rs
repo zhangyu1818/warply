@@ -487,7 +487,7 @@ impl Debug for Event {
             }
             Event::RemoteServerFailed {
                 session_id,
-                ref error,
+                error,
             } => {
                 write!(
                     f,

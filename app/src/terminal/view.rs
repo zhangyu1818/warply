@@ -4494,7 +4494,7 @@ impl TerminalView {
                     })
                 {
                     if let Some(RichContentMetadata::AIBlock(AIBlockMetadata {
-                        ref mut conversation_id,
+                        conversation_id,
                         ai_block_handle,
                         ..
                     })) = ai_block_rich_content.metadata_mut()

@@ -147,12 +147,16 @@ impl TestSetupUtils {
                     key,
                     v.as_ref().to_string_lossy()
                 );
-                env::set_var(&key, v);
+                unsafe {
+                    env::set_var(&key, v);
+                }
                 self.env_vars.insert(key);
             }
             None => {
                 println!("Clearing env var {key}");
-                env::remove_var(key);
+                unsafe {
+                    env::remove_var(&key);
+                }
             }
         };
     }
@@ -160,7 +164,9 @@ impl TestSetupUtils {
     pub fn cleanup_env(&mut self) {
         for key in &self.env_vars {
             println!("Clearing env var {key}");
-            env::remove_var(key);
+            unsafe {
+                env::remove_var(key);
+            }
         }
         self.env_vars = HashSet::new();
     }

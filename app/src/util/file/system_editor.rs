@@ -53,7 +53,7 @@ mod platform {
     use warp_core::paths;
     use warpui::{platform::mac::make_nsstring, AppContext};
 
-    extern "C" {
+    unsafe extern "C" {
         fn scan_editor_apps_json(icon_cache_directory: id) -> id;
     }
 
@@ -127,13 +127,15 @@ mod platform {
     }
 
     unsafe fn nsstring_to_string(nsstring: id) -> Option<String> {
-        if nsstring == nil {
-            return None;
+        unsafe {
+            if nsstring == nil {
+                return None;
+            }
+            let cstr = nsstring.UTF8String() as *const u8;
+            std::str::from_utf8(slice::from_raw_parts(cstr, nsstring.len()))
+                .ok()
+                .map(ToOwned::to_owned)
         }
-        let cstr = nsstring.UTF8String() as *const u8;
-        std::str::from_utf8(slice::from_raw_parts(cstr, nsstring.len()))
-            .ok()
-            .map(ToOwned::to_owned)
     }
 }
 

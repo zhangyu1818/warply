@@ -2,7 +2,7 @@
 authors = ["Warply Open Source"]
 default-run = "warply"
 description = "The local-first terminal with ACP agent support"
-edition = "2021"
+edition = "2024"
 autobins = false
 name = "warp"
 version = "0.1.0"

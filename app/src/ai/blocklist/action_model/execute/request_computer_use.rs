@@ -39,7 +39,7 @@ impl RequestComputerUseExecutor {
         &mut self,
         input: ExecuteActionInput,
         _ctx: &mut ModelContext<Self>,
-    ) -> impl Into<AnyActionExecution> {
+    ) -> impl Into<AnyActionExecution> + use<> {
         let ExecuteActionInput {
             action,
             conversation_id: _,

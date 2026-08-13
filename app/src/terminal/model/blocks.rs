@@ -2487,7 +2487,7 @@ impl BlockList {
     pub fn possible_file_paths_at_point(
         &self,
         point: WithinBlock<Point>,
-    ) -> impl Iterator<Item = WithinBlock<PossiblePath>> {
+    ) -> impl Iterator<Item = WithinBlock<PossiblePath>> + use<> {
         let block_grid = if point.is_in_command_content() {
             self.blocks[point.block_index.0].prompt_and_command_grid()
         } else {

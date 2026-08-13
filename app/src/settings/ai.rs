@@ -364,9 +364,9 @@ impl schemars::JsonSchema for AgentModeCommandExecutionPredicate {
         std::borrow::Cow::Borrowed("AgentModeCommandExecutionPredicate")
     }
 
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    fn json_schema(sgen: &mut schemars::SchemaGenerator) -> schemars::Schema {
         // In the settings file, predicates are serialized as plain regex strings.
-        gen.subschema_for::<String>()
+        sgen.subschema_for::<String>()
     }
 }
 
@@ -457,8 +457,8 @@ impl schemars::JsonSchema for ToolbarCommandMap {
         std::borrow::Cow::Borrowed("ToolbarCommandMap")
     }
 
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        gen.subschema_for::<HashMap<String, String>>()
+    fn json_schema(sgen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        sgen.subschema_for::<HashMap<String, String>>()
     }
 }
 

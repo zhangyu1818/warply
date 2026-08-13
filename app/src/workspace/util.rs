@@ -56,7 +56,7 @@ impl WelcomeTipsViewState {
 
     pub fn close_popup(&mut self) {
         if let WelcomeTipsViewState::Available {
-            ref mut is_popup_open,
+            is_popup_open,
             ..
         } = self
         {
@@ -66,7 +66,7 @@ impl WelcomeTipsViewState {
 
     pub fn toggle_popup(&mut self) {
         if let WelcomeTipsViewState::Available {
-            ref mut is_popup_open,
+            is_popup_open,
             ..
         } = self
         {

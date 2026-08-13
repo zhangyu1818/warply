@@ -181,45 +181,47 @@ fn establish_connection(database_url: &str, read_only: bool) -> Result<SqliteCon
 /// Setting up SQLite logging is not thread-safe. No other SQLite calls may be made while this
 /// function is running.
 unsafe fn init_logging() {
-    use std::ffi::{c_char, c_int, c_void, CStr};
-    use std::panic;
-    use std::ptr;
+    unsafe {
+        use std::ffi::{c_char, c_int, c_void, CStr};
+        use std::panic;
+        use std::ptr;
 
-    extern "C-unwind" fn log_callback(_data: *mut c_void, err_code: c_int, msg: *const c_char) {
-        let level = sqlite_log_level(err_code);
+        extern "C-unwind" fn log_callback(_data: *mut c_void, err_code: c_int, msg: *const c_char) {
+            let level = sqlite_log_level(err_code);
 
-        // Safety: the message pointer came from the SQLite library, which promises that it's a
-        // valid C string pointer.
-        let msg = unsafe { CStr::from_ptr(msg) };
-        let err_message = String::from_utf8_lossy(msg.to_bytes());
-        let _ = panic::catch_unwind(|| {
-            log::log!(
-                level,
-                "SQLite error {} ({}): {}",
-                err_code,
-                sqlite3::code_to_str(err_code),
-                err_message
+            // Safety: the message pointer came from the SQLite library, which promises that it's a
+            // valid C string pointer.
+            let msg = unsafe { CStr::from_ptr(msg) };
+            let err_message = String::from_utf8_lossy(msg.to_bytes());
+            let _ = panic::catch_unwind(|| {
+                log::log!(
+                    level,
+                    "SQLite error {} ({}): {}",
+                    err_code,
+                    sqlite3::code_to_str(err_code),
+                    err_message
+                );
+            });
+        }
+
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let null: *const c_void = ptr::null();
+            // Diesel doesn't expose SQLite's logging/tracing APIs, but the FFI bindings do.
+            let status = sqlite3::sqlite3_config(
+                sqlite3::SQLITE_CONFIG_LOG,
+                log_callback as extern "C-unwind" fn(_, _, _),
+                null,
             );
+
+            if status != sqlite3::SQLITE_OK {
+                log::error!(
+                    "Error setting up SQLite logging: {}",
+                    sqlite3::code_to_str(status)
+                );
+            }
         });
     }
-
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        let null: *const c_void = ptr::null();
-        // Diesel doesn't expose SQLite's logging/tracing APIs, but the FFI bindings do.
-        let status = sqlite3::sqlite3_config(
-            sqlite3::SQLITE_CONFIG_LOG,
-            log_callback as extern "C-unwind" fn(_, _, _),
-            null,
-        );
-
-        if status != sqlite3::SQLITE_OK {
-            log::error!(
-                "Error setting up SQLite logging: {}",
-                sqlite3::code_to_str(status)
-            );
-        }
-    });
 }
 
 fn sqlite_log_level(err_code: i32) -> log::Level {

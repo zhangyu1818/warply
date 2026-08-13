@@ -2471,7 +2471,7 @@ impl AIAgentExchange {
     /// Returns an error if the output was already initialized.
     pub(super) fn init_output(&mut self) -> Result<(), UpdateTaskError> {
         match &mut self.output_status {
-            AIAgentOutputStatus::Streaming { ref mut output } => {
+            AIAgentOutputStatus::Streaming { output } => {
                 if output.is_none() {
                     *output = Some(Shared::new(AIAgentOutput {
                         messages: vec![],
