@@ -1,5 +1,7 @@
 use super::*;
 
+use super::LocalDiffStateModel as DiffStateModel;
+
 #[test]
 fn test_parse_range_with_comma() {
     let (start, count) = DiffStateModel::parse_range("10,5")

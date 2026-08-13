@@ -1531,8 +1531,8 @@ impl CodeReviewView {
             return Vec::new();
         };
 
-        let (current_mode, current_branch_name) = self.diff_state_model.read(ctx, |model, _| {
-            (model.diff_mode(), model.get_current_branch_name())
+        let (current_mode, current_branch_name) = self.diff_state_model.read(ctx, |model, ctx| {
+            (model.diff_mode(ctx), model.get_current_branch_name(ctx))
         });
 
         let mut targets = Vec::new();
@@ -1624,7 +1624,7 @@ impl CodeReviewView {
     fn apply_diff_mode(&mut self, mode: DiffMode, ctx: &mut ViewContext<Self>) {
         if self
             .diff_state_model
-            .read(ctx, |model, _| model.diff_mode())
+            .read(ctx, |model, ctx| model.diff_mode(ctx))
             == mode
         {
             return;
@@ -2367,7 +2367,7 @@ impl CodeReviewView {
                 ctx.notify();
             }
             DiffStateModelEvent::NewDiffsComputed(diffs) => {
-                self.invalidate_all(diffs.as_ref(), ctx);
+                self.invalidate_all(diffs.as_deref(), ctx);
                 // After the view state is refreshed with fresh diffs, re-evaluate
                 // the git operations button (Commit / Push / Create PR) so that
                 // e.g. committing shows "Push" instead of staying on "Commit".
@@ -2384,7 +2384,7 @@ impl CodeReviewView {
     }
 
     fn invalidate_files(&mut self, files: Vec<PathBuf>, ctx: &mut ViewContext<Self>) {
-        let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
+        let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
 
         // TODO: Remove pending file invalidations — pause the queue instead.
         // Defer file invalidation if a full reload is in-flight or the diff is still loading.
@@ -2578,7 +2578,7 @@ impl CodeReviewView {
         let Some(diff_stats) = self
             .diff_state_model
             .as_ref(ctx)
-            .get_stats_for_current_mode()
+            .get_stats_for_current_mode(ctx)
         else {
             return;
         };
@@ -2700,7 +2700,7 @@ impl CodeReviewView {
     /// This ensures watcher-driven file invalidations are deferred rather than
     /// enqueued without a merge base.
     fn recompute_merge_base_and_flush(&mut self, ctx: &mut ViewContext<Self>) {
-        let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
+        let diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
         if !matches!(diff_mode, DiffMode::Head) {
             if let Some(repo) = self.active_repo.as_ref() {
                 let repo_path = repo.repo_path.clone();
@@ -2955,7 +2955,7 @@ impl CodeReviewView {
     }
 
     fn diff_state(&self, app: &AppContext) -> DiffState {
-        self.diff_state_model.read(app, |model, _| model.get())
+        self.diff_state_model.read(app, |model, ctx| model.get(ctx))
     }
 
     /// Get the state of the current repo. Returns None if no repo.
@@ -5531,7 +5531,7 @@ impl CodeReviewView {
         .with_separator();
 
         // hide stash option entirely if there's no HEAD (git doesn't let you stash with no HEAD)
-        let can_stash = self.diff_state_model.as_ref(app).has_head();
+        let can_stash = self.diff_state_model.as_ref(app).has_head(app);
 
         if self
             .discard_dialog_state
@@ -5620,7 +5620,7 @@ impl CodeReviewView {
 
         let branch_name = match &self.discard_dialog_state.operation_type {
             DiscardOperationType::FileChangesAgainstBranch(None) => {
-                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name())
+                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx))
             }
             DiscardOperationType::FileChangesAgainstBranch(Some(branch)) => {
                 Some(Some(branch.clone()))
@@ -5646,7 +5646,7 @@ impl CodeReviewView {
 
         let branch_name = match &self.discard_dialog_state.operation_type {
             DiscardOperationType::AllChangesAgainstBranch(None) => {
-                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name())
+                Some(self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx))
             }
             DiscardOperationType::AllChangesAgainstBranch(Some(branch)) => {
                 Some(Some(branch.clone()))
@@ -5892,10 +5892,10 @@ impl CodeReviewView {
                 };
 
                 // Create attachment reference and key based on scope
-                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name();
+                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx);
                 let (attachment_reference, attachment_key) = create_attachment_reference_and_key(
                     &scope,
-                    &self.diff_state_model.as_ref(ctx).diff_mode(),
+                    &self.diff_state_model.as_ref(ctx).diff_mode(ctx),
                     main_branch_name.as_deref(),
                     repo_path,
                 );
@@ -5944,15 +5944,15 @@ impl CodeReviewView {
     fn get_current_head(&self, ctx: &ViewContext<Self>) -> Option<CurrentHead> {
         self.diff_state_model
             .as_ref(ctx)
-            .get_current_branch_name()
+            .get_current_branch_name(ctx)
             .map(CurrentHead::BranchName)
     }
 
     fn get_diff_base(&self, ctx: &ViewContext<Self>) -> anyhow::Result<DiffBase> {
-        match self.diff_state_model.as_ref(ctx).diff_mode() {
+        match self.diff_state_model.as_ref(ctx).diff_mode(ctx) {
             DiffMode::Head => Ok(DiffBase::UncommittedChanges),
             DiffMode::MainBranch => {
-                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name();
+                let main_branch_name = self.diff_state_model.as_ref(ctx).get_main_branch_name(ctx);
                 match main_branch_name {
                     Some(name) => Ok(DiffBase::BranchName(name)),
                     None => Err(anyhow::anyhow!("unable to determine main branch name")),
@@ -6068,13 +6068,13 @@ impl CodeReviewView {
                 // Determine the diff base from the current diff state
                 let diff_base = match self
                     .diff_state_model
-                    .read(ctx, |model, _| model.diff_mode())
+                    .read(ctx, |model, ctx| model.diff_mode(ctx))
                 {
                     DiffMode::Head => DiffBase::UncommittedChanges,
                     DiffMode::MainBranch => {
                         let main_branch_name = self
                             .diff_state_model
-                            .read(ctx, |model, _| model.get_main_branch_name());
+                            .read(ctx, |model, ctx| model.get_main_branch_name(ctx));
 
                         match main_branch_name {
                             Some(name) => DiffBase::BranchName(name),
@@ -6312,7 +6312,7 @@ impl CodeReviewView {
     fn has_uncommitted_changes(&self, app: &AppContext) -> bool {
         self.diff_state_model
             .as_ref(app)
-            .get_uncommitted_stats()
+            .get_uncommitted_stats(app)
             .is_some_and(|stats| !stats.has_no_changes())
     }
 
@@ -6338,7 +6338,7 @@ impl CodeReviewView {
         };
         let branch_name = self
             .diff_state_model
-            .read(ctx, |model, _| model.get_current_branch_name())
+            .read(ctx, |model, ctx| model.get_current_branch_name(ctx))
             .unwrap_or_default();
 
         let dialog = match kind {
@@ -6349,10 +6349,10 @@ impl CodeReviewView {
                 // `has_upstream` controls the label/icon on the push-chained
                 // intent (Commit and push vs Commit and publish).
                 let diff_state = self.diff_state_model.as_ref(ctx);
-                let allow_create_pr = diff_state.pr_info().is_none()
-                    && !diff_state.is_pr_info_refreshing()
-                    && !diff_state.is_on_main_branch();
-                let has_upstream = diff_state.upstream_ref().is_some();
+                let allow_create_pr = diff_state.pr_info(ctx).is_none()
+                    && !diff_state.is_pr_info_refreshing(ctx)
+                    && !diff_state.is_on_main_branch(ctx);
+                let has_upstream = diff_state.upstream_ref(ctx).is_some();
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_commit(
                         repo_path,
@@ -6366,7 +6366,7 @@ impl CodeReviewView {
             GitDialogKind::Push { publish } => {
                 let commits = self
                     .diff_state_model
-                    .read(ctx, |model, _| model.unpushed_commits().to_vec());
+                    .read(ctx, |model, ctx| model.unpushed_commits(ctx).to_vec());
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_push(repo_path, branch_name, publish, commits, ctx)
                 })
@@ -6374,7 +6374,7 @@ impl CodeReviewView {
             GitDialogKind::CreatePr => {
                 let base_branch_name = self
                     .diff_state_model
-                    .read(ctx, |model, _| model.get_main_branch_name());
+                    .read(ctx, |model, ctx| model.get_main_branch_name(ctx));
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_pr(repo_path, branch_name, base_branch_name, ctx)
                 })
@@ -6402,12 +6402,12 @@ impl CodeReviewView {
     fn primary_git_action_mode(&self, app: &AppContext) -> PrimaryGitActionMode {
         let diff_state = self.diff_state_model.as_ref(app);
         let has_uncommitted_changes = self.has_uncommitted_changes(app);
-        let has_upstream = diff_state.upstream_ref().is_some();
-        let has_local_commits = !diff_state.unpushed_commits().is_empty();
-        let is_pr_info_refreshing = diff_state.is_pr_info_refreshing();
+        let has_upstream = diff_state.upstream_ref(app).is_some();
+        let has_local_commits = !diff_state.unpushed_commits(app).is_empty();
+        let is_pr_info_refreshing = diff_state.is_pr_info_refreshing(app);
         // False when upstream == main (e.g. after `git checkout -b feature origin/master`),
         // which means the branch hasn't been pushed to its own remote ref yet.
-        let upstream_differs_from_main = diff_state.upstream_differs_from_main();
+        let upstream_differs_from_main = diff_state.upstream_differs_from_main(app);
 
         if has_uncommitted_changes {
             PrimaryGitActionMode::Commit
@@ -6415,11 +6415,11 @@ impl CodeReviewView {
             PrimaryGitActionMode::Publish
         } else if has_local_commits {
             PrimaryGitActionMode::Push
-        } else if diff_state.pr_info().is_some() {
+        } else if diff_state.pr_info(app).is_some() {
             PrimaryGitActionMode::ViewPr
         } else if !is_pr_info_refreshing
             && has_upstream
-            && !diff_state.is_on_main_branch()
+            && !diff_state.is_on_main_branch(app)
             && upstream_differs_from_main
         {
             PrimaryGitActionMode::CreatePr
@@ -6491,8 +6491,8 @@ impl CodeReviewView {
             }
             PrimaryGitActionMode::ViewPr => {
                 let diff_state = self.diff_state_model.as_ref(ctx);
-                let pr_info = diff_state.pr_info().cloned();
-                let is_pr_info_refreshing = diff_state.is_pr_info_refreshing();
+                let pr_info = diff_state.pr_info(ctx).cloned();
+                let is_pr_info_refreshing = diff_state.is_pr_info_refreshing(ctx);
                 if let Some(pr_info) = pr_info {
                     let url = pr_info.url.clone();
                     let number = pr_info.number;
@@ -6573,17 +6573,17 @@ impl CodeReviewView {
     /// (e.g. a worktree branch whose tracking was auto-set to origin/master).
     fn pr_menu_item(&self, app: &AppContext) -> MenuItem<CodeReviewAction> {
         let diff_state = self.diff_state_model.as_ref(app);
-        let is_pr_info_refreshing = diff_state.is_pr_info_refreshing();
-        if let Some(pr_info) = diff_state.pr_info().cloned() {
+        let is_pr_info_refreshing = diff_state.is_pr_info_refreshing(app);
+        if let Some(pr_info) = diff_state.pr_info(app).cloned() {
             MenuItemFields::new(format!("PR #{}", pr_info.number))
                 .with_icon(Icon::Github)
                 .with_on_select_action(CodeReviewAction::ViewPr(pr_info.url))
                 .with_disabled(is_pr_info_refreshing)
                 .into_item()
         } else {
-            let is_on_main = diff_state.is_on_main_branch();
-            let has_upstream = diff_state.upstream_ref().is_some();
-            let upstream_differs_from_main = diff_state.upstream_differs_from_main();
+            let is_on_main = diff_state.is_on_main_branch(app);
+            let has_upstream = diff_state.upstream_ref(app).is_some();
+            let upstream_differs_from_main = diff_state.upstream_differs_from_main(app);
             MenuItemFields::new("Create PR")
                 .with_icon(Icon::Github)
                 .with_on_select_action(CodeReviewAction::OpenCreatePrDialog)
@@ -6603,8 +6603,8 @@ impl CodeReviewView {
     /// which are enabled.
     fn git_operations_menu_items(&self, app: &AppContext) -> Vec<MenuItem<CodeReviewAction>> {
         let diff_state = self.diff_state_model.as_ref(app);
-        let has_local_commits = !diff_state.unpushed_commits().is_empty();
-        let has_upstream = diff_state.upstream_ref().is_some();
+        let has_local_commits = !diff_state.unpushed_commits(app).is_empty();
+        let has_upstream = diff_state.upstream_ref(app).is_some();
         match self.primary_git_action_mode(app) {
             PrimaryGitActionMode::Commit => vec![
                 Self::commit_menu_item(false),
@@ -7105,7 +7105,7 @@ impl TypedActionView for CodeReviewView {
             CodeReviewAction::ShowDiscardConfirmDialog(file_path) => {
                 self.discard_dialog_state.show_discard_confirm_dialog = true;
 
-                let current_diff_mode = self.diff_state_model.as_ref(ctx).diff_mode();
+                let current_diff_mode = self.diff_state_model.as_ref(ctx).diff_mode(ctx);
 
                 if let Some(path) = file_path {
                     // Single file remove
