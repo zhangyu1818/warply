@@ -50,6 +50,8 @@ For upstream merge work, the exact upstream source and commit history are the im
 - If the code cannot be applied cleanly, inspect upstream parents, call sites, history, and prerequisite commits. If the authoritative source cannot be inspected, do not reconstruct it by guessing.
 - New handwritten code is limited to necessary fork integration glue and provider-boundary replacements around the copied upstream core implementation.
 
+Workspace-wide engineering migrations are retained scope. Rust edition, minimum-toolchain, resolver, formatter, build-profile, and similar upstream migrations must be reviewed independently from product-service decisions. Do not drop a retained crate's migration because the same upstream commit also touches removed cloud, MCP, skills, or unsupported-platform code. Apply the authoritative upstream migration to retained paths first, then make the smallest source-faithful compatibility edits required by the fork.
+
 ## Retained Areas
 
 These directions are part of the fork and should receive compatible upstream fixes and new features:

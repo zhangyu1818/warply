@@ -53,6 +53,13 @@ This fork is a macOS terminal client with ACP-backed AI surfaces.
 - If the code does not apply cleanly, inspect upstream parents, call sites, history, and prerequisite commits. If the authoritative source cannot be inspected, do not reconstruct it by guessing.
 - Limit new handwritten code to necessary fork integration glue and provider-boundary replacements around the copied upstream core implementation.
 
+## Cross-Cutting Toolchain and Edition Changes
+
+- Treat upstream Rust edition, minimum-toolchain, resolver, formatter, build-profile, and other workspace-wide engineering migrations as first-class merge subjects, even when they do not add a user-visible feature.
+- Review these migrations independently from product-area decisions. Removing cloud, account, MCP, skills, or unsupported-platform paths does not justify dropping the migration for retained crates.
+- Port the migration from the exact upstream commit for the retained workspace paths, then resolve edition or toolchain diagnostics with the smallest source-faithful changes. Do not hide a language-version mismatch by rewriting retained upstream behavior into an older dialect when the fork can adopt the upstream edition.
+- If the complete migration cannot be adopted in one safe change, record the retained paths, blocked paths, and concrete compiler failures; do not mark the upstream commit fully reviewed while silently omitting retained workspace crates.
+
 ## Merge Workflow
 
 1. Inspect the upstream commit, its feature context, and any dependent upstream commits before applying it.
@@ -70,6 +77,8 @@ git log --oneline --reverse <base>..<commit>
 - `adapt`: The feature is retained, but upstream code also depends on removed auth, cloud, telemetry, tracking, MCP, skills, or platform plumbing. Port the upstream feature and remove or replace only those dependencies.
 - `reject`: The change is for deleted product areas, deleted platform targets, specs, or compatibility shims.
 - `not applicable`: The change touches code that no longer exists or only served removed systems.
+
+For workspace-wide engineering commits, make a separate classification for each retained crate or build path. A large diff is not a reason to classify the whole commit as rejected.
 
 3. Port accepted or adapted behavior according to Upstream Source Fidelity.
 
