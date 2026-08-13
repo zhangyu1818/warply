@@ -2382,6 +2382,9 @@ impl CodeReviewView {
                 self.update_aggregate_stats(ctx);
                 self.update_git_operations_ui(ctx);
             }
+            DiffStateModelEvent::GitOpCompleted(_)
+            | DiffStateModelEvent::CommitMessageGenerated(_)
+            | DiffStateModelEvent::BranchCommittedFilesReceived(_) => {}
             DiffStateModelEvent::ConnectionLost => {}
         }
     }

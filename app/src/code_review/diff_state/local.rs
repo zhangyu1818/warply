@@ -29,7 +29,7 @@ use crate::code_review::diff_size_limits::DiffSize;
 use crate::util::git::get_pr_for_branch;
 use crate::util::git::{
     detect_current_branch, detect_main_branch, get_unpushed_commits, run_git_command, Commit,
-    PrInfo,
+    FileChangeEntry, PrInfo,
 };
 
 use crate::code_review::diff_size_limits::compute_diff_size;
@@ -350,6 +350,7 @@ pub struct DiffMetadata {
 #[derive(Clone, Default, Debug)]
 pub struct DiffMetadataAgainstBase {
     pub aggregate_stats: DiffStats,
+    pub files: Vec<FileChangeEntry>,
 }
 
 impl DiffMetadataAgainstBase {
@@ -508,6 +509,13 @@ impl LocalDiffStateModel {
             .map(|metadata| metadata.against_head.aggregate_stats)
     }
 
+    pub fn uncommitted_file_entries(&self) -> &[FileChangeEntry] {
+        self.metadata
+            .as_ref()
+            .map(|metadata| metadata.against_head.files.as_slice())
+            .unwrap_or(&[])
+    }
+
     pub fn get_main_branch_stats(&self) -> Option<DiffStats> {
         self.metadata.as_ref().and_then(|metadata| {
             metadata
@@ -601,14 +609,7 @@ impl LocalDiffStateModel {
             return false;
         };
         let repo_path = repo.as_ref(app).root_dir().to_local_path_lossy();
-        let git_dir = repo_path.join(".git");
-
-        git_dir.join("MERGE_HEAD").exists()
-            || git_dir.join("CHERRY_PICK_HEAD").exists()
-            || git_dir.join("REVERT_HEAD").exists()
-            || git_dir.join("rebase-merge").exists()
-            || git_dir.join("rebase-apply").exists()
-            || git_dir.join("index.lock").exists()
+        crate::util::git::git_operation_in_progress(&repo_path)
     }
 
     #[cfg(not(feature = "local_fs"))]
@@ -639,6 +640,142 @@ impl LocalDiffStateModel {
                 .map(|base| base.aggregate_stats),
             DiffMode::OtherBranch(_) => None, // TODO: implement caching for arbitrary branches
         }
+    }
+
+    pub fn apply_git_op_delta(
+        &mut self,
+        unpushed_commits: Vec<Commit>,
+        upstream_ref: Option<String>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let metadata = self.metadata.get_or_insert_with(DiffMetadata::default);
+        metadata.unpushed_commits = unpushed_commits;
+        metadata.upstream_ref = upstream_ref;
+        ctx.emit(DiffStateModelEvent::MetadataRefreshed(metadata.clone()));
+    }
+
+    pub fn git_commit_chain(
+        &self,
+        mode: super::CommitChainMode,
+        message: String,
+        include_unstaged: bool,
+        branch: String,
+        autogenerate_pr_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(repo_path) = self.active_repository_path(ctx) else {
+            ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                super::GitOpResult::CommitChainCompleted(Err("no active repository".to_string())),
+            ));
+            return;
+        };
+        let path_env = None;
+        ctx.spawn(
+            async move {
+                crate::code_review::git_actions::run_commit_chain(
+                    &repo_path,
+                    mode,
+                    &message,
+                    include_unstaged,
+                    &branch,
+                    autogenerate_pr_content,
+                    path_env,
+                )
+                .await
+            },
+            |me, result, ctx| {
+                let result = match result {
+                    Ok((commits, upstream_ref, pr_info)) => {
+                        me.apply_git_op_delta(commits, upstream_ref, ctx);
+                        Ok(pr_info)
+                    }
+                    Err(error) => Err(error.to_string()),
+                };
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::CommitChainCompleted(result),
+                ));
+            },
+        );
+    }
+
+    pub fn git_push(&self, branch: String, ctx: &mut ModelContext<Self>) {
+        let Some(repo_path) = self.active_repository_path(ctx) else {
+            ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                super::GitOpResult::PushCompleted(Err("no active repository".to_string())),
+            ));
+            return;
+        };
+        ctx.spawn(
+            async move { crate::code_review::git_actions::run_push(&repo_path, &branch, None).await },
+            |me, result, ctx| {
+                let result = match result {
+                    Ok((commits, upstream_ref)) => {
+                        me.apply_git_op_delta(commits, upstream_ref, ctx);
+                        Ok(())
+                    }
+                    Err(error) => Err(error.to_string()),
+                };
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::PushCompleted(result),
+                ));
+            },
+        );
+    }
+
+    pub fn create_pr(
+        &self,
+        branch: String,
+        autogenerate_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(repo_path) = self.active_repository_path(ctx) else {
+            ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                super::GitOpResult::PrCreated(Err("no active repository".to_string())),
+            ));
+            return;
+        };
+        ctx.spawn(
+            async move {
+                crate::code_review::git_actions::create_pr(
+                    &repo_path,
+                    &branch,
+                    autogenerate_content,
+                    None,
+                )
+                .await
+            },
+            |_me, result, ctx| {
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::PrCreated(result.map_err(|error| error.to_string())),
+                ));
+            },
+        );
+    }
+
+    pub fn fetch_committed_branch_files(&self, ctx: &mut ModelContext<Self>) {
+        let Some(repo_path) = self.active_repository_path(ctx) else {
+            ctx.emit(DiffStateModelEvent::BranchCommittedFilesReceived(Vec::new()));
+            return;
+        };
+        ctx.spawn(
+            async move { crate::code_review::git_actions::get_committed_branch_files(&repo_path).await },
+            |_me, result, ctx| {
+                ctx.emit(DiffStateModelEvent::BranchCommittedFilesReceived(
+                    result.unwrap_or_default(),
+                ));
+            },
+        );
+    }
+
+    pub fn generate_commit_message(
+        &self,
+        _include_unstaged: bool,
+        _branch_name: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        ctx.emit(DiffStateModelEvent::CommitMessageGenerated(Err(
+            "code review commit-message generation requires a configured local provider".to_string(),
+        )));
     }
 
     // you'll have a HEAD after the first commit
@@ -1657,14 +1794,26 @@ impl LocalDiffStateModel {
 
         let mut total_additions = 0;
         let mut total_deletions = 0;
+        let mut files = Vec::with_capacity(changed_files.len());
 
         for (file_path, status) in &changed_files {
-            if let Some(metadata) = num_stat_metadata.get(file_path) {
-                total_additions += metadata.lines_added;
-                total_deletions += metadata.lines_removed;
+            let (additions, deletions) = if let Some(metadata) = num_stat_metadata.get(file_path) {
+                (metadata.lines_added, metadata.lines_removed)
             } else if matches!(status, GitFileStatus::Untracked) {
-                total_additions += Self::num_lines_for_untracked_entry(repo_path, file_path).await;
-            }
+                (
+                    Self::num_lines_for_untracked_entry(repo_path, file_path).await,
+                    0,
+                )
+            } else {
+                (0, 0)
+            };
+            total_additions += additions;
+            total_deletions += deletions;
+            files.push(FileChangeEntry {
+                path: file_path.to_string_lossy().to_string(),
+                additions,
+                deletions,
+            });
         }
 
         Ok(DiffMetadataAgainstBase {
@@ -1673,6 +1822,7 @@ impl LocalDiffStateModel {
                 total_additions,
                 total_deletions,
             },
+            files,
         })
     }
 
@@ -2095,14 +2245,26 @@ impl LocalDiffStateModel {
 
         let mut total_additions = 0;
         let mut total_deletions = 0;
+        let mut files = Vec::with_capacity(changed_files.len());
 
         for (file_path, status) in &changed_files {
-            if let Some(metadata) = num_stat_metadata.get(file_path) {
-                total_additions += metadata.lines_added;
-                total_deletions += metadata.lines_removed;
+            let (additions, deletions) = if let Some(metadata) = num_stat_metadata.get(file_path) {
+                (metadata.lines_added, metadata.lines_removed)
             } else if matches!(status, GitFileStatus::Untracked) {
-                total_additions += Self::num_lines_for_untracked_entry(repo_path, file_path).await;
-            }
+                (
+                    Self::num_lines_for_untracked_entry(repo_path, file_path).await,
+                    0,
+                )
+            } else {
+                (0, 0)
+            };
+            total_additions += additions;
+            total_deletions += deletions;
+            files.push(FileChangeEntry {
+                path: file_path.to_string_lossy().to_string(),
+                additions,
+                deletions,
+            });
         }
 
         Ok(DiffMetadataAgainstBase {
@@ -2111,6 +2273,7 @@ impl LocalDiffStateModel {
                 total_additions,
                 total_deletions,
             },
+            files,
         })
     }
 
@@ -3006,6 +3169,9 @@ pub enum DiffStateModelEvent {
     },
     MetadataRefreshed(DiffMetadata),
     ConnectionLost,
+    GitOpCompleted(super::GitOpResult),
+    CommitMessageGenerated(std::result::Result<String, String>),
+    BranchCommittedFilesReceived(Vec<FileChangeEntry>),
     /// Event dispatched when new diff mode is set.
     /// The boolean indicates whether the next diff load should attempt to
     /// fetch the base branch from origin if it is not available locally.

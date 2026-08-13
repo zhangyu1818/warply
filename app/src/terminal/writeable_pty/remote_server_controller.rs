@@ -137,6 +137,12 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
             | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
             | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. }
+            | RemoteServerManagerEvent::GitCommitChainResponse { .. }
+            | RemoteServerManagerEvent::GitPushResponse { .. }
+            | RemoteServerManagerEvent::GitCreatePrResponse { .. }
+            | RemoteServerManagerEvent::GitGetPrInfoResponse { .. }
+            | RemoteServerManagerEvent::GitGenerateCommitMessageResponse { .. }
+            | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. }
             | RemoteServerManagerEvent::SetupStateChanged { .. } => {}
         });
 

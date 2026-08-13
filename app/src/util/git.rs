@@ -318,6 +318,7 @@ pub struct Commit {
     pub files_changed: usize,
     pub additions: usize,
     pub deletions: usize,
+    pub files: Vec<FileChangeEntry>,
 }
 
 /// A single changed file with per-file addition/deletion counts.
@@ -376,6 +377,44 @@ pub async fn get_file_change_entries(
     }
 
     Ok(entries)
+}
+
+#[cfg(feature = "local_fs")]
+pub async fn get_committed_branch_file_entries(repo_path: &Path) -> Result<Vec<FileChangeEntry>> {
+    let main_branch = detect_main_branch(repo_path).await?;
+    let merge_base = match run_git_command(
+        repo_path,
+        &["merge-base", "HEAD", main_branch.trim()],
+    )
+    .await
+    {
+        Ok(output) => output.trim().to_string(),
+        Err(err) => {
+            log::warn!("Could not determine merge base against branch {main_branch}: {err:?}");
+            return Ok(Vec::new());
+        }
+    };
+
+    let output = run_git_command(repo_path, &["diff", "--numstat", &merge_base, "HEAD"])
+        .await
+        .unwrap_or_default();
+    let mut entries = Vec::new();
+    for line in output.lines().filter(|line| !line.is_empty()) {
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 3 {
+            entries.push(FileChangeEntry {
+                path: parts[2].to_string(),
+                additions: parts[0].parse().unwrap_or(0),
+                deletions: parts[1].parse().unwrap_or(0),
+            });
+        }
+    }
+    Ok(entries)
+}
+
+#[cfg(not(feature = "local_fs"))]
+pub async fn get_committed_branch_file_entries(_repo_path: &Path) -> Result<Vec<FileChangeEntry>> {
+    Err(anyhow!("Not supported without local_fs"))
 }
 
 #[cfg(not(feature = "local_fs"))]
@@ -442,6 +481,7 @@ fn parse_commit_log(output: &str) -> Result<Vec<Commit>> {
                     files_changed: 0,
                     additions: 0,
                     deletions: 0,
+                    files: Vec::new(),
                 });
             }
         } else if !line.is_empty() {
@@ -449,9 +489,16 @@ fn parse_commit_log(output: &str) -> Result<Vec<Commit>> {
             if let Some(ref mut commit) = current {
                 let parts: Vec<&str> = line.splitn(3, '\t').collect();
                 if parts.len() == 3 {
-                    commit.additions += parts[0].parse::<usize>().unwrap_or(0);
-                    commit.deletions += parts[1].parse::<usize>().unwrap_or(0);
+                    let additions = parts[0].parse::<usize>().unwrap_or(0);
+                    let deletions = parts[1].parse::<usize>().unwrap_or(0);
+                    commit.additions += additions;
+                    commit.deletions += deletions;
                     commit.files_changed += 1;
+                    commit.files.push(FileChangeEntry {
+                        path: parts[2].to_string(),
+                        additions,
+                        deletions,
+                    });
                 }
             }
         }
@@ -471,6 +518,48 @@ pub async fn get_unpushed_commits(
     _upstream_ref: Option<&str>,
 ) -> Result<Vec<Commit>> {
     Err(anyhow!("Not supported without local_fs"))
+}
+
+#[cfg(feature = "local_fs")]
+pub async fn compute_unpushed_state(repo_path: &Path) -> (Vec<Commit>, Option<String>) {
+    let current_branch = detect_current_branch(repo_path).await.ok();
+    let upstream_ref = run_git_command(
+        repo_path,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    )
+    .await
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty());
+    let unpushed = get_unpushed_commits(
+        repo_path,
+        current_branch.as_deref(),
+        upstream_ref.as_deref(),
+    )
+    .await
+    .unwrap_or_default();
+    (unpushed, upstream_ref)
+}
+
+#[cfg(not(feature = "local_fs"))]
+pub async fn compute_unpushed_state(_repo_path: &Path) -> (Vec<Commit>, Option<String>) {
+    (Vec::new(), None)
+}
+
+#[cfg(feature = "local_fs")]
+pub fn git_operation_in_progress(repo_path: &Path) -> bool {
+    let git_dir = repo_path.join(".git");
+    git_dir.join("MERGE_HEAD").exists()
+        || git_dir.join("CHERRY_PICK_HEAD").exists()
+        || git_dir.join("REVERT_HEAD").exists()
+        || git_dir.join("rebase-merge").exists()
+        || git_dir.join("rebase-apply").exists()
+        || git_dir.join("index.lock").exists()
+}
+
+#[cfg(not(feature = "local_fs"))]
+pub fn git_operation_in_progress(_repo_path: &Path) -> bool {
+    false
 }
 
 /// Returns the list of files changed in a specific commit, with per-file stats.
@@ -665,6 +754,18 @@ pub async fn run_commit(
 ) -> Result<String> {
     if include_unstaged {
         run_git_command_with_env(repo_path, &["add", "-A"], path_env).await?;
+    }
+    let staged = run_git_command_with_env(
+        repo_path,
+        &["--no-optional-locks", "diff", "--cached", "--name-only"],
+        path_env,
+    )
+    .await?;
+    if staged.trim().is_empty() {
+        if include_unstaged {
+            anyhow::bail!("nothing to commit, working tree clean");
+        }
+        anyhow::bail!("no changes added to commit");
     }
     run_git_command_with_env(repo_path, &["commit", "-m", message], path_env).await
 }

@@ -27,6 +27,12 @@ message ClientMessage {
     GetDiffState get_diff_state = 12;
     UnsubscribeDiffState unsubscribe_diff_state = 13;
     DiscardFilesRequest discard_files = 14;
+    GitCommitChainRequest git_commit_chain = 15;
+    GitPushRequest git_push = 16;
+    GitCreatePrRequest git_create_pr = 17;
+    GitGetPrInfoRequest git_get_pr_info = 18;
+    GitGenerateCommitMessageRequest git_generate_commit_message = 19;
+    GitGetCommittedBranchFilesRequest git_get_committed_branch_files = 20;
   }
 }
 // Top-level envelope for all server → client messages.
@@ -50,6 +56,12 @@ message ServerMessage {
     DiffStateMetadataUpdate diff_state_metadata_update = 14;
     DiffStateFileDelta diff_state_file_delta = 15;
     DiscardFilesResponse discard_files_response = 16;
+    GitCommitChainResponse git_commit_chain_response = 17;
+    GitPushResponse git_push_response = 18;
+    GitCreatePrResponse git_create_pr_response = 19;
+    GitGetPrInfoResponse git_get_pr_info_response = 20;
+    GitGenerateCommitMessageResponse git_generate_commit_message_response = 21;
+    GitGetCommittedBranchFilesResponse git_get_committed_branch_files_response = 22;
   }
 }
 
@@ -305,4 +317,108 @@ message RepoMetadataUpdatePush {
   string repo_path = 1;
   repeated string remove_entries = 2;
   repeated RepoMetadataEntryUpdate update_entries = 3;
+}
+
+message GitOpError {
+  string message = 1;
+}
+
+message GitOpDelta {
+  repeated Commit unpushed_commits = 1;
+  optional string upstream_ref = 2;
+}
+
+enum GitCommitChainMode {
+  GIT_COMMIT_CHAIN_MODE_COMMIT_ONLY = 0;
+  GIT_COMMIT_CHAIN_MODE_COMMIT_AND_PUSH = 1;
+  GIT_COMMIT_CHAIN_MODE_COMMIT_AND_CREATE_PR = 2;
+}
+
+message GitCommitChainRequest {
+  string repo_path = 1;
+  string message = 2;
+  bool include_unstaged = 3;
+  string branch = 4;
+  GitCommitChainMode mode = 5;
+  bool autogenerate_pr_content = 6;
+}
+
+message GitCommitChainResponse {
+  oneof result {
+    GitCommitChainSuccess success = 1;
+    GitOpError error = 2;
+  }
+}
+
+message GitCommitChainSuccess {
+  GitOpDelta delta = 1;
+  optional PrInfo pr_info = 2;
+}
+
+message GitPushRequest {
+  string repo_path = 1;
+  string branch = 2;
+}
+
+message GitPushResponse {
+  oneof result {
+    GitOpDelta success = 1;
+    GitOpError error = 2;
+  }
+}
+
+message GitCreatePrRequest {
+  string repo_path = 1;
+  string branch = 2;
+  bool autogenerate_content = 3;
+}
+
+message GitCreatePrResponse {
+  oneof result {
+    PrInfo success = 1;
+    GitOpError error = 2;
+  }
+}
+
+message GitGetPrInfoRequest {
+  string repo_path = 1;
+}
+
+message GitGetPrInfoResponse {
+  oneof result {
+    GitGetPrInfoSuccess success = 1;
+    GitOpError error = 2;
+  }
+}
+
+message GitGetPrInfoSuccess {
+  optional PrInfo pr_info = 1;
+}
+
+message GitGetCommittedBranchFilesRequest {
+  string repo_path = 1;
+}
+
+message GitGetCommittedBranchFilesResponse {
+  oneof result {
+    GitGetCommittedBranchFilesSuccess success = 1;
+    GitOpError error = 2;
+  }
+}
+
+message GitGetCommittedBranchFilesSuccess {
+  repeated FileChangeEntry files = 1;
+}
+
+message GitGenerateCommitMessageRequest {
+  string repo_path = 1;
+  bool include_unstaged = 2;
+  string branch_name = 3;
+}
+
+message GitGenerateCommitMessageResponse {
+  oneof result {
+    string message = 1;
+    GitOpError error = 2;
+  }
 }

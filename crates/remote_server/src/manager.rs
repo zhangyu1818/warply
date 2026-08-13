@@ -12,7 +12,7 @@ use crate::HostId;
 use crate::proto::{
     diff_state, get_diff_state_response, DiffMode, DiffState, DiffStateErrorValue,
     DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, FileStatusInfo,
-    GetDiffStateResponse,
+    GetDiffStateResponse, GitOpDelta, PrInfo,
 };
 use repo_metadata::RepoMetadataUpdate;
 use serde::Serialize;
@@ -280,6 +280,36 @@ pub enum RemoteServerManagerEvent {
         mode: DiffMode,
         delta: DiffStateFileDelta,
     },
+    GitCommitChainResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<(GitOpDelta, Option<PrInfo>), String>,
+    },
+    GitPushResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<GitOpDelta, String>,
+    },
+    GitCreatePrResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<PrInfo, String>,
+    },
+    GitGetPrInfoResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<Option<PrInfo>, String>,
+    },
+    GitGenerateCommitMessageResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<String, String>,
+    },
+    GitGetCommittedBranchFilesResponse {
+        host_id: HostId,
+        repo_path: StandardizedPath,
+        result: Result<Vec<crate::proto::FileChangeEntry>, String>,
+    },
 
     // --- Setup events ---
     /// Intermediate state change during the binary check/install flow.
@@ -345,7 +375,13 @@ impl RemoteServerManagerEvent {
             | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
             | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
             | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
-            | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. } => None,
+            | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. }
+            | RemoteServerManagerEvent::GitCommitChainResponse { .. }
+            | RemoteServerManagerEvent::GitPushResponse { .. }
+            | RemoteServerManagerEvent::GitCreatePrResponse { .. }
+            | RemoteServerManagerEvent::GitGetPrInfoResponse { .. }
+            | RemoteServerManagerEvent::GitGenerateCommitMessageResponse { .. }
+            | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. } => None,
         }
     }
 }
@@ -530,6 +566,217 @@ impl RemoteServerManager {
                 }
             })
             .detach();
+    }
+
+    pub fn git_commit_chain(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        mode: crate::proto::GitCommitChainMode,
+        message: String,
+        include_unstaged: bool,
+        branch: String,
+        autogenerate_pr_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_commit_chain(
+                        &repo_path,
+                        mode,
+                        message,
+                        include_unstaged,
+                        branch,
+                        autogenerate_pr_content,
+                    )
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::GitCommitChainResponse {
+                            host_id,
+                            repo_path: event_path,
+                            result,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
+    }
+
+    pub fn git_push(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        branch: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor().spawn(async move {
+            let result = client
+                .git_push(&repo_path, branch)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = spawner
+                .spawn(move |_manager, ctx| {
+                    ctx.emit(RemoteServerManagerEvent::GitPushResponse {
+                        host_id,
+                        repo_path: event_path,
+                        result,
+                    });
+                })
+                .await;
+        }).detach();
+    }
+
+    pub fn git_create_pr(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        branch: String,
+        autogenerate_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor().spawn(async move {
+            let result = client
+                .git_create_pr(&repo_path, branch, autogenerate_content)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = spawner
+                .spawn(move |_manager, ctx| {
+                    ctx.emit(RemoteServerManagerEvent::GitCreatePrResponse {
+                        host_id,
+                        repo_path: event_path,
+                        result,
+                    });
+                })
+                .await;
+        }).detach();
+    }
+
+    pub fn git_get_pr_info(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor().spawn(async move {
+            let result = client
+                .git_get_pr_info(&repo_path)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = spawner
+                .spawn(move |_manager, ctx| {
+                    ctx.emit(RemoteServerManagerEvent::GitGetPrInfoResponse {
+                        host_id,
+                        repo_path: event_path,
+                        result,
+                    });
+                })
+                .await;
+        }).detach();
+    }
+
+    pub fn git_generate_commit_message(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        include_unstaged: bool,
+        branch_name: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor().spawn(async move {
+            let result = client
+                .git_generate_commit_message(&repo_path, include_unstaged, branch_name)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = spawner
+                .spawn(move |_manager, ctx| {
+                    ctx.emit(RemoteServerManagerEvent::GitGenerateCommitMessageResponse {
+                        host_id,
+                        repo_path: event_path,
+                        result,
+                    });
+                })
+                .await;
+        }).detach();
+    }
+
+    pub fn git_get_committed_branch_files(
+        &mut self,
+        session_id: SessionId,
+        remote_path: RemotePath,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(client) = self.client_for_session(session_id).cloned() else {
+            return;
+        };
+        let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
+            return;
+        };
+        let repo_path = remote_path.path;
+        let event_path = repo_path.clone();
+        let spawner = self.spawner.clone();
+        ctx.background_executor().spawn(async move {
+            let result = client
+                .git_get_committed_branch_files(&repo_path)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = spawner
+                .spawn(move |_manager, ctx| {
+                    ctx.emit(RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse {
+                        host_id,
+                        repo_path: event_path,
+                        result,
+                    });
+                })
+                .await;
+        }).detach();
     }
 
     /// Checks if the remote server binary is installed and executable.

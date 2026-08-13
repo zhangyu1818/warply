@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::remote_server::diff_state_proto::{try_decode_file_delta, try_decode_snapshot};
 use crate::remote_server::proto;
-use crate::util::git::{Commit, PrInfo};
+use crate::util::git::{Commit, FileChangeEntry, PrInfo};
 use remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use warp_core::{HostId, SessionId};
 use warp_util::remote_path::RemotePath;
@@ -159,8 +159,110 @@ impl RemoteDiffStateModel {
             } if *session_id == self.session_id && host_id == &self.remote_path.host_id => {
                 self.resubscribe(ctx);
             }
+            RemoteServerManagerEvent::GitCommitChainResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                let result = match result {
+                    Ok((delta, pr_info)) => {
+                        self.apply_git_op_delta(delta, pr_info.as_ref(), ctx);
+                        Ok(pr_info.as_ref().map(PrInfo::from))
+                    }
+                    Err(error) => Err(error.clone()),
+                };
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::CommitChainCompleted(result),
+                ));
+            }
+            RemoteServerManagerEvent::GitPushResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                let result = match result {
+                    Ok(delta) => {
+                        self.apply_git_op_delta(delta, None, ctx);
+                        Ok(())
+                    }
+                    Err(error) => Err(error.clone()),
+                };
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::PushCompleted(result),
+                ));
+            }
+            RemoteServerManagerEvent::GitCreatePrResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                let result = result
+                    .as_ref()
+                    .map(|pr| {
+                        self.metadata
+                            .get_or_insert_with(DiffMetadata::default)
+                            .pr_info = Some(PrInfo::from(pr));
+                        PrInfo::from(pr)
+                    })
+                    .map_err(Clone::clone);
+                ctx.emit(DiffStateModelEvent::GitOpCompleted(
+                    super::GitOpResult::PrCreated(result),
+                ));
+            }
+            RemoteServerManagerEvent::GitGetPrInfoResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                match result {
+                    Ok(pr_info) => {
+                        if let Some(metadata) = &mut self.metadata {
+                            metadata.pr_info = pr_info.as_ref().map(PrInfo::from);
+                            ctx.emit(DiffStateModelEvent::MetadataRefreshed(metadata.clone()));
+                        }
+                    }
+                    Err(error) => log::debug!("Remote PR lookup failed: {error}"),
+                }
+            }
+            RemoteServerManagerEvent::GitGenerateCommitMessageResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                ctx.emit(DiffStateModelEvent::CommitMessageGenerated(result.clone()));
+            }
+            RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse {
+                host_id,
+                repo_path,
+                result,
+            } if self.matches_git_operation(host_id, repo_path) => {
+                let files = result
+                    .as_ref()
+                    .map(|files| files.iter().map(FileChangeEntry::from).collect())
+                    .unwrap_or_default();
+                ctx.emit(DiffStateModelEvent::BranchCommittedFilesReceived(files));
+            }
             _ => {}
         }
+    }
+
+    fn matches_git_operation(&self, host_id: &HostId, repo_path: &StandardizedPath) -> bool {
+        host_id == &self.remote_path.host_id && repo_path == &self.remote_path.path
+    }
+
+    fn apply_git_op_delta(
+        &mut self,
+        delta: &proto::GitOpDelta,
+        pr_info: Option<&proto::PrInfo>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let metadata = self.metadata.get_or_insert_with(DiffMetadata::default);
+        metadata.unpushed_commits = delta.unpushed_commits.iter().map(Commit::from).collect();
+        metadata.upstream_ref = delta.upstream_ref.clone();
+        if let Some(pr_info) = pr_info {
+            metadata.pr_info = Some(PrInfo::from(pr_info));
+        }
+        ctx.emit(DiffStateModelEvent::MetadataRefreshed(metadata.clone()));
     }
 
     /// Marks the model as disconnected, preserving any stale data and
@@ -477,6 +579,13 @@ impl RemoteDiffStateModel {
         self.remote_path.clone()
     }
 
+    pub fn uncommitted_file_entries(&self) -> &[FileChangeEntry] {
+        self.metadata
+            .as_ref()
+            .map(|metadata| metadata.against_head.files.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// Returns the session this model's subscription is anchored to. Set
     /// once at construction and never changed by the model itself — see
     /// the `session_id` field doc for the lifecycle contract.
@@ -521,7 +630,103 @@ impl RemoteDiffStateModel {
     ) {
     }
 
-    pub fn refresh_pr_info(&mut self, _ctx: &mut ModelContext<Self>) {}
+    pub fn refresh_pr_info(&mut self, ctx: &mut ModelContext<Self>) {
+        self.fetch_pr_info(ctx);
+    }
+
+    pub fn git_commit_chain(
+        &mut self,
+        mode: super::CommitChainMode,
+        message: String,
+        include_unstaged: bool,
+        branch: String,
+        autogenerate_pr_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let proto_mode = match mode {
+            super::CommitChainMode::CommitOnly => proto::GitCommitChainMode::CommitOnly,
+            super::CommitChainMode::CommitAndPush => proto::GitCommitChainMode::CommitAndPush,
+            super::CommitChainMode::CommitAndCreatePr => {
+                proto::GitCommitChainMode::CommitAndCreatePr
+            }
+        };
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_commit_chain(
+                session_id,
+                remote_path,
+                proto_mode,
+                message,
+                include_unstaged,
+                branch,
+                autogenerate_pr_content,
+                ctx,
+            );
+        });
+    }
+
+    pub fn git_push(&mut self, branch: String, ctx: &mut ModelContext<Self>) {
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_push(session_id, remote_path, branch, ctx);
+        });
+    }
+
+    pub fn create_pr(
+        &mut self,
+        branch: String,
+        autogenerate_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_create_pr(
+                session_id,
+                remote_path,
+                branch,
+                autogenerate_content,
+                ctx,
+            );
+        });
+    }
+
+    pub fn fetch_pr_info(&mut self, ctx: &mut ModelContext<Self>) {
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_get_pr_info(session_id, remote_path, ctx);
+        });
+    }
+
+    pub fn fetch_committed_branch_files(&mut self, ctx: &mut ModelContext<Self>) {
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_get_committed_branch_files(session_id, remote_path, ctx);
+        });
+    }
+
+    pub fn generate_commit_message(
+        &mut self,
+        include_unstaged: bool,
+        branch_name: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let remote_path = self.remote_path.clone();
+        let session_id = self.session_id;
+        RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
+            manager.git_generate_commit_message(
+                session_id,
+                remote_path,
+                include_unstaged,
+                branch_name,
+                ctx,
+            );
+        });
+    }
 
     /// Sends a `DiscardFiles` request to the remote server.
     /// The server's watcher will push updated diff snapshots on success.

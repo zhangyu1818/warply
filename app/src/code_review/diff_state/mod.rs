@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::util::git::{Commit, PrInfo};
+use crate::util::git::{Commit, FileChangeEntry, PrInfo};
 use anyhow::Result;
 use warp_core::SessionId;
 use warp_util::remote_path::RemotePath;
@@ -17,6 +17,20 @@ pub use local::*;
 
 mod remote;
 pub use remote::RemoteDiffStateModel;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommitChainMode {
+    CommitOnly,
+    CommitAndPush,
+    CommitAndCreatePr,
+}
+
+#[derive(Clone, Debug)]
+pub enum GitOpResult {
+    CommitChainCompleted(std::result::Result<Option<PrInfo>, String>),
+    PushCompleted(std::result::Result<(), String>),
+    PrCreated(std::result::Result<PrInfo, String>),
+}
 
 pub enum DiffStateModel {
     Local(ModelHandle<LocalDiffStateModel>),
@@ -68,6 +82,13 @@ impl DiffStateModel {
         match self {
             Self::Local(model) => model.as_ref(ctx).get_uncommitted_stats(),
             Self::Remote(model) => model.as_ref(ctx).get_uncommitted_stats(),
+        }
+    }
+
+    pub fn uncommitted_file_entries<'a>(&self, ctx: &'a AppContext) -> &'a [FileChangeEntry] {
+        match self {
+            Self::Local(model) => model.as_ref(ctx).uncommitted_file_entries(),
+            Self::Remote(model) => model.as_ref(ctx).uncommitted_file_entries(),
         }
     }
 
@@ -284,6 +305,89 @@ impl DiffStateModel {
         match self {
             Self::Local(model) => model.update(ctx, |model, ctx| model.refresh_pr_info(ctx)),
             Self::Remote(model) => model.update(ctx, |model, ctx| model.refresh_pr_info(ctx)),
+        }
+    }
+
+    pub fn git_commit_chain(
+        &self,
+        mode: CommitChainMode,
+        message: String,
+        include_unstaged: bool,
+        branch: String,
+        autogenerate_pr_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        match self {
+            Self::Local(model) => model.update(ctx, |model, ctx| {
+                model.git_commit_chain(
+                    mode,
+                    message,
+                    include_unstaged,
+                    branch,
+                    autogenerate_pr_content,
+                    ctx,
+                )
+            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| {
+                model.git_commit_chain(
+                    mode,
+                    message,
+                    include_unstaged,
+                    branch,
+                    autogenerate_pr_content,
+                    ctx,
+                )
+            }),
+        }
+    }
+
+    pub fn git_push(&self, branch: String, ctx: &mut ModelContext<Self>) {
+        match self {
+            Self::Local(model) => model.update(ctx, |model, ctx| model.git_push(branch, ctx)),
+            Self::Remote(model) => model.update(ctx, |model, ctx| model.git_push(branch, ctx)),
+        }
+    }
+
+    pub fn create_pr(
+        &self,
+        branch: String,
+        autogenerate_content: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        match self {
+            Self::Local(model) => model.update(ctx, |model, ctx| {
+                model.create_pr(branch, autogenerate_content, ctx)
+            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| {
+                model.create_pr(branch, autogenerate_content, ctx)
+            }),
+        }
+    }
+
+    pub fn fetch_committed_branch_files(&self, ctx: &mut ModelContext<Self>) {
+        match self {
+            Self::Local(model) => model.update(ctx, |model, ctx| {
+                model.fetch_committed_branch_files(ctx)
+            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| {
+                model.fetch_committed_branch_files(ctx)
+            }),
+        }
+    }
+
+    pub fn generate_commit_message(
+        &self,
+        include_unstaged: bool,
+        branch_name: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        match self {
+            Self::Local(model) => model.update(ctx, |model, ctx| {
+                model.generate_commit_message(include_unstaged, branch_name, ctx)
+            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| {
+                model.generate_commit_message(include_unstaged, branch_name, ctx)
+            }),
         }
     }
 

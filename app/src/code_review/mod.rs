@@ -4,6 +4,7 @@ pub mod context;
 pub mod diff_size_limits;
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub mod diff_state;
+pub mod git_actions;
 pub mod editor_state;
 pub mod events;
 pub(crate) mod find_model;

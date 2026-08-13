@@ -19,6 +19,8 @@ use warp_util::file::FileId;
 
 use super::proto::{
     client_message, delete_file_response, discard_files_response, get_diff_state_response,
+    git_commit_chain_response, git_create_pr_response, git_generate_commit_message_response,
+    git_get_committed_branch_files_response, git_get_pr_info_response, git_push_response,
     run_command_response, server_message,
     write_file_response, Abort, ClientMessage, DeleteFile, DeleteFileResponse, DeleteFileSuccess,
     DiscardFilesError, DiscardFilesResponse, DiscardFilesSuccess, ErrorCode, ErrorResponse,
@@ -26,11 +28,18 @@ use super::proto::{
     InitializeResponse, NavigatedToDirectory, NavigatedToDirectoryResponse,
     ReadFileContextResponse, RunCommandError, RunCommandErrorCode, RunCommandRequest,
     RunCommandResponse, RunCommandSuccess, ServerMessage, SessionBootstrapped, WriteFile,
-    WriteFileResponse, WriteFileSuccess,
+    WriteFileResponse, WriteFileSuccess, GitCommitChainRequest, GitCommitChainResponse,
+    GitCommitChainMode, GitCommitChainSuccess, GitCreatePrRequest, GitCreatePrResponse,
+    GitGenerateCommitMessageRequest, GitGenerateCommitMessageResponse,
+    GitGetCommittedBranchFilesRequest, GitGetCommittedBranchFilesResponse,
+    GitGetCommittedBranchFilesSuccess, GitGetPrInfoRequest, GitGetPrInfoResponse,
+    GitGetPrInfoSuccess, GitOpDelta, GitOpError, GitPushRequest, GitPushResponse,
 };
 use super::diff_state_proto;
 use super::diff_state_tracker::{DiffModelKey, DiffStateUpdate, RemoteDiffStateManager, SubscribeOutcome};
 use crate::code_review::diff_state::{DiffMode, FileStatusInfo};
+use crate::code_review::git_actions;
+use crate::util::git;
 
 /// How long the daemon waits with no connections before exiting.
 pub const GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10 * 60);
@@ -429,6 +438,24 @@ impl ServerModel {
             }
             Some(client_message::Message::DiscardFiles(msg)) => {
                 self.handle_discard_files(msg, &request_id, ctx)
+            }
+            Some(client_message::Message::GitCommitChain(msg)) => {
+                self.handle_git_commit_chain(msg, &request_id, conn_id, ctx)
+            }
+            Some(client_message::Message::GitPush(msg)) => {
+                self.handle_git_push(msg, &request_id, conn_id, ctx)
+            }
+            Some(client_message::Message::GitCreatePr(msg)) => {
+                self.handle_git_create_pr(msg, &request_id, conn_id, ctx)
+            }
+            Some(client_message::Message::GitGetPrInfo(msg)) => {
+                self.handle_git_get_pr_info(msg, &request_id, conn_id, ctx)
+            }
+            Some(client_message::Message::GitGenerateCommitMessage(msg)) => {
+                self.handle_git_generate_commit_message(msg, &request_id, conn_id, ctx)
+            }
+            Some(client_message::Message::GitGetCommittedBranchFiles(msg)) => {
+                self.handle_git_get_committed_branch_files(msg, &request_id, conn_id, ctx)
             }
             None => {
                 log::warn!(
@@ -1445,4 +1472,324 @@ impl ServerModel {
             },
         ))
     }
+
+    fn handle_git_commit_chain(
+        &mut self,
+        msg: GitCommitChainRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let mode = match GitCommitChainMode::try_from(msg.mode) {
+            Ok(GitCommitChainMode::CommitOnly) => {
+                crate::code_review::diff_state::CommitChainMode::CommitOnly
+            }
+            Ok(GitCommitChainMode::CommitAndPush) => {
+                crate::code_review::diff_state::CommitChainMode::CommitAndPush
+            }
+            Ok(GitCommitChainMode::CommitAndCreatePr) => {
+                crate::code_review::diff_state::CommitChainMode::CommitAndCreatePr
+            }
+            Err(_) => return git_error_response("Invalid GitCommitChainMode".to_string()),
+        };
+        let message = msg.message;
+        let branch = msg.branch;
+        let include_unstaged = msg.include_unstaged;
+        let autogenerate = msg.autogenerate_pr_content;
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move {
+                if git::git_operation_in_progress(&repo_path) {
+                    anyhow::bail!("another git operation is in progress")
+                }
+                git_actions::run_commit_chain(
+                    &repo_path,
+                    mode,
+                    &message,
+                    include_unstaged,
+                    &branch,
+                    autogenerate,
+                    None,
+                )
+                .await
+            },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok((commits, upstream_ref, pr_info)) => {
+                        let (commits, upstream_ref) = (commits.iter().map(super::diff_state_proto::commit_to_proto).collect(), upstream_ref);
+                        GitCommitChainResponse {
+                            result: Some(git_commit_chain_response::Result::Success(
+                                GitCommitChainSuccess {
+                                    delta: Some(GitOpDelta {
+                                        unpushed_commits: commits,
+                                        upstream_ref,
+                                    }),
+                                    pr_info: pr_info.as_ref().map(super::diff_state_proto::pr_info_to_proto),
+                                },
+                            )),
+                        }
+                    }
+                    Err(error) => GitCommitChainResponse {
+                        result: Some(git_commit_chain_response::Result::Error(GitOpError {
+                            message: error.to_string(),
+                        })),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitCommitChainResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+
+    fn handle_git_push(
+        &mut self,
+        msg: GitPushRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let branch = msg.branch;
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move {
+                if git::git_operation_in_progress(&repo_path) {
+                    anyhow::bail!("another git operation is in progress")
+                }
+                git_actions::run_push(&repo_path, &branch, None).await
+            },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok((commits, upstream_ref)) => GitPushResponse {
+                        result: Some(git_push_response::Result::Success(GitOpDelta {
+                            unpushed_commits: commits.iter().map(super::diff_state_proto::commit_to_proto).collect(),
+                            upstream_ref,
+                        })),
+                    },
+                    Err(error) => GitPushResponse {
+                        result: Some(git_push_response::Result::Error(GitOpError {
+                            message: error.to_string(),
+                        })),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitPushResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+
+    fn handle_git_create_pr(
+        &mut self,
+        msg: GitCreatePrRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let branch = msg.branch;
+        let autogenerate = msg.autogenerate_content;
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move {
+                if git::git_operation_in_progress(&repo_path) {
+                    anyhow::bail!("another git operation is in progress")
+                }
+                git_actions::create_pr(&repo_path, &branch, autogenerate, None).await
+            },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok(pr) => GitCreatePrResponse {
+                        result: Some(git_create_pr_response::Result::Success(
+                            super::diff_state_proto::pr_info_to_proto(&pr),
+                        )),
+                    },
+                    Err(error) => GitCreatePrResponse {
+                        result: Some(git_create_pr_response::Result::Error(GitOpError {
+                            message: error.to_string(),
+                        })),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitCreatePrResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+
+    fn handle_git_get_pr_info(
+        &mut self,
+        msg: GitGetPrInfoRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move { git_actions::get_pr(&repo_path, None).await },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok(pr_info) => GitGetPrInfoResponse {
+                        result: Some(git_get_pr_info_response::Result::Success(
+                            GitGetPrInfoSuccess {
+                                pr_info: pr_info
+                                    .as_ref()
+                                    .map(super::diff_state_proto::pr_info_to_proto),
+                            },
+                        )),
+                    },
+                    Err(error) => GitGetPrInfoResponse {
+                        result: Some(git_get_pr_info_response::Result::Error(GitOpError {
+                            message: error.to_string(),
+                        })),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitGetPrInfoResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+
+    fn handle_git_generate_commit_message(
+        &mut self,
+        msg: GitGenerateCommitMessageRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let branch_name = msg.branch_name;
+        let include_unstaged = msg.include_unstaged;
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move {
+                git_actions::generate_commit_message(&repo_path, &branch_name, include_unstaged)
+                    .await
+            },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok(message) => GitGenerateCommitMessageResponse {
+                        result: Some(
+                            git_generate_commit_message_response::Result::Message(message),
+                        ),
+                    },
+                    Err(error) => GitGenerateCommitMessageResponse {
+                        result: Some(git_generate_commit_message_response::Result::Error(
+                            GitOpError {
+                                message: error.to_string(),
+                            },
+                        )),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitGenerateCommitMessageResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+
+    fn handle_git_get_committed_branch_files(
+        &mut self,
+        msg: GitGetCommittedBranchFilesRequest,
+        request_id: &RequestId,
+        conn_id: ConnectionId,
+        ctx: &mut ModelContext<Self>,
+    ) -> HandlerOutcome {
+        let repo_path = match git_repo_path(&msg.repo_path) {
+            Ok(path) => path,
+            Err(error) => return git_error_response(error),
+        };
+        let request_id = request_id.clone();
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            async move { git_actions::get_committed_branch_files(&repo_path).await },
+            move |me, result, _ctx| {
+                let response = match result {
+                    Ok(files) => GitGetCommittedBranchFilesResponse {
+                        result: Some(
+                            git_get_committed_branch_files_response::Result::Success(
+                                GitGetCommittedBranchFilesSuccess {
+                                    files: files.iter().map(Into::into).collect(),
+                                },
+                            ),
+                        ),
+                    },
+                    Err(error) => GitGetCommittedBranchFilesResponse {
+                        result: Some(
+                            git_get_committed_branch_files_response::Result::Error(GitOpError {
+                                message: error.to_string(),
+                            }),
+                        ),
+                    },
+                };
+                me.send_server_message(
+                    Some(conn_id),
+                    Some(&request_id),
+                    server_message::Message::GitGetCommittedBranchFilesResponse(response),
+                );
+            },
+            ctx,
+        );
+        HandlerOutcome::Async(Some(handle))
+    }
+}
+
+fn git_repo_path(path: &str) -> std::result::Result<PathBuf, String> {
+    StandardizedPath::from_local_canonicalized(Path::new(path))
+        .map_err(|error| format!("Invalid repo_path: {error}"))
+        .and_then(|path| {
+            path.to_local_path()
+                .ok_or_else(|| "repo_path is not a local path".to_string())
+        })
+}
+
+fn git_error_response(message: String) -> HandlerOutcome {
+    HandlerOutcome::Sync(server_message::Message::Error(ErrorResponse {
+        code: ErrorCode::InvalidRequest.into(),
+        message,
+    }))
 }

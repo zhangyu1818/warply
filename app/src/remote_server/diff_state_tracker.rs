@@ -385,6 +385,9 @@ impl RemoteDiffStateManager {
                     subscribers: self.subscribed_connections(key),
                 });
             }
+            DiffStateModelEvent::GitOpCompleted(_)
+            | DiffStateModelEvent::CommitMessageGenerated(_)
+            | DiffStateModelEvent::BranchCommittedFilesReceived(_) => {}
             DiffStateModelEvent::ConnectionLost => {
                 // Client-only event — should not occur on the server side.
                 log::warn!("Unexpected ConnectionLost event on server-side model key={key:?}");

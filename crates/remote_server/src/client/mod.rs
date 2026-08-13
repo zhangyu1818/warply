@@ -15,7 +15,9 @@ use crate::proto::{
     FileStatusInfo, GetDiffState, GetDiffStateResponse, Initialize, InitializeResponse,
     LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, ReadFileContextRequest,
     ReadFileContextResponse, RunCommandRequest, RunCommandResponse, ServerMessage,
-    SessionBootstrapped, UnsubscribeDiffState, WriteFile,
+    SessionBootstrapped, UnsubscribeDiffState, WriteFile, GitCommitChainMode,
+    GitCommitChainRequest, GitCreatePrRequest, GitGenerateCommitMessageRequest,
+    GitGetCommittedBranchFilesRequest, GitGetPrInfoRequest, GitPushRequest,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -54,6 +56,9 @@ pub enum ClientError {
 
     #[error("Discard files failed: {0}")]
     DiscardFailed(String),
+
+    #[error("Git operation failed: {0}")]
+    GitOperationFailed(String),
 }
 
 /// Events received from the remote server, delivered through the event
@@ -496,6 +501,196 @@ impl RemoteServerClient {
                 }
                 None => Err(ClientError::UnexpectedResponse),
             },
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_commit_chain(
+        &self,
+        repo_path: &StandardizedPath,
+        mode: GitCommitChainMode,
+        message: String,
+        include_unstaged: bool,
+        branch: String,
+        autogenerate_pr_content: bool,
+    ) -> Result<(crate::proto::GitOpDelta, Option<crate::proto::PrInfo>), ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitCommitChain(
+                GitCommitChainRequest {
+                    repo_path: repo_path.to_string(),
+                    mode: mode as i32,
+                    message,
+                    include_unstaged,
+                    branch,
+                    autogenerate_pr_content,
+                },
+            )),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitCommitChainResponse(response)) => {
+                match response.result {
+                    Some(crate::proto::git_commit_chain_response::Result::Success(success)) => {
+                        Ok((success.delta.unwrap_or_default(), success.pr_info))
+                    }
+                    Some(crate::proto::git_commit_chain_response::Result::Error(error)) => {
+                        Err(ClientError::GitOperationFailed(error.message))
+                    }
+                    None => Err(ClientError::UnexpectedResponse),
+                }
+            }
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_push(
+        &self,
+        repo_path: &StandardizedPath,
+        branch: String,
+    ) -> Result<crate::proto::GitOpDelta, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitPush(GitPushRequest {
+                repo_path: repo_path.to_string(),
+                branch,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitPushResponse(response)) => match response.result {
+                Some(crate::proto::git_push_response::Result::Success(delta)) => Ok(delta),
+                Some(crate::proto::git_push_response::Result::Error(error)) => {
+                    Err(ClientError::GitOperationFailed(error.message))
+                }
+                None => Err(ClientError::UnexpectedResponse),
+            },
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_create_pr(
+        &self,
+        repo_path: &StandardizedPath,
+        branch: String,
+        autogenerate_content: bool,
+    ) -> Result<crate::proto::PrInfo, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitCreatePr(GitCreatePrRequest {
+                repo_path: repo_path.to_string(),
+                branch,
+                autogenerate_content,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitCreatePrResponse(response)) => match response.result {
+                Some(crate::proto::git_create_pr_response::Result::Success(pr)) => Ok(pr),
+                Some(crate::proto::git_create_pr_response::Result::Error(error)) => {
+                    Err(ClientError::GitOperationFailed(error.message))
+                }
+                None => Err(ClientError::UnexpectedResponse),
+            },
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_get_pr_info(
+        &self,
+        repo_path: &StandardizedPath,
+    ) -> Result<Option<crate::proto::PrInfo>, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitGetPrInfo(GitGetPrInfoRequest {
+                repo_path: repo_path.to_string(),
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitGetPrInfoResponse(response)) => {
+                match response.result {
+                    Some(crate::proto::git_get_pr_info_response::Result::Success(success)) => {
+                        Ok(success.pr_info)
+                    }
+                    Some(crate::proto::git_get_pr_info_response::Result::Error(error)) => {
+                        Err(ClientError::GitOperationFailed(error.message))
+                    }
+                    None => Err(ClientError::UnexpectedResponse),
+                }
+            }
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_generate_commit_message(
+        &self,
+        repo_path: &StandardizedPath,
+        include_unstaged: bool,
+        branch_name: String,
+    ) -> Result<String, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitGenerateCommitMessage(
+                GitGenerateCommitMessageRequest {
+                    repo_path: repo_path.to_string(),
+                    include_unstaged,
+                    branch_name,
+                },
+            )),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitGenerateCommitMessageResponse(response)) => {
+                match response.result {
+                    Some(crate::proto::git_generate_commit_message_response::Result::Message(
+                        message,
+                    )) => Ok(message),
+                    Some(crate::proto::git_generate_commit_message_response::Result::Error(
+                        error,
+                    )) => Err(ClientError::GitOperationFailed(error.message)),
+                    None => Err(ClientError::UnexpectedResponse),
+                }
+            }
+            _ => Err(ClientError::UnexpectedResponse),
+        }
+    }
+
+    pub async fn git_get_committed_branch_files(
+        &self,
+        repo_path: &StandardizedPath,
+    ) -> Result<Vec<crate::proto::FileChangeEntry>, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::GitGetCommittedBranchFiles(
+                GitGetCommittedBranchFilesRequest {
+                    repo_path: repo_path.to_string(),
+                },
+            )),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::GitGetCommittedBranchFilesResponse(response)) => {
+                match response.result {
+                    Some(
+                        crate::proto::git_get_committed_branch_files_response::Result::Success(
+                            success,
+                        ),
+                    ) => Ok(success.files),
+                    Some(
+                        crate::proto::git_get_committed_branch_files_response::Result::Error(
+                            error,
+                        ),
+                    ) => Err(ClientError::GitOperationFailed(error.message)),
+                    None => Err(ClientError::UnexpectedResponse),
+                }
+            }
             _ => Err(ClientError::UnexpectedResponse),
         }
     }

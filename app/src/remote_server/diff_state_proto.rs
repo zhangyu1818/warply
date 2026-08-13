@@ -18,7 +18,7 @@ use crate::code_review::diff_state::{
     DiffStats, FileDiff, FileDiffAndContent, FileStatusInfo, GitDiffData, GitDiffWithBaseContent,
     GitFileStatus,
 };
-use crate::util::git::{Commit, PrInfo};
+use crate::util::git::{Commit, FileChangeEntry, PrInfo};
 
 // ── Proto → Rust (for incoming client messages) ────────────────────
 
@@ -100,7 +100,18 @@ impl TryFrom<&proto::DiffMetadataAgainstBase> for DiffMetadataAgainstBase {
                 .as_ref()
                 .map(DiffStats::from)
                 .ok_or_else(|| "missing aggregate_stats in DiffMetadataAgainstBase".to_string())?,
+            files: base.files.iter().map(FileChangeEntry::from).collect(),
         })
+    }
+}
+
+impl From<&proto::FileChangeEntry> for FileChangeEntry {
+    fn from(entry: &proto::FileChangeEntry) -> Self {
+        FileChangeEntry {
+            path: entry.path.clone(),
+            additions: entry.additions as usize,
+            deletions: entry.deletions as usize,
+        }
     }
 }
 
@@ -112,6 +123,7 @@ impl From<&proto::Commit> for Commit {
             files_changed: commit.files_changed as usize,
             additions: commit.additions as usize,
             deletions: commit.deletions as usize,
+            files: commit.files.iter().map(FileChangeEntry::from).collect(),
         }
     }
 }
@@ -403,6 +415,17 @@ impl From<&DiffMetadataAgainstBase> for proto::DiffMetadataAgainstBase {
     fn from(m: &DiffMetadataAgainstBase) -> Self {
         proto::DiffMetadataAgainstBase {
             aggregate_stats: Some((&m.aggregate_stats).into()),
+            files: m.files.iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<&FileChangeEntry> for proto::FileChangeEntry {
+    fn from(entry: &FileChangeEntry) -> Self {
+        proto::FileChangeEntry {
+            path: entry.path.clone(),
+            additions: entry.additions as u64,
+            deletions: entry.deletions as u64,
         }
     }
 }
@@ -415,8 +438,13 @@ impl From<&Commit> for proto::Commit {
             files_changed: c.files_changed as u64,
             additions: c.additions as u64,
             deletions: c.deletions as u64,
+            files: c.files.iter().map(Into::into).collect(),
         }
     }
+}
+
+pub fn commit_to_proto(commit: &Commit) -> proto::Commit {
+    commit.into()
 }
 
 impl From<&PrInfo> for proto::PrInfo {
@@ -426,6 +454,10 @@ impl From<&PrInfo> for proto::PrInfo {
             url: p.url.clone(),
         }
     }
+}
+
+pub fn pr_info_to_proto(pr_info: &PrInfo) -> proto::PrInfo {
+    pr_info.into()
 }
 
 impl From<&DiffMetadata> for proto::DiffMetadata {

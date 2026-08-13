@@ -3609,7 +3609,13 @@ impl TerminalView {
                 | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
                 | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
                 | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
-                | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. } => {}
+                | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. }
+                | RemoteServerManagerEvent::GitCommitChainResponse { .. }
+                | RemoteServerManagerEvent::GitPushResponse { .. }
+                | RemoteServerManagerEvent::GitCreatePrResponse { .. }
+                | RemoteServerManagerEvent::GitGetPrInfoResponse { .. }
+                | RemoteServerManagerEvent::GitGenerateCommitMessageResponse { .. }
+                | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. } => {}
             }
         });
         terminal_view.any_session_contains_restored_remote_blocks =
