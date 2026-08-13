@@ -3,15 +3,15 @@
 ## Scope And Result
 
 - Upstream divergence point: `27f4933b81f339f33f8206fd4e9dcb3450ad270a` (`feat(uri): add warposs://pane/{uuid} deep link for pane focus (#9655)`).
-- Fixed upstream tip: `69254d73db0c568db55333cad1d3090041cd334a` (`[QUALITY-1333] Harden TUI focus ownership (#14961)`).
-- Reviewed range: `27f4933b8..69254d73db`, 1812 first-parent commits.
+- Fixed upstream tip: `5fb3144db9638c6c43371b566e1d0a89ae69236c` (`Enable vim keybindings in the rule content editor (#15044)`).
+- Reviewed range: `27f4933b8..5fb3144db9`, 1825 upstream commits.
 - Fork product baseline remains `19659d12`; `27f4933b8` is only the requested upstream-history starting point for this audit.
 
 The previous audits used an overly restrictive interpretation of the fork contract. In particular, they treated absence of an existing fork feature flag, prerequisite, or product inventory entry as a reason to reject a new upstream feature. That is incorrect. A feature is retained when its essential behavior can run locally or through a retained provider without Warp-owned services, even if the feature did not exist at the fork baseline.
 
-The full range was indexed by commit, subject, touched paths, prior audit mentions, and current-fork anchors. Of 1812 commits, 1629 were named in an existing audit and 183 were not. Among the 183 unmentioned commits, 164 touched retained or mixed areas and therefore required source inspection rather than automatic rejection. This document records corrected decisions and newly found omissions; unchanged cloud-only, TUI-only, native non-macOS, app-managed MCP/skills, telemetry, and upstream-process decisions remain covered by the incremental audit files.
+The original full re-audit indexed 1812 commits by subject, touched paths, prior audit mentions, and current-fork anchors. The live range adds 13 individually inspected commits through `5fb3144db9`; 1825/1825 commits are now covered. Among the original unmentioned commits, retained or mixed areas were inspected rather than automatically rejected. This document records corrected decisions and newly found omissions; unchanged cloud-only, TUI-only, native non-macOS, app-managed MCP/skills, telemetry, and upstream-process decisions remain covered by the incremental audit files.
 
-Upstream advanced by two commits after this audit snapshot: `87b81ff00b` (cloud-agent trace spans) and `a1cc3a3df3` (TUI-only pricing feature-flag rename). Both were individually checked and remain rejected or not applicable under the fork contract. The live range is therefore 1,814 commits reviewed as 1,812 retained-history entries plus these two non-retained commits.
+The 13-commit tail after `69254d73db` was reviewed individually. `12e455c56e` and `5fb3144db9` were ported as retained macOS/local editor behavior; the other 11 commits are cloud, bundled skills/MCP, CI/documentation, Windows, or TUI-only and were rejected or marked not applicable. The live range is therefore 1,825/1,825 reviewed commits.
 
 The audit established corrected decisions; the source-faithful follow-up ports recorded below have now closed all 22 reported omission rows. The audit history remains the evidence for why each feature is retained, adapted, or conditional.
 
@@ -61,6 +61,10 @@ The completed tab grouping/pinning source ledger is: `fc110333ac`, `f3bfb750bc`,
 
 These were not fully represented in the reported 22-feature list.
 
+### Cross-cutting Rust edition migration
+
+The upstream workspace migration commit `abea51cd1e` was previously treated as a single mixed cloud/platform change and therefore skipped wholesale. That was a merge-process error: workspace-wide engineering migrations must be reviewed independently of deleted product areas. The retained macOS `warpui` path now follows the authoritative Rust 2024 migration in `ead36c7cd`; `cargo build -p warp --all-targets` passed before `cargo clean`. The current toolchain is Rust 1.92.0 and supports let chains, so the earlier diagnostic was caused by the crate manifest still declaring edition 2021, not by a local compiler limitation. Deleted cloud, TUI, and unsupported-platform crates were not blindly migrated.
+
 ### Queued Prompts And Terminal Command Queueing
 
 The fork now carries the retained local queued-prompts model, panel, settings, AgentView integration, attachment queueing, terminal-command queueing, and long-running-command drain behavior from the upstream source chain:
@@ -86,7 +90,7 @@ The security stack `32d21d15c9`, `ca745b402c`, and `51bd326780` was deferred onl
 
 - `0d24d2cffa`: reuse a user's existing SSH ControlMaster without taking ownership or killing it.
 - `f0ca7861fe`: wait briefly for the remote-server child exit status before presenting an error, avoiding the retained manager race.
-- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling; this is the one remaining major feature group in the current port pass.
+- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling. The split diff-state/transport stack and source-faithful git dialogs/entrypoint path model are now committed in `5f669bbda`, `9f98ab97e`, and `ad2115c78`; the existing fork CodeReviewView renderer still accepts local `PathBuf` and therefore the end-to-end remote review UI remains an explicitly tracked follow-up.
 - `a18da95904`: avoid registering macOS secure storage inside the remote daemon.
 
 These commits are local/SSH functionality. Remote Linux/macOS host code needed by the SSH server is retained even though native Linux/Windows clients are not.
@@ -209,7 +213,7 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 
 ### 2026-08-13 continuation
 
-The re-audit currently tracks 41 major retained feature groups. 40 are now complete; one group remains in progress. The following source-led ports closed the remaining local AgentView, terminal, Markdown, and attachment gaps:
+The re-audit currently tracks 41 major retained feature groups. 40 are complete; the remote Code Review group remains in progress at the renderer boundary described below. The following source-led ports closed the remaining local AgentView, terminal, Markdown, and attachment gaps:
 
 - `170b791b8f`: local AgentView conversation-row fork/open/context actions, with cloud sharing, debug-only actions, and telemetry removed.
 - `bcfd978737`, `a8df317229`, `d58850b2cc`, `b9d1c0ebdb`: local link-tooltip, block-selection focus, ask-question focus, and Droid rich-status behavior.
@@ -218,7 +222,7 @@ The re-audit currently tracks 41 major retained feature groups. 40 are now compl
 - `d9c4c1a70b`: `/fork` carries pending local image attachments into the new ACP conversation; the fork path drains attachments only when an initial prompt is present.
 - `2e5ff6f429`, `912e4540f8`: copied the upstream paint-bound image sizing prerequisite and Mermaid fit-width rendering; `cargo build -p warp --all-targets --message-format short` passed and build artifacts were cleaned.
 
-The remaining group is the complete remote Code Review Git stack from `08487819fe` and `4b5c94d434`. It depends on the upstream split local/remote diff-state model, host-scoped remote-server protocol, and remote code-review entrypoints that were removed during the ACP fork. It is retained SSH functionality, not a reason to reject the behavior; it is being ported as a complete upstream source stack and must not be replaced with a hand-written substitute or with Warp server/AI API calls.
+The remaining group is the remote Code Review Git stack from `08487819fe` and `4b5c94d434`. Its split local/remote diff-state model, host-scoped protocol, git operations, dialog sources, and `LocalOrRemotePath` entrypoint plumbing have been ported from upstream and verified with focused tests plus a full `cargo build -p warp --all-targets`, followed by `cargo clean`. The current renderer still uses the fork's local `PathBuf` CodeReviewView boundary; completing remote rendering requires the authoritative upstream path/editor source chain, not a hand-written substitute or Warp server/AI API calls.
 
 ## Port Order
 
