@@ -13,13 +13,13 @@ use std::pin::pin;
 use std::rc::Rc;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
 use warpui::App;
-use warpui::{notification::UserNotification, Presenter, WindowInvalidation};
+use warpui::{Presenter, WindowInvalidation, notification::UserNotification};
 
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
 use crate::ai::blocklist::{
-    agent_view::{AgentViewEntryOrigin, AgentViewState},
     BlocklistAIHistoryModel, InputConfig, InputType,
+    agent_view::{AgentViewEntryOrigin, AgentViewState},
 };
 use crate::banner::{BannerEvent, DismissalType};
 use crate::context_chips::prompt::Prompt;
@@ -41,15 +41,15 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::event::SshLoginStatus;
 
+use crate::terminal::CLIAgent;
 use crate::terminal::model::ansi::{self, InitShellValue};
 use crate::terminal::model::ansi::{BootstrappedValue, PreexecValue};
 use crate::terminal::model::block::AgentViewVisibility;
-use crate::terminal::model::blocks::{insert_block, TotalIndex};
-use crate::terminal::model::grid::grid_handler::TermMode;
+use crate::terminal::model::blocks::{TotalIndex, insert_block};
 use crate::terminal::model::grid::Dimensions as _;
+use crate::terminal::model::grid::grid_handler::TermMode;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
-use crate::terminal::CLIAgent;
 
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::warpify::settings::WarpifySettings;
@@ -335,9 +335,11 @@ fn unregister_cli_agent_session_restores_unlocked_input_config() {
                 sessions.remove_session(view.view_id, ctx);
             });
             assert!(!view.has_active_cli_agent_input_session(ctx));
-            assert!(CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .is_none());
+            assert!(
+                CLIAgentSessionsModel::as_ref(ctx)
+                    .session(view.view_id)
+                    .is_none()
+            );
         });
 
         terminal.read(&app, |view, ctx| {
@@ -1226,8 +1228,8 @@ fn test_clear_session_flag_state() {
     use warp_terminal::shell::ShellType;
 
     use crate::ai::blocklist::SerializedBlockListItem;
-    use crate::terminal::model::block::SerializedBlock;
     use crate::terminal::ShellHost;
+    use crate::terminal::model::block::SerializedBlock;
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -1294,9 +1296,11 @@ fn test_clear_session_flag_state() {
 }
 
 fn assert_block_has_find_match(find_model: &TerminalFindModel, block_index: BlockIndex) {
-    assert!(find_model
-        .block_list_find_run()
-        .is_some_and(|run| run.matches_for_block(block_index).next().is_some()));
+    assert!(
+        find_model
+            .block_list_find_run()
+            .is_some_and(|run| run.matches_for_block(block_index).next().is_some())
+    );
 }
 
 impl TerminalView {
@@ -2136,10 +2140,12 @@ fn test_stable_scrolling_during_grid_truncation() {
                 // Create a dummy, finished block and a long-running block.
                 model.simulate_block("ls", "foo");
                 model.simulate_long_running_block("cat", "");
-                assert!(model
-                    .block_list()
-                    .active_block()
-                    .is_active_and_long_running());
+                assert!(
+                    model
+                        .block_list()
+                        .active_block()
+                        .is_active_and_long_running()
+                );
 
                 // Add enough newlines so that the long-running block spans at
                 // least the viewport and surely exceeds the grid size.
@@ -4525,10 +4531,12 @@ fn drag_drop_image_in_cli_agent_long_running_command_pastes_via_clipboard() {
             {
                 let mut model = view.model.lock();
                 model.simulate_long_running_block("claude", "");
-                assert!(model
-                    .block_list()
-                    .active_block()
-                    .is_active_and_long_running());
+                assert!(
+                    model
+                        .block_list()
+                        .active_block()
+                        .is_active_and_long_running()
+                );
             }
 
             view.drag_and_drop_files(&[image_path_str], ctx);
@@ -5093,18 +5101,20 @@ fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
                 ctx,
             );
 
-            assert!(view
-                .inline_banners_state
-                .prompt_suggestions_banner
-                .is_some());
+            assert!(
+                view.inline_banners_state
+                    .prompt_suggestions_banner
+                    .is_some()
+            );
 
             // Ctrl-C should not accept the prompt suggestion.
             view.handle_action(&TerminalAction::CtrlC, ctx);
 
-            assert!(view
-                .inline_banners_state
-                .prompt_suggestions_banner
-                .is_some());
+            assert!(
+                view.inline_banners_state
+                    .prompt_suggestions_banner
+                    .is_some()
+            );
         });
     })
 }
@@ -5186,11 +5196,12 @@ fn linear_deeplink_does_not_auto_submit_when_already_in_agent_view() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert!(view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .is_fullscreen());
+            assert!(
+                view.agent_view_controller()
+                    .as_ref(ctx)
+                    .agent_view_state()
+                    .is_fullscreen()
+            );
         });
 
         // Now dispatch the Linear deeplink while already in fullscreen agent view.
@@ -5415,11 +5426,12 @@ fn cmd_enter_from_terminal_without_selected_block_enters_agent_view() {
         let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
 
         terminal.update(&mut app, |view, ctx| {
-            assert!(view
-                .ai_context_model
-                .as_ref(ctx)
-                .pending_context_block_ids()
-                .is_empty());
+            assert!(
+                view.ai_context_model
+                    .as_ref(ctx)
+                    .pending_context_block_ids()
+                    .is_empty()
+            );
             view.focus_terminal(ctx);
         });
 
@@ -5438,16 +5450,18 @@ fn cmd_enter_from_terminal_without_selected_block_enters_agent_view() {
         );
 
         terminal.read(&app, |view, ctx| {
-            assert!(view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .is_fullscreen());
-            assert!(view
-                .ai_context_model
-                .as_ref(ctx)
-                .pending_context_block_ids()
-                .is_empty());
+            assert!(
+                view.agent_view_controller()
+                    .as_ref(ctx)
+                    .agent_view_state()
+                    .is_fullscreen()
+            );
+            assert!(
+                view.ai_context_model
+                    .as_ref(ctx)
+                    .pending_context_block_ids()
+                    .is_empty()
+            );
         });
     });
 }
@@ -5478,11 +5492,12 @@ fn cmd_enter_from_terminal_with_selected_block_enters_agent_view_with_context() 
             };
 
             view.integration_test_change_block_selection_to_single(selected_block_index, ctx);
-            assert!(view
-                .ai_context_model
-                .as_ref(ctx)
-                .pending_context_block_ids()
-                .contains(&selected_block_id));
+            assert!(
+                view.ai_context_model
+                    .as_ref(ctx)
+                    .pending_context_block_ids()
+                    .contains(&selected_block_id)
+            );
             view.focus_terminal(ctx);
             selected_block_id
         });

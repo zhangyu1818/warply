@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use warpui::{
-    elements::MouseStateHandle, AppContext, EntityId, SingletonEntity, ViewContext, ViewHandle,
-    WindowId,
+    AppContext, EntityId, SingletonEntity, ViewContext, ViewHandle, WindowId,
+    elements::MouseStateHandle,
 };
 
 use crate::window_settings::WindowSettings;
@@ -55,21 +55,13 @@ impl WelcomeTipsViewState {
     }
 
     pub fn close_popup(&mut self) {
-        if let WelcomeTipsViewState::Available {
-            is_popup_open,
-            ..
-        } = self
-        {
+        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
             *is_popup_open = false;
         }
     }
 
     pub fn toggle_popup(&mut self) {
-        if let WelcomeTipsViewState::Available {
-            is_popup_open,
-            ..
-        } = self
-        {
+        if let WelcomeTipsViewState::Available { is_popup_open, .. } = self {
             *is_popup_open = !*is_popup_open;
         }
     }

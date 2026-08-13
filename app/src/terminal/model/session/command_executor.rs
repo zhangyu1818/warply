@@ -26,15 +26,15 @@ use crate::terminal::{
 use super::SessionInfo;
 
 pub use in_band_command_executor::{
-    is_in_band_command, InBandCommand, InBandCommandCancelledEvent, InBandCommandExecutor,
-    InBandCommandOutputReceiver,
+    InBandCommand, InBandCommandCancelledEvent, InBandCommandExecutor, InBandCommandOutputReceiver,
+    is_in_band_command,
 };
 #[cfg(feature = "local_tty")]
 pub use local_command_executor::LocalCommandExecutor;
 pub use noop_command_executor::NoOpCommandExecutor;
 #[cfg(feature = "local_tty")]
 pub use remote_command_executor::RemoteCommandExecutor;
-pub use shared::{shell_escape_single_quotes, shell_quote_arg, ExecutorCommandEvent};
+pub use shared::{ExecutorCommandEvent, shell_escape_single_quotes, shell_quote_arg};
 
 /// Trait to be implemented by structs that execute command in context that emulates or actually is
 /// identical to the active terminal session's context. `CommandExecutor` is commonly used to
@@ -225,7 +225,9 @@ fn new_command_executor_for_local_tty_session(
                 log::info!("creating a ControlMaster ssh executor!");
                 Arc::new(RemoteCommandExecutor::new(socket_path.clone()))
             } else {
-                unreachable!("Unreachable because of match! above. Unfortunately if let guards in rust are still experimental.")
+                unreachable!(
+                    "Unreachable because of match! above. Unfortunately if let guards in rust are still experimental."
+                )
             }
         }
         _ => {

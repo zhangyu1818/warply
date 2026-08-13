@@ -23,8 +23,8 @@ use warpui::text_layout::{ClipConfig, ClipDirection, ClipStyle};
 use warpui::{AppContext, Element};
 
 use crate::appearance::Appearance;
-use crate::search::ai_context_menu::safe_truncate;
 use crate::search::ItemHighlightState;
+use crate::search::ai_context_menu::safe_truncate;
 use warpui::SingletonEntity;
 
 pub const MAX_COMBINED_LENGTH: usize = 55;

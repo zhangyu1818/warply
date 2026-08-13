@@ -13,26 +13,26 @@ use std::sync::{Arc, Mutex};
 #[cfg(feature = "local_fs")]
 use diesel::SqliteConnection;
 
+use crate::GlobalResourceHandlesProvider;
 use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpToolCall};
+use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::agent::CancellationReason;
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::conversation::UpdateConversationError;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::AIAgentExchangeId;
-use crate::ai::agent::CancellationReason;
 use crate::ai::artifacts::Artifact;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::llms::LLMId;
 use crate::input_suggestions::HistoryOrder;
-use crate::persistence::model::AgentConversationData;
 use crate::persistence::ModelEvent;
+use crate::persistence::model::AgentConversationData;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::view::blocklist_filter;
-use crate::GlobalResourceHandlesProvider;
 use crate::{
     ai::agent::{
-        conversation::{AIConversation, AIConversationId},
         AIAgentActionId, AIAgentExchange, AIAgentInput, AIAgentOutputStatus, FinishedAIAgentOutput,
         RenderableAIError,
+        conversation::{AIConversation, AIConversationId},
     },
     persistence::model::AgentConversation,
     ui_components::icons::Icon,
@@ -41,13 +41,13 @@ use crate::{
 #[cfg(feature = "local_fs")]
 use crate::persistence::{database_file_path, establish_ro_connection};
 
+use super::RequestInput;
 use super::controller::response_stream::ResponseStreamId;
 use super::persistence::{PersistedAIInput, PersistedAIInputType};
-use super::RequestInput;
 
 mod conversation_loader;
 pub use conversation_loader::{
-    convert_persisted_conversation_to_ai_conversation_with_metadata, RestoredConversationData,
+    RestoredConversationData, convert_persisted_conversation_to_ai_conversation_with_metadata,
 };
 
 pub(super) const MAX_HISTORICAL_CONVERSATIONS: usize = 100;

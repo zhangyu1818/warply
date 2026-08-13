@@ -9,7 +9,7 @@ mod mac {
     #![allow(clippy::let_unit_value)]
 
     use super::*;
-    use libc::{setlocale, LC_ALL, LC_CTYPE};
+    use libc::{LC_ALL, LC_CTYPE, setlocale};
     use objc::{class, msg_send, runtime::Object, sel, sel_impl};
     use std::{
         env,

@@ -19,8 +19,8 @@ pub mod testing;
 use instant::Instant;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
+use std::sync::mpsc::SyncSender;
 use std::thread::JoinHandle;
 
 use crate::ai::persisted_workspace::EnablementState;

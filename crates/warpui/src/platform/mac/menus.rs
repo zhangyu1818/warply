@@ -2,12 +2,12 @@ use cocoa::appkit::{NSApp, NSEventModifierFlags, NSMenu, NSMenuItem};
 use cocoa::base::selector;
 use cocoa::{
     appkit::{
-        NSDownArrowFunctionKey, NSEndFunctionKey, NSF10FunctionKey, NSF11FunctionKey,
-        NSF12FunctionKey, NSF13FunctionKey, NSF14FunctionKey, NSF15FunctionKey, NSF16FunctionKey,
-        NSF17FunctionKey, NSF18FunctionKey, NSF19FunctionKey, NSF1FunctionKey, NSF20FunctionKey,
-        NSF2FunctionKey, NSF3FunctionKey, NSF4FunctionKey, NSF5FunctionKey, NSF6FunctionKey,
-        NSF7FunctionKey, NSF8FunctionKey, NSF9FunctionKey, NSHomeFunctionKey, NSInsertFunctionKey,
-        NSLeftArrowFunctionKey, NSPageDownFunctionKey, NSPageUpFunctionKey,
+        NSDownArrowFunctionKey, NSEndFunctionKey, NSF1FunctionKey, NSF2FunctionKey,
+        NSF3FunctionKey, NSF4FunctionKey, NSF5FunctionKey, NSF6FunctionKey, NSF7FunctionKey,
+        NSF8FunctionKey, NSF9FunctionKey, NSF10FunctionKey, NSF11FunctionKey, NSF12FunctionKey,
+        NSF13FunctionKey, NSF14FunctionKey, NSF15FunctionKey, NSF16FunctionKey, NSF17FunctionKey,
+        NSF18FunctionKey, NSF19FunctionKey, NSF20FunctionKey, NSHomeFunctionKey,
+        NSInsertFunctionKey, NSLeftArrowFunctionKey, NSPageDownFunctionKey, NSPageUpFunctionKey,
         NSRightArrowFunctionKey, NSUpArrowFunctionKey,
     },
     base::{id, nil},
@@ -235,121 +235,133 @@ fn resolve_key_equivalent(keystroke: Option<&Keystroke>) -> (id, NSEventModifier
 }
 
 // Apply any differences between the two states to the menu item.
-unsafe fn apply_changes(changes: MenuItemPropertyChanges, item: id) { unsafe {
-    // Wrap in a local autorelease pool: AppKit invokes `warp_menu_item_needs_update`
-    // on every menu validation (per menu open and per keystroke for shortcut matching),
-    // so this is a hot path. A local pool bounds peak memory for the NSString temporaries
-    // created here (item title, key equivalent) without relying on the outer AppKit pool.
-    let pool = NSAutoreleasePool::new(nil);
-    if let Some(name) = changes.name {
-        let _: () = msg_send![item, setTitle: make_nsstring(name)];
-    }
-    if let Some(keystroke) = changes.keystroke {
-        let (key_equivalent, modifiers) = resolve_key_equivalent(keystroke.as_ref());
-        let _: () = msg_send![item, setKeyEquivalent: key_equivalent];
-        let _: () = msg_send![item, setKeyEquivalentModifierMask: modifiers];
-    }
-    if let Some(disabled) = changes.disabled {
-        let enabled = if disabled { NO } else { YES };
-        let _: () = msg_send![item, setEnabled: enabled];
-    }
-    if let Some(checked) = changes.checked {
-        // NSControlStateValue has Off as 0, On as 1, Mixed as -1.
-        let control_state: NSInteger = i64::from(checked);
-        let _: () = msg_send![item, setState: control_state];
-    }
-    if let Some(submenu) = changes.submenu {
-        let nsmenu = submenu
-            .map(|menu_items| make_submenu(menu_items))
-            .unwrap_or(nil);
-        set_menu_item_submenu(item, nsmenu);
-    }
-    pool.drain();
-}}
-
-unsafe fn make_submenu(menu_items: Vec<MenuItem>) -> id { unsafe {
-    let nsmenu = make_delegated_menu(make_nsstring(""));
-    for menu_item in menu_items {
-        nsmenu.addItem_(make_menu_item(menu_item));
-    }
-    nsmenu
-}}
-
-unsafe fn make_menu_item(menu_item: MenuItem) -> id { unsafe {
-    match menu_item {
-        MenuItem::Custom(custom_menu_item) => {
-            let props = custom_menu_item.properties;
-            let data = Rc::new(MenuItemData {
-                props: RefCell::new(props.clone()),
-                triggered: custom_menu_item.callback,
-                update: custom_menu_item.updater,
-            });
-
-            let nsmenu_item = make_warp_custom_menu_item(MenuItemData::into_context(data));
-
-            // Set initial properties for the item.
-            apply_changes(
-                MenuItemPropertyChanges::for_new_item(props, custom_menu_item.submenu),
-                nsmenu_item,
-            );
-
-            nsmenu_item
+unsafe fn apply_changes(changes: MenuItemPropertyChanges, item: id) {
+    unsafe {
+        // Wrap in a local autorelease pool: AppKit invokes `warp_menu_item_needs_update`
+        // on every menu validation (per menu open and per keystroke for shortcut matching),
+        // so this is a hot path. A local pool bounds peak memory for the NSString temporaries
+        // created here (item title, key equivalent) without relying on the outer AppKit pool.
+        let pool = NSAutoreleasePool::new(nil);
+        if let Some(name) = changes.name {
+            let _: () = msg_send![item, setTitle: make_nsstring(name)];
         }
-        MenuItem::Standard(standard_action) => {
-            let properties = resolve_standard_action(standard_action);
-            let nsmenu_item = NSMenuItem::alloc(nil)
-                .initWithTitle_action_keyEquivalent_(
-                    make_nsstring(properties.title),
-                    selector(properties.action),
-                    make_nsstring(properties.shortcut),
-                )
-                .autorelease();
-            nsmenu_item.setKeyEquivalentModifierMask_(properties.modifiers);
-            let _: id = msg_send![nsmenu_item, setTag: standard_action as libc::c_long];
-            nsmenu_item
+        if let Some(keystroke) = changes.keystroke {
+            let (key_equivalent, modifiers) = resolve_key_equivalent(keystroke.as_ref());
+            let _: () = msg_send![item, setKeyEquivalent: key_equivalent];
+            let _: () = msg_send![item, setKeyEquivalentModifierMask: modifiers];
         }
-        MenuItem::Separator => NSMenuItem::separatorItem(nil),
-        MenuItem::Services => make_services_menu_item(),
+        if let Some(disabled) = changes.disabled {
+            let enabled = if disabled { NO } else { YES };
+            let _: () = msg_send![item, setEnabled: enabled];
+        }
+        if let Some(checked) = changes.checked {
+            // NSControlStateValue has Off as 0, On as 1, Mixed as -1.
+            let control_state: NSInteger = i64::from(checked);
+            let _: () = msg_send![item, setState: control_state];
+        }
+        if let Some(submenu) = changes.submenu {
+            let nsmenu = submenu
+                .map(|menu_items| make_submenu(menu_items))
+                .unwrap_or(nil);
+            set_menu_item_submenu(item, nsmenu);
+        }
+        pool.drain();
     }
-}}
+}
+
+unsafe fn make_submenu(menu_items: Vec<MenuItem>) -> id {
+    unsafe {
+        let nsmenu = make_delegated_menu(make_nsstring(""));
+        for menu_item in menu_items {
+            nsmenu.addItem_(make_menu_item(menu_item));
+        }
+        nsmenu
+    }
+}
+
+unsafe fn make_menu_item(menu_item: MenuItem) -> id {
+    unsafe {
+        match menu_item {
+            MenuItem::Custom(custom_menu_item) => {
+                let props = custom_menu_item.properties;
+                let data = Rc::new(MenuItemData {
+                    props: RefCell::new(props.clone()),
+                    triggered: custom_menu_item.callback,
+                    update: custom_menu_item.updater,
+                });
+
+                let nsmenu_item = make_warp_custom_menu_item(MenuItemData::into_context(data));
+
+                // Set initial properties for the item.
+                apply_changes(
+                    MenuItemPropertyChanges::for_new_item(props, custom_menu_item.submenu),
+                    nsmenu_item,
+                );
+
+                nsmenu_item
+            }
+            MenuItem::Standard(standard_action) => {
+                let properties = resolve_standard_action(standard_action);
+                let nsmenu_item = NSMenuItem::alloc(nil)
+                    .initWithTitle_action_keyEquivalent_(
+                        make_nsstring(properties.title),
+                        selector(properties.action),
+                        make_nsstring(properties.shortcut),
+                    )
+                    .autorelease();
+                nsmenu_item.setKeyEquivalentModifierMask_(properties.modifiers);
+                let _: id = msg_send![nsmenu_item, setTag: standard_action as libc::c_long];
+                nsmenu_item
+            }
+            MenuItem::Separator => NSMenuItem::separatorItem(nil),
+            MenuItem::Services => make_services_menu_item(),
+        }
+    }
+}
 
 /// \return an autoreleased NSMenuItem with a submenu represented by \p menu.
 // This supports creating the top-level menu bar.
-unsafe fn make_top_level_menu_item(menu: Menu) -> id { unsafe {
-    let nsmenu = make_delegated_menu(make_nsstring(&menu.title));
+unsafe fn make_top_level_menu_item(menu: Menu) -> id {
+    unsafe {
+        let nsmenu = make_delegated_menu(make_nsstring(&menu.title));
 
-    if menu.is_window_menu() {
-        // `setWindowsMenu` gives us all the default window menu items like
-        // 'Enter Full Screen' and 'Tile Window to Left of Screen'.
-        let () = msg_send![NSApp(), setWindowsMenu: nsmenu];
+        if menu.is_window_menu() {
+            // `setWindowsMenu` gives us all the default window menu items like
+            // 'Enter Full Screen' and 'Tile Window to Left of Screen'.
+            let () = msg_send![NSApp(), setWindowsMenu: nsmenu];
+        }
+
+        for menu_item in menu.menu_items {
+            nsmenu.addItem_(make_menu_item(menu_item));
+        }
+
+        let menuitem = NSMenuItem::alloc(nil).init().autorelease();
+        menuitem.setSubmenu_(nsmenu);
+        menuitem
     }
-
-    for menu_item in menu.menu_items {
-        nsmenu.addItem_(make_menu_item(menu_item));
-    }
-
-    let menuitem = NSMenuItem::alloc(nil).init().autorelease();
-    menuitem.setSubmenu_(nsmenu);
-    menuitem
-}}
+}
 
 /// \return an autoreleased NSMenu representing the given menu bar.
-pub unsafe fn make_main_menu(menubar: MenuBar) -> id { unsafe {
-    let main_menu = NSMenu::alloc(nil).init().autorelease();
-    for menu in menubar.menus {
-        main_menu.addItem_(make_top_level_menu_item(menu));
+pub unsafe fn make_main_menu(menubar: MenuBar) -> id {
+    unsafe {
+        let main_menu = NSMenu::alloc(nil).init().autorelease();
+        for menu in menubar.menus {
+            main_menu.addItem_(make_top_level_menu_item(menu));
+        }
+        main_menu
     }
-    main_menu
-}}
+}
 
 /// \return an autoreleased NSMenu representing the given dock menu.
-pub unsafe fn make_dock_menu(menu: Menu) -> id { unsafe {
-    let dock_menu = NSMenu::alloc(nil).init().autorelease();
-    for item in menu.menu_items {
-        dock_menu.addItem_(make_menu_item(item));
+pub unsafe fn make_dock_menu(menu: Menu) -> id {
+    unsafe {
+        let dock_menu = NSMenu::alloc(nil).init().autorelease();
+        for item in menu.menu_items {
+            dock_menu.addItem_(make_menu_item(item));
+        }
+        dock_menu
     }
-    dock_menu
-}}
+}
 
 #[cfg(test)]
 #[path = "menus_tests.rs"]

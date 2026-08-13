@@ -21,15 +21,16 @@ use warp_core::{
     ui::{appearance::Appearance, color::blend::Blend, theme::color::internal_colors},
 };
 use warpui::{
+    Action, AppContext, Element, EventContext, SingletonEntity, View, ViewHandle,
     assets::asset_cache::{AssetCache, AssetSource, AssetState},
     elements::{
-        new_scrollable::{ScrollableAppearance, SingleAxisConfig},
         Align, Axis, Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
         DispatchEventResult, Empty, EventHandler, Expanded, Fill, Flex, FormattedTextElement,
         HeadingFontSizeMultipliers, Image as WarpImage, MainAxisSize, MouseStateHandle,
         NewScrollable, ParentElement, Radius, SavePosition, ScrollTarget, ScrollToPositionMode,
         ScrollbarWidth, Shrinkable, Table, TableColumnWidth, TableConfig, TableHeader,
         TableVerticalSizing, Text, Wrap,
+        new_scrollable::{ScrollableAppearance, SingleAxisConfig},
     },
     fonts::{Properties, Weight},
     image_cache::{CacheOption, ImageType},
@@ -40,7 +41,6 @@ use warpui::{
         button::Button,
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    Action, AppContext, Element, EventContext, SingletonEntity, View, ViewHandle,
 };
 
 use super::{add_highlights_to_rich_text, add_highlights_to_text, output::LinkActionConstructors};
@@ -50,47 +50,47 @@ use crate::{
     ai::{
         acp::acp_raw_image_id_from_source,
         agent::{
-            icons::red_stop_icon, AIAgentAction, AIAgentActionType, AIAgentInput,
-            AIAgentOutputMessageType, AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
+            AIAgentAction, AIAgentActionType, AIAgentInput, AIAgentOutputMessageType,
+            AIAgentTextSection, AgentOutputImage, AgentOutputImageLayout,
             AgentOutputMermaidDiagram, AgentOutputTable, ProgrammingLanguage, RenderableAIError,
-            SummarizationType, UserQueryMode,
+            SummarizationType, UserQueryMode, icons::red_stop_icon,
         },
         blocklist::{
+            TextLocation,
             block::{
-                find::FindState, view_impl::CONTENT_HORIZONTAL_PADDING, AIBlockAction,
-                CollapsibleElementState, CollapsibleExpansionState, EmbeddedCodeEditorView,
-                TableSectionHandles,
+                AIBlockAction, CollapsibleElementState, CollapsibleExpansionState,
+                EmbeddedCodeEditorView, TableSectionHandles, find::FindState,
+                view_impl::CONTENT_HORIZONTAL_PADDING,
             },
             code_block::{
-                render_code_block_plain, render_code_block_with_warp_text, CodeBlockOptions,
-                CodeSnippetButtonHandles,
+                CodeBlockOptions, CodeSnippetButtonHandles, render_code_block_plain,
+                render_code_block_with_warp_text,
             },
             inline_action::inline_action_icons::icon_size,
             model::{AIBlockModel, AIBlockModelHelper},
-            secret_redaction::{redact_secrets_in_element, SecretRedactionState},
+            secret_redaction::{SecretRedactionState, redact_secrets_in_element},
             view_util::error_color,
-            TextLocation,
         },
     },
     code::{editor::view::CodeEditorView, editor_management::CodeSource},
     notebooks::editor::{markdown_table_appearance, rich_text_styles},
     terminal::{
-        find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode, ShellLaunchData,
+        ShellLaunchData, find::TerminalFindModel, safe_mode_settings::get_secret_obfuscation_mode,
     },
     ui_components::{blended_colors, icons::Icon},
     workspace::WorkspaceAction,
 };
 use crate::{
     ai::{
-        agent::{icons, ShellCommandDelay},
+        agent::{ShellCommandDelay, icons},
         blocklist::{
-            block::status_bar::BlocklistAIStatusBarAction, BlocklistAIActionModel,
-            ShellCommandExecutor,
+            BlocklistAIActionModel, ShellCommandExecutor,
+            block::status_bar::BlocklistAIStatusBarAction,
         },
         loading::shimmering_warp_loading_text,
     },
-    terminal::{self, view::TerminalAction, TerminalModel},
-    util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState},
+    terminal::{self, TerminalModel, view::TerminalAction},
+    util::link_detection::{DetectedLinksState, add_link_detection_mouse_interactions},
     util::time_format::format_elapsed_seconds,
 };
 use crate::{search::slash_command_menu::static_commands::commands, settings::FontSettings};
@@ -2643,7 +2643,7 @@ pub(crate) fn resolve_absolute_file_path(
 ) -> Option<PathBuf> {
     use warp_util::path::CleanPathResult;
 
-    use crate::util::file::{absolute_path_if_valid, ShellPathType};
+    use crate::util::file::{ShellPathType, absolute_path_if_valid};
 
     let clean_path = CleanPathResult::with_line_and_column_number(&path.to_string_lossy());
 

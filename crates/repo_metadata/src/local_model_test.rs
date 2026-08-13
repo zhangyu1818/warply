@@ -3,6 +3,7 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod tests {
+    use crate::RepoMetadataError;
     use crate::entry::{DirectoryEntry, Entry, FileMetadata};
     use crate::file_tree_store::{FileTreeEntry, FileTreeEntryState, FileTreeState};
     use crate::local_model::{
@@ -11,7 +12,6 @@ mod tests {
     };
     use crate::repositories::DetectedRepositories;
     use crate::watcher::DirectoryWatcher;
-    use crate::RepoMetadataError;
     use futures::channel::oneshot;
     use futures::executor::block_on;
     use ignore::gitignore::Gitignore;
@@ -262,9 +262,11 @@ mod tests {
             });
 
             model_handle.read(&app, |model, _ctx| {
-                assert!(model
-                    .build_tasks
-                    .contains_key(&build_task_key(&repo_path, &repo_path)));
+                assert!(
+                    model
+                        .build_tasks
+                        .contains_key(&build_task_key(&repo_path, &repo_path))
+                );
             });
 
             model_handle.update(&mut app, |model, ctx| {
@@ -278,9 +280,11 @@ mod tests {
                 .await;
 
             model_handle.read(&app, |model, _ctx| {
-                assert!(!model
-                    .build_tasks
-                    .contains_key(&build_task_key(&repo_path, &repo_path)));
+                assert!(
+                    !model
+                        .build_tasks
+                        .contains_key(&build_task_key(&repo_path, &repo_path))
+                );
             });
         });
     }
@@ -497,9 +501,11 @@ mod tests {
                 let new_future_id = new_handle.future_id();
                 model.track_build_task(task_key.clone(), BuildTaskKind::Index, new_handle);
 
-                assert!(model
-                    .finish_build_task(&task_key, Some(old_future_id))
-                    .is_none());
+                assert!(
+                    model
+                        .finish_build_task(&task_key, Some(old_future_id))
+                        .is_none()
+                );
                 let task = model
                     .build_tasks
                     .get(&task_key)
@@ -736,12 +742,16 @@ mod tests {
                     ) else {
                         panic!("expected indexed lazy-loaded path");
                     };
-                    assert!(state
-                        .entry
-                        .contains(&StandardizedPath::try_from_local(&src_dir).unwrap()));
-                    assert!(!state
-                        .entry
-                        .contains(&StandardizedPath::try_from_local(&source_file).unwrap()));
+                    assert!(
+                        state
+                            .entry
+                            .contains(&StandardizedPath::try_from_local(&src_dir).unwrap())
+                    );
+                    assert!(
+                        !state
+                            .entry
+                            .contains(&StandardizedPath::try_from_local(&source_file).unwrap())
+                    );
                 });
 
                 let (tx, rx) = oneshot::channel();
@@ -779,9 +789,11 @@ mod tests {
                     ) else {
                         panic!("expected indexed repo after upgrade");
                     };
-                    assert!(state
-                        .entry
-                        .contains(&StandardizedPath::try_from_local(&source_file).unwrap()));
+                    assert!(
+                        state
+                            .entry
+                            .contains(&StandardizedPath::try_from_local(&source_file).unwrap())
+                    );
                 });
             });
         });
@@ -1084,20 +1096,24 @@ mod tests {
             assert!(all_paths.contains(&target_std));
 
             // Make sure that the ignored files and folders are marked as ignored.
-            assert!(root
-                .get(&StandardizedPath::try_from_local(&log_file).unwrap())
-                .unwrap()
-                .ignored());
-            assert!(root
-                .get(&StandardizedPath::try_from_local(&target_dir).unwrap())
-                .unwrap()
-                .ignored());
+            assert!(
+                root.get(&StandardizedPath::try_from_local(&log_file).unwrap())
+                    .unwrap()
+                    .ignored()
+            );
+            assert!(
+                root.get(&StandardizedPath::try_from_local(&target_dir).unwrap())
+                    .unwrap()
+                    .ignored()
+            );
 
             // Make sure that the ignored folder is not eagerly loaded.
-            assert!(!root
-                .get(&StandardizedPath::try_from_local(&target_dir).unwrap())
-                .unwrap()
-                .loaded());
+            assert!(
+                !root
+                    .get(&StandardizedPath::try_from_local(&target_dir).unwrap())
+                    .unwrap()
+                    .loaded()
+            );
         });
     }
 
@@ -1327,8 +1343,11 @@ Thumbs.db
         assert!(
             all_paths.contains(&StandardizedPath::try_new("/test_repo/src/components/ui").unwrap())
         );
-        assert!(all_paths
-            .contains(&StandardizedPath::try_new("/test_repo/src/components/ui/forms").unwrap()));
+        assert!(
+            all_paths.contains(
+                &StandardizedPath::try_new("/test_repo/src/components/ui/forms").unwrap()
+            )
+        );
 
         // Test case 2: Existing directories should not be recreated
         let initial_count = all_paths.len();
@@ -1375,11 +1394,16 @@ Thumbs.db
         // any nested directories beyond the conflicting file.
 
         // Should still have the original file
-        assert!(conflict_paths
-            .contains(&StandardizedPath::try_new("/test_repo/conflicting_path").unwrap()));
+        assert!(
+            conflict_paths
+                .contains(&StandardizedPath::try_new("/test_repo/conflicting_path").unwrap())
+        );
         // Should NOT have created nested directories beyond the conflict
-        assert!(!conflict_paths
-            .contains(&StandardizedPath::try_new("/test_repo/conflicting_path/nested").unwrap()));
+        assert!(
+            !conflict_paths.contains(
+                &StandardizedPath::try_new("/test_repo/conflicting_path/nested").unwrap()
+            )
+        );
         assert!(!conflict_paths.contains(
             &StandardizedPath::try_new("/test_repo/conflicting_path/nested/deep").unwrap()
         ));
@@ -1429,12 +1453,16 @@ Thumbs.db
             );
 
             // Should still have the original file at components level
-            assert!(intermediate_conflict_paths
-                .contains(&StandardizedPath::try_new("/test_repo/src/components").unwrap()));
+            assert!(
+                intermediate_conflict_paths
+                    .contains(&StandardizedPath::try_new("/test_repo/src/components").unwrap())
+            );
 
             // Should NOT have created deeper nested directories beyond the conflict
-            assert!(!intermediate_conflict_paths
-                .contains(&StandardizedPath::try_new("/test_repo/src/components/ui").unwrap()));
+            assert!(
+                !intermediate_conflict_paths
+                    .contains(&StandardizedPath::try_new("/test_repo/src/components/ui").unwrap())
+            );
             assert!(!intermediate_conflict_paths.contains(
                 &StandardizedPath::try_new("/test_repo/src/components/ui/forms").unwrap()
             ));

@@ -6,7 +6,7 @@ use crate::{
     app_state::{AIDocumentPaneSnapshot, LeafContents},
 };
 
-use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, view::PaneView};
 
 pub struct AIDocumentPane {
     view: ViewHandle<PaneView<AIDocumentView>>,

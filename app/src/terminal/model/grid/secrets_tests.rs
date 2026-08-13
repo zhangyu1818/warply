@@ -2,12 +2,12 @@ use regex::Regex;
 use serial_test::serial;
 
 use crate::terminal::{
+    SizeInfo,
     event_listener::ChannelEventListener,
     model::{
         ansi::{self, Handler as _},
         blockgrid::BlockGrid,
     },
-    SizeInfo,
 };
 
 use super::*;

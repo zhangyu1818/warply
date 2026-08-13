@@ -3,12 +3,12 @@ use itertools::Itertools;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use render::RenderState;
+use repo_metadata::FileTreeEntry;
+use repo_metadata::RepoMetadataModel;
 use repo_metadata::file_tree_store::{
     FileTreeDirectoryEntryState, FileTreeEntryState, FileTreeFileMetadata,
 };
 use repo_metadata::local_model::IndexedRepoState;
-use repo_metadata::FileTreeEntry;
-use repo_metadata::RepoMetadataModel;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -26,8 +26,9 @@ use warpui::fonts::Style;
 use warpui::keymap::FixedBinding;
 use warpui::platform::Cursor;
 use warpui::text_layout::TextAlignment;
-use warpui::{clipboard::ClipboardContent, id, ViewContext, WeakViewHandle};
 use warpui::{
+    AppContext, Element, Entity, EventContext, SingletonEntity as _, TypedActionView, View,
+    ViewHandle,
     elements::{
         ChildAnchor, ChildView, CrossAxisAlignment, Flex, Hoverable, MainAxisSize,
         MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
@@ -35,10 +36,9 @@ use warpui::{
         UniformListState,
     },
     fonts::{Properties, Weight},
-    AppContext, Element, Entity, EventContext, SingletonEntity as _, TypedActionView, View,
-    ViewHandle,
 };
 use warpui::{BlurContext, ModelHandle};
+use warpui::{ViewContext, WeakViewHandle, clipboard::ClipboardContent, id};
 
 use crate::code::active_file::{ActiveFileEvent, ActiveFileModel};
 use crate::code::buffer_location::FileLocation;
@@ -49,7 +49,7 @@ use crate::terminal::view::{TerminalDropTargetData, TerminalView};
 use crate::ui_components::item_highlight::{ImageOrIcon, ItemHighlightState};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
-use crate::util::openable_file_type::{is_file_content_binary, EditorLayout, FileTarget};
+use crate::util::openable_file_type::{EditorLayout, FileTarget, is_file_content_binary};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::{
     resolve_file_target_to_open_in_warp, resolve_file_target_with_editor_choice,
@@ -59,8 +59,8 @@ use crate::{
     menu::{Menu, MenuItem, MenuItemFields},
     ui_components::icons::Icon,
 };
-use warp_core::ui::theme::{color::internal_colors, Fill};
 use warp_core::HostId;
+use warp_core::ui::theme::{Fill, color::internal_colors};
 
 mod editing;
 mod render;

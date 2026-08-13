@@ -1,10 +1,10 @@
 use asset_macro::bundled_async_asset;
 use pathfinder_color::ColorU;
 use warp_core::ui::{
-    color::{blend::Blend, coloru_with_opacity, OPAQUE},
+    color::{OPAQUE, blend::Blend, coloru_with_opacity},
     theme::{
-        color::CustomDetails, AnsiColor, AnsiColors, Details, Fill, HorizontalGradient, Image,
-        TerminalColors, VerticalGradient, WarpTheme,
+        AnsiColor, AnsiColors, Details, Fill, HorizontalGradient, Image, TerminalColors,
+        VerticalGradient, WarpTheme, color::CustomDetails,
     },
 };
 

@@ -4,7 +4,7 @@ use warpui::{AppContext, SingletonEntity, ViewHandle};
 
 use crate::{
     cloud_object::update_manager::UpdateManager,
-    cloud_object::{model::persistence::CloudModel, CloudObjectEventEntrypoint, Owner},
+    cloud_object::{CloudObjectEventEntrypoint, Owner, model::persistence::CloudModel},
     editor::EditorView,
     object_ids::SyncId,
     workflows::{

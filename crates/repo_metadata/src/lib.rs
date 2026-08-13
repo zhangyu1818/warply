@@ -48,8 +48,8 @@ pub mod watcher;
 pub mod wrapper_model;
 
 pub use entry::{
-    gitignores_for_directory, matches_gitignores, path_passes_filters, should_ignore_git_path,
-    BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata,
+    BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata, gitignores_for_directory,
+    matches_gitignores, path_passes_filters, should_ignore_git_path,
 };
 
 pub use repository::Repository;

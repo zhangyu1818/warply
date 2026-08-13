@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::{any::Any, path::PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use command::r#async::Command;
 use itertools::Itertools as _;
 
-use crate::env_vars::{serialize_variables_for_shell, EnvVarValue};
+use crate::env_vars::{EnvVarValue, serialize_variables_for_shell};
 use crate::terminal::shell::Shell;
 
-use super::{shell_escape_single_quotes, CommandExecutor, CommandOutput};
+use super::{CommandExecutor, CommandOutput, shell_escape_single_quotes};
 
 /// `CommandExecutor` implementation that executes the given `command` in a forked process
 /// that establishes a one-off SSH session with the same remote host as the active SSH session

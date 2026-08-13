@@ -11,12 +11,13 @@ use warp_command_signatures::{
 use warp_util::path::ShellFamily;
 
 use crate::completer::{
+    CommandExitStatus, GeneratorContext, LocationType,
     context::CompletionContext,
     engine::{
         self,
         path::{
-            sorted_cd_directories, sorted_directories_relative_to, sorted_paths_relative_to,
-            EngineFileType,
+            EngineFileType, sorted_cd_directories, sorted_directories_relative_to,
+            sorted_paths_relative_to,
         },
     },
     matchers::MatchStrategy,
@@ -24,7 +25,6 @@ use crate::completer::{
         CompleterOptions, CompletionsFallbackStrategy, MatchedSuggestion, Suggestion,
         SuggestionType,
     },
-    CommandExitStatus, GeneratorContext, LocationType,
 };
 
 use crate::meta::{Span, Spanned};
@@ -33,8 +33,8 @@ use crate::parsers::{
 };
 
 use crate::parsers::{
-    hir::{Command, ShellCommand},
     ArgumentError::{MissingMandatoryPositional, MissingValueForName, UnexpectedArgument},
+    hir::{Command, ShellCommand},
 };
 
 use super::add_extra_positional;

@@ -2,16 +2,16 @@
 // Apache license; see: crates/warp_terminal/src/model/LICENSE-ALACRITTY.
 
 //! TTY related functionality.
+use crate::ASSETS;
 use crate::terminal::bootstrap::raw_init_shell_script_for_shell;
 use crate::terminal::local_tty::docker_sandbox::{
-    DockerSandboxShellStarter, DOCKER_SANDBOX_HOME_DIR,
+    DOCKER_SANDBOX_HOME_DIR, DockerSandboxShellStarter,
 };
 use crate::terminal::local_tty::shell::{
-    extra_path_entries, ssh_socket_dir, DirectShellStarter, ShellStarter,
+    DirectShellStarter, ShellStarter, extra_path_entries, ssh_socket_dir,
 };
 use crate::terminal::model::session::command_executor::shell_escape_single_quotes;
 use crate::terminal::shell::ShellType;
-use crate::ASSETS;
 
 use itertools::Itertools;
 
@@ -19,10 +19,10 @@ use super::event_loop::{PTY_TOKEN, SIGNALS_TOKEN};
 use super::spawner::{PtyHandle, PtySpawnInfo, PtySpawner};
 use super::{ChildEvent, EventedPty, EventedReadWrite, PtyOptions, SizeInfo};
 use anyhow::{Context as _, Error, Result};
-use libc::{self, c_int, winsize, TIOCSCTTY};
+use libc::{self, TIOCSCTTY, c_int, winsize};
 
-use mio::unix::SourceFd;
 use mio::Interest;
+use mio::unix::SourceFd;
 use nix::{
     pty::openpty,
     sys::termios::{self, InputFlags, SetArg},
@@ -664,7 +664,7 @@ impl ToWinsize for &SizeInfo {
 
 unsafe fn set_nonblocking(fd: c_int) {
     unsafe {
-        use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+        use libc::{F_GETFL, F_SETFL, O_NONBLOCK, fcntl};
 
         let res = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
         assert_eq!(res, 0);

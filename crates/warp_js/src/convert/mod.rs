@@ -1,3 +1,3 @@
 mod native;
 
-pub use native::{util, FromWarpJs, IntoWarpJs};
+pub use native::{FromWarpJs, IntoWarpJs, util};

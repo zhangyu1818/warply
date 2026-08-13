@@ -3,11 +3,11 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::ops::AddAssign;
 use warp_util::file::FileSaveError;
-use warpui::elements::DropTargetData;
 use warpui::AppContext;
+use warpui::elements::DropTargetData;
 
-pub mod find_references_view;
 pub mod buffer_location;
+pub mod find_references_view;
 pub mod language_server_extension;
 pub mod local_code_editor;
 pub use local_code_editor::ShowFindReferencesCard;

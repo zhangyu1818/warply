@@ -4,8 +4,8 @@ use crate::{
     appearance::Appearance,
     cloud_object::CloudObjectMetadata,
     drive::{
-        cloud_object_styling::local_object_icon_color, folders::CloudFolder, CloudObjectTypeAndId,
-        DriveObjectType,
+        CloudObjectTypeAndId, DriveObjectType, cloud_object_styling::local_object_icon_color,
+        folders::CloudFolder,
     },
     themes::theme::Fill,
     ui_components::icons::Icon,

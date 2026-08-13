@@ -4,18 +4,18 @@
 #![deny(clippy::assertions_on_constants)]
 
 use crate::{
+    BlocklistAIHistoryModel,
     ai::agent::{
-        conversation::{AIConversation, AIConversationId, ConversationStatus},
-        todos::AIAgentTodoList,
         AIAgentActionResultType, AIAgentActionType, AIAgentExchange, AIAgentInput,
         AIAgentOutputMessageType, AIAgentOutputStatus, AIAgentTextSection, FileEdit,
         FinishedAIAgentOutput, ReadFilesRequest, TodoOperation,
+        conversation::{AIConversation, AIConversationId, ConversationStatus},
+        todos::AIAgentTodoList,
     },
     integration_testing::view_getters::terminal_view,
-    BlocklistAIHistoryModel,
 };
-use warpui::{integration::AssertionCallback, integration_assert, EntityId};
-use warpui::{integration::AssertionOutcome, SingletonEntity};
+use warpui::{EntityId, integration::AssertionCallback, integration_assert};
+use warpui::{SingletonEntity, integration::AssertionOutcome};
 
 type TextAssertion = Box<dyn Fn(&str) -> bool + 'static>;
 type ActionAssertion = Box<dyn Fn(&AIAgentActionType) -> bool + 'static>;

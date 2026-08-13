@@ -1,7 +1,7 @@
 use prost::Message;
 
 use crate::proto::{
-    client_message, server_message, ClientMessage, Initialize, InitializeResponse, ServerMessage,
+    ClientMessage, Initialize, InitializeResponse, ServerMessage, client_message, server_message,
 };
 
 use super::*;

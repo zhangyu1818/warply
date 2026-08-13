@@ -1,11 +1,11 @@
 use pathfinder_geometry::vector::vec2f;
 use warpui::{
+    Element,
     elements::{
         ChildAnchor, ConstrainedBox, Container, Empty, OffsetPositioning, ParentAnchor,
         ParentElement as _, ParentOffsetBounds, Stack,
     },
     ui_components::components::UiComponentStyles,
-    Element,
 };
 
 pub struct RedNotificationDot {}

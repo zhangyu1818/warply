@@ -1,16 +1,16 @@
 use std::fs;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::repositories::stub_git_repository;
 use crate::repository::RepositorySubscriber;
 use crate::watcher::{DirectoryWatcher, TaskQueue};
 use crate::{CanonicalizedPath, RepoMetadataError, Repository, RepositoryUpdate};
-use futures::channel::mpsc;
 use futures::StreamExt as _;
+use futures::channel::mpsc;
 use virtual_fs::{Stub, VirtualFS};
 use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::Timer;

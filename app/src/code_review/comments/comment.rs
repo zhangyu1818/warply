@@ -2,7 +2,7 @@ use crate::{
     ai::agent::{CurrentHead, DiffBase},
     code::{
         buffer_location::LocalOrRemotePath,
-        editor::{line::EditorLineLocation, EditorReviewComment},
+        editor::{EditorReviewComment, line::EditorLineLocation},
     },
 };
 use chrono::{DateTime, Local};

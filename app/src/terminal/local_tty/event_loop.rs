@@ -18,7 +18,7 @@ use mio::{self, Events, Interest};
 use parking_lot::{FairMutex, FairMutexGuard};
 
 use crate::terminal::{
-    event_listener::ChannelEventListener, local_tty, model::ansi, TerminalModel,
+    TerminalModel, event_listener::ChannelEventListener, local_tty, model::ansi,
 };
 use crate::terminal::{model::terminal_model::ExitReason, writeable_pty::Message};
 
@@ -168,7 +168,7 @@ where
                 Message::Shutdown => {
                     return ChannelResult::TerminateLoop {
                         child_exited: false,
-                    }
+                    };
                 }
                 Message::Resize(size) => self.pty.on_resize(&size),
                 Message::ChildExited => return ChannelResult::TerminateLoop { child_exited: true },

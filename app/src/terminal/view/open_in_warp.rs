@@ -8,8 +8,8 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use warp_util::path::EscapeChar;
 use warpui::{
-    accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
     SingletonEntity, ViewContext,
+    accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
 };
 
 #[cfg(feature = "local_fs")]
@@ -23,7 +23,7 @@ use crate::{
         view::inline_banner::{OpenInWarpBannerAction, OpenInWarpBannerState},
     },
     util::openable_file_type::{
-        is_file_openable_in_warp, renders_in_warp_notebook_viewer, OpenableFileType,
+        OpenableFileType, is_file_openable_in_warp, renders_in_warp_notebook_viewer,
     },
 };
 use settings::Setting as _;

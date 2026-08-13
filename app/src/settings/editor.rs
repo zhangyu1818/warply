@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 
-use enum_iterator::{all, Sequence};
+use enum_iterator::{Sequence, all};
 use serde::{Deserialize, Serialize};
-use settings::{macros::define_settings_group, Setting as _, SupportedPlatforms};
+use settings::{Setting as _, SupportedPlatforms, macros::define_settings_group};
 use warpui::ModelContext;
 
 #[derive(

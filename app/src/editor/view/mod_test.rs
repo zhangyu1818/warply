@@ -1,12 +1,12 @@
 use super::*;
+use crate::editor::EditorView;
 use crate::editor::soft_wrap::FrameLayouts;
 use crate::editor::tests::sample_text;
-use crate::editor::EditorView;
 use crate::identity::LocalIdentityProvider;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
-use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::ToastStack;
+use crate::workspace::sync_inputs::SyncedInputState;
 use anyhow::Error;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
@@ -4119,11 +4119,13 @@ fn test_buffer_points_to_cache() {
             presenter.borrow_mut().position_cache_mut().end();
 
             let expected_pos_id = position_id_for_cached_point(editor_handle.id(), id);
-            assert!(presenter
-                .borrow()
-                .position_cache()
-                .get_position(expected_pos_id)
-                .is_some())
+            assert!(
+                presenter
+                    .borrow()
+                    .position_cache()
+                    .get_position(expected_pos_id)
+                    .is_some()
+            )
         });
     });
 }

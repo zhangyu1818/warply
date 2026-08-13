@@ -1,7 +1,7 @@
 //! Contains the V2 implementation of internal command parsing logic that depends on the new,
 //! JS-compatible command signature struct (`crate::signatures::CommandSignature`).
 use crate::signatures::{
-    get_matching_signature_for_tokenized_input, Command, CommandRegistry, Opt,
+    Command, CommandRegistry, Opt, get_matching_signature_for_tokenized_input,
 };
 use crate::{
     completer::TopLevelCommandCaseSensitivity,
@@ -10,9 +10,10 @@ use crate::{
 
 use super::parse_unclassified_command;
 use super::{
+    ArgumentError, FlagArgumentsCardinality, FlagSignature, LiteCommand, ParseError,
+    ParsedExpression, ParsedToken,
     hir::{self, Expression, Flags, ShellCommand},
-    parse_arg, parse_dollar_expr, ArgumentError, FlagArgumentsCardinality, FlagSignature,
-    LiteCommand, ParseError, ParsedExpression, ParsedToken,
+    parse_arg, parse_dollar_expr,
 };
 
 pub(super) fn parse_command(

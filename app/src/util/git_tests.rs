@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use command::r#async::Command;
 use command::Stdio;
+use command::r#async::Command;
 use tempfile::TempDir;
 
 use super::{detect_current_branch, detect_current_branch_display};

@@ -2,7 +2,7 @@ use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::update_manager::{UpdateManager, UpdateManagerEvent};
 use crate::cloud_object::{
-    current_user_owner, CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision,
+    CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Revision, current_user_owner,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
@@ -14,13 +14,13 @@ use crate::search_bar::SearchBar;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
-    action_button::{ActionButton, NakedTheme},
     DismissibleToast,
+    action_button::{ActionButton, NakedTheme},
 };
 use crate::workspace::ToastStack;
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
 use markdown_parser::{
-    weight::CustomWeight, FormattedText, FormattedTextFragment, FormattedTextLine,
+    FormattedText, FormattedTextFragment, FormattedTextLine, weight::CustomWeight,
 };
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -32,6 +32,8 @@ use warpui::elements::Shrinkable;
 use warpui::platform::FilePickerConfiguration;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::{
+    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     elements::{
         Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
         Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, MainAxisAlignment,
@@ -39,11 +41,9 @@ use warpui::{
     },
     platform::Cursor,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
-use super::{style, AIFact, CloudAIFact, CloudAIFactModel};
+use super::{AIFact, CloudAIFact, CloudAIFactModel, style};
 use crate::ai::facts::AIMemory;
 
 pub const HEADER_TEXT: &str = "Rules";

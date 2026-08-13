@@ -15,7 +15,7 @@ pub use view::*;
 pub use window::*;
 
 use crate::platform::{self, FullscreenState, WindowBounds, WindowStyle};
-use crate::{keymap, Element};
+use crate::{Element, keymap};
 use anyhow::Error;
 
 use crate::rendering::OnGPUDeviceSelected;

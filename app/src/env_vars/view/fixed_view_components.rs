@@ -1,6 +1,7 @@
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
 use warpui::{
+    Element, ViewContext,
     elements::{
         Align, ConstrainedBox, Container, CrossAxisAlignment, Empty, Flex, MainAxisAlignment,
         MainAxisSize, ParentElement, Rect, Shrinkable, Stack,
@@ -10,16 +11,15 @@ use warpui::{
         button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{UiComponent, UiComponentStyles},
     },
-    Element, ViewContext,
 };
 
 use crate::{
+    AppContext, Appearance, SingletonEntity,
     env_vars::{
         active_env_var_collection_data::TrashStatus,
         view::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView},
     },
     ui_components::{breadcrumb::BreadcrumbState, buttons::icon_button, icons::Icon},
-    AppContext, Appearance, SingletonEntity,
 };
 
 const VARIABLE_DIVIDER_HEIGHT: f32 = 2.;

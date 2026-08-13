@@ -1,7 +1,7 @@
 use super::{
     count_chars_up_to_byte,
     point::Point,
-    {char_slice, BufferIndex, TextBuffer},
+    {BufferIndex, TextBuffer, char_slice},
 };
 
 use super::str_to_byte_vec;

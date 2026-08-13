@@ -3,14 +3,14 @@ use std::sync::Arc;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::{appearance::Appearance, theme::color::internal_colors};
 use warpui::{
-    elements::{
-        Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Flex, Hoverable, MouseStateHandle, OffsetPositioning, ParentAnchor,
-        Radius, SavePosition, Stack, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
-    },
-    platform::Cursor,
     AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity as _, TypedActionView,
     View, ViewContext, ViewHandle,
+    elements::{
+        Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
+        CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, Flex, Hoverable, MouseStateHandle,
+        OffsetPositioning, ParentAnchor, Radius, SavePosition, Stack, Text,
+    },
+    platform::Cursor,
 };
 use warpui::{
     elements::{ParentElement, ParentOffsetBounds},
@@ -18,6 +18,7 @@ use warpui::{
 };
 
 use crate::{
+    AIAgentTodoList, BlocklistAIHistoryModel,
     ai::{
         agent::{
             icons::todo_list_icon,
@@ -27,7 +28,6 @@ use crate::{
     },
     terminal::input::{MenuPositioning, MenuPositioningProvider},
     ui_components::blended_colors,
-    AIAgentTodoList, BlocklistAIHistoryModel,
 };
 use warpui::fonts::{Properties, Weight};
 

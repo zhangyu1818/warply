@@ -8,12 +8,12 @@ use std::time::Duration;
 use instant::Instant;
 
 use crate::object_ids::SyncId;
+use crate::terminal::ClipboardType;
 use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::block::SerializedBlock;
 use crate::terminal::model::completions::ShellCompletion;
 use crate::terminal::model::terminal_model::HandlerEvent;
 use crate::terminal::shell::ShellType;
-use crate::terminal::ClipboardType;
 use crate::ui_events::ImageProtocol;
 use crate::util::AsciiDebug;
 
@@ -485,10 +485,7 @@ impl Debug for Event {
             Event::RemoteServerReady { session_id } => {
                 write!(f, "RemoteServerReady(session: {session_id:?})")
             }
-            Event::RemoteServerFailed {
-                session_id,
-                error,
-            } => {
+            Event::RemoteServerFailed { session_id, error } => {
                 write!(
                     f,
                     "RemoteServerFailed(session: {session_id:?}, error: {error})"

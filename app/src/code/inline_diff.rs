@@ -7,16 +7,16 @@ use warp_files::{FileModel, FileModelEvent};
 use warp_util::file::FileId;
 use warp_util::file::FileSaveError;
 use warp_util::standardized_path::StandardizedPath;
-use warpui::elements::ChildView;
 use warpui::SingletonEntity;
+use warpui::elements::ChildView;
 use warpui::{AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle};
 
+use super::DiffResult;
 use super::diff_viewer::DiffViewer;
 use super::diff_viewer::DisplayMode;
+use super::editor::NavBarBehavior;
 use super::editor::scroll::{ScrollPosition, ScrollTrigger};
 use super::editor::view::{CodeEditorEvent, CodeEditorView};
-use super::editor::NavBarBehavior;
-use super::DiffResult;
 use crate::editor::InteractionState;
 
 pub enum InlineDiffViewEvent {

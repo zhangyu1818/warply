@@ -5,19 +5,17 @@ use std::{
 };
 
 use crate::{
-    config::{lsp_uri_to_path, path_to_lsp_uri, LanguageId},
+    LspServerLogLevel,
+    config::{LanguageId, lsp_uri_to_path, path_to_lsp_uri},
     types::{
         HoverResult, LspDefinitionLocation, ReferenceLocation, TextDocumentContentChangeEvent,
         TextEdit, WatchedFileChangeEvent,
     },
-    LspServerLogLevel,
 };
 use anyhow::Result;
 use globset::{Glob, GlobMatcher};
 use jsonrpc::{JsonRpcService, RequestId, ServerNotificationEvent};
 use lsp_types::{
-    notification::{self, Notification},
-    request::{self, Request},
     CancelParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentFormattingParams, FileChangeType, FileSystemWatcher,
@@ -25,6 +23,8 @@ use lsp_types::{
     InitializeParams, InitializedParams, NumberOrString, OneOf, Position, ReferenceParams,
     RegistrationParams, RelativePattern, TextDocumentIdentifier, TextDocumentItem,
     TextDocumentPositionParams, UnregistrationParams, VersionedTextDocumentIdentifier, WatchKind,
+    notification::{self, Notification},
+    request::{self, Request},
 };
 use serde_json::Value;
 use simple_logger::SimpleLogger;

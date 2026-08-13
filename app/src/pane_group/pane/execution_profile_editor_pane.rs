@@ -1,4 +1,4 @@
-use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, view::PaneView};
 use crate::{
     ai::execution_profiles::editor::{
         ExecutionProfileEditorManager, ExecutionProfileEditorView, ExecutionProfileEditorViewEvent,

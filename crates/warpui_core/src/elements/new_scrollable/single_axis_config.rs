@@ -1,19 +1,19 @@
 use pathfinder_geometry::{rect::RectF, vector::Vector2F};
 
 use crate::{
+    AfterLayoutContext, AppContext, Element, EventContext, LayoutContext, PaintContext,
+    SizeConstraint,
     elements::{
-        new_scrollable::util::child_constraint_for_axis, Axis, ClippedScrollStateHandle, F32Ext,
-        ScrollData, ScrollStateHandle, SelectableElement, Vector2FExt,
+        Axis, ClippedScrollStateHandle, F32Ext, ScrollData, ScrollStateHandle, SelectableElement,
+        Vector2FExt, new_scrollable::util::child_constraint_for_axis,
     },
     event::DispatchedEvent,
     units::{IntoPixels, Pixels},
-    AfterLayoutContext, AppContext, Element, EventContext, LayoutContext, PaintContext,
-    SizeConstraint,
 };
 
 use super::{
-    util::{scroll_clipped_scrollable_handle_with_delta, scroll_delta_for_axis},
     NewScrollableElement,
+    util::{scroll_clipped_scrollable_handle_with_delta, scroll_delta_for_axis},
 };
 
 #[cfg(debug_assertions)]

@@ -8,16 +8,16 @@ use warpui::{AppContext, SingletonEntity};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentAttachment, AIAgentContext,
-            DocumentContentAttachmentSource,
+            AIAgentAttachment, AIAgentContext, DocumentContentAttachmentSource,
+            conversation::AIConversationId,
         },
         block_context::BlockContext,
         blocklist::BlocklistAIContextModel,
         document::ai_document_model::{AIDocumentId, AIDocumentModel},
     },
     terminal::{
-        model::{block::BlockId, session::active_session::ActiveSession},
         TerminalView,
+        model::{block::BlockId, session::active_session::ActiveSession},
     },
 };
 
@@ -219,8 +219,8 @@ mod tests {
     use crate::cloud_object::model::persistence::CloudModel;
     use crate::terminal::color::{self, Colors};
     use crate::terminal::event_listener::ChannelEventListener;
-    use crate::terminal::model::test_utils::block_size;
     use crate::terminal::model::TerminalModel;
+    use crate::terminal::model::test_utils::block_size;
     use crate::test_util::settings::initialize_settings_for_tests;
 
     fn build_test_context_model(app: &mut App) -> ModelHandle<BlocklistAIContextModel> {

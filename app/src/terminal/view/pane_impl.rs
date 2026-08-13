@@ -6,18 +6,18 @@ use crate::ai::blocklist::agent_view::agent_view_bg_fill;
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent, PaneGroupFocusState};
-use crate::pane_group::pane::view::header::components::{
-    header_edge_min_width, render_pane_header_buttons, render_pane_header_title_text,
-    render_three_column_header, CenteredHeaderEdgeWidth,
-};
 use crate::pane_group::pane::PaneStack;
-use crate::pane_group::{
-    pane::view, pane::view::PaneHeaderAction, BackingView, SplitPaneState,
-    TOGGLE_MAXIMIZE_PANE_BINDING_NAME,
+use crate::pane_group::pane::view::header::components::{
+    CenteredHeaderEdgeWidth, header_edge_min_width, render_pane_header_buttons,
+    render_pane_header_title_text, render_three_column_header,
 };
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
+use crate::pane_group::{
+    BackingView, SplitPaneState, TOGGLE_MAXIMIZE_PANE_BINDING_NAME, pane::view,
+    pane::view::PaneHeaderAction,
+};
 use crate::terminal::TerminalManager;
 use crate::terminal::TerminalView;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
 use crate::ui_components::blended_colors;
 use crate::ui_components::buttons::icon_button_with_color;
@@ -25,6 +25,7 @@ use crate::ui_components::icon_with_status::render_icon_with_status;
 use crate::ui_components::icons;
 use crate::util::bindings::keybinding_name_to_display_string;
 use crate::workspace::tab_settings::TabSettings;
+use warpui::WeakModelHandle;
 use warpui::elements::{
     ConstrainedBox, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize, ParentElement,
     Shrinkable,
@@ -32,7 +33,6 @@ use warpui::elements::{
 use warpui::prelude::{ChildView, Container};
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::WeakModelHandle;
 use warpui::{AppContext, Element, ModelHandle, SingletonEntity, TypedActionView, ViewContext};
 
 /// Total size of the agent icon-with-status component rendered in the pane header.

@@ -1,7 +1,7 @@
 use super::{Menu, MenuAction, MenuItem, MenuItemFields, SelectAction, SubMenu};
 
 use warp_core::ui::appearance::Appearance;
-use warpui::{platform::WindowStyle, App, TypedActionView};
+use warpui::{App, TypedActionView, platform::WindowStyle};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TestAction {
@@ -32,10 +32,12 @@ fn test_submenu_items() -> Vec<MenuItem<TestAction>> {
 #[test]
 fn test_menu_item_selectable() {
     assert!(MenuItemFields::<()>::new("normal").into_item().selectable());
-    assert!(!MenuItemFields::<()>::new("disabled")
-        .with_disabled(true)
-        .into_item()
-        .selectable());
+    assert!(
+        !MenuItemFields::<()>::new("disabled")
+            .with_disabled(true)
+            .into_item()
+            .selectable()
+    );
     assert!(!MenuItem::<()>::Separator.selectable());
 }
 

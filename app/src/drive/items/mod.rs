@@ -7,7 +7,7 @@ use crate::{
     ui_components::icons::Icon,
 };
 
-use super::{cloud_object_styling::local_object_icon_color, CloudObjectTypeAndId, DriveObjectType};
+use super::{CloudObjectTypeAndId, DriveObjectType, cloud_object_styling::local_object_icon_color};
 
 pub mod ai_fact;
 pub mod env_var_collection;

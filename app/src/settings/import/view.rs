@@ -2,6 +2,8 @@ use itertools::Itertools;
 use warp_core::{settings::Setting, ui::appearance::Appearance};
 
 use warpui::{
+    Element, Entity, ModelContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext,
     elements::{
         Border, Container, CornerRadius, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
         MouseStateHandle, ParentElement, Radius, Shrinkable, Text,
@@ -13,20 +15,20 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
         radio_buttons::{self, RadioButtonItem},
     },
-    Element, Entity, ModelContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext,
 };
 
 use warpui::ui_components::radio_buttons::RadioButtonStateHandle;
 
 use crate::{
+    GlobalResourceHandlesProvider,
     settings::{
+        AppEditorSettings, CursorBlink, FontSettings, GlobalHotkeyMode, SelectionSettings,
+        ThemeSettings,
         import::{
             config::{Config, SettingType},
             model::{ImportedConfigModel, TerminalTypeAndProfile},
         },
-        log_setting_result, AppEditorSettings, CursorBlink, FontSettings, GlobalHotkeyMode,
-        SelectionSettings, ThemeSettings,
+        log_setting_result,
     },
     terminal::{
         alt_screen_reporting::AltScreenReporting, keys_settings::KeysSettings,
@@ -36,7 +38,6 @@ use crate::{
     ui_components::blended_colors,
     user_config::{self, WarpConfig},
     window_settings::WindowSettings,
-    GlobalResourceHandlesProvider,
 };
 
 use super::config::{QuakeModeWindow, ThemeType};

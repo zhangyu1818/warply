@@ -4,8 +4,8 @@ use warp_js::{JsFunctionId, SerializedJsValue};
 use crate::{
     completer::context::{JsExecutionContext, JsExecutionError},
     signatures::{
-        testing::{TEST_GENERATOR_1_JS_FUNCTION, TEST_GENERATOR_2_JS_FUNCTION},
         GeneratorResults, Suggestion,
+        testing::{TEST_GENERATOR_1_JS_FUNCTION, TEST_GENERATOR_2_JS_FUNCTION},
     },
 };
 

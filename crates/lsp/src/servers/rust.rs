@@ -1,9 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::install::{fetch_latest_metadata_from_github, install_from_github, AssetKind};
-use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
 use crate::CommandBuilder;
+use crate::install::{AssetKind, fetch_latest_metadata_from_github, install_from_github};
+use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
 use async_trait::async_trait;
 
 pub struct RustAnalyzerCandidate {

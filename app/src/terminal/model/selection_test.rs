@@ -1,7 +1,7 @@
 use super::*;
+use crate::terminal::SizeInfo;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::secrets::ObfuscateSecrets;
-use crate::terminal::SizeInfo;
 
 fn grid_handler(rows: usize, cols: usize) -> GridHandler {
     GridHandler::new(

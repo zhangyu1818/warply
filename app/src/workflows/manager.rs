@@ -1,12 +1,12 @@
-use super::{workflow::Workflow, SavedWorkflowModel};
+use super::{SavedWorkflowModel, workflow::Workflow};
 use crate::{
-    cloud_object::{model::persistence::CloudModel, GenericCloudObject, Owner},
+    PaneViewLocator, WindowId,
+    cloud_object::{GenericCloudObject, Owner, model::persistence::CloudModel},
     object_ids::{ClientId, SyncId},
     pane_group::{PaneContent, WorkflowPane},
-    workflows::{workflow_view::WorkflowView, WorkflowViewMode},
-    PaneViewLocator, WindowId,
+    workflows::{WorkflowViewMode, workflow_view::WorkflowView},
 };
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 use warp_core::safe_warn;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 

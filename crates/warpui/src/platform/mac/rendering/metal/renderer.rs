@@ -1,5 +1,5 @@
 use crate::rendering::atlas::{AllocatedRegion, TextureId};
-use crate::rendering::{get_best_dash_gap, GlyphCache, GlyphRasterBoundsFn, RasterizeGlyphFn};
+use crate::rendering::{GlyphCache, GlyphRasterBoundsFn, RasterizeGlyphFn, get_best_dash_gap};
 use warpui_core::{
     fonts::{self, SubpixelAlignment},
     rendering::{self, texture_cache::TextureCache},
@@ -18,9 +18,9 @@ use warpui_core::platform::CapturedFrame;
 use pathfinder_color::{ColorF, ColorU};
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
+    vector::{Vector2F, vec2f},
 };
-use warpui_core::fonts::{canvas, RasterizedGlyph};
+use warpui_core::fonts::{RasterizedGlyph, canvas};
 use warpui_core::scene::{CornerRadius, GlyphFade, Icon, Image, Layer, Scene};
 
 use std::collections::HashMap;

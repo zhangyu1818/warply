@@ -114,8 +114,8 @@ use settings::Setting as _;
 use std::{collections::HashMap, ops::Mul, path::PathBuf};
 use warp_core::features::FeatureFlag;
 use warpui::{
-    elements::DEFAULT_UI_LINE_HEIGHT_RATIO, keymap::Keystroke, AppContext, DisplayIdx,
-    SingletonEntity,
+    AppContext, DisplayIdx, SingletonEntity, elements::DEFAULT_UI_LINE_HEIGHT_RATIO,
+    keymap::Keystroke,
 };
 
 // The following are user preferences keys.

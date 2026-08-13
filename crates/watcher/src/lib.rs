@@ -13,13 +13,12 @@ pub use home_watcher::{HomeDirectoryWatcher, HomeDirectoryWatcherEvent};
 use anyhow::Result;
 use futures::channel::oneshot;
 use notify_debouncer_full::{
+    DebounceEventHandler, DebounceEventResult, DebouncedEvent, Debouncer, NoCache,
     new_debouncer_opt,
     notify::{
-        self,
+        self, EventKind, RecommendedWatcher, RecursiveMode, WatchFilter,
         event::{ModifyKind, RenameMode},
-        EventKind, RecommendedWatcher, RecursiveMode, WatchFilter,
     },
-    DebounceEventHandler, DebounceEventResult, DebouncedEvent, Debouncer, NoCache,
 };
 use warpui::{Entity, ModelContext};
 

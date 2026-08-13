@@ -1,10 +1,5 @@
-use super::{
-    AttachedReviewComment, AttachedReviewCommentTarget, CommentId,
-};
-use crate::code::{
-    buffer_location::LocalOrRemotePath,
-    editor::EditorReviewComment,
-};
+use super::{AttachedReviewComment, AttachedReviewCommentTarget, CommentId};
+use crate::code::{buffer_location::LocalOrRemotePath, editor::EditorReviewComment};
 use warp_editor::render::model::LineCount;
 use warpui::{Entity, ModelContext};
 

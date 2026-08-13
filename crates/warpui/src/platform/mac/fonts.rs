@@ -1,27 +1,27 @@
 use std::hash::{Hash, Hasher};
 
 use super::text_layout::{layout_line, layout_text};
-use crate::fonts::font_kit::{properties_to_font_kit, Rasterizer};
-use anyhow::{anyhow, bail, Result};
+use crate::fonts::font_kit::{Rasterizer, properties_to_font_kit};
+use anyhow::{Result, anyhow, bail};
 use core_foundation::array::{CFArray, CFArrayRef};
 use core_foundation::base::{CFEqual, CFHash, CFType, CFTypeRef, ItemRef, TCFType};
 use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::{CFString, CFStringRef, UniChar};
 use core_graphics::display::CGSize;
 use core_graphics::font::{CGFont, CGGlyph};
-use core_text::font::{cascade_list_for_languages as ct_cascade_list_for_languages, CTFont};
+use core_text::font::{CTFont, cascade_list_for_languages as ct_cascade_list_for_languages};
 use core_text::font_descriptor::{
+    CTFontDescriptor, CTFontDescriptorCopyAttribute, SymbolicTraitAccessors, TraitAccessors,
     kCTFontFamilyNameAttribute, kCTFontLanguagesAttribute, kCTFontNameAttribute,
-    kCTFontOrientationHorizontal, CTFontDescriptor, CTFontDescriptorCopyAttribute,
-    SymbolicTraitAccessors, TraitAccessors,
+    kCTFontOrientationHorizontal,
 };
 use core_text::{font, font_collection, font_descriptor};
-use dashmap::{mapref::entry::Entry, DashMap};
+use dashmap::{DashMap, mapref::entry::Entry};
 use font_kit::font::Font;
 use font_kit::loaders::core_text::NativeFont;
 use foreign_types::ForeignType;
-use futures::future::BoxFuture;
 use futures::FutureExt as _;
+use futures::future::BoxFuture;
 use itertools::Itertools as _;
 use ordered_float::OrderedFloat;
 use pathfinder_geometry::rect::RectI;
@@ -30,12 +30,12 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 use warpui_core::fonts::{
-    canvas::RasterFormat, FamilyId, FontId, FontInfo, GlyphId, Metrics, Properties,
-    RasterizedGlyph, SubpixelAlignment,
+    FamilyId, FontId, FontInfo, GlyphId, Metrics, Properties, RasterizedGlyph, SubpixelAlignment,
+    canvas::RasterFormat,
 };
 use warpui_core::platform::{self, FontDB as _, LineStyle, TextLayoutSystem};
 use warpui_core::rendering;
@@ -281,31 +281,37 @@ impl FontDB {
 
     // This functions the same as the family_name method in core text font descriptor, but it returns
     // None instead of panicking when the descriptor does not include the family_name attribute.
-    unsafe fn get_family_name(descriptor: &ItemRef<CTFontDescriptor>) -> Option<String> { unsafe {
-        let value = CTFontDescriptorCopyAttribute(
-            descriptor.as_concrete_TypeRef(),
-            kCTFontFamilyNameAttribute,
-        );
-        if value.is_null() {
-            return None;
+    unsafe fn get_family_name(descriptor: &ItemRef<CTFontDescriptor>) -> Option<String> {
+        unsafe {
+            let value = CTFontDescriptorCopyAttribute(
+                descriptor.as_concrete_TypeRef(),
+                kCTFontFamilyNameAttribute,
+            );
+            if value.is_null() {
+                return None;
+            }
+
+            let value = CFType::wrap_under_create_rule(value);
+            let s = CFString::wrap_under_get_rule(value.as_CFTypeRef() as CFStringRef);
+            Some(s.to_string())
         }
+    }
 
-        let value = CFType::wrap_under_create_rule(value);
-        let s = CFString::wrap_under_get_rule(value.as_CFTypeRef() as CFStringRef);
-        Some(s.to_string())
-    }}
+    unsafe fn get_font_name(descriptor: &ItemRef<CTFontDescriptor>) -> Option<String> {
+        unsafe {
+            let value = CTFontDescriptorCopyAttribute(
+                descriptor.as_concrete_TypeRef(),
+                kCTFontNameAttribute,
+            );
+            if value.is_null() {
+                return None;
+            }
 
-    unsafe fn get_font_name(descriptor: &ItemRef<CTFontDescriptor>) -> Option<String> { unsafe {
-        let value =
-            CTFontDescriptorCopyAttribute(descriptor.as_concrete_TypeRef(), kCTFontNameAttribute);
-        if value.is_null() {
-            return None;
+            let value = CFType::wrap_under_create_rule(value);
+            let s = CFString::wrap_under_get_rule(value.as_CFTypeRef() as CFStringRef);
+            Some(s.to_string())
         }
-
-        let value = CFType::wrap_under_create_rule(value);
-        let s = CFString::wrap_under_get_rule(value.as_CFTypeRef() as CFStringRef);
-        Some(s.to_string())
-    }}
+    }
 
     pub fn fallback_fonts(&self, font_id: FontId) -> Vec<FontId> {
         self.fallback_fonts

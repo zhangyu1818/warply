@@ -14,7 +14,7 @@ use warp_editor::content::edit::EditDelta;
 use warp_editor::content::find::{SearchConfig, SearchResults};
 use warp_editor::content::selection_model::BufferSelectionModel;
 use warp_editor::content::version::BufferVersion;
-use warp_editor::multiline::{AnyMultilineString, MultilineString, LF};
+use warp_editor::multiline::{AnyMultilineString, LF, MultilineString};
 use warp_editor::render::model::{AutoScrollMode, LineCount, StyleUpdateAction};
 use warp_editor::selection::TextDirection;
 use warpui::units::{IntoPixels, Pixels};
@@ -27,11 +27,11 @@ use crate::{
 
 use ai::diff_validation::DiffDelta;
 use itertools::Itertools;
-use languages::{language_by_filename, language_by_name, Language};
+use languages::{Language, language_by_filename, language_by_name};
 use line_ending::LineEnding;
 use string_offset::CharOffset;
 use syntax_tree::{ColorMap, DecorationStateEvent, SyntaxTreeState};
-use vec1::{vec1, Vec1};
+use vec1::{Vec1, vec1};
 use vim::vim::{
     BracketChar, CharacterMotion, Direction, FindCharMotion, FirstNonWhitespaceMotion,
     InsertPosition, LineMotion, MotionType, TextObjectInclusion, TextObjectType, VimOperator,
@@ -67,13 +67,13 @@ use warpui::elements::{
     AnchorPair, OffsetPositioning, OffsetType, PositionedElementOffsetBounds, PositioningAxis,
     XAxisAnchor, YAxisAnchor,
 };
-use warpui::text::{point::Point, TextBuffer};
+use warpui::text::{TextBuffer, point::Point};
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::super::DiffResult;
 use super::comments::{EditorCommentsModel, PendingComment, PendingCommentEvent};
 use super::diff::{
-    add_inline_overlay_color, DiffModel, DiffModelEvent, DiffStatus, RenderableDiffHunk,
+    DiffModel, DiffModelEvent, DiffStatus, RenderableDiffHunk, add_inline_overlay_color,
 };
 use super::line::EditorLineLocation;
 use crate::code_review::comments::{CommentId, CommentOrigin, LineDiffContent};

@@ -4,7 +4,10 @@
 //! The local implementation remains the source of truth for local git work;
 //! the remote variant is the host-scoped transport-backed model.
 
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crate::util::git::{Commit, FileChangeEntry, PrInfo};
 use anyhow::Result;
@@ -229,9 +232,7 @@ impl DiffStateModel {
             Self::Local(model) => model.update(ctx, |model, ctx| {
                 model.set_diff_mode(mode, should_fetch_base, ctx)
             }),
-            Self::Remote(model) => model.update(ctx, |model, ctx| {
-                model.set_diff_mode(mode, ctx)
-            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| model.set_diff_mode(mode, ctx)),
         }
     }
 
@@ -240,9 +241,7 @@ impl DiffStateModel {
             Self::Local(model) => model.update(ctx, |model, ctx| {
                 model.set_diff_mode_and_fetch_base(mode, ctx)
             }),
-            Self::Remote(model) => model.update(ctx, |model, ctx| {
-                model.set_diff_mode(mode, ctx)
-            }),
+            Self::Remote(model) => model.update(ctx, |model, ctx| model.set_diff_mode(mode, ctx)),
         }
     }
 
@@ -370,12 +369,12 @@ impl DiffStateModel {
 
     pub fn fetch_committed_branch_files(&self, ctx: &mut ModelContext<Self>) {
         match self {
-            Self::Local(model) => model.update(ctx, |model, ctx| {
-                model.fetch_committed_branch_files(ctx)
-            }),
-            Self::Remote(model) => model.update(ctx, |model, ctx| {
-                model.fetch_committed_branch_files(ctx)
-            }),
+            Self::Local(model) => {
+                model.update(ctx, |model, ctx| model.fetch_committed_branch_files(ctx))
+            }
+            Self::Remote(model) => {
+                model.update(ctx, |model, ctx| model.fetch_committed_branch_files(ctx))
+            }
         }
     }
 

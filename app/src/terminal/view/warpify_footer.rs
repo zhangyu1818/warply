@@ -4,23 +4,23 @@ use parking_lot::FairMutex;
 use pathfinder_color::ColorU;
 use warp_core::ui::{
     appearance::Appearance,
-    color::contrast::{high_enough_contrast, pick_best_foreground_color, MinimumAllowedContrast},
-    theme::{color::internal_colors, Fill as ThemeFill},
+    color::contrast::{MinimumAllowedContrast, high_enough_contrast, pick_best_foreground_color},
+    theme::{Fill as ThemeFill, color::internal_colors},
 };
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     elements::{
         ChildView, Container, CrossAxisAlignment, Empty, Expanded, Flex, MainAxisSize,
         ParentElement,
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 use crate::{
     settings::InputModeSettings,
     terminal::{
-        model_events::{ModelEvent, ModelEventDispatcher},
         TerminalModel,
+        model_events::{ModelEvent, ModelEventDispatcher},
     },
     ui_components::{blended_colors, icons::Icon},
     view_components::action_button::{

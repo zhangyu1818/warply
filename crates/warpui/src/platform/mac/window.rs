@@ -1,10 +1,9 @@
 use super::delegate::DispatchDelegate;
 use super::{
-    app, make_nsstring,
-    rendering::{is_integrated_gpu, Device, RendererManager},
-    RectFExt as _,
+    RectFExt as _, app, make_nsstring,
+    rendering::{Device, RendererManager, is_integrated_gpu},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cocoa::appkit::{NSWindowButton, NSWindowStyleMask};
 use cocoa::foundation::{NSArray, NSPoint, NSRange, NSString, NSUInteger};
 use cocoa::{
@@ -18,29 +17,29 @@ use num_traits::FromPrimitive;
 use objc::class;
 use objc::{
     msg_send,
-    runtime::{Object, BOOL, NO, YES},
+    runtime::{BOOL, NO, Object, YES},
     sel, sel_impl,
 };
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
-};
-use warpui_core::event::ModifiersState;
-use warpui_core::platform::{
-    file_picker, FilePickerCallback, FilePickerConfiguration, FullscreenState, GraphicsBackend,
-    TerminationMode, WindowFocusBehavior,
+    vector::{Vector2F, vec2f},
 };
 use warpui_core::r#async::Timer;
+use warpui_core::event::ModifiersState;
+use warpui_core::platform::{
+    FilePickerCallback, FilePickerConfiguration, FullscreenState, GraphicsBackend, TerminationMode,
+    WindowFocusBehavior, file_picker,
+};
 use warpui_core::rendering::GPUPowerPreference;
 use warpui_core::windowing::WindowCallbacks;
+use warpui_core::{DisplayId, DisplayIdx};
 use warpui_core::{
+    Event, OptionalPlatformWindow, Scene, WindowId,
     accessibility::AccessibilityContent,
     actions::StandardAction,
-    platform::{self, WindowBounds, WindowOptions, WindowStyle},
     r#async::executor,
-    Event, OptionalPlatformWindow, Scene, WindowId,
+    platform::{self, WindowBounds, WindowOptions, WindowStyle},
 };
-use warpui_core::{DisplayId, DisplayIdx};
 
 use instant::Instant;
 use std::collections::HashMap;
@@ -1562,12 +1561,14 @@ pub extern "C-unwind" fn warp_app_window_moved(this: id, rect: NSRect) {
 /// Removes the WindowState ivar from an Objective-C object, nulls out the ivar
 /// pointer within the object, and returns the reference-counted pointer to the
 /// state.
-unsafe fn remove_state_ivar_from_object(object: &mut Object) -> Rc<WindowState> { unsafe {
-    let wrapper_ptr: *mut c_void = *object.get_ivar(WINDOW_STATE_IVAR);
-    let state = Ivar::take_state(wrapper_ptr);
-    object.set_ivar(WINDOW_STATE_IVAR, ptr::null::<c_void>());
-    state
-}}
+unsafe fn remove_state_ivar_from_object(object: &mut Object) -> Rc<WindowState> {
+    unsafe {
+        let wrapper_ptr: *mut c_void = *object.get_ivar(WINDOW_STATE_IVAR);
+        let state = Ivar::take_state(wrapper_ptr);
+        object.set_ivar(WINDOW_STATE_IVAR, ptr::null::<c_void>());
+        state
+    }
+}
 
 // dealloc is called by AppKit when our NSWindow subclass is deallocating,
 // because its retain count has dropped to zero. This is our chance to release
@@ -1596,10 +1597,12 @@ pub extern "C-unwind" fn warp_dealloc_window(native_window: &mut Object) {
     drop(state);
 }
 
-pub unsafe fn get_window_state(object: &Object) -> &Rc<WindowState> { unsafe {
-    let wrapper_ptr: *mut c_void = *object.get_ivar(WINDOW_STATE_IVAR);
-    Ivar::get_state(wrapper_ptr)
-}}
+pub unsafe fn get_window_state(object: &Object) -> &Rc<WindowState> {
+    unsafe {
+        let wrapper_ptr: *mut c_void = *object.get_ivar(WINDOW_STATE_IVAR);
+        Ivar::get_state(wrapper_ptr)
+    }
+}
 
 fn schedule_synthetic_drag(
     window_state: &Rc<WindowState>,
@@ -1681,7 +1684,9 @@ fn transform_origin_from_rect_coord_to_frame_coord(origin: Vector2F, size: Vecto
 }
 
 /// Converts an Objective-C `Object` into a `String`
-unsafe fn to_string(value: *mut Object) -> String { unsafe {
-    let slice = slice::from_raw_parts(value.UTF8String() as *const c_uchar, value.len());
-    str::from_utf8_unchecked(slice).to_string()
-}}
+unsafe fn to_string(value: *mut Object) -> String {
+    unsafe {
+        let slice = slice::from_raw_parts(value.UTF8String() as *const c_uchar, value.len());
+        str::from_utf8_unchecked(slice).to_string()
+    }
+}

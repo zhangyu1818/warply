@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use warpui::r#async::executor::Background;
 
 use crate::plugin::host::runners::PluginRunners;
@@ -23,10 +23,10 @@ use self::{
     service_impl::CallJsFunctionServiceImpl,
 };
 use super::{
+    PLUGIN_HOST_ADDRESS_ENV_VAR,
     service::{
         PluginHostBootstrapRequest, PluginHostBootstrapResponse, PluginHostBootstrapService,
     },
-    PLUGIN_HOST_ADDRESS_ENV_VAR,
 };
 use logging::initialize_logging;
 

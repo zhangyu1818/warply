@@ -14,15 +14,15 @@
 
 mod execute;
 
-use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::AIAgentInput;
+use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::{
     AIAgentActionResultType, AIAgentActionType, AIAgentExchange, CancellationReason,
     RequestCommandOutputResult,
 };
 pub use execute::{
-    read_local_file_context, ReadFileContextResult, RequestFileEditsExecutor, ShellCommandExecutor,
-    ShellCommandExecutorEvent,
+    ReadFileContextResult, RequestFileEditsExecutor, ShellCommandExecutor,
+    ShellCommandExecutorEvent, read_local_file_context,
 };
 
 use std::{
@@ -42,15 +42,15 @@ use crate::{
         get_relevant_files::controller::GetRelevantFilesController,
     },
     terminal::{
-        model::session::active_session::ActiveSession, model_events::ModelEventDispatcher,
-        TerminalModel,
+        TerminalModel, model::session::active_session::ActiveSession,
+        model_events::ModelEventDispatcher,
     },
 };
 
 use self::execute::{
-    ask_user_question::AskUserQuestionExecutor, search_codebase::SearchCodebaseExecutor,
     BlocklistAIActionExecutor, BlocklistAIActionExecutorEvent, NotExecutedReason,
-    RunningActionPhase, TryExecuteResult,
+    RunningActionPhase, TryExecuteResult, ask_user_question::AskUserQuestionExecutor,
+    search_codebase::SearchCodebaseExecutor,
 };
 
 use super::BlocklistAIHistoryModel;

@@ -1,13 +1,13 @@
-use warp_terminal::model::{grid::Dimensions, Point};
+use warp_terminal::model::{Point, grid::Dimensions};
 
 use crate::{
     ai::{
-        agent::{conversation::AIConversationId, task::TaskId, AIAgentActionId},
+        agent::{AIAgentActionId, conversation::AIConversationId, task::TaskId},
         blocklist::block::cli_controller::{LongRunningCommandControlState, UserTakeOverReason},
     },
     terminal::model::{
-        grid::{grid_handler::GridHandler, RespectDisplayedOutput},
         RespectObfuscatedSecrets,
+        grid::{RespectDisplayedOutput, grid_handler::GridHandler},
     },
 };
 

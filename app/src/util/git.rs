@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 #[cfg(test)]
 #[path = "git_tests.rs"]
@@ -23,8 +23,8 @@ pub async fn run_git_command_with_env(
     args: &[&str],
     path_env: Option<&str>,
 ) -> Result<String> {
-    use command::r#async::Command;
     use command::Stdio;
+    use command::r#async::Command;
 
     log::debug!(
         "[GIT OPERATION] git.rs run_git_command git {}",
@@ -382,18 +382,14 @@ pub async fn get_file_change_entries(
 #[cfg(feature = "local_fs")]
 pub async fn get_committed_branch_file_entries(repo_path: &Path) -> Result<Vec<FileChangeEntry>> {
     let main_branch = detect_main_branch(repo_path).await?;
-    let merge_base = match run_git_command(
-        repo_path,
-        &["merge-base", "HEAD", main_branch.trim()],
-    )
-    .await
-    {
-        Ok(output) => output.trim().to_string(),
-        Err(err) => {
-            log::warn!("Could not determine merge base against branch {main_branch}: {err:?}");
-            return Ok(Vec::new());
-        }
-    };
+    let merge_base =
+        match run_git_command(repo_path, &["merge-base", "HEAD", main_branch.trim()]).await {
+            Ok(output) => output.trim().to_string(),
+            Err(err) => {
+                log::warn!("Could not determine merge base against branch {main_branch}: {err:?}");
+                return Ok(Vec::new());
+            }
+        };
 
     let output = run_git_command(repo_path, &["diff", "--numstat", &merge_base, "HEAD"])
         .await
@@ -854,8 +850,8 @@ pub struct PrInfo {
 /// findable from macOS GUI launches (launchd's minimal `PATH` excludes it).
 #[cfg(feature = "local_fs")]
 async fn run_gh_command(repo_path: &Path, args: &[&str], path_env: Option<&str>) -> Result<String> {
-    use command::r#async::Command;
     use command::Stdio;
+    use command::r#async::Command;
 
     log::debug!(
         "[GIT OPERATION] git.rs run_gh_command gh {}",

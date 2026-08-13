@@ -8,12 +8,12 @@ use crate::ai::predict::terminal_prompt_suggestions::{
 };
 use crate::settings::TerminalSuggestionEffort;
 
+use super::TerminalSuggestionsConfig;
 use super::client::{
-    completion_url, parse_json_object, strip_json_fence, ChatCompletionRequest, ChatMessage,
-    OpenAICompatibleClient,
+    ChatCompletionRequest, ChatMessage, OpenAICompatibleClient, completion_url, parse_json_object,
+    strip_json_fence,
 };
 use super::provider::{map_input_suggestions_value, map_prompt_suggestions_value};
-use super::TerminalSuggestionsConfig;
 
 #[test]
 fn test_completion_url_appends_chat_completions() {

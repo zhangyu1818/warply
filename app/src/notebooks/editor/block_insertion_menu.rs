@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use warp_editor::content::text::BufferBlockItem;
 use warpui::{
+    AppContext, Element, SingletonEntity, ViewContext, ViewHandle,
     elements::{
         AnchorPair, Border, Container, CornerRadius, MouseStateHandle, OffsetPositioning,
         OffsetType, PositionedElementOffsetBounds, PositioningAxis, Radius, SavePosition, Stack,
@@ -11,7 +12,6 @@ use warpui::{
         button::ButtonTooltipPosition,
         components::{UiComponent, UiComponentStyles},
     },
-    AppContext, Element, SingletonEntity, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -22,8 +22,8 @@ use crate::{
 };
 
 use super::{
-    view::{EditorViewAction, RichTextEditorView},
     BlockType,
+    view::{EditorViewAction, RichTextEditorView},
 };
 
 /// The saved position ID for the block insertion button.

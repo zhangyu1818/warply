@@ -3,13 +3,13 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use warp_core::{features::FeatureFlag, semantic_selection::SemanticSelection};
 use warpui::{
-    elements::{
-        get_rich_content_position_id, ChildView, Container, CrossAxisAlignment, Expanded, Flex,
-        ParentElement, SavePosition, SelectableArea, SelectionHandle, Text,
-    },
-    fonts::{Properties, Style, Weight},
     AppContext, Element, Entity, EntityId, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
+    elements::{
+        ChildView, Container, CrossAxisAlignment, Expanded, Flex, ParentElement, SavePosition,
+        SelectableArea, SelectionHandle, Text, get_rich_content_position_id,
+    },
+    fonts::{Properties, Style, Weight},
 };
 
 use crate::{

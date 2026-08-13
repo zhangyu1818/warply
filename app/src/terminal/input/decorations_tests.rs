@@ -1,4 +1,4 @@
-use warpui::{text_layout::TextStyle, App};
+use warpui::{App, text_layout::TextStyle};
 
 use crate::{
     appearance::Appearance,

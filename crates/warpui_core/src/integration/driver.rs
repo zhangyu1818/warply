@@ -1,10 +1,10 @@
 use super::{
-    action_log::{self, ActionLog, ACTION_LOG_KEY},
-    artifacts::{self, TestArtifacts, ARTIFACTS_KEY},
-    overlay::{OverlayLog, OVERLAY_LOG_KEY},
-    step::{run_step, AssertionOutcome, StepDataMap, TestStep},
-    video_recorder::{self, VideoRecorder, VIDEO_RECORDER_KEY},
     RootDir, TestSetupUtils,
+    action_log::{self, ACTION_LOG_KEY, ActionLog},
+    artifacts::{self, ARTIFACTS_KEY, TestArtifacts},
+    overlay::{OVERLAY_LOG_KEY, OverlayLog},
+    step::{AssertionOutcome, StepDataMap, TestStep, run_step},
+    video_recorder::{self, VIDEO_RECORDER_KEY, VideoRecorder},
 };
 
 const RUNTIME_TAG_FAILED_STEP_GROUP_NAME: &str = "failed_step_group_name";
@@ -14,8 +14,8 @@ pub const RUNTIME_TAG_FAILURE_REASON: &str = "failure_reason";
 #[cfg(feature = "integration_tests")]
 use crate::r#async::Timer;
 use crate::{
-    integration::step::PersistedDataMap, platform::TerminationMode, r#async::FutureExt as _, App,
-    WindowId,
+    App, WindowId, r#async::FutureExt as _, integration::step::PersistedDataMap,
+    platform::TerminationMode,
 };
 use futures::{Future, FutureExt};
 use instant::{Duration, Instant};
@@ -26,7 +26,7 @@ use std::{
     panic::AssertUnwindSafe,
     path::PathBuf,
     pin::Pin,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 pub type SetupFn = Box<dyn FnMut(&mut TestSetupUtils) + 'static>;
@@ -509,7 +509,9 @@ impl TestDriver {
                 Err(e) => log::error!("Failed to serialize runtime tags to JSON: {e}"),
             }
         } else {
-            log::debug!("RUNTIME_TAGS_OUTPUT_FILE environment variable not set, skipping runtime tags export");
+            log::debug!(
+                "RUNTIME_TAGS_OUTPUT_FILE environment variable not set, skipping runtime tags export"
+            );
         }
     }
 

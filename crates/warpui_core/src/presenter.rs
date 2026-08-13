@@ -1,21 +1,21 @@
-use super::{elements::Axis, Event};
+use super::{Event, elements::Axis};
 use crate::assets::asset_cache::AssetHandle;
 use crate::elements::{DropTargetPosition, Selection};
 
 use crate::fonts;
 use crate::zoom::Scale;
 use crate::{
+    Action, AppContext, ClipBounds, EntityId, TaskId, View, ViewHandle, WindowId,
+    WindowInvalidation,
     elements::Point,
     event::DispatchedEvent,
     fonts::Cache as FontCache,
     platform::Cursor,
     scene::{Scene, ZIndex},
     text_layout::LayoutCache,
-    Action, AppContext, ClipBounds, EntityId, TaskId, View, ViewHandle, WindowId,
-    WindowInvalidation,
 };
 use instant::Instant;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use std::{
     any::Any,
     collections::{HashMap, HashSet},

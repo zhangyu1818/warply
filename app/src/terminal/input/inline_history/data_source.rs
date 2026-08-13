@@ -7,12 +7,12 @@
 //! - The result is that current session items appear at the bottom (closer to input)
 
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
-use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::input_suggestions::{HistoryInputSuggestion, HistoryOrder};
+use crate::search::SyncDataSource;
 use crate::search::data_source::{Query, QueryFilter, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
-use crate::search::SyncDataSource;
 use crate::terminal::history::UpArrowHistoryConfig;
 use crate::terminal::history::{History, LinkedWorkflowData};
 use crate::terminal::input::inline_history::search_item::InlineHistoryItem;

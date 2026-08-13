@@ -12,8 +12,8 @@ use std::fs;
 use vec1::vec1;
 use warp_core::command::ExitCode;
 use warp_terminal::model::ansi::ClearMode;
-use warpui::text::str_to_byte_vec;
 use warpui::text::SelectionType;
+use warpui::text::str_to_byte_vec;
 
 /// Helper function to create a SerializedBlock with default values,
 /// including the new is_local field.

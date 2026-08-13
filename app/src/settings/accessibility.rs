@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 use warpui::accessibility::AccessibilityVerbosity;
 
 define_settings_group!(AccessibilitySettings, settings: [

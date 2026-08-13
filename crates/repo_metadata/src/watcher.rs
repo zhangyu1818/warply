@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     future::Future,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -7,12 +7,12 @@ use std::{
 };
 
 #[cfg(feature = "local_fs")]
-use futures::{future::OptionFuture, FutureExt as _};
+use futures::{FutureExt as _, future::OptionFuture};
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
 
 use warp_util::standardized_path::StandardizedPath;
 
-use crate::{repository::SubscriberId, RepoMetadataError, Repository};
+use crate::{RepoMetadataError, Repository, repository::SubscriberId};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -422,10 +422,10 @@ impl DirectoryWatcher {
                         let is_commit = is_commit_related_git_file(path);
                         let is_lock = is_index_lock_file(path);
                         log::debug!(
-                                "[GIT_EVENT_ROUTING] dispatched path={} commit_updated={is_commit} index_lock={is_lock} to {} repo(s)",
-                                path.display(),
-                                affected.len()
-                            );
+                            "[GIT_EVENT_ROUTING] dispatched path={} commit_updated={is_commit} index_lock={is_lock} to {} repo(s)",
+                            path.display(),
+                            affected.len()
+                        );
                     }
                     continue;
                 }

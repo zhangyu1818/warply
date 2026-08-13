@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use dashmap::DashMap;
 use futures::channel::oneshot;
 use futures::io::{AsyncRead, AsyncWrite};
-use warpui::r#async::{executor, FutureExt as _};
+use warpui::r#async::{FutureExt as _, executor};
 
 use crate::proto::{
-    client_message, server_message, Abort, BufferEdit, ClientMessage, CloseBuffer, DeleteFile, DiffMode,
-    DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, DiscardFilesRequest, ErrorCode,
-    FileStatusInfo, GetDiffState, GetDiffStateResponse, Initialize, InitializeResponse,
-    LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, ReadFileContextRequest,
-    ReadFileContextResponse, RunCommandRequest, RunCommandResponse, SaveBuffer, ServerMessage,
-    SessionBootstrapped, TextEdit, UnsubscribeDiffState, WriteFile, OpenBuffer, OpenBufferResponse, GitCommitChainMode,
-    GitCommitChainRequest, GitCreatePrRequest, GitGenerateCommitMessageRequest,
-    GitGetCommittedBranchFilesRequest, GitGetPrInfoRequest, GitPushRequest,
+    Abort, BufferEdit, ClientMessage, CloseBuffer, DeleteFile, DiffMode, DiffStateFileDelta,
+    DiffStateMetadataUpdate, DiffStateSnapshot, DiscardFilesRequest, ErrorCode, FileStatusInfo,
+    GetDiffState, GetDiffStateResponse, GitCommitChainMode, GitCommitChainRequest,
+    GitCreatePrRequest, GitGenerateCommitMessageRequest, GitGetCommittedBranchFilesRequest,
+    GitGetPrInfoRequest, GitPushRequest, Initialize, InitializeResponse,
+    LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, OpenBuffer,
+    OpenBufferResponse, ReadFileContextRequest, ReadFileContextResponse, RunCommandRequest,
+    RunCommandResponse, SaveBuffer, ServerMessage, SessionBootstrapped, TextEdit,
+    UnsubscribeDiffState, WriteFile, client_message, server_message,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -592,13 +593,15 @@ impl RemoteServerClient {
         };
         let response = self.send_request(request_id, msg).await?;
         match response.message {
-            Some(server_message::Message::DiscardFilesResponse(response)) => match response.result {
-                Some(crate::proto::discard_files_response::Result::Success(_)) => Ok(()),
-                Some(crate::proto::discard_files_response::Result::Error(error)) => {
-                    Err(ClientError::DiscardFailed(error.message))
+            Some(server_message::Message::DiscardFilesResponse(response)) => {
+                match response.result {
+                    Some(crate::proto::discard_files_response::Result::Success(_)) => Ok(()),
+                    Some(crate::proto::discard_files_response::Result::Error(error)) => {
+                        Err(ClientError::DiscardFailed(error.message))
+                    }
+                    None => Err(ClientError::UnexpectedResponse),
                 }
-                None => Err(ClientError::UnexpectedResponse),
-            },
+            }
             _ => Err(ClientError::UnexpectedResponse),
         }
     }
@@ -781,11 +784,9 @@ impl RemoteServerClient {
                             success,
                         ),
                     ) => Ok(success.files),
-                    Some(
-                        crate::proto::git_get_committed_branch_files_response::Result::Error(
-                            error,
-                        ),
-                    ) => Err(ClientError::GitOperationFailed(error.message)),
+                    Some(crate::proto::git_get_committed_branch_files_response::Result::Error(
+                        error,
+                    )) => Err(ClientError::GitOperationFailed(error.message)),
                     None => Err(ClientError::UnexpectedResponse),
                 }
             }
@@ -1014,8 +1015,8 @@ pub fn spawn_stderr_forwarder(
     stderr: impl AsyncRead + TransportStream,
     executor: &executor::Background,
 ) {
-    use futures::io::AsyncBufReadExt;
     use futures::StreamExt;
+    use futures::io::AsyncBufReadExt;
 
     executor
         .spawn(async move {

@@ -1,5 +1,5 @@
 use crate::terminal::block_list_viewport::InputMode;
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(InputModeSettings, settings: [
     input_mode: InputModeState {

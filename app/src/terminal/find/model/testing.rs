@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::terminal::model::terminal_model::BlockIndex;
 
-use super::{block_list::BlockListMatch, BlockListFindRun, TerminalFindModel};
+use super::{BlockListFindRun, TerminalFindModel, block_list::BlockListMatch};
 
 impl TerminalFindModel {
     pub fn visible_block_list_match_count(&self) -> usize {

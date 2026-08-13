@@ -1,9 +1,9 @@
-use crate::identity::local_identity::LocalIdentity;
 use crate::identity::LocalIdentityProvider;
+use crate::identity::local_identity::LocalIdentity;
+use crate::terminal::TerminalManager as _;
 use crate::terminal::model::terminal_model::ExitReason;
 use crate::terminal::shell::ShellName;
 use crate::terminal::warpify::settings::WarpifySettings;
-use crate::terminal::TerminalManager as _;
 use anyhow::Context as _;
 use async_broadcast::InactiveReceiver;
 use std::any::Any;
@@ -12,9 +12,9 @@ use std::rc::Rc;
 use std::sync::mpsc::{SendError, SyncSender};
 use std::{collections::HashMap, ffi::OsString, path::PathBuf, sync::Arc, thread::JoinHandle};
 
-use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 use crate::terminal::ShellLaunchData;
 use crate::terminal::ShellLaunchState;
+use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 
 use parking_lot::{FairMutex, Mutex};
 use pathfinder_geometry::vector::Vector2F;
@@ -46,12 +46,12 @@ use crate::terminal::writeable_pty::terminal_manager_util::{
     wire_up_remote_server_controller_with_view,
 };
 use crate::terminal::writeable_pty::{self, Message};
+use crate::terminal::{PTY_READS_BROADCAST_CHANNEL_SIZE, TerminalView, terminal_manager};
 use crate::terminal::{
+    TerminalModel,
     event_listener::ChannelEventListener,
     local_tty::{Pty, PtyOptions},
-    TerminalModel,
 };
-use crate::terminal::{terminal_manager, TerminalView, PTY_READS_BROADCAST_CHANNEL_SIZE};
 
 use super::mio_channel;
 use super::shell::ShellStarter;

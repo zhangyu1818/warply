@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use settings::{Setting, ToggleableSetting};
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{Container, CrossAxisAlignment, Flex, MainAxisAlignment, ParentElement, Text},
     ui_components::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
     },
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     settings::log_setting_result,
     settings_view::{
         features_page::render_group,
-        settings_page::{render_body_item, ToggleState},
+        settings_page::{ToggleState, render_body_item},
     },
     undo_close::UndoCloseSettings,
 };

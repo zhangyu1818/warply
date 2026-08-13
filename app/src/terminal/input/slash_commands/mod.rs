@@ -22,8 +22,8 @@ use crate::ai::blocklist::{
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::object_ids::SyncId;
-use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::search::slash_command_menu::static_commands::Availability;
+use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;

@@ -23,25 +23,25 @@ use crate::{
     ai::{
         agent::todos::AIAgentTodoList,
         agent::{
-            conversation::{AIConversation, AIConversationId},
             AIAgentAttachment, AIAgentContext, ImageContext,
+            conversation::{AIConversation, AIConversationId},
         },
         document::ai_document_model::AIDocumentId,
         outline::RepoOutlines,
     },
     terminal::{
+        TerminalModel,
         event::{BlockCompletedEvent, BlockType},
         model::{
             block::{BlockId, BlockMetadata},
             session::Sessions,
         },
         model_events::{ModelEvent, ModelEventDispatcher},
-        TerminalModel,
     },
 };
 
 use super::{
-    block::DirectoryContext, history_model::BlocklistAIHistoryModel, BlocklistAIHistoryEvent,
+    BlocklistAIHistoryEvent, block::DirectoryContext, history_model::BlocklistAIHistoryModel,
 };
 /// A non-image file picked via the "attach file" button, stored until query submission.
 #[derive(Clone, Debug, PartialEq, Eq)]

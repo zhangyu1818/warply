@@ -1,13 +1,13 @@
-use crate::drive::items::{ai_fact::LocalObjectAIFact, LocalObjectItem};
+use crate::drive::items::{LocalObjectItem, ai_fact::LocalObjectAIFact};
 use crate::object_ids::SyncId;
 use crate::{
     cloud_object::{
+        GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
+        JsonObjectType,
         model::{
             generic_string_model::{GenericStringModel, GenericStringObjectId, StringModel},
             json_model::{JsonModel, JsonSerializer},
         },
-        GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType,
     },
     drive::CloudObjectTypeAndId,
 };

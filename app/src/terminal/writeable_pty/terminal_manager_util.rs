@@ -2,18 +2,18 @@ use crate::persistence::ModelEvent;
 use crate::terminal::line_editor_status::LineEditorStatus;
 use crate::terminal::model::session::{ExecutorCommandEvent, Sessions};
 
+use crate::terminal::ModelEventDispatcher;
 use crate::terminal::model::terminal_model::ExitReason;
 use crate::terminal::view;
 use crate::terminal::writeable_pty::command_history::update_command_history;
 use crate::terminal::writeable_pty::pty_controller::EventLoopSender;
 use crate::terminal::writeable_pty::{PtyController, PtyControllerEvent};
-use crate::terminal::ModelEventDispatcher;
 use crate::terminal::{TerminalModel, TerminalView};
 
 use async_channel::Receiver;
 use parking_lot::FairMutex;
-use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
+use std::sync::mpsc::SyncSender;
 use warpui::{AppContext, ModelHandle, ViewHandle};
 
 /// Wires up bi-directional communication between the PtyController and the TerminalView.

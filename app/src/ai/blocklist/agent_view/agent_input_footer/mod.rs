@@ -4,35 +4,34 @@ pub mod toolbar_item;
 
 use crate::{
     ai::{
-        acp::{model::AcpAgentModel, AcpSessionState},
+        acp::{AcpSessionState, model::AcpAgentModel},
         blocklist::history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
     },
     appearance::Appearance,
     completer::SessionContext,
     context_chips::{
-        self,
+        self, ContextChipKind,
         display_chip::{
-            render_udi_chip, DisplayChip, DisplayChipConfig, PromptChipShellCommand, UdiChipConfig,
+            DisplayChip, DisplayChipConfig, PromptChipShellCommand, UdiChipConfig, render_udi_chip,
         },
         prompt_type::PromptType,
-        ContextChipKind,
     },
     terminal::{
+        CLIAgent, TerminalModel,
         cli_agent_sessions::{
             CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
         },
         session_settings::{SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection},
         view::init::OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING,
-        CLIAgent, TerminalModel,
     },
     ui_components::icons::Icon,
     view_components::{
+        DismissibleToast,
         action_button::{
             ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, TooltipAlignment,
         },
-        DismissibleToast,
     },
-    workspace::{view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME, ToastStack},
+    workspace::{ToastStack, view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME},
 };
 use std::sync::Arc;
 use toolbar_item::AgentToolbarItemKind;
@@ -43,17 +42,17 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
 
 use warp_core::ui::{
-    color::{blend::Blend, contrast::MinimumAllowedContrast, ContrastingColor},
-    theme::{color::internal_colors, Fill},
+    color::{ContrastingColor, blend::Blend, contrast::MinimumAllowedContrast},
+    theme::{Fill, color::internal_colors},
 };
 use warpui::{
+    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     elements::{
         ChildView, ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, Element,
         EventHandler, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Wrap, WrapFill,
         WrapFillEntireRun,
     },
-    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 /// Footer control bar at the bottom of the agent input.

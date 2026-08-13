@@ -10,21 +10,20 @@ use warp::{
     settings_view::{SettingsSection, SettingsView},
     sqlite_testing::set_user_and_hostname_for_blocks,
     terminal::{
+        History, ShellHost, TerminalView,
         model::{session::get_local_hostname, terminal_model::BlockIndex},
         shell::ShellType,
-        History, ShellHost, TerminalView,
     },
     workspace::Workspace,
 };
 use warpui::{
-    async_assert_eq,
+    SingletonEntity, ViewHandle, async_assert_eq,
     integration::{AssertionOutcome, TestStep},
-    SingletonEntity, ViewHandle,
 };
 
 use crate::util::{get_local_user, tab_title_in_home_dir};
 
-use super::{new_builder, Builder, TEST_ONLY_ASSETS};
+use super::{Builder, TEST_ONLY_ASSETS, new_builder};
 
 pub fn test_session_restoration() -> Builder {
     new_builder()

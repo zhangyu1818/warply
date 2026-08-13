@@ -11,9 +11,9 @@ use crate::{
 };
 
 use super::{
+    ShellLaunchState, TerminalManager, TerminalModel, TerminalView,
     event_listener::ChannelEventListener, model::session::Sessions,
-    model_events::ModelEventDispatcher, ShellLaunchState, TerminalManager, TerminalModel,
-    TerminalView,
+    model_events::ModelEventDispatcher,
 };
 
 pub struct MockTerminalManager {
@@ -123,13 +123,13 @@ impl TerminalManager for MockTerminalManager {
 
 #[cfg(test)]
 mod testing {
-    use warpui::{platform::WindowStyle, App, Element, SingletonEntity};
+    use warpui::{App, Element, SingletonEntity, platform::WindowStyle};
 
     use crate::{
         http_api::HttpApiProvider,
         terminal::{
-            shell::{ShellName, ShellType},
             ShellLaunchState,
+            shell::{ShellName, ShellType},
         },
     };
 

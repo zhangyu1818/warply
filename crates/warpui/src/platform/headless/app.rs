@@ -3,9 +3,9 @@ use futures::future::LocalBoxFuture;
 use crate::platform::app::TerminationResult;
 use crate::platform::test::FontDB as TestFontDB;
 use crate::{
+    AppContext, AssetProvider,
     integration::TestDriver,
     platform::{self},
-    AppContext, AssetProvider,
 };
 
 use super::delegate::{self, AppDelegate};

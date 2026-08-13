@@ -1,9 +1,9 @@
 use crate::appearance::Appearance;
+use crate::search::QueryFilter;
 use crate::search::mixer::SearchMixer;
 use crate::search::search_bar::{
     CreateQueryResultRendererFn, SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering,
 };
-use crate::search::QueryFilter;
 use itertools::Itertools;
 use std::marker::PhantomData;
 use std::ops::Range;

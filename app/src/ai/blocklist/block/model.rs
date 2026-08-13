@@ -6,8 +6,8 @@ pub use model_impl::*;
 
 use crate::ai::{
     agent::{
-        conversation::AIConversationId, AIAgentExchangeId, AIAgentInput, AIAgentOutput,
-        CancellationReason, RenderableAIError, Shared,
+        AIAgentExchangeId, AIAgentInput, AIAgentOutput, CancellationReason, RenderableAIError,
+        Shared, conversation::AIConversationId,
     },
     llms::LLMId,
 };
@@ -173,10 +173,10 @@ pub mod testing {
     use warpui::{AppContext, ViewContext};
 
     use crate::ai::{
-        agent::{conversation::AIConversationId, AIAgentInput, AIAgentOutput, Shared},
+        agent::{AIAgentInput, AIAgentOutput, Shared, conversation::AIConversationId},
         blocklist::{
-            model::{AIRequestType, PassiveRequestType},
             AIBlock,
+            model::{AIRequestType, PassiveRequestType},
         },
         llms::LLMId,
     };

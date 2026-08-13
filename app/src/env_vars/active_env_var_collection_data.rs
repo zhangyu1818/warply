@@ -1,13 +1,13 @@
 use crate::{
+    AppContext, CloudModel,
     cloud_object::{
+        CloudObject, Owner, Revision,
         breadcrumbs::ContainingObject,
         model::persistence::CloudModelEvent,
         update_manager::{ObjectOperation, UpdateManager, UpdateManagerEvent},
-        CloudObject, Owner, Revision,
     },
     env_vars::SavedEnvVarCollection,
     object_ids::{ClientId, SyncId},
-    AppContext, CloudModel,
 };
 
 use warpui::{Entity, ModelContext, SingletonEntity};

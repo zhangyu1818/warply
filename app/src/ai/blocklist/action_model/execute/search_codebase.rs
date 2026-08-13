@@ -21,7 +21,7 @@ use crate::{
     terminal::model::session::active_session::ActiveSession,
 };
 
-use super::{read_local_file_context, ActionExecution, AnyActionExecution, ExecuteActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, read_local_file_context};
 
 pub struct SearchCodebaseExecutor {
     active_session: ModelHandle<ActiveSession>,

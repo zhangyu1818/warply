@@ -12,15 +12,17 @@ use string_offset::CharOffset;
 use syntax_highlightable::SyntaxHighlightable;
 
 use crate::{
+    FeatureFlag,
     ai::blocklist::secret_redaction::find_secrets_in_text,
     appearance::Appearance,
     cloud_object::update_manager::{ObjectOperation, UpdateManager, UpdateManagerEvent},
     cloud_object::{
+        CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Revision,
         breadcrumbs::ContainingObject,
         model::persistence::{CloudModel, CloudModelEvent},
-        CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Revision,
     },
     drive::{
+        CloudObjectTypeAndId, DriveObjectType,
         cloud_object_styling::local_object_icon_color,
         workflows::{
             arguments::ArgumentsState,
@@ -28,7 +30,6 @@ use crate::{
             workflow_arg_selector::{WorkflowArgSelector, WorkflowArgSelectorEvent},
             workflow_arg_type_helpers::{self, ArgumentEditorRowIndex},
         },
-        CloudObjectTypeAndId, DriveObjectType,
     },
     editor::{
         EditorOptions, EditorView, EnterAction, EnterSettings, Event as EditorEvent,
@@ -38,28 +39,29 @@ use crate::{
     menu::{MenuItem, MenuItemFields},
     object_ids::{ClientId, SyncId},
     pane_group::{
-        focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent,
+        BackingView, PaneConfiguration, PaneEvent, focus_state::PaneFocusHandle, pane::view,
     },
     terminal::safe_mode_settings::get_secret_obfuscation_mode,
     ui_components::{
-        breadcrumb::{render_breadcrumbs, BreadcrumbState},
+        breadcrumb::{BreadcrumbState, render_breadcrumbs},
         buttons::{accent_icon_button, icon_button},
-        dialog::{dialog_styles, Dialog},
+        dialog::{Dialog, dialog_styles},
         icons::Icon,
     },
     util::bindings::CustomAction,
     view_components::{DismissibleToast, ToastType},
     workflows::{
-        workflow::{Argument, Workflow},
         SavedWorkflow,
+        workflow::{Argument, Workflow},
     },
     workspace::ToastStack,
-    FeatureFlag,
 };
 
 use warp_core::{context_flag::ContextFlag, ui::theme::AnsiColorIdentifier};
 use warp_editor::editor::NavigationKey;
 use warpui::{
+    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WindowId,
     clipboard::ClipboardContent,
     elements::{
         Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle,
@@ -76,13 +78,11 @@ use warpui::{
         button::{Button, ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WindowId,
 };
 
 use super::{
-    command_parser::WorkflowCommandDisplayData, SavedWorkflowModel, WorkflowSource, WorkflowType,
-    WorkflowViewMode,
+    SavedWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode,
+    command_parser::WorkflowCommandDisplayData,
 };
 
 mod alias_argument_selector;

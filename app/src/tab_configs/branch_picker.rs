@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use warpui::{
-    elements::ChildView, ui_components::components::UiComponentStyles, AppContext, Element, Entity,
-    TypedActionView, View, ViewContext, ViewHandle,
+    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
+    elements::ChildView, ui_components::components::UiComponentStyles,
 };
 
 use crate::{

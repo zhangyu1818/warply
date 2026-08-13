@@ -1,22 +1,22 @@
+use super::ToggleSettingActionPair;
 use super::directory_color_add_picker::{DirectoryColorAddPicker, DirectoryColorAddPickerEvent};
 use super::settings_page::{
-    AdditionalInfo, Category, MatchData, PageType, SettingsWidget, CONTENT_FONT_SIZE,
+    AdditionalInfo, CONTENT_FONT_SIZE, Category, MatchData, PageType, SettingsWidget,
 };
-use super::ToggleSettingActionPair;
-use super::{flags, SettingsSection};
 use super::{
-    settings_page::{
-        build_reset_button, render_body_item, render_body_item_label, render_dropdown_item,
-        SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, ToggleState, HEADER_PADDING,
-    },
     SettingsAction,
+    settings_page::{
+        HEADER_PADDING, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle, ToggleState,
+        build_reset_button, render_body_item, render_body_item_label, render_dropdown_item,
+    },
 };
+use super::{SettingsSection, flags};
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::channel::{Channel, ChannelState};
 use crate::context_chips::prompt::PromptEvent;
 use crate::context_chips::renderer::ChipDragState;
 use crate::context_chips::{
-    prompt::Prompt, renderer::Renderer as ContextChipRenderer, ChipAvailability,
+    ChipAvailability, prompt::Prompt, renderer::Renderer as ContextChipRenderer,
 };
 use crate::editor::{
     EditOrigin, Event as EditorEvent, InteractionState, SingleLineEditorOptions, TextOptions,
@@ -24,23 +24,23 @@ use crate::editor::{
 use crate::gpu_state::{GPUState, GPUStateEvent};
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::settings::{
+    AIFontName, AISettings, AppEditorSettings, CodeSettings, CursorBlink,
+    DEFAULT_MONOSPACE_FONT_NAME, EnforceMinimumContrast, FontSettings, FontSettingsChangedEvent,
+    InputBoxType, InputModeSettings, MonospaceFontName, PaneSettings, ThemeSettings,
     active_theme_kind,
     app_icon::{AppIcon, AppIconSettings},
-    log_setting_result, respect_system_theme, AIFontName, AISettings, AppEditorSettings,
-    CodeSettings, CursorBlink, EnforceMinimumContrast, FontSettings, FontSettingsChangedEvent,
-    InputBoxType, InputModeSettings, MonospaceFontName, PaneSettings, ThemeSettings,
-    DEFAULT_MONOSPACE_FONT_NAME,
+    log_setting_result, respect_system_theme,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
+use crate::terminal::BlockListSettings;
+use crate::terminal::SizeInfo;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::ligature_settings::LigatureSettings;
-use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::ObfuscateSecrets;
+use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::settings::{AltScreenPaddingMode, SpacingMode, TerminalSettings};
-use crate::terminal::BlockListSettings;
-use crate::terminal::SizeInfo;
 use crate::themes;
 use crate::themes::theme::{self, RespectSystemTheme, SelectedSystemThemes, ThemeKind, WarpTheme};
 use crate::user_config::WarpConfig;
@@ -48,12 +48,12 @@ use crate::util::bindings;
 use crate::window_settings::{
     BackgroundBlurRadius, BackgroundOpacity, WindowSettings, WindowSettingsChangedEvent, ZoomLevel,
 };
+use crate::workspace::WorkspaceAction;
 use crate::workspace::header_toolbar_editor::HeaderToolbarInlineEditor;
 use crate::workspace::tab_settings::{
-    canonical_directory_key, DirectoryTabColor, TabCloseButtonPosition, TabSettings,
-    TabSettingsChangedEvent, WorkspaceDecorationVisibility,
+    DirectoryTabColor, TabCloseButtonPosition, TabSettings, TabSettingsChangedEvent,
+    WorkspaceDecorationVisibility, canonical_directory_key,
 };
-use crate::workspace::WorkspaceAction;
 use crate::{editor::EditorView, themes::theme_chooser::ThemeChooserMode};
 use crate::{
     features::FeatureFlag,
@@ -82,21 +82,21 @@ use warpui::ui_components::slider::SliderStateHandle;
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::units::IntoPixels;
 
-use warpui::{
-    elements::{
-        Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-        Dismiss, Element, Fill, Flex, Hoverable, MouseStateHandle, ParentElement, Radius,
-        Shrinkable, DEFAULT_UI_LINE_HEIGHT_RATIO,
-    },
-    rendering::ThinStrokes,
-};
-use warpui::{platform::SystemTheme, Action};
+use warpui::{Action, platform::SystemTheme};
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateModel, View,
     ViewContext, ViewHandle, WindowId,
 };
+use warpui::{
+    elements::{
+        Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+        DEFAULT_UI_LINE_HEIGHT_RATIO, Dismiss, Element, Fill, Flex, Hoverable, MouseStateHandle,
+        ParentElement, Radius, Shrinkable,
+    },
+    rendering::ThinStrokes,
+};
 
-use crate::ui_components::color_dot::{render_color_dot, TAB_COLOR_OPTIONS};
+use crate::ui_components::color_dot::{TAB_COLOR_OPTIONS, render_color_dot};
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme};
 
@@ -207,29 +207,33 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         flags::DIM_INACTIVE_PANES_FLAG,
     ));
 
-    app.register_fixed_bindings(vec![FixedBinding::empty(
-        "Start Input at the Top".to_string(),
-        builder(SettingsAction::AppearancePageToggle(
-            AppearancePageAction::SetInputMode {
-                new_mode: InputMode::Waterfall,
-                from_binding: true,
-            },
-        )),
-        context.to_owned(),
-    )
-    .with_group(bindings::BindingGroup::Settings.as_str())]);
+    app.register_fixed_bindings(vec![
+        FixedBinding::empty(
+            "Start Input at the Top".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::SetInputMode {
+                    new_mode: InputMode::Waterfall,
+                    from_binding: true,
+                },
+            )),
+            context.to_owned(),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+    ]);
 
-    app.register_fixed_bindings(vec![FixedBinding::empty(
-        "Pin Input to the Top".to_string(),
-        builder(SettingsAction::AppearancePageToggle(
-            AppearancePageAction::SetInputMode {
-                new_mode: InputMode::PinnedToTop,
-                from_binding: true,
-            },
-        )),
-        context.to_owned(),
-    )
-    .with_group(bindings::BindingGroup::Settings.as_str())]);
+    app.register_fixed_bindings(vec![
+        FixedBinding::empty(
+            "Pin Input to the Top".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::SetInputMode {
+                    new_mode: InputMode::PinnedToTop,
+                    from_binding: true,
+                },
+            )),
+            context.to_owned(),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+    ]);
 
     app.register_fixed_bindings(vec![FixedBinding::empty(
         "Pin Input to the Bottom".to_string(),
@@ -243,14 +247,16 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     )]);
 
     // Add command palette entry for toggling between Warp and Classic input modes
-    app.register_fixed_bindings(vec![FixedBinding::empty(
-        "Toggle Input Mode (Warp/Classic)".to_string(),
-        builder(SettingsAction::AppearancePageToggle(
-            AppearancePageAction::ToggleInputMode,
-        )),
-        context.to_owned(),
-    )
-    .with_group(bindings::BindingGroup::Settings.as_str())]);
+    app.register_fixed_bindings(vec![
+        FixedBinding::empty(
+            "Toggle Input Mode (Warp/Classic)".to_string(),
+            builder(SettingsAction::AppearancePageToggle(
+                AppearancePageAction::ToggleInputMode,
+            )),
+            context.to_owned(),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str()),
+    ]);
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(

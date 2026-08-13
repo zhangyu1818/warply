@@ -1,5 +1,5 @@
 use settings::Setting as _;
-use warpui::{platform::WindowStyle, App, ViewHandle};
+use warpui::{App, ViewHandle, platform::WindowStyle};
 
 use crate::{
     appearance::{Appearance, AppearanceManager},

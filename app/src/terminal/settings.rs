@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::settings::{AISettings, InputSettings, TerminalSpacing};
-use settings::{macros::define_settings_group, SupportedPlatforms};
-use warpui::{units::Pixels, AppContext, SingletonEntity};
+use settings::{SupportedPlatforms, macros::define_settings_group};
+use warpui::{AppContext, SingletonEntity, units::Pixels};
 
 #[derive(
     Clone,

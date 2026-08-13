@@ -13,13 +13,13 @@ use std::{
 };
 
 use ai::project_context::model::ProjectRulePath;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use diesel::{
+    BelongingToDsl, BoolExpressionMethods, Connection, ExpressionMethods, GroupedBy,
+    OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
     connection::{DefaultLoadingMode, SimpleConnection},
     result::Error,
     sqlite::SqliteConnection,
-    BelongingToDsl, BoolExpressionMethods, Connection, ExpressionMethods, GroupedBy,
-    OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
 };
 use diesel_migrations::MigrationHarness;
 use itertools::Itertools;
@@ -27,9 +27,9 @@ use libsqlite3_sys as sqlite3;
 use num_traits::FromPrimitive;
 use pathfinder_geometry::{rect::RectF, vector::Vector2F};
 use warp_core::safe_info;
+use warpui::AppContext;
 use warpui::platform::FullscreenState;
 use warpui::windowing::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
-use warpui::AppContext;
 
 use super::agent::{delete_agent_conversations, upsert_agent_conversation};
 use super::block_list::{
@@ -37,11 +37,11 @@ use super::block_list::{
     upsert_ai_query,
 };
 use super::model::{
-    self, NewApp, NewCommand, NewFolder, NewTab, NewTabGroup, NewWindow, NewWorkspaceMetadata,
-    ObjectMetadata, ObjectPermissions, Project, Tab, TabGroup, Window,
-    WorkspaceMetadata as WorkspaceMetadataModel, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND,
-    CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND, EXECUTION_PROFILE_EDITOR_PANE_KIND,
-    SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, WELCOME_PANE_KIND, WORKFLOW_PANE_KIND,
+    self, AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND,
+    EXECUTION_PROFILE_EDITOR_PANE_KIND, NewApp, NewCommand, NewFolder, NewTab, NewTabGroup,
+    NewWindow, NewWorkspaceMetadata, ObjectMetadata, ObjectPermissions, Project,
+    SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, Tab, TabGroup, WELCOME_PANE_KIND, WORKFLOW_PANE_KIND,
+    Window, WorkspaceMetadata as WorkspaceMetadataModel,
 };
 use super::schema;
 use super::{
@@ -63,8 +63,8 @@ use crate::app_state::{
 use crate::cloud_object::model::actions::{ObjectAction, ObjectActionSubtype};
 use crate::cloud_object::model::generic_string_model::{CloudStringObject, GenericStringObjectId};
 use crate::cloud_object::{
-    CloudObject, JsonObjectType, ObjectIdType, ObjectType, Owner, GENERIC_STRING_OBJECT_PREFIX,
-    JSON_OBJECT_PREFIX,
+    CloudObject, GENERIC_STRING_OBJECT_PREFIX, JSON_OBJECT_PREFIX, JsonObjectType, ObjectIdType,
+    ObjectType, Owner,
 };
 use crate::cloud_object::{CloudObjectMetadata, NumInFlightRequests, Revision, ServerTimestamp};
 use crate::code::editor_management::CodeSource;
@@ -74,13 +74,13 @@ use crate::object_ids::{ClientId, HashableId, SyncId, ToServerId};
 use crate::persistence::agent::read_agent_conversations;
 use crate::persistence::block_list::{get_all_restored_blocks, read_ai_queries};
 use crate::persistence::model::{
-    NewGenericStringObject, NewPersistedObjectAction, ProjectRules, CODE_REVIEW_PANE_KIND,
+    CODE_REVIEW_PANE_KIND, NewGenericStringObject, NewPersistedObjectAction, ProjectRules,
 };
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;
 use crate::tab::SelectedTabColor;
-use crate::terminal::history::PersistedCommand;
 use crate::terminal::ShellLaunchData;
+use crate::terminal::history::PersistedCommand;
 use crate::workflows::workflow_enum::{SavedWorkflowEnum, SavedWorkflowEnumModel};
 use crate::workflows::{SavedWorkflow, WorkflowId};
 use crate::workspace::tab_group::TabGroupId;
@@ -99,7 +99,7 @@ diesel::define_sql_function! {
 const CHANNEL_SIZE: usize = 1024;
 const COMMANDS_COUNT_LIMIT: i64 = 10000;
 
-use local_object_model::persistence::{upsert_cloud_object, CloudObjectId};
+use local_object_model::persistence::{CloudObjectId, upsert_cloud_object};
 
 const WARPLY_SQLITE_FILE_NAME: &str = "warply.sqlite";
 
@@ -182,7 +182,7 @@ fn establish_connection(database_url: &str, read_only: bool) -> Result<SqliteCon
 /// function is running.
 unsafe fn init_logging() {
     unsafe {
-        use std::ffi::{c_char, c_int, c_void, CStr};
+        use std::ffi::{CStr, c_char, c_int, c_void};
         use std::panic;
         use std::ptr;
 

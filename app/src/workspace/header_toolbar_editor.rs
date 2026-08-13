@@ -2,17 +2,17 @@ use warpui::keymap::FixedBinding;
 
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
+use crate::Appearance;
 use crate::chip_configurator::{
-    render_chip_editor_modal, render_chip_editor_sections, ChipConfigurator,
-    ChipConfiguratorAction, ChipConfiguratorLayout, ChipEditorModalConfig, ChipEditorMouseHandles,
-    ChipEditorSectionsConfig, ConfigurableItem, ControlItemRenderer,
+    ChipConfigurator, ChipConfiguratorAction, ChipConfiguratorLayout, ChipEditorModalConfig,
+    ChipEditorMouseHandles, ChipEditorSectionsConfig, ConfigurableItem, ControlItemRenderer,
+    render_chip_editor_modal, render_chip_editor_sections,
 };
 use crate::settings::log_setting_result;
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::{
     HeaderToolbarChipSelection, TabSettings, TabSettingsChangedEvent,
 };
-use crate::Appearance;
 
 use settings::Setting as _;
 

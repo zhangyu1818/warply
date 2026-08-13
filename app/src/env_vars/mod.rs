@@ -9,19 +9,19 @@ pub mod manager;
 pub mod view;
 
 use crate::{
+    Appearance, CloudObjectTypeAndId,
     cloud_object::{
+        GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
+        JsonObjectType,
         model::{
             generic_string_model::{GenericStringModel, GenericStringObjectId, StringModel},
             json_model::{JsonModel, JsonSerializer},
         },
-        GenericCloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey,
-        JsonObjectType,
     },
-    drive::items::{env_var_collection::LocalObjectEnvVarCollection, LocalObjectItem},
+    drive::items::{LocalObjectItem, env_var_collection::LocalObjectEnvVarCollection},
     external_secrets::ExternalSecret,
     object_ids::SyncId,
     terminal::shell::ShellType,
-    Appearance, CloudObjectTypeAndId,
 };
 
 #[derive(Clone, Debug, PartialEq)]

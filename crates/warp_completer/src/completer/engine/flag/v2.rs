@@ -7,8 +7,8 @@ use itertools::Itertools;
 
 use crate::{
     completer::{
-        describe::OptionCaseSensitivity, suggest::MatchRequirement, LocationType, Match,
-        MatchStrategy, MatchedSuggestion, Suggestion, SuggestionType,
+        LocationType, Match, MatchStrategy, MatchedSuggestion, Suggestion, SuggestionType,
+        describe::OptionCaseSensitivity, suggest::MatchRequirement,
     },
     meta::Spanned,
     signatures::Command,

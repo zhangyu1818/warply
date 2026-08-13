@@ -5,6 +5,7 @@ pub use interaction_mode::*;
 pub use serialized_block::*;
 use warp_core::SessionId;
 
+pub use super::BlockId;
 use super::grid::grid_handler::GridHandler;
 use super::grid::{Cursor, RespectDisplayedOutput};
 use super::header_grid::HeaderGrid;
@@ -13,8 +14,7 @@ use super::image_map::StoredImageMetadata;
 use super::kitty::{KittyAction, KittyResponse};
 use super::secrets::RespectObfuscatedSecrets;
 use super::selection::ScrollDelta;
-use super::session::{command_executor, Sessions};
-pub use super::BlockId;
+use super::session::{Sessions, command_executor};
 use super::{bootstrap::BootstrapStage, find::RegexDFAs};
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 
@@ -25,6 +25,7 @@ use crate::{
     context_chips::prompt_snapshot::PromptSnapshot,
     object_ids::SyncId,
     terminal::{
+        BlockPadding, ShellHost, SizeInfo,
         block_filter::BlockFilterQuery,
         block_list_element::GridType,
         event::{
@@ -33,6 +34,7 @@ use crate::{
         },
         event_listener::ChannelEventListener,
         model::{
+            GridStorage,
             ansi::{self, PrecmdValue, PreexecValue, Processor},
             blockgrid::BlockGrid,
             display_setting::DisplaySetting,
@@ -41,11 +43,9 @@ use crate::{
             iterm_image::ITermImage,
             secrets::ObfuscateSecrets,
             terminal_model::{BlockIndex, WithinBlock},
-            GridStorage,
         },
         shell::ShellType,
         view::WithinBlockBanner,
-        BlockPadding, ShellHost, SizeInfo,
     },
 };
 
@@ -72,8 +72,8 @@ use std::{
     num::NonZeroUsize,
     ops::RangeInclusive,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
 };
 

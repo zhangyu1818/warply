@@ -16,11 +16,11 @@ pub mod supported_servers;
 mod transport;
 pub mod types;
 
-pub use config::{default_init_params, LanguageId, LspServerConfig};
+pub use config::{LanguageId, LspServerConfig, default_init_params};
 pub use jsonrpc::{JsonRpcService, ServerNotificationEvent, Transport};
 pub use lsp_types::{
-    notification::{self},
     Position, Range,
+    notification::{self},
 };
 pub use manager::{LspManagerModel, LspManagerModelEvent};
 pub use model::{
@@ -52,8 +52,8 @@ impl std::fmt::Display for LspServerLogLevel {
 use anyhow::Result;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
-use warpui::r#async::executor::Background;
 use warpui::AppContext;
+use warpui::r#async::executor::Background;
 
 pub struct LspServiceInitializationResult {
     pub service: LspService,

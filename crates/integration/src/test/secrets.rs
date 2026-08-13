@@ -17,11 +17,11 @@ use warp::{
     terminal::model::{index::Point, terminal_model::WithinModel},
     terminal::safe_mode_settings::{SafeModeSettings, SecretDisplayMode},
 };
-use warpui::{async_assert, integration::TestStep, SingletonEntity};
+use warpui::{SingletonEntity, async_assert, integration::TestStep};
 
 use crate::util::skip_if_powershell_core_2303;
 
-use super::{new_builder, Builder};
+use super::{Builder, new_builder};
 
 fn set_secret_redaction(safe_mode_enabled: bool, hide_secrets_in_block_list: bool) -> TestStep {
     TestStep::new("Set secret redaction settings").with_action(move |app, _, _| {

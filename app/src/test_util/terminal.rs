@@ -1,6 +1,6 @@
-use repo_metadata::repositories::DetectedRepositories;
 #[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
+use repo_metadata::repositories::DetectedRepositories;
 use warp_core::ui::appearance::Appearance;
 
 use crate::ai::acp::model::AcpAgentModel;
@@ -11,7 +11,7 @@ use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::code_review::git_status_update::GitStatusUpdateModel;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
-use warpui::{platform::WindowStyle, App, ViewHandle, WindowId};
+use warpui::{App, ViewHandle, WindowId, platform::WindowStyle};
 use watcher::HomeDirectoryWatcher;
 
 use super::settings::initialize_settings_for_tests;
@@ -35,11 +35,11 @@ use crate::{
     system::SystemInfo,
     system::SystemStats,
     terminal::{
-        alt_screen_reporting::AltScreenReporting, keys::TerminalKeybindings,
-        resizable_data::ResizableData, History, TerminalView,
+        History, TerminalView, alt_screen_reporting::AltScreenReporting, keys::TerminalKeybindings,
+        resizable_data::ResizableData,
     },
     workflows::local_workflows::LocalWorkflows,
-    workspace::{sync_inputs::SyncedInputState, ActiveSession},
+    workspace::{ActiveSession, sync_inputs::SyncedInputState},
 };
 use repo_metadata::watcher::DirectoryWatcher;
 

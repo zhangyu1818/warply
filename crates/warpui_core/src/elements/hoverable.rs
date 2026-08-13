@@ -1,12 +1,12 @@
 use super::{Point, SelectableElement, Selection, SelectionFragment, ZIndex};
+use crate::TaskId;
 use crate::event::ModifiersState;
 use crate::platform::Cursor;
 use crate::text::word_boundaries::WordBoundariesPolicy;
 use crate::text::{IsRect, SelectionDirection, SelectionType};
-use crate::TaskId;
 use crate::{
-    event::DispatchedEvent, AfterLayoutContext, AppContext, Element, Event, EventContext,
-    PaintContext,
+    AfterLayoutContext, AppContext, Element, Event, EventContext, PaintContext,
+    event::DispatchedEvent,
 };
 use instant::Instant;
 use pathfinder_geometry::rect::RectF;

@@ -1,25 +1,25 @@
 use warp_core::ui::appearance::Appearance;
-use warpui::{keymap::Keystroke, EntityId, SingletonEntity, ViewContext};
+use warpui::{EntityId, SingletonEntity, ViewContext, keymap::Keystroke};
 
 use crate::{
     ai::{
         agent::conversation::AIConversationId,
         blocklist::{
+            BlocklistAIHistoryModel,
             agent_view::{
                 AgentViewEntryBlock, AgentViewEntryBlockEvent, AgentViewEntryBlockParams,
-                AgentViewEntryOrigin, AutoTriggerBehavior, DismissalStrategy, EnterAgentViewError,
-                EphemeralMessage, ENTER_OR_EXIT_CONFIRMATION_WINDOW,
+                AgentViewEntryOrigin, AutoTriggerBehavior, DismissalStrategy,
+                ENTER_OR_EXIT_CONFIRMATION_WINDOW, EnterAgentViewError, EphemeralMessage,
             },
-            BlocklistAIHistoryModel,
         },
     },
     global_resource_handles::GlobalResourceHandlesProvider,
     persistence::ModelEvent,
     terminal::{
+        TerminalView,
         input::message_bar::{Message, MessageItem},
         model::rich_content::RichContentType,
         view::{AgentViewEntryMetadata, RichContentInsertionPosition, RichContentMetadata},
-        TerminalView,
     },
     view_components::DismissibleToast,
     workspace::ToastStack,

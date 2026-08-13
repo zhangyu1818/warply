@@ -1,23 +1,23 @@
 use float_cmp::{approx_eq, assert_approx_eq};
 use warpui::units::IntoLines;
-use warpui::{elements::DEFAULT_UI_LINE_HEIGHT_RATIO, App};
+use warpui::{App, elements::DEFAULT_UI_LINE_HEIGHT_RATIO};
 
 use super::*;
 use crate::ai::agent::AIAgentActionId;
 use crate::ai::blocklist::agent_view::{
     AgentViewDisplayMode, AgentViewEntryOrigin, AgentViewState,
 };
+use crate::terminal::BlockListSettings;
 use crate::terminal::model::block::AgentInteractionMetadata;
 use crate::terminal::model::kitty::KittyAction;
 use crate::terminal::model::test_utils;
 use crate::terminal::view::{InlineBannerItem, InlineBannerType};
-use crate::terminal::BlockListSettings;
 use crate::{
     settings::TerminalSpacing,
     terminal::{
+        SizeUpdateReason,
         event::Event,
         model::{ansi::Handler, test_utils::TestBlockListBuilder},
-        SizeUpdateReason,
     },
 };
 use warp_core::features::FeatureFlag;
@@ -183,9 +183,11 @@ fn test_iterm_image_renders_in_script_execution_block() {
 
     assert!(block_list.active_block().started());
     assert!(!block_list.active_block().output_grid().is_empty());
-    assert!(block_list
-        .active_block()
-        .is_visible(&AgentViewState::Inactive));
+    assert!(
+        block_list
+            .active_block()
+            .is_visible(&AgentViewState::Inactive)
+    );
 }
 
 #[test]
@@ -229,9 +231,11 @@ fn test_kitty_image_renders_in_script_execution_block() {
 
     assert!(block_list.active_block().started());
     assert!(!block_list.active_block().output_grid().is_empty());
-    assert!(block_list
-        .active_block()
-        .is_visible(&AgentViewState::Inactive));
+    assert!(
+        block_list
+            .active_block()
+            .is_visible(&AgentViewState::Inactive)
+    );
 }
 
 #[test]
@@ -517,9 +521,11 @@ pub fn test_script_execution_block() {
     assert_eq!(block_list.blocks.len(), 2);
     assert!(block_list.active_block().started());
     // Ensure that script execution block has a height of 0 if nothing was added to it.
-    assert!(block_list
-        .active_block()
-        .is_empty(&AgentViewState::Inactive));
+    assert!(
+        block_list
+            .active_block()
+            .is_empty(&AgentViewState::Inactive)
+    );
 
     advance_to_bootstrapped(&mut block_list, Default::default());
 
@@ -533,18 +539,22 @@ pub fn test_script_execution_block() {
 
     assert_eq!(block_list.blocks.len(), 2);
     assert!(block_list.active_block().started());
-    assert!(block_list
-        .active_block()
-        .is_empty(&AgentViewState::Inactive));
+    assert!(
+        block_list
+            .active_block()
+            .is_empty(&AgentViewState::Inactive)
+    );
 
     // Add characters to script execution block.
     block_list.input('c');
     block_list.update_active_block_height();
 
     assert_eq!(block_list.blocks.len(), 2);
-    assert!(!block_list
-        .active_block()
-        .is_empty(&AgentViewState::Inactive));
+    assert!(
+        !block_list
+            .active_block()
+            .is_empty(&AgentViewState::Inactive)
+    );
 
     advance_to_bootstrapped(&mut block_list, Default::default());
 
@@ -589,20 +599,26 @@ pub fn visible_bootstrap_block_event_fires_when_script_execution_becomes_visible
     advance_to_script_execution(&mut block_list);
 
     assert!(block_list.active_block().started());
-    assert!(block_list
-        .active_block()
-        .is_empty(&AgentViewState::Inactive));
+    assert!(
+        block_list
+            .active_block()
+            .is_empty(&AgentViewState::Inactive)
+    );
 
     let events = drain_terminal_events(&events_rx);
-    assert!(!events
-        .iter()
-        .any(|event| matches!(event, Event::VisibleBootstrapBlock)));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, Event::VisibleBootstrapBlock))
+    );
 
     block_list.input('c');
     let events = drain_terminal_events(&events_rx);
-    assert!(!events
-        .iter()
-        .any(|event| matches!(event, Event::VisibleBootstrapBlock)));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, Event::VisibleBootstrapBlock))
+    );
 
     block_list.update_active_block_height();
     let visible_events = drain_terminal_events(&events_rx)
@@ -1294,11 +1310,13 @@ fn test_removed_gap_with_banner() {
         InlineBannerType::NotificationsDiscovery,
     ));
     // Make sure the banner was inserted.
-    assert!(block_list
-        .block_heights
-        .items()
-        .iter()
-        .any(|it| matches!(it, BlockHeightItem::InlineBanner { banner, .. } if banner.id == 0)));
+    assert!(
+        block_list
+            .block_heights
+            .items()
+            .iter()
+            .any(|it| matches!(it, BlockHeightItem::InlineBanner { banner, .. } if banner.id == 0))
+    );
 
     // There's two bootstrap blocks, one gap and one block before the banner.
     assert_eq!(
@@ -1445,11 +1463,13 @@ fn test_block_height_update_shifts_indices() {
     );
 
     // Make sure the banner was inserted.
-    assert!(block_list
-        .block_heights
-        .items()
-        .iter()
-        .any(|it| matches!(it, BlockHeightItem::InlineBanner { banner, .. } if banner.id == 0)));
+    assert!(
+        block_list
+            .block_heights
+            .items()
+            .iter()
+            .any(|it| matches!(it, BlockHeightItem::InlineBanner { banner, .. } if banner.id == 0))
+    );
     assert_eq!(
         block_list
             .removable_blocklist_item_positions
@@ -1468,14 +1488,18 @@ fn test_block_height_update_shifts_indices() {
     block_list.remove_inline_banner(0);
 
     // Make sure the banner is gone.
-    assert!(!block_list
-        .block_heights
-        .items()
-        .iter()
-        .any(|it| matches!(&it, BlockHeightItem::InlineBanner { .. })));
-    assert!(!block_list
-        .removable_blocklist_item_positions
-        .contains_key(&RemovableBlocklistItem::InlineBanner(0)));
+    assert!(
+        !block_list
+            .block_heights
+            .items()
+            .iter()
+            .any(|it| matches!(&it, BlockHeightItem::InlineBanner { .. }))
+    );
+    assert!(
+        !block_list
+            .removable_blocklist_item_positions
+            .contains_key(&RemovableBlocklistItem::InlineBanner(0))
+    );
 
     // Make sure the gap was adjusted back.
     assert!(block_list.active_gap.is_some());
@@ -1560,11 +1584,13 @@ fn test_remove_rich_content_block() {
     // Remove second rich content block.
     block_list.remove_rich_content(view_id_b);
 
-    assert!(!block_list
-        .block_heights
-        .items()
-        .iter()
-        .any(|item| matches!(&item, BlockHeightItem::RichContent { .. })));
+    assert!(
+        !block_list
+            .block_heights
+            .items()
+            .iter()
+            .any(|item| matches!(&item, BlockHeightItem::RichContent { .. }))
+    );
 }
 
 #[test]
@@ -1601,8 +1627,10 @@ fn test_conversation_scoped_rich_content_hidden_outside_fullscreen_agent_view() 
             });
     assert!(item_visible_in_fullscreen.is_some());
     assert!(item_visible_in_fullscreen.is_some_and(|item| !item.should_hide));
-    assert!(item_visible_in_fullscreen
-        .is_some_and(|item| item.last_laid_out_height > BlockHeight::zero()));
+    assert!(
+        item_visible_in_fullscreen
+            .is_some_and(|item| item.last_laid_out_height > BlockHeight::zero())
+    );
 
     block_list.set_agent_view_state(AgentViewState::Inactive);
 
@@ -1700,13 +1728,17 @@ fn test_clear_user_executed_command_blocks_for_conversation() {
     block_list.clear_user_executed_command_blocks_for_conversation(conversation_id);
 
     assert!(block_list.block_index_for_id(&terminal_block_id).is_some());
-    assert!(block_list
-        .block_index_for_id(&requested_command_block_id)
-        .is_some());
+    assert!(
+        block_list
+            .block_index_for_id(&requested_command_block_id)
+            .is_some()
+    );
     assert!(block_list.block_index_for_id(&user_block_id).is_none());
-    assert!(block_list
-        .removable_blocklist_item_positions
-        .contains_key(&RemovableBlocklistItem::RichContent(view_id)));
+    assert!(
+        block_list
+            .removable_blocklist_item_positions
+            .contains_key(&RemovableBlocklistItem::RichContent(view_id))
+    );
 }
 
 #[test]

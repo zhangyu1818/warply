@@ -4,9 +4,9 @@ use pathfinder_geometry::vector::Vector2F;
 use serde::{Deserialize, Serialize};
 use sum_tree::{Cursor, SeekBias};
 use warpui::{
+    AppContext, ModelHandle,
     elements::ClippedScrollStateHandle,
     units::{IntoLines, IntoPixels, Lines, Pixels},
-    AppContext, ModelHandle,
 };
 
 use crate::{
@@ -16,6 +16,7 @@ use crate::{
 use crate::{ai::blocklist::agent_view::AgentViewState, terminal::model::blocks::RichContentItem};
 
 use super::{
+    HEIGHT_FUDGE_FACTOR_LINES, SizeInfo,
     block_list_element::{
         GridType, SnackbarHeader, SnackbarHeaderState, SnackbarPoint, VisibleItem,
     },
@@ -31,7 +32,6 @@ use super::{
         terminal_model::{BlockIndex, BlockSortDirection, WithinBlock},
     },
     view::BlockVisibilityMode,
-    SizeInfo, HEIGHT_FUDGE_FACTOR_LINES,
 };
 
 /// Wraps a scroll position for the purposes of centralizing update logic.

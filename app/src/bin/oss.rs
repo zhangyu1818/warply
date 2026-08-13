@@ -1,7 +1,7 @@
 use anyhow::Result;
 use warp_core::{
-    channel::{Channel, ChannelConfig, ChannelState},
     AppId,
+    channel::{Channel, ChannelConfig, ChannelState},
 };
 
 fn main() -> Result<()> {

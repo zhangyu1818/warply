@@ -11,8 +11,8 @@ use futures_util::future::Either;
 use url::Url;
 use warp_util::path::{CleanPathResult, LineAndColumnArg};
 use warpui::{
-    r#async::SpawnedFutureHandle, AppContext, Entity, ModelContext, ModelHandle, SingletonEntity,
-    WindowId,
+    AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, WindowId,
+    r#async::SpawnedFutureHandle,
 };
 
 use crate::{terminal::model::session::Session, workspace::ActiveSession};
@@ -171,7 +171,7 @@ impl NotebookLinks {
                     match self.session_source.base_directory(ctx) {
                         Some(directory) => directory.join(clean_path),
                         None => {
-                            return Either::Right(future::ready(Err(ResolveError::MissingContext)))
+                            return Either::Right(future::ready(Err(ResolveError::MissingContext)));
                         }
                     }
                 } else {

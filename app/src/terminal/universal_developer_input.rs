@@ -7,38 +7,38 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 use warpui::{
+    AppContext, Element, Entity, EntityId, SingletonEntity as _, TypedActionView, View,
+    ViewContext, ViewHandle,
     elements::{
         ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Fill, Flex,
         MainAxisAlignment, MainAxisSize, ParentElement, Radius, Rect,
     },
     ui_components::{components::UiComponentStyles, segmented_control::RenderableOptionConfig},
-    AppContext, Element, Entity, EntityId, SingletonEntity as _, TypedActionView, View,
-    ViewContext, ViewHandle,
 };
 
 use warp_core::ui::{
     color::{
-        coloru_with_opacity,
-        contrast::{foreground_color_with_minimum_contrast, MinimumAllowedContrast},
-        Opacity, Rgb,
+        Opacity, Rgb, coloru_with_opacity,
+        contrast::{MinimumAllowedContrast, foreground_color_with_minimum_contrast},
     },
     theme,
 };
 
 use std::boxed::Box;
 use warpui::{
-    ui_components::segmented_control::{SegmentedControl, SegmentedControlEvent},
     ModelHandle,
+    ui_components::segmented_control::{SegmentedControl, SegmentedControlEvent},
 };
 
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 
-use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::blocklist::BlocklistAIHistoryEvent;
+use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 
 use crate::terminal::model::session::SessionType;
 use crate::{
+    BlocklistAIHistoryModel,
     ai::blocklist::{BlocklistAIInputModel, InputConfig, InputType},
     terminal::{
         keys::TerminalKeybindings,
@@ -48,7 +48,6 @@ use crate::{
     view_components::action_button::{
         ActionButton, ActionButtonTheme, ButtonSize, NakedTheme, TooltipAlignment,
     },
-    BlocklistAIHistoryModel,
 };
 use warpui::ui_components::segmented_control::TooltipConfig;
 

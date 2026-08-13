@@ -10,6 +10,8 @@ use warp_util::path::user_friendly_path;
 #[cfg(feature = "local_fs")]
 use warpui::clipboard::ClipboardContent;
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     accessibility::{AccessibilityContent, WarpA11yRole},
     elements::{
         Align, Container, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler, Flex,
@@ -22,8 +24,6 @@ use warpui::{
         button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{UiComponent, UiComponentStyles},
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 use super::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
@@ -38,13 +38,13 @@ use crate::{
         post_process_notebook, styles,
     },
     pane_group::{
+        BackingView, PaneConfiguration, PaneEvent,
         focus_state::PaneFocusHandle,
         pane::view,
         pane::view::header::components::{
-            render_pane_header_buttons, render_pane_header_title_text, render_three_column_header,
-            CenteredHeaderEdgeWidth,
+            CenteredHeaderEdgeWidth, render_pane_header_buttons, render_pane_header_title_text,
+            render_three_column_header,
         },
-        BackingView, PaneConfiguration, PaneEvent,
     },
     settings::FontSettings,
     terminal::model::session::Session,
@@ -58,7 +58,7 @@ use crate::{
     util::{
         file::external_editor::EditorSettings,
         openable_file_type::{
-            resolve_file_target, resolve_file_target_to_open_in_warp, FileTarget,
+            FileTarget, resolve_file_target, resolve_file_target_to_open_in_warp,
         },
     },
 };

@@ -7,8 +7,8 @@ use crate::drive::{CloudObjectTypeAndId, DriveIndexVariant};
 use crate::env_vars::SavedEnvVarCollection;
 use crate::object_ids::{HashableId, ObjectUid, SyncId, ToServerId};
 use crate::persistence::ModelEvent;
-use crate::workflows::workflow_enum::SavedWorkflowEnum;
 use crate::workflows::SavedWorkflow;
+use crate::workflows::workflow_enum::SavedWorkflowEnum;
 
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};

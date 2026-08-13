@@ -6,13 +6,13 @@ use crate::workspace::cross_window_tab_drag::CrossWindowTabDrag;
 use ::settings::ToggleableSetting;
 use warp_core::execution_mode::AppExecutionMode;
 
-use crate::ai::agent::conversation::AIConversationId;
+use crate::GlobalResourceHandlesProvider;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::PendingAttachment;
 use crate::root_view::OpenPath;
 use crate::undo_close::UndoCloseStack;
 use crate::workspace::{Workspace, WorkspaceAction};
-use crate::GlobalResourceHandlesProvider;
 use std::path::PathBuf;
 use warpui::windowing::WindowManager;
 use warpui::{AppContext, SingletonEntity, TypedActionView};

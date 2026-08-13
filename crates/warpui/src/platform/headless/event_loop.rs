@@ -2,15 +2,14 @@ use std::mem::ManuallyDrop;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::{
+    AppContext, WindowId,
     platform::{
-        self,
+        self, TerminationMode,
         app::{
             AppCallbackDispatcher, ApproveTerminateResult, TerminationRequestSource,
             TerminationResult,
         },
-        TerminationMode,
     },
-    AppContext, WindowId,
 };
 
 /// Application events handled on the headless platform's main thread.

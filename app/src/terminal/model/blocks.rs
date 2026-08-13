@@ -1,6 +1,6 @@
 mod selection;
 
-use crate::ai::agent::{conversation::AIConversationId, AIAgentActionId};
+use crate::ai::agent::{AIAgentActionId, conversation::AIConversationId};
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::terminal::block_filter::BlockFilterQuery;
 
@@ -19,6 +19,7 @@ use crate::terminal::model::index::{Point, VisibleRow};
 use crate::terminal::model::iterm_image::ITermImage;
 use crate::terminal::view::SeparatorId;
 use crate::terminal::view::WithinBlockBanner;
+use crate::terminal::{BlockPadding, ShellHost, SizeInfo, SizeUpdate};
 use crate::terminal::{
     event::{
         BlockType, Event as TerminalEvent,
@@ -26,7 +27,6 @@ use crate::terminal::{
     },
     view::{InlineBannerId, InlineBannerItem},
 };
-use crate::terminal::{BlockPadding, ShellHost, SizeInfo, SizeUpdate};
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
 use instant::SystemTime;
@@ -35,20 +35,20 @@ use std::ops::{AddAssign, Range, RangeInclusive};
 use std::sync::Arc;
 use std::time::Duration;
 use sum_tree::{Dimension, Item, SeekBias, SumTree};
-use warpui::color::ColorU;
 use warpui::r#async::executor::Background;
+use warpui::color::ColorU;
 use warpui::record_trace_event;
 
 use std::collections::{HashMap, HashSet};
 use warpui::{
-    units::{IntoLines, IntoPixels, Lines},
     AppContext, EntityId, ViewHandle,
+    units::{IntoLines, IntoPixels, Lines},
 };
 
 use super::block::{BlockId, BlockSize, BlockState};
 use super::early_output::EarlyOutput;
-use super::grid::grid_handler::{FragmentBoundary, GridHandler, PossiblePath};
 use super::grid::RespectDisplayedOutput;
+use super::grid::grid_handler::{FragmentBoundary, GridHandler, PossiblePath};
 use super::image_map::StoredImageMetadata;
 use super::kitty::{KittyAction, KittyResponse};
 use super::rich_content::RichContentType;

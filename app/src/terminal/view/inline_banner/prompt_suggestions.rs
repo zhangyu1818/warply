@@ -14,8 +14,8 @@ use warpui::elements::{
 use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{elements::MouseStateHandle, Element};
 use warpui::{AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext};
+use warpui::{Element, elements::MouseStateHandle};
 use warpui::{SingletonEntity, View};
 
 use crate::terminal::view::PromptSuggestion;

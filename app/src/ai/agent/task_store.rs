@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 
 use super::{
-    task::{Task, TaskId},
     AIAgentExchange, AIAgentExchangeId, AIAgentOutputMessageType,
+    task::{Task, TaskId},
 };
 
 #[derive(Debug, Clone)]

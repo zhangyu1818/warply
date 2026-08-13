@@ -7,7 +7,7 @@ use std::cmp::min;
 use std::io::Read;
 #[cfg(feature = "local_fs")]
 use std::{env, fs, str};
-use warpui::image_cache::{resize_dimensions, FitType};
+use warpui::image_cache::{FitType, resize_dimensions};
 use warpui::{
     assets::asset_cache::Asset,
     image_cache::{CustomHeaderCreationError, CustomImageFormat, CustomImageHeader, ImageType},
@@ -746,7 +746,7 @@ fn read_file(decoded_payload: Vec<u8>, is_temp: bool) -> Result<Vec<u8>, Invalid
         Err(err) => {
             return Err(InvalidKittyPayload::FileError(FileError::FileReadError(
                 err.to_string(),
-            )))
+            )));
         }
     };
 
@@ -806,7 +806,7 @@ fn read_shared_memory(
         Err(err) => {
             return Err(InvalidKittyPayload::ShmError(ShmError::ObjectOpenError(
                 err.to_string(),
-            )))
+            )));
         }
     };
 
@@ -835,7 +835,7 @@ fn read_from_shared_memory_fd(
     size: Option<usize>,
 ) -> Result<Vec<u8>, InvalidKittyPayload> {
     use nix::sys::{
-        mman::{mmap, MapFlags, ProtFlags},
+        mman::{MapFlags, ProtFlags, mmap},
         stat::fstat,
     };
     use std::num::NonZero;
@@ -845,7 +845,7 @@ fn read_from_shared_memory_fd(
         Err(err) => {
             return Err(InvalidKittyPayload::ShmError(ShmError::FileStatError(
                 err.to_string(),
-            )))
+            )));
         }
     };
 
@@ -927,7 +927,7 @@ pub fn set_kitty_png_size(mut image: KittyImage) -> Result<KittyImage, KittyPngE
         None => {
             return Err(KittyPngError::InvalidBytes(
                 "Could not retrieve image size from ImageType for Kitty PNG.".to_string(),
-            ))
+            ));
         }
     };
 

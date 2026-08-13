@@ -1,5 +1,5 @@
 use pathfinder_color::ColorU;
-use warp_core::ui::theme::{phenomenon::PhenomenonStyle, Fill};
+use warp_core::ui::theme::{Fill, phenomenon::PhenomenonStyle};
 use warpui::elements::{CornerRadius, MouseStateHandle, Radius};
 use warpui::ui_components::checkbox::Checkbox;
 use warpui::ui_components::components::UiComponentStyles;

@@ -38,13 +38,13 @@ use warp_util::file::FileLoadError;
 #[cfg(feature = "local_fs")]
 use warp_util::file_type::is_buffer_binary;
 use warpui::{
-    r#async::{Spawnable, SpawnableOutput},
     AppContext, Entity, EntityId, ModelContext, ModelHandle,
+    r#async::{Spawnable, SpawnableOutput},
 };
 
 #[cfg(feature = "local_fs")]
 use crate::util::image::{
-    is_supported_image_mime_type, process_image_for_agent, ProcessImageResult,
+    ProcessImageResult, is_supported_image_mime_type, process_image_for_agent,
 };
 #[cfg(feature = "local_fs")]
 use mime_guess::from_path;
@@ -55,17 +55,17 @@ use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentAction, AIAgentActionId, AIAgentActionResult,
-            AIAgentActionResultType, AIAgentActionType, CancellationReason, FileContext,
-            FileLocations,
+            AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
+            AIAgentActionType, CancellationReason, FileContext, FileLocations,
+            conversation::AIConversationId,
         },
         get_relevant_files::controller::GetRelevantFilesController,
     },
     terminal::{
-        model::session::{active_session::ActiveSession, shell_quote_arg, Session},
+        ShellLaunchData, TerminalModel,
+        model::session::{Session, active_session::ActiveSession, shell_quote_arg},
         model_events::ModelEventDispatcher,
         shell::ShellType,
-        ShellLaunchData, TerminalModel,
     },
 };
 

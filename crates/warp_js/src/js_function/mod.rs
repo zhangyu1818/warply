@@ -4,7 +4,7 @@ mod native;
 pub use native::*;
 use std::marker::PhantomData;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 /// Struct to pass serialized function input and output, encapsulating the details of the actual

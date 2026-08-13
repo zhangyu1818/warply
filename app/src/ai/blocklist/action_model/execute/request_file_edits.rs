@@ -7,17 +7,17 @@ use futures::channel::oneshot;
 use itertools::Itertools;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity as _, ViewHandle};
 
+use crate::BlocklistAIHistoryModel;
 use crate::ai::{
     agent::{
         AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
         RequestFileEditsResult, UpdatedFileContext,
     },
     blocklist::{
-        inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
         BlocklistAIPermissions,
+        inline_action::code_diff_view::{CodeDiffView, CodeDiffViewEvent},
     },
 };
-use crate::BlocklistAIHistoryModel;
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput};
 

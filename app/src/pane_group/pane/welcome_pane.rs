@@ -5,8 +5,8 @@ use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 use crate::{
     app_state::LeafContents,
     pane_group::{
-        pane::welcome_view::WelcomeView, BackingView, PaneConfiguration, PaneContent, PaneGroup,
-        PaneView,
+        BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView,
+        pane::welcome_view::WelcomeView,
     },
 };
 

@@ -1,14 +1,14 @@
+use crate::FeatureFlag;
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::code::editor::{add_color, remove_color};
 use crate::code::icon_from_file_path;
 use crate::safe_triangle::SafeTriangle;
-use crate::terminal::cli_agent_sessions::listener::agent_supports_rich_status;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
-use crate::terminal::view::TerminalViewState;
 use crate::terminal::CLIAgent;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
+use crate::terminal::cli_agent_sessions::listener::agent_supports_rich_status;
+use crate::terminal::view::TerminalViewState;
 use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
-use crate::ui_components::icon_with_status::{render_icon_with_status, IconWithStatusVariant};
-use crate::FeatureFlag;
+use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -16,14 +16,14 @@ use std::sync::{Arc, Mutex};
 use crate::appearance::Appearance;
 use crate::context_chips::display_chip::GitLineChanges;
 use crate::context_chips::github_pr_display_text_from_url;
-use crate::drive::{cloud_object_styling::local_object_icon_color, DriveObjectType};
+use crate::drive::{DriveObjectType, cloud_object_styling::local_object_icon_color};
 use crate::editor::EditorView;
-use crate::pane_group::pane::IPaneType;
 use crate::pane_group::TerminalPane;
+use crate::pane_group::pane::IPaneType;
 use crate::pane_group::{CodePane, PaneGroup, PaneId, TabBarHoverIndex, WorkflowPane};
-use crate::tab::{tab_position_id, SelectedTabColor, TabData, TAB_INDICATOR_SYNCED_COLOR};
-use crate::terminal::session_settings::SessionSettings;
+use crate::tab::{SelectedTabColor, TAB_INDICATOR_SYNCED_COLOR, TabData, tab_position_id};
 use crate::terminal::TerminalView;
+use crate::terminal::session_settings::SessionSettings;
 use crate::themes::theme::Fill as ThemeFill;
 use crate::ui_components::buttons::combo_inner_button;
 use crate::ui_components::icons::Icon as UiIcon;
@@ -45,25 +45,24 @@ use languages::language_by_filename;
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::Setting as _;
 use std::path::{Path, PathBuf};
 use warp_core::context_flag::ContextFlag;
+use warp_core::ui::Icon as WarpIcon;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill as WarpThemeFill, WarpTheme};
-use warp_core::ui::Icon as WarpIcon;
 use warpui::elements::DispatchEventResult;
 use warpui::elements::{
-    resizable_state_handle, Border, ChildAnchor, Clipped, ClippedScrollStateHandle,
-    ClippedScrollable, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragAxis,
-    DragBarSide, Draggable, DropShadow, DropTarget, Element, Empty, EventHandler, Expanded,
-    Fill as ElementFill, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    OffsetPositioning, Padding, ParentAnchor, ParentElement, ParentOffsetBounds,
-    PositionedElementAnchor, PositionedElementOffsetBounds, Radius, Resizable,
-    ResizableStateHandle, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth,
-    Shrinkable, Stack, Text,
+    Border, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
+    Container, CornerRadius, CrossAxisAlignment, DragAxis, DragBarSide, Draggable, DropShadow,
+    DropTarget, Element, Empty, EventHandler, Expanded, Fill as ElementFill, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, Padding, ParentAnchor,
+    ParentElement, ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds,
+    Radius, Resizable, ResizableStateHandle, SavePosition, ScrollTarget, ScrollToPositionMode,
+    ScrollbarWidth, Shrinkable, Stack, Text, resizable_state_handle,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
@@ -6413,8 +6412,7 @@ fn render_local_object_detail_section(
 }
 
 fn code_detail_kind_label(file_name: &str) -> Option<String> {
-    language_by_filename(Path::new(file_name))
-        .map(|language| language.display_name().to_string())
+    language_by_filename(Path::new(file_name)).map(|language| language.display_name().to_string())
 }
 
 fn typed_pane_local_object_type(typed: &TypedPane<'_>) -> Option<DriveObjectType> {

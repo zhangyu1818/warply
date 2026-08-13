@@ -4,7 +4,7 @@ use std::{fs, time::Duration};
 
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
+    vector::{Vector2F, vec2f},
 };
 use settings::Setting as _;
 use warp::integration_testing::terminal::{
@@ -28,24 +28,23 @@ use warp::{
         terminal::{
             assert_active_session_local_path, execute_command,
             execute_command_for_single_terminal_in_tab,
-            util::{current_shell_starter_and_version, ExpectedExitStatus},
+            util::{ExpectedExitStatus, current_shell_starter_and_version},
             wait_until_bootstrapped_pane, wait_until_bootstrapped_single_pane_for_tab,
         },
     },
     settings::PaneSettings,
     terminal::shell::ShellType,
     workspace::tab_settings::{TabSettings, VerticalTabsDisplayGranularity},
-    workspace::{WorkspaceAction, NEW_TAB_BUTTON_POSITION_ID},
+    workspace::{NEW_TAB_BUTTON_POSITION_ID, WorkspaceAction},
 };
 use warpui::{
-    async_assert, async_assert_eq,
+    SingletonEntity, TypedActionView, WindowId, async_assert, async_assert_eq,
     event::{Event, ModifiersState},
     integration::{AssertionCallback, AssertionOutcome, StepDataMap, TestStep},
     windowing::WindowManager,
-    SingletonEntity, TypedActionView, WindowId,
 };
 
-use crate::{util::skip_if_powershell_core_2303, Builder};
+use crate::{Builder, util::skip_if_powershell_core_2303};
 
 use super::new_builder;
 
@@ -345,9 +344,11 @@ fn assert_saved_positions_absent(labels: &'static [&'static str]) -> AssertionCa
         let presenter = app.presenter(window_id).expect("presenter should exist");
         let presenter = presenter.borrow();
         let position_cache = presenter.position_cache();
-        async_assert!(labels
-            .iter()
-            .all(|label| position_cache.get_position(label).is_none()))
+        async_assert!(
+            labels
+                .iter()
+                .all(|label| position_cache.get_position(label).is_none())
+        )
     })
 }
 

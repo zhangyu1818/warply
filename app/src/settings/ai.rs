@@ -14,10 +14,10 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use settings::{define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, define_settings_group};
 use warp_core::execution_mode::AppExecutionMode;
 
-use serde::{de::Deserializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Deserializer};
 use strum_macros::EnumIter;
 
 /// The default mode for new terminal sessions.

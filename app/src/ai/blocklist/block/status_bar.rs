@@ -3,12 +3,12 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use super::{
     cli_controller::{CLISubagentController, CLISubagentEvent},
     model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
-    view_impl::common::{render_warping_indicator, ButtonProps, WarpingProps},
+    view_impl::common::{ButtonProps, WarpingProps, render_warping_indicator},
 };
 use crate::terminal::input::buffer_model::InputBufferUpdateEvent;
 use crate::{
     ai::blocklist::agent_view::{
-        agent_view_bg_fill, AgentMessageBar, AgentViewController, EphemeralMessageModel,
+        AgentMessageBar, AgentViewController, EphemeralMessageModel, agent_view_bg_fill,
     },
     terminal::input::{
         buffer_model::InputBufferModel, slash_command_model::SlashCommandModel,
@@ -17,33 +17,33 @@ use crate::{
 };
 
 use crate::{
+    BlocklistAIHistoryModel,
     ai::{
         acp::model::AcpAgentModel,
         agent::{
-            conversation::AIConversationId, AIAgentExchangeId, AIAgentOutput,
-            AIAgentOutputMessageType, CancellationReason, SummarizationType,
+            AIAgentExchangeId, AIAgentOutput, AIAgentOutputMessageType, CancellationReason,
+            SummarizationType, conversation::AIConversationId,
         },
         blocklist::{
+            BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIContextEvent,
+            BlocklistAIContextModel, BlocklistAIController, BlocklistAIHistoryEvent,
+            BlocklistAIInputEvent, BlocklistAIInputModel, QueuedQueryEvent, QueuedQueryModel,
+            ResponseStreamId,
             agent_view::shortcuts::AgentShortcutViewModel,
             model::AIBlockModelHelper,
             summarization_cancel_dialog::{
                 self, SummarizationCancelDialog, SummarizationCancelDialogEvent,
             },
-            BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIContextEvent,
-            BlocklistAIContextModel, BlocklistAIController, BlocklistAIHistoryEvent,
-            BlocklistAIInputEvent, BlocklistAIInputModel, QueuedQueryEvent, QueuedQueryModel,
-            ResponseStreamId,
         },
     },
     settings::InputModeSettings,
     settings_view::keybindings::KeybindingChangedNotifier,
     terminal::{
+        CANCEL_COMMAND_KEYBINDING, TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING, TerminalModel,
         model::block::LONG_RUNNING_COMMAND_DURATION_MS,
         model_events::{ModelEvent, ModelEventDispatcher},
-        TerminalModel, CANCEL_COMMAND_KEYBINDING, TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING,
     },
     util::bindings::keybinding_name_to_keystroke,
-    BlocklistAIHistoryModel,
 };
 use instant::Instant;
 use parking_lot::FairMutex;
@@ -51,14 +51,14 @@ use pathfinder_color::ColorU;
 use warp_core::ui::theme::Fill;
 use warpui::elements::shimmering_text::ShimmeringTextStateHandle;
 use warpui::{
+    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, View, ViewContext,
+    ViewHandle,
+    r#async::SpawnedFutureHandle,
     elements::{Container, Empty, Flex, MouseStateHandle, ParentElement},
     keymap::Keystroke,
     presenter::ChildView,
-    r#async::SpawnedFutureHandle,
-    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, View, ViewContext,
-    ViewHandle,
 };
-use warpui::{r#async::Timer, TypedActionView};
+use warpui::{TypedActionView, r#async::Timer};
 
 pub fn init(app: &mut AppContext) {
     summarization_cancel_dialog::init(app);

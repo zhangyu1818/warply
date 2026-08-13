@@ -1,11 +1,11 @@
 use itertools::Itertools;
 
 use crate::completer::{
+    TopLevelCommandCaseSensitivity,
     context::CompletionContext,
     engine, get_path_separators,
     matchers::MatchStrategy,
     suggest::{MatchedSuggestion, Priority, Suggestion, SuggestionType},
-    TopLevelCommandCaseSensitivity,
 };
 use crate::parsers::ParsedToken;
 

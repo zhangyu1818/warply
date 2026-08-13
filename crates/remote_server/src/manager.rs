@@ -1,6 +1,12 @@
+use crate::HostId;
 use crate::client::ClientEvent;
 use crate::client::RemoteServerClient;
 use crate::identity::RemoteServerIdentityContext;
+use crate::proto::{
+    DiffMode, DiffState, DiffStateErrorValue, DiffStateFileDelta, DiffStateMetadataUpdate,
+    DiffStateSnapshot, FileStatusInfo, GetDiffStateResponse, GitOpDelta, PrInfo, diff_state,
+    get_diff_state_response,
+};
 use crate::setup::RemoteOs;
 use crate::setup::RemotePlatform;
 use crate::setup::RemoteServerSetupState;
@@ -8,20 +14,14 @@ use crate::setup::UnsupportedReason;
 use crate::setup::{PreinstallCheckResult, PreinstallStatus};
 use crate::transport::Connection;
 use crate::transport::{Error, RemoteTransport};
-use crate::HostId;
-use crate::proto::{
-    diff_state, get_diff_state_response, DiffMode, DiffState, DiffStateErrorValue,
-    DiffStateFileDelta, DiffStateMetadataUpdate, DiffStateSnapshot, FileStatusInfo,
-    GetDiffStateResponse, GitOpDelta, PrInfo,
-};
 use repo_metadata::RepoMetadataUpdate;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use warp_core::channel::ChannelState;
 use warp_core::SessionId;
+use warp_core::channel::ChannelState;
 use warp_util::remote_path::RemotePath;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::FutureExt as _;
@@ -481,9 +481,11 @@ impl RemoteServerManager {
     }
 
     pub fn find_connected_session(&self, host_id: &HostId) -> Option<SessionId> {
-        self.host_to_sessions.get(host_id)?.iter().copied().find(|session_id| {
-            self.client_for_session(*session_id).is_some()
-        })
+        self.host_to_sessions
+            .get(host_id)?
+            .iter()
+            .copied()
+            .find(|session_id| self.client_for_session(*session_id).is_some())
     }
 
     pub fn get_diff_state(
@@ -661,21 +663,23 @@ impl RemoteServerManager {
         let repo_path = remote_path.path;
         let event_path = repo_path.clone();
         let spawner = self.spawner.clone();
-        ctx.background_executor().spawn(async move {
-            let result = client
-                .git_push(&repo_path, branch)
-                .await
-                .map_err(|error| error.to_string());
-            let _ = spawner
-                .spawn(move |_manager, ctx| {
-                    ctx.emit(RemoteServerManagerEvent::GitPushResponse {
-                        host_id,
-                        repo_path: event_path,
-                        result,
-                    });
-                })
-                .await;
-        }).detach();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_push(&repo_path, branch)
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::GitPushResponse {
+                            host_id,
+                            repo_path: event_path,
+                            result,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
     }
 
     pub fn git_create_pr(
@@ -695,21 +699,23 @@ impl RemoteServerManager {
         let repo_path = remote_path.path;
         let event_path = repo_path.clone();
         let spawner = self.spawner.clone();
-        ctx.background_executor().spawn(async move {
-            let result = client
-                .git_create_pr(&repo_path, branch, autogenerate_content)
-                .await
-                .map_err(|error| error.to_string());
-            let _ = spawner
-                .spawn(move |_manager, ctx| {
-                    ctx.emit(RemoteServerManagerEvent::GitCreatePrResponse {
-                        host_id,
-                        repo_path: event_path,
-                        result,
-                    });
-                })
-                .await;
-        }).detach();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_create_pr(&repo_path, branch, autogenerate_content)
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::GitCreatePrResponse {
+                            host_id,
+                            repo_path: event_path,
+                            result,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
     }
 
     pub fn git_get_pr_info(
@@ -727,21 +733,23 @@ impl RemoteServerManager {
         let repo_path = remote_path.path;
         let event_path = repo_path.clone();
         let spawner = self.spawner.clone();
-        ctx.background_executor().spawn(async move {
-            let result = client
-                .git_get_pr_info(&repo_path)
-                .await
-                .map_err(|error| error.to_string());
-            let _ = spawner
-                .spawn(move |_manager, ctx| {
-                    ctx.emit(RemoteServerManagerEvent::GitGetPrInfoResponse {
-                        host_id,
-                        repo_path: event_path,
-                        result,
-                    });
-                })
-                .await;
-        }).detach();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_get_pr_info(&repo_path)
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::GitGetPrInfoResponse {
+                            host_id,
+                            repo_path: event_path,
+                            result,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
     }
 
     pub fn git_generate_commit_message(
@@ -761,21 +769,23 @@ impl RemoteServerManager {
         let repo_path = remote_path.path;
         let event_path = repo_path.clone();
         let spawner = self.spawner.clone();
-        ctx.background_executor().spawn(async move {
-            let result = client
-                .git_generate_commit_message(&repo_path, include_unstaged, branch_name)
-                .await
-                .map_err(|error| error.to_string());
-            let _ = spawner
-                .spawn(move |_manager, ctx| {
-                    ctx.emit(RemoteServerManagerEvent::GitGenerateCommitMessageResponse {
-                        host_id,
-                        repo_path: event_path,
-                        result,
-                    });
-                })
-                .await;
-        }).detach();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_generate_commit_message(&repo_path, include_unstaged, branch_name)
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(RemoteServerManagerEvent::GitGenerateCommitMessageResponse {
+                            host_id,
+                            repo_path: event_path,
+                            result,
+                        });
+                    })
+                    .await;
+            })
+            .detach();
     }
 
     pub fn git_get_committed_branch_files(
@@ -793,21 +803,25 @@ impl RemoteServerManager {
         let repo_path = remote_path.path;
         let event_path = repo_path.clone();
         let spawner = self.spawner.clone();
-        ctx.background_executor().spawn(async move {
-            let result = client
-                .git_get_committed_branch_files(&repo_path)
-                .await
-                .map_err(|error| error.to_string());
-            let _ = spawner
-                .spawn(move |_manager, ctx| {
-                    ctx.emit(RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse {
-                        host_id,
-                        repo_path: event_path,
-                        result,
-                    });
-                })
-                .await;
-        }).detach();
+        ctx.background_executor()
+            .spawn(async move {
+                let result = client
+                    .git_get_committed_branch_files(&repo_path)
+                    .await
+                    .map_err(|error| error.to_string());
+                let _ = spawner
+                    .spawn(move |_manager, ctx| {
+                        ctx.emit(
+                            RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse {
+                                host_id,
+                                repo_path: event_path,
+                                result,
+                            },
+                        );
+                    })
+                    .await;
+            })
+            .detach();
     }
 
     /// Checks if the remote server binary is installed and executable.
@@ -1560,11 +1574,15 @@ impl RemoteServerManager {
         ctx: &mut ModelContext<Self>,
     ) {
         let Some(client) = self.client_for_session(session_id).cloned() else {
-            log::warn!("Remote server load_remote_repo_metadata_directory: no connected client session={session_id:?}");
+            log::warn!(
+                "Remote server load_remote_repo_metadata_directory: no connected client session={session_id:?}"
+            );
             return;
         };
         let Some(host_id) = self.host_id_for_session(session_id).cloned() else {
-            log::warn!("Remote server load_remote_repo_metadata_directory: no host_id session={session_id:?}");
+            log::warn!(
+                "Remote server load_remote_repo_metadata_directory: no host_id session={session_id:?}"
+            );
             return;
         };
 
@@ -1744,7 +1762,9 @@ impl RemoteServerManager {
         // initial connect and every reconnect.
         if let Some(info) = self.session_bootstrap_info.get(&session_id) {
             if let Some(client) = self.client_for_session(session_id) {
-                log::info!("Remote server sending SessionBootstrapped notification: session={session_id:?}");
+                log::info!(
+                    "Remote server sending SessionBootstrapped notification: session={session_id:?}"
+                );
                 client.notify_session_bootstrapped(
                     session_id,
                     &info.shell_type,
@@ -1865,17 +1885,23 @@ impl RemoteServerManager {
             // exit status. For example, SSH returns false when exit code
             // 255 indicates the ControlMaster's TCP connection is dead.
             if !transport.is_reconnectable(exit_status.as_ref()) {
-                log::warn!("Transport reports disconnect is not reconnectable, skipping reconnect: session={session_id:?} exit_status={exit_status:?}");
+                log::warn!(
+                    "Transport reports disconnect is not reconnectable, skipping reconnect: session={session_id:?} exit_status={exit_status:?}"
+                );
                 self.finalize_disconnect(session_id, host_id, exit_status, ctx);
                 return;
             }
 
             let Some(identity_context) = self.identity_context.clone() else {
-                log::warn!("Remote server spontaneous disconnect without identity context: session={session_id:?}");
+                log::warn!(
+                    "Remote server spontaneous disconnect without identity context: session={session_id:?}"
+                );
                 self.finalize_disconnect(session_id, host_id, exit_status, ctx);
                 return;
             };
-            log::info!("Remote server spontaneous disconnect, will attempt reconnect: session={session_id:?} host={host_id:?}");
+            log::info!(
+                "Remote server spontaneous disconnect, will attempt reconnect: session={session_id:?} host={host_id:?}"
+            );
 
             // Clear stale repo metadata and host index so downstream
             // models don't hold onto data from the dead server process.

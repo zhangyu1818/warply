@@ -19,21 +19,21 @@ use remote_server::manager::RemoteServerManager;
 use warp_core::HostId;
 use warp_util::standardized_path::StandardizedPath;
 
-use futures::io::{AsyncBufReadExt, BufReader};
 use futures::StreamExt;
+use futures::io::{AsyncBufReadExt, BufReader};
 
 use async_channel::Sender;
 use notify_debouncer_full::notify::{RecursiveMode, WatchFilter};
 use repo_metadata::{
+    CanonicalizedPath, Repository, RepositoryUpdate,
     repositories::DetectedRepositories,
     repository::{RepositorySubscriber, SubscriberId},
-    CanonicalizedPath, Repository, RepositoryUpdate,
 };
 use warp_util::content_version::ContentVersion;
 use warp_util::file::FileSaveError;
 use warp_util::file::{FileId, FileLoadError};
 use warpui::ModelHandle;
-use warpui::{r#async::SpawnedFutureHandle, AppContext, Entity, ModelContext, SingletonEntity};
+use warpui::{AppContext, Entity, ModelContext, SingletonEntity, r#async::SpawnedFutureHandle};
 use watcher::{BulkFilesystemWatcher, BulkFilesystemWatcherEvent};
 
 pub mod text_file_reader;

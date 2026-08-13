@@ -1,9 +1,9 @@
 use super::{
-    truncate_from_beginning, CreateGitBranch, GitBranch, GitLineChanges, PromptChipShellCommand,
+    CreateGitBranch, GitBranch, GitLineChanges, PromptChipShellCommand, truncate_from_beginning,
 };
 use crate::context_chips::{
-    display_menu::GenericMenuItem, git_branch_on_click::GitBranchOnClickValue,
-    github_pr_display_text_from_url, ContextChipKind,
+    ContextChipKind, display_menu::GenericMenuItem, git_branch_on_click::GitBranchOnClickValue,
+    github_pr_display_text_from_url,
 };
 use crate::ui_components::icons::Icon;
 

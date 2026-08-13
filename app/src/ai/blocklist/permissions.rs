@@ -7,8 +7,8 @@ use crate::{
     ai::{
         agent::conversation::AIConversationId,
         execution_profiles::{
-            profiles::{AIExecutionProfilesModel, ClientProfileId},
             AIExecutionProfile, ActionPermission, AskUserQuestionPermission, WriteToPtyPermission,
+            profiles::{AIExecutionProfilesModel, ClientProfileId},
         },
     },
     settings::AgentModeCommandExecutionPredicate,

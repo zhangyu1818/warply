@@ -21,7 +21,7 @@ use crate::editor::{
 };
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::MenuPositioning;
-use crate::terminal::resizable_data::{ModalType, ResizableData, DEFAULT_VOLTRON_WIDTH};
+use crate::terminal::resizable_data::{DEFAULT_VOLTRON_WIDTH, ModalType, ResizableData};
 use crate::util::bindings::{self, CustomAction};
 use crate::workflows::categories::CategoriesView;
 
@@ -31,10 +31,11 @@ use std::path::PathBuf;
 use vec1::Vec1;
 use warpui::accessibility::AccessibilityContent;
 use warpui::elements::{
-    resizable_state_handle, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container,
-    CornerRadius, CrossAxisAlignment, Dismiss, DispatchEventResult, Element, EventHandler, Flex,
-    Icon, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Dismiss, DispatchEventResult, Element, EventHandler, Flex, Icon,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
     ParentElement, ParentOffsetBounds, Radius, Resizable, ResizableStateHandle, Shrinkable, Stack,
+    resizable_state_handle,
 };
 use warpui::geometry::vector::vec2f;
 use warpui::keymap::{Context, FixedBinding};

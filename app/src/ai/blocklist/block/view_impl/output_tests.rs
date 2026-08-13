@@ -3,13 +3,13 @@ use agent_client_protocol::schema::{
     ToolCallContent, ToolCallLocation, ToolKind,
 };
 
-use crate::ai::acp::{acp_raw_images, AcpTerminalTrace, AcpToolCall, ACP_RAW_IMAGE_SOURCE_PREFIX};
+use crate::ai::acp::{ACP_RAW_IMAGE_SOURCE_PREFIX, AcpTerminalTrace, AcpToolCall, acp_raw_images};
 use crate::ai::agent::AIAgentTextSection;
 
 use super::{
-    acp_tool_call_content_sections, acp_tool_call_location_display_strings,
-    acp_tool_call_render_kind, format_acp_terminal_trace, format_acp_tool_call_content,
-    AcpToolCallRenderKind, AcpToolCallSurfaceKind,
+    AcpToolCallRenderKind, AcpToolCallSurfaceKind, acp_tool_call_content_sections,
+    acp_tool_call_location_display_strings, acp_tool_call_render_kind, format_acp_terminal_trace,
+    format_acp_tool_call_content,
 };
 
 #[test]

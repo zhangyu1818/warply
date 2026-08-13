@@ -1,7 +1,7 @@
 use warp_core::ui::builder::MIN_FONT_SIZE;
-use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity};
+use warpui::{AppContext, SingletonEntity, fonts::Weight, rendering::ThinStrokes};
 
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
 use warpui::elements::DEFAULT_UI_LINE_HEIGHT_RATIO;
 
 use super::EnforceMinimumContrast as EnforceMinimumContrastEnum;

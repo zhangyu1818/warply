@@ -1,6 +1,6 @@
 use super::{CloudObject, Space};
 use crate::{
-    drive::{folders::CloudFolder, items::LocalObjectItemId, CloudObjectTypeAndId},
+    drive::{CloudObjectTypeAndId, folders::CloudFolder, items::LocalObjectItemId},
     ui_components::breadcrumb::Breadcrumb,
 };
 use warpui::AppContext;

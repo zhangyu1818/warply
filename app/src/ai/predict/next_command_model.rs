@@ -1,7 +1,7 @@
 use crate::ai::block_context::BlockContext;
 use crate::ai::execution_context::AiExecutionContext;
-use crate::ai::terminal_suggestions::provider::SuggestionProvider;
 use crate::ai::terminal_suggestions::TerminalSuggestionsConfig;
+use crate::ai::terminal_suggestions::provider::SuggestionProvider;
 use crate::completer::SessionContext;
 use crate::http_api::AIApiError;
 use crate::settings::AISettings;
@@ -19,19 +19,19 @@ use std::sync::Arc;
 #[cfg(feature = "local_fs")]
 use std::time::Duration;
 use warp_completer::completer::{
-    self, expand_command_aliases, AliasExpansionResult, CompleterOptions,
-    CompletionsFallbackStrategy, MatchStrategy,
+    self, AliasExpansionResult, CompleterOptions, CompletionsFallbackStrategy, MatchStrategy,
+    expand_command_aliases,
 };
 use warp_completer::meta::Spanned;
-use warp_completer::parsers::hir::{Command, Expression, FlagType};
 use warp_completer::parsers::ParsedExpression;
+use warp_completer::parsers::hir::{Command, Expression, FlagType};
 #[cfg(feature = "local_fs")]
 use warpui::r#async::FutureExt;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::terminal_input_suggestions::{
-    create_terminal_input_suggestions_request, get_context_messages, NextCommandContext,
-    TerminalInputSuggestionsRequest, TerminalInputSuggestionsResponse,
+    NextCommandContext, TerminalInputSuggestionsRequest, TerminalInputSuggestionsResponse,
+    create_terminal_input_suggestions_request, get_context_messages,
 };
 
 cfg_if::cfg_if! {

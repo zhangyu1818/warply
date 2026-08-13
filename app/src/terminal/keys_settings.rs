@@ -1,11 +1,11 @@
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
-use warpui::{keymap::Keystroke, AppContext, DisplayIdx, ModelContext};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
+use warpui::{AppContext, DisplayIdx, ModelContext, keymap::Keystroke};
 
 use crate::{
-    root_view::{update_quake_window_bounds, QuakeModePinPosition},
+    root_view::{QuakeModePinPosition, update_quake_window_bounds},
     settings::{
-        CtrlTabBehavior, ExtraMetaKeys as ExtraMetaKeysEnum, GlobalHotkeyMode, SizePercentages,
-        DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES,
+        CtrlTabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, ExtraMetaKeys as ExtraMetaKeysEnum,
+        GlobalHotkeyMode, SizePercentages,
     },
 };
 
@@ -169,7 +169,9 @@ impl KeysSettings {
         let mut selected = GlobalHotkeyMode::Disabled;
 
         if *self.quake_mode_enabled && *self.activation_hotkey_enabled {
-            log::error!("Both quake mode AND activation hotkey enabled. Either one or the other should be active.");
+            log::error!(
+                "Both quake mode AND activation hotkey enabled. Either one or the other should be active."
+            );
             // Quake mode takes precedence
             selected = GlobalHotkeyMode::QuakeMode;
         } else if *self.quake_mode_enabled {

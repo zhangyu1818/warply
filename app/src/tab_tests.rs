@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{next_tab_color, tab_group_menu_entry_flags, SelectedTabColor};
+use super::{SelectedTabColor, next_tab_color, tab_group_menu_entry_flags};
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::color_dot::TAB_COLOR_OPTIONS;
 use crate::workspace::tab_group::{TabGroup, TabGroupId};

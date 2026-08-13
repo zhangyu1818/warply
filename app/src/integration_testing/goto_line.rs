@@ -1,8 +1,8 @@
 use settings::Setting as _;
 use warp_editor::content::buffer::ToBufferPoint;
 use warpui::{
-    async_assert, async_assert_eq, integration::AssertionCallback, App, SingletonEntity,
-    ViewHandle, WindowId,
+    App, SingletonEntity, ViewHandle, WindowId, async_assert, async_assert_eq,
+    integration::AssertionCallback,
 };
 
 use crate::code::editor::goto_line::view::GoToLineView;

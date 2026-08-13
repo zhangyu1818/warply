@@ -2,8 +2,9 @@ mod context;
 mod handle;
 
 use crate::{
+    Action, AppContext, CursorInfo, Element, Entity,
     accessibility::{AccessibilityContent, ActionAccessibilityContent},
-    keymap, Action, AppContext, CursorInfo, Element, Entity,
+    keymap,
 };
 
 pub use self::{context::*, handle::*};

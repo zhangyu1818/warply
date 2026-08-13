@@ -1,4 +1,4 @@
-use warpui::{platform::WindowStyle, App};
+use warpui::{App, platform::WindowStyle};
 
 use crate::{
     cloud_object::model::persistence::CloudModel, cloud_object::update_manager::UpdateManager,

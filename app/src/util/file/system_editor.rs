@@ -51,7 +51,7 @@ mod platform {
     use std::path::PathBuf;
     use std::slice;
     use warp_core::paths;
-    use warpui::{platform::mac::make_nsstring, AppContext};
+    use warpui::{AppContext, platform::mac::make_nsstring};
 
     unsafe extern "C" {
         fn scan_editor_apps_json(icon_cache_directory: id) -> id;

@@ -1,4 +1,4 @@
-use crate::ai::acp::config_options::{probe_config_options, AcpConfigOption};
+use crate::ai::acp::config_options::{AcpConfigOption, probe_config_options};
 use crate::ai::acp::registry::AcpRegistryModel;
 use crate::appearance::{Appearance, AppearanceEvent};
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors};
@@ -26,16 +26,16 @@ use warpui::ui_components::{
     switch::SwitchStateHandle,
 };
 use warpui::{
-    id, keymap::FixedBinding, Action, AppContext, Element, Entity, SingletonEntity,
-    TypedActionView, View, ViewContext, ViewHandle,
+    Action, AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle, id, keymap::FixedBinding,
 };
 
 use super::settings_page::{
-    build_sub_header, build_toggle_element, render_body_item_label, render_dropdown_item,
-    render_dropdown_item_label, render_separator, MatchData, PageType, SettingsPageMeta,
-    SettingsPageViewHandle, SettingsWidget, ToggleState, HEADER_PADDING,
+    HEADER_PADDING, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+    ToggleState, build_sub_header, build_toggle_element, render_body_item_label,
+    render_dropdown_item, render_dropdown_item_label, render_separator,
 };
-use super::{flags, SettingsAction, SettingsSection};
+use super::{SettingsAction, SettingsSection, flags};
 
 const CONTENT_FONT_SIZE: f32 = 12.;
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;

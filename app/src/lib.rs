@@ -104,7 +104,7 @@ pub mod terminal;
 pub mod themes;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use ::ai::project_context::model::ProjectContextModel;
-pub use ai::agent::{todos::AIAgentTodoList, AIAgentActionResultType, FileEdit, TodoOperation};
+pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation, todos::AIAgentTodoList};
 use ai::agent_conversations_model::AgentConversationsModel;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use ai::execution_profiles::editor::ExecutionProfileEditorManager;
@@ -121,7 +121,7 @@ use settings::import::model::ImportedConfigModel;
 
 #[cfg(feature = "local_fs")]
 use repo_metadata::{
-    repositories::DetectedRepositories, watcher::DirectoryWatcher, RepoMetadataModel,
+    RepoMetadataModel, repositories::DetectedRepositories, watcher::DirectoryWatcher,
 };
 #[cfg(feature = "local_fs")]
 use watcher::HomeDirectoryWatcher;
@@ -141,7 +141,7 @@ pub use persistence::testing as sqlite_testing;
 use ::settings::{Setting, ToggleableSetting};
 
 #[cfg(feature = "plugin_host")]
-pub use plugin::{run_plugin_host, PLUGIN_HOST_FLAG};
+pub use plugin::{PLUGIN_HOST_FLAG, run_plugin_host};
 use warpui::platform::app::{ApproveTerminateResult, TerminationRequestSource};
 use window_settings::WindowSettings;
 use workflows::manager::WorkflowManager;
@@ -166,10 +166,10 @@ use crate::projects::ProjectManagementModel;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::manager::SettingsManager;
 use crate::settings::{
-    log_setting_result, AccessibilitySettings, ScrollSettings, SelectionSettings,
+    AccessibilitySettings, ScrollSettings, SelectionSettings, log_setting_result,
 };
-use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::settings_view::DisplayCount;
+use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 use crate::system::SystemStats;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
@@ -180,13 +180,13 @@ use crate::undo_close::UndoCloseStack;
 use crate::updater::WarplyUpdater;
 use crate::user_config::WarpConfig;
 use crate::vim_registers::VimRegisters;
-use crate::warp_managed_paths_watcher::{ensure_warp_watch_roots_exist, WarpManagedPathsWatcher};
+use crate::warp_managed_paths_watcher::{WarpManagedPathsWatcher, ensure_warp_watch_roots_exist};
 use crate::workflows::aliases::WorkflowAliases;
 use crate::workflows::local_workflows::LocalWorkflows;
 use crate::workspace::{ActiveSession, ToastStack};
 #[cfg(feature = "local_tty")]
 use anyhow::Context;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use appearance::{Appearance, AppearanceManager};
 use channel::ChannelState;
 use http_api::HttpApiProvider;
@@ -203,7 +203,7 @@ use url::Url;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 use workspace::sync_inputs::SyncedInputState;
 
-use warpui::{integration::TestDriver, App, AssetProvider, Event};
+use warpui::{App, AssetProvider, Event, integration::TestDriver};
 
 use self::features::FeatureFlag;
 use crate::app_state::AppState;
@@ -212,7 +212,7 @@ use crate::drive::CloudObjectTypeAndId;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::notification::NotificationContext;
 use crate::root_view::{
-    quake_mode_window_id, quake_mode_window_is_open, OpenFromRestoredArg, OpenPath,
+    OpenFromRestoredArg, OpenPath, quake_mode_window_id, quake_mode_window_is_open,
 };
 use crate::ui_events::PaletteSource;
 use crate::util::bindings::is_binding_supported_on_mac;

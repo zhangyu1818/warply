@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 #[cfg(feature = "local_tty")]
 use futures::future::{BoxFuture, FutureExt};
 use std::{collections::HashMap, path::PathBuf, process::Stdio};

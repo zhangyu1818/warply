@@ -3,8 +3,8 @@ pub mod locations;
 
 pub use file_outline::build_outline;
 pub use file_outline::{Outline, Symbol};
-pub use repo_metadata::{matches_gitignores, path_passes_filters};
 pub use repo_metadata::{BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata};
+pub use repo_metadata::{matches_gitignores, path_passes_filters};
 
 use native::*;
 

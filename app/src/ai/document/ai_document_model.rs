@@ -18,7 +18,7 @@ use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
 use crate::{
     ai::{
-        agent::{conversation::AIConversationId, AIAgentActionId},
+        agent::{AIAgentActionId, conversation::AIConversationId},
         blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
         execution_profiles::profiles::AIExecutionProfilesModel,
     },
@@ -32,8 +32,8 @@ use crate::{
     },
     settings::FontSettings,
     terminal::{
-        model::session::{active_session::ActiveSession, Session},
         TerminalView,
+        model::session::{Session, active_session::ActiveSession},
     },
     throttle::throttle,
 };

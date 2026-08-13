@@ -18,15 +18,15 @@ use crate::{
         view::{ContextMenuAction, PromptPart, PromptPosition, TerminalAction},
     },
 };
-use futures::{pin_mut, FutureExt as _};
+use futures::{FutureExt as _, pin_mut};
 use itertools::Itertools;
 use settings::Setting as _;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
-use warp_core::{user_preferences::GetUserPreferences, SessionId};
+use warp_core::{SessionId, user_preferences::GetUserPreferences};
 
 use super::ChipResult;
 use super::{
-    chips_to_string,
+    ChipValue, ContextChipKind, chips_to_string,
     context_chip::{
         ChipAvailability, ChipDisabledReason, ChipFingerprintInput, ChipRuntimeCapabilities,
         ContextChip, Environment, ExternalCommandsAvailability, GeneratorContext, PromptGenerator,
@@ -34,7 +34,6 @@ use super::{
     },
     logging::{ChipCommandLogEntry, PromptChipExecutionPhase, PromptChipLogger},
     prompt::Prompt,
-    ChipValue, ContextChipKind,
 };
 #[cfg(feature = "local_fs")]
 use crate::code_review::git_status_update::{GitRepoStatusEvent, GitRepoStatusModel};
@@ -47,8 +46,8 @@ use std::time::Duration;
 #[cfg(feature = "local_fs")]
 use warpui::WeakModelHandle;
 use warpui::{
-    r#async::{SpawnedFutureHandle, Timer},
     AppContext, ViewHandle,
+    r#async::{SpawnedFutureHandle, Timer},
 };
 use warpui::{Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity};
 

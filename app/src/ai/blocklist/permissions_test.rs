@@ -6,6 +6,7 @@ use warpui::{App, EntityId, ModelHandle};
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::{
+    GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
     ai::{
         agent::conversation::AIConversationId,
         blocklist::permissions::{
@@ -15,7 +16,7 @@ use crate::{
             FileWritePermissionAllowedReason, FileWritePermissionDeniedReason,
         },
         execution_profiles::{
-            profiles::AIExecutionProfilesModel, ActionPermission, WriteToPtyPermission,
+            ActionPermission, WriteToPtyPermission, profiles::AIExecutionProfilesModel,
         },
     },
     cloud_object::model::persistence::CloudModel,
@@ -23,7 +24,6 @@ use crate::{
     identity::LocalIdentityProvider,
     settings::AgentModeCommandExecutionPredicate,
     test_util::settings::initialize_settings_for_tests,
-    GlobalResourceHandles, GlobalResourceHandlesProvider, LaunchMode,
 };
 
 use super::{BlocklistAIHistoryModel, BlocklistAIPermissions};

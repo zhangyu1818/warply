@@ -1,8 +1,10 @@
 use crate::{
+    AccessibilityData, AddSingletonModel, Clipboard, Scene, ZoomFactor,
     assets::{
-        asset_cache::{AssetCache, AssetHandle, AssetSource, AssetState},
         AssetProvider,
+        asset_cache::{AssetCache, AssetHandle, AssetSource, AssetState},
     },
+    r#async::{SpawnableOutput, Timer, block_on},
     event::KeyState,
     fonts::FallbackFontModel,
     image_cache::{self, ImageCache},
@@ -10,16 +12,14 @@ use crate::{
         AlertDialog, AlertDialogWithCallbacks, AppModalCallback, ModalId, PlatformModalResponseData,
     },
     platform::{
+        FullscreenState, SaveFilePickerConfiguration, SystemTheme, TerminationMode, WindowContext,
         app::TerminationResult,
         file_picker::{FilePickerConfiguration, FilePickerError},
         keyboard::KeyCode,
-        FullscreenState, SaveFilePickerConfiguration, SystemTheme, TerminationMode, WindowContext,
     },
-    r#async::{block_on, SpawnableOutput, Timer},
     windowing::{WindowCallbacks, WindowManager},
-    AccessibilityData, AddSingletonModel, Clipboard, Scene, ZoomFactor,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::Utc;
 use futures::{future::join_all, prelude::*};
 use instant::Instant;
@@ -37,15 +37,24 @@ use std::{
     pin::pin,
     rc::{self, Rc},
     sync::{
-        atomic::{AtomicI64, Ordering},
         Arc, OnceLock,
+        atomic::{AtomicI64, Ordering},
     },
 };
 
 use crate::{
+    Action, AddWindowOptions, AnyModel, AnyModelHandle, AnyView, ApplicationBundleInfo, CursorInfo,
+    Effect, Element, Entity, EntityId, Event, GetSingletonModelHandle, ModelAsRef, ModelContext,
+    ModelHandle, NextNewWindowsHasThisWindowsBoundsUponClose, Presenter, ReadModel, ReadView,
+    SingletonEntity, SpawnedFuture, TaskId, TypedActionView, UpdateModel, UpdateView, View,
+    ViewAsRef, ViewContext, ViewHandle, WindowId, WindowInvalidation,
     accessibility::{AccessibilityVerbosity, ActionAccessibilityContent},
     actions::StandardAction,
     assets,
+    r#async::{
+        FutureId,
+        executor::{self, Background, Foreground, ForegroundTask},
+    },
     core::{ActionType, Window},
     fonts::{self, ExternalFontFamily, RequestedFallbackFontSource},
     keymap::{
@@ -55,23 +64,14 @@ use crate::{
     notification::{NotificationSendError, RequestPermissionsOutcome, UserNotification},
     platform::{self, Cursor, WindowBounds, WindowOptions, WindowStyle},
     presenter::{CursorUpdate, DispatchedActionKind},
-    r#async::{
-        executor::{self, Background, Foreground, ForegroundTask},
-        FutureId,
-    },
     rendering,
     util::post_inc,
-    Action, AddWindowOptions, AnyModel, AnyModelHandle, AnyView, ApplicationBundleInfo, CursorInfo,
-    Effect, Element, Entity, EntityId, Event, GetSingletonModelHandle, ModelAsRef, ModelContext,
-    ModelHandle, NextNewWindowsHasThisWindowsBoundsUponClose, Presenter, ReadModel, ReadView,
-    SingletonEntity, SpawnedFuture, TaskId, TypedActionView, UpdateModel, UpdateView, View,
-    ViewAsRef, ViewContext, ViewHandle, WindowId, WindowInvalidation,
 };
 
 use super::{
-    autotracking, ActionCallback, BlurContext, FocusContext, GlobalActionCallback, GlobalShortcut,
+    ActionCallback, BlurContext, FocusContext, GlobalActionCallback, GlobalShortcut,
     InvalidationCallback, Observation, PendingUnsubscribes, RefCounts, Subscription, TaskCallback,
-    TypedActionCallback, ViewType,
+    TypedActionCallback, ViewType, autotracking,
 };
 
 lazy_static! {
@@ -4105,9 +4105,9 @@ impl AppContext {
     pub fn open_file_picker(
         &mut self,
         callback: impl FnOnce(Result<Vec<String>, FilePickerError>, &mut AppContext)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
         config: FilePickerConfiguration,
     ) {
         self.platform_delegate

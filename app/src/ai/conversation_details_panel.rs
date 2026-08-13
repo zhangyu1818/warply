@@ -7,19 +7,20 @@ use instant::Instant;
 use parking_lot::RwLock;
 use warp_core::ui::color::coloru_with_opacity;
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     clipboard::ClipboardContent,
     elements::{
+        Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
+        CrossAxisAlignment, DragBarSide, Empty, Expanded, Flex, MainAxisAlignment, MainAxisSize,
+        MouseStateHandle, ParentElement, Radius, Resizable, ResizableStateHandle, SelectableArea,
+        SelectionHandle, Text,
         new_scrollable::{NewScrollable, SingleAxisConfig},
-        resizable_state_handle, Border, ChildView, ClippedScrollStateHandle, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, DragBarSide, Empty, Expanded, Flex,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Resizable,
-        ResizableStateHandle, SelectableArea, SelectionHandle, Text,
+        resizable_state_handle,
     },
     fonts::{Properties, Weight},
     keymap::FixedBinding,
     platform::Cursor,
     ui_components::components::UiComponent,
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::ai::agent::conversation::AIConversation;
@@ -34,10 +35,10 @@ use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::CustomAction;
 use crate::util::time_format::human_readable_precise_duration;
-use crate::view_components::copyable_text_field::{
-    render_copyable_text_field, CopyableTextFieldConfig, COPY_FEEDBACK_DURATION,
-};
 use crate::view_components::DismissibleToast;
+use crate::view_components::copyable_text_field::{
+    COPY_FEEDBACK_DURATION, CopyableTextFieldConfig, render_copyable_text_field,
+};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 
 const FIELD_SPACING: f32 = 16.0;

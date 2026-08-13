@@ -2,20 +2,20 @@ use std::{
     cell::RefCell,
     pin::Pin,
     rc::Rc,
-    sync::atomic::AtomicBool,
     sync::Arc,
+    sync::atomic::AtomicBool,
     task::{Context, Poll},
 };
 
 use crate::r#async::Timer;
 use anyhow::Result;
-use futures_util::{stream, Stream};
+use futures_util::{Stream, stream};
 use parking_lot::Mutex;
 
 use super::*;
 use crate::{
     elements::*,
-    keymap::{macros::*, Keystroke},
+    keymap::{Keystroke, macros::*},
 };
 
 #[path = "transfer_view_tests.rs"]
@@ -1385,7 +1385,9 @@ fn test_dispatch_action() {
 
         assert_eq!(
             *actions.borrow(),
-            vec!["4 d", "4 c", "3 b", "3 a", "2 d", "2 c", "1 b", "1 a", "global b", "global a"]
+            vec![
+                "4 d", "4 c", "3 b", "3 a", "2 d", "2 c", "1 b", "1 a", "global b", "global a"
+            ]
         );
 
         // Remove view_1, which doesn't propagate the action.
@@ -1399,7 +1401,9 @@ fn test_dispatch_action() {
 
         assert_eq!(
             *actions.borrow(),
-            vec!["4 d", "4 c", "3 b", "3 a", "2 d", "2 c", "global b", "global a"]
+            vec![
+                "4 d", "4 c", "3 b", "3 a", "2 d", "2 c", "global b", "global a"
+            ]
         );
 
         actions.borrow_mut().clear();

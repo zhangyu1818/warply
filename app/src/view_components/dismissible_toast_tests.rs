@@ -6,9 +6,9 @@ use warpui::platform::WindowStyle;
 use warpui::{App, TypedActionView, ViewHandle};
 
 use super::{
-    is_expand_toggle_keystroke, toast_message_is_truncated, truncate_toast_message,
-    DismissibleToast, DismissibleToastAction, DismissibleToastStack, ToastFlavor,
-    COLLAPSED_MAX_CHARS, COLLAPSED_MAX_LINES,
+    COLLAPSED_MAX_CHARS, COLLAPSED_MAX_LINES, DismissibleToast, DismissibleToastAction,
+    DismissibleToastStack, ToastFlavor, is_expand_toggle_keystroke, toast_message_is_truncated,
+    truncate_toast_message,
 };
 
 fn stack_handle(app: &mut App) -> ViewHandle<DismissibleToastStack<()>> {
@@ -115,10 +115,12 @@ fn evicted_ephemeral_toast_aborts_timer() {
 
         stack.read(&app, |stack, _| {
             assert_eq!(stack.toasts.len(), 3);
-            assert!(stack
-                .toasts
-                .iter()
-                .all(|toast| toast.dismissible_toast.main_text != "oldest"));
+            assert!(
+                stack
+                    .toasts
+                    .iter()
+                    .all(|toast| toast.dismissible_toast.main_text != "oldest")
+            );
         });
     });
 }

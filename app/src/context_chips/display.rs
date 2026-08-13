@@ -12,21 +12,21 @@ use crate::{
 };
 use std::path::PathBuf;
 use warpui::{
+    AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
+    View, ViewContext, ViewHandle,
     elements::{
         ChildView, Clipped, Container, CrossAxisAlignment, Element, MainAxisAlignment,
         MainAxisSize, ParentElement, Wrap,
     },
-    AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
-    View, ViewContext, ViewHandle,
 };
 
 use super::{
+    ChipResult, ContextChipKind,
     display_chip::{
         DisplayChip, DisplayChipConfig, PromptChipShellCommand, PromptDisplayChipEvent,
     },
     git_line_changes_from_chips,
     prompt_type::PromptType,
-    ChipResult, ContextChipKind,
 };
 
 /// A view for displaying the prompt.

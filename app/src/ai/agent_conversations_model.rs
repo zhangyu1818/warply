@@ -8,7 +8,7 @@ use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::workspace::{RestoreConversationLayout, WorkspaceAction};
 use std::collections::HashMap;
-use warp_core::ui::theme::{color::internal_colors, WarpTheme};
+use warp_core::ui::theme::{WarpTheme, color::internal_colors};
 use warpui::color::ColorU;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 

@@ -1,6 +1,6 @@
 use crate::appearance::Appearance;
-use crate::drive::cloud_object_styling::local_object_icon_color;
 use crate::drive::DriveObjectType;
+use crate::drive::cloud_object_styling::local_object_icon_color;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
     render_search_item_icon, render_search_item_icon_placeholder,

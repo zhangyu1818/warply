@@ -11,8 +11,8 @@ use super::{
     AutofireAction, QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel,
     QueuedQueryOrigin,
 };
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::ImageContext;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, PendingAttachment};
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};

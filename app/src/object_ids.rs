@@ -1,6 +1,6 @@
 pub use local_object_model::ids::{
-    parse_sqlite_id_to_uid, ClientId, HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId,
-    ToServerId,
+    ClientId, HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId,
+    parse_sqlite_id_to_uid,
 };
 
 /// server_id_traits generates implementations for legacy server-style local object ID newtypes.

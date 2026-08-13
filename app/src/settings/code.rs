@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(CodeSettings, settings: [
     code_as_default_editor: CodeAsDefaultEditor {

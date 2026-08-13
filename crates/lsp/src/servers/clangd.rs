@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use command::r#async::Command;
 
+use crate::CommandBuilder;
 use crate::install::{
-    fetch_latest_metadata_from_github_dynamic_asset, install_from_github, AssetKind,
+    AssetKind, fetch_latest_metadata_from_github_dynamic_asset, install_from_github,
 };
 use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
-use crate::CommandBuilder;
 use async_trait::async_trait;
 
 const SERVER_NAME: &str = "clangd";

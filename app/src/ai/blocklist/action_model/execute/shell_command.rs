@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures::channel::oneshot;
-use futures::{select, FutureExt};
+use futures::{FutureExt, select};
 use futures_lite::pin;
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -22,15 +22,15 @@ use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::WriteToPtyPermission;
 use crate::terminal::event::BlockMetadataReceivedEvent;
 use crate::terminal::model::block::{
-    formatted_terminal_contents_for_input, Block, BlockId, CURSOR_MARKER,
+    Block, BlockId, CURSOR_MARKER, formatted_terminal_contents_for_input,
 };
 use crate::terminal::shell::ShellType;
 use crate::{
     ai::agent::AIAgentActionResultType,
     terminal::{
+        TerminalModel,
         model::session::active_session::ActiveSession,
         model_events::{ModelEvent, ModelEventDispatcher},
-        TerminalModel,
     },
 };
 

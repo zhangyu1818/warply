@@ -3,18 +3,18 @@ use std::sync::Arc;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use crate::{
+    BlocklistAIHistoryModel,
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentContext, AIAgentInput, CancellationReason,
-            CloneRepositoryURL,
+            AIAgentContext, AIAgentInput, CancellationReason, CloneRepositoryURL,
+            conversation::AIConversationId,
         },
         blocklist::agent_view::AgentViewEntryOrigin,
     },
     terminal::input::slash_commands::SlashCommandTrigger,
-    BlocklistAIHistoryModel,
 };
 
-use super::{input_context_for_request, BlocklistAIController, RequestInput};
+use super::{BlocklistAIController, RequestInput, input_context_for_request};
 
 pub enum SlashCommandRequest {
     CreateNewProject { query: String },

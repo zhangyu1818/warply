@@ -39,16 +39,16 @@ use crate::{
     notebooks::file::FileNotebookView,
     settings::PaneSettings,
     settings_view::SettingsView,
-    terminal::{available_shells::AvailableShell, TerminalView},
+    terminal::{TerminalView, available_shells::AvailableShell},
     workflows::workflow_view::WorkflowView,
 };
 use serde::{Deserialize, Serialize};
 use warp_core::HostId;
 use warpui::{
-    elements::{DispatchEventResult, EventHandler, MouseInBehavior},
-    presenter::ChildView,
     Action, AppContext, Element, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity,
     View, ViewContext, ViewHandle, WeakModelHandle,
+    elements::{DispatchEventResult, EventHandler, MouseInBehavior},
+    presenter::ChildView,
 };
 
 pub use self::view::PaneHeaderAction;

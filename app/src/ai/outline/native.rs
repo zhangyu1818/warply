@@ -10,9 +10,9 @@ use futures::stream::AbortHandle;
 use instant::Instant;
 use repo_metadata::CanonicalizedPath;
 use repo_metadata::{
+    DirectoryWatcher, Repository, RepositoryUpdate,
     repositories::{DetectedRepositories, DetectedRepositoriesEvent},
     repository::{BufferingRepositorySubscriber, RepositorySubscriber, SubscriberId},
-    DirectoryWatcher, Repository, RepositoryUpdate,
 };
 use settings::Setting as _;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};

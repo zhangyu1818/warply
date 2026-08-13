@@ -6,21 +6,21 @@ use std::path::PathBuf;
 use command_corrections::Correction;
 use pathfinder_geometry::vector::Vector2F;
 use warp_util::user_input::UserInput;
+use warpui::EntityId;
 use warpui::elements::HyperlinkUrl;
 use warpui::event::ModifiersState;
 use warpui::units::Lines;
-use warpui::EntityId;
 
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::model::completions::ShellCompletion;
 use crate::terminal::ssh::error::SshErrorBlockAction;
+use crate::terminal::view::RichContentSecretTooltipInfo;
 use crate::terminal::view::inline_banner::AgentModeSetupSpeedbumpBannerAction;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
-use crate::terminal::view::RichContentSecretTooltipInfo;
 use crate::ui_events::PaletteSource;
 use crate::workflows::workflow::Workflow;
 use crate::{
@@ -31,11 +31,11 @@ use crate::{
         },
         block_list_viewport::OverhangingBlock,
         model::{
+            SecretHandle,
             index::Point,
             mouse::MouseState,
             selection::{SelectAction, SelectionDirection},
             terminal_model::{BlockIndex, WithinModel},
-            SecretHandle,
         },
     },
 };
@@ -477,7 +477,9 @@ impl fmt::Debug for TerminalAction {
                 f.write_str("OpenWorkflowModalWithSavedWorkflow")
             }
             OpenBlockListContextMenu => f.write_str("OpenBlockListContextMenu"),
-            AttachBlockAsAgentContext { block_index } => write!(f, "AttachBlockAsAgentContext({block_index:?})"),
+            AttachBlockAsAgentContext { block_index } => {
+                write!(f, "AttachBlockAsAgentContext({block_index:?})")
+            }
             TriggerSubshellBootstrap => f.write_str("TriggerSubshellBootstrap"),
             DismissWarpifyBanner(remember) => write!(f, "DismissWarpifyBanner({remember:?})"),
             InsertMostRecentCommandCorrection => f.write_str("InsertMostRecentCommandCorrection"),

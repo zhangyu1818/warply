@@ -18,18 +18,18 @@ use agent_client_protocol::schema::{
 };
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use agent_client_protocol_tokio::AcpAgent;
-use anyhow::{anyhow, Context as _};
-use futures::channel::{mpsc, mpsc::UnboundedSender, oneshot};
+use anyhow::{Context as _, anyhow};
 use futures::StreamExt;
+use futures::channel::{mpsc, mpsc::UnboundedSender, oneshot};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::RenderableAIError;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{AcpResponseStreamTarget, BlocklistAIHistoryModel, ResponseStreamId};
 use crate::ai::llms::LLMId;
 use crate::settings::AISettings;
@@ -2138,17 +2138,23 @@ for line in sys.stdin:
             }
         }
 
-        assert!(events
-            .iter()
-            .any(|(stream_id, event)| stream_id == &first_stream_id
-                && matches!(event, AcpEvent::Completed)));
-        assert!(!events
-            .iter()
-            .any(|(stream_id, event)| stream_id == &first_stream_id
-                && matches!(event, AcpEvent::Failed { .. })));
-        assert!(events
-            .iter()
-            .any(|(stream_id, event)| stream_id == &second_stream_id
-                && matches!(event, AcpEvent::Failed { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|(stream_id, event)| stream_id == &first_stream_id
+                    && matches!(event, AcpEvent::Completed))
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|(stream_id, event)| stream_id == &first_stream_id
+                    && matches!(event, AcpEvent::Failed { .. }))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|(stream_id, event)| stream_id == &second_stream_id
+                    && matches!(event, AcpEvent::Failed { .. }))
+        );
     }
 }

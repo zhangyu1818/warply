@@ -1,5 +1,5 @@
 #[cfg(feature = "local_fs")]
-use super::{open_code_action_event, AIBlockEvent};
+use super::{AIBlockEvent, open_code_action_event};
 use super::{CollapsibleElementState, CollapsibleExpansionState};
 use crate::ai::acp::AcpToolCall;
 #[cfg(feature = "local_fs")]

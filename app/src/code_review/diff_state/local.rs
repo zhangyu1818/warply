@@ -3,7 +3,7 @@
 //! Some of the code in this module is adapted from GitHub Desktop, which is licensed under the MIT license,
 //! Copyright (c) GitHub, Inc.  See GITHUB-DESKTOP-LICENSE in this directory.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -22,14 +22,14 @@ cfg_if::cfg_if! {
     }
 }
 use warpui::AppContext;
-use warpui::{r#async::SpawnedFutureHandle, ModelContext};
+use warpui::{ModelContext, r#async::SpawnedFutureHandle};
 
 use crate::code_review::diff_size_limits::DiffSize;
 #[cfg(feature = "local_fs")]
 use crate::util::git::get_pr_for_branch;
 use crate::util::git::{
-    detect_current_branch, detect_main_branch, get_unpushed_commits, run_git_command, Commit,
-    FileChangeEntry, PrInfo,
+    Commit, FileChangeEntry, PrInfo, detect_current_branch, detect_main_branch,
+    get_unpushed_commits, run_git_command,
 };
 
 use crate::code_review::diff_size_limits::compute_diff_size;
@@ -774,7 +774,8 @@ impl LocalDiffStateModel {
         ctx: &mut ModelContext<Self>,
     ) {
         ctx.emit(DiffStateModelEvent::CommitMessageGenerated(Err(
-            "code review commit-message generation requires a configured local provider".to_string(),
+            "code review commit-message generation requires a configured local provider"
+                .to_string(),
         )));
     }
 
@@ -2426,7 +2427,10 @@ impl LocalDiffStateModel {
                         })?;
                         files.push((path.to_string(), status));
                     } else {
-                        log::warn!("Invalid format for changed entry: '{token}' - expected at least 9 parts, got {}", parts.len());
+                        log::warn!(
+                            "Invalid format for changed entry: '{token}' - expected at least 9 parts, got {}",
+                            parts.len()
+                        );
                     }
                 }
                 '2' => {
@@ -2463,7 +2467,10 @@ impl LocalDiffStateModel {
                         files.push((path.to_string(), status));
                         i += 1; // Skip the old path token
                     } else {
-                        log::warn!("Invalid format for renamed/copied entry: '{token}' - expected at least 10 parts, got {}", parts.len());
+                        log::warn!(
+                            "Invalid format for renamed/copied entry: '{token}' - expected at least 10 parts, got {}",
+                            parts.len()
+                        );
                     }
                 }
                 'u' => {
@@ -2474,7 +2481,11 @@ impl LocalDiffStateModel {
                         let path = parts[10];
                         files.push((path.to_string(), GitFileStatus::Conflicted));
                     } else {
-                        log::warn!("Invalid format for unmerged entry: '{}' - expected at least 11 parts, got {}", token, parts.len());
+                        log::warn!(
+                            "Invalid format for unmerged entry: '{}' - expected at least 11 parts, got {}",
+                            token,
+                            parts.len()
+                        );
                     }
                 }
                 '?' => {
@@ -2483,7 +2494,9 @@ impl LocalDiffStateModel {
                         let path = &token[2..]; // Skip "? "
                         files.push((path.to_string(), GitFileStatus::Untracked));
                     } else {
-                        log::warn!("Invalid format for untracked entry: '{token}' - expected path after '? '");
+                        log::warn!(
+                            "Invalid format for untracked entry: '{token}' - expected path after '? '"
+                        );
                     }
                 }
                 '!' => {
@@ -3152,7 +3165,9 @@ pub enum DiffStateModelEvent {
     /// Event dispatched when new diff mode is set.
     /// The boolean indicates whether the next diff load should attempt to
     /// fetch the base branch from origin if it is not available locally.
-    DiffModeChanged { should_fetch_base: bool },
+    DiffModeChanged {
+        should_fetch_base: bool,
+    },
 }
 
 impl warpui::Entity for LocalDiffStateModel {

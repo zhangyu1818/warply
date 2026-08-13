@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
 
 // Debug mode settings.
 //

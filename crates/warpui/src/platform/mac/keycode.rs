@@ -1,7 +1,7 @@
 use std::slice;
 
 use cocoa::{
-    base::{id, nil, BOOL},
+    base::{BOOL, id, nil},
     foundation::{NSArray, NSString, NSUInteger},
 };
 use objc::{msg_send, sel, sel_impl};

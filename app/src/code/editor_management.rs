@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     path::{Path, PathBuf},
 };
 
@@ -141,9 +141,9 @@ impl CodeSource {
         match self {
             Self::New { .. } | Self::AIAction { .. } => None,
             Self::FileTree { location, .. } => location.to_local_path().map(Path::to_path_buf),
-            Self::Link { path, .. }
-            | Self::ProjectRules { path }
-            | Self::Finder { path } => Some(path.clone()),
+            Self::Link { path, .. } | Self::ProjectRules { path } | Self::Finder { path } => {
+                Some(path.clone())
+            }
         }
     }
 
@@ -160,9 +160,9 @@ impl CodeSource {
         match self {
             Self::New { .. } | Self::AIAction { .. } => None,
             Self::FileTree { location } => Some(location.clone()),
-            Self::Link { path, .. }
-            | Self::ProjectRules { path }
-            | Self::Finder { path } => Some(LocalOrRemotePath::Local(path.clone())),
+            Self::Link { path, .. } | Self::ProjectRules { path } | Self::Finder { path } => {
+                Some(LocalOrRemotePath::Local(path.clone()))
+            }
         }
     }
     pub fn omit_line_col(&self) -> CodeSource {

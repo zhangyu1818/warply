@@ -4,6 +4,7 @@ use parking_lot::FairMutex;
 use std::{borrow::Cow, cmp::Reverse, path::Path, sync::Arc};
 use warp_core::ui::Icon;
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     elements::{
         Container, CornerRadius, CrossAxisAlignment, Flex, FormattedTextElement, MainAxisSize,
         MouseStateHandle, ParentElement, Radius, Text,
@@ -12,7 +13,6 @@ use warpui::{
     keymap::Keystroke,
     prelude::{ConstrainedBox, Cursor, Empty, Hoverable, SavePosition},
     scene::Border,
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{
@@ -20,16 +20,16 @@ use crate::{
         active_agent_views_model::ActiveAgentViewsModel,
         agent::conversation::AIConversationId,
         blocklist::{
-            agent_view::{agent_view_bg_color, AgentViewController, AgentViewEntryOrigin},
+            agent_view::{AgentViewController, AgentViewEntryOrigin, agent_view_bg_color},
             history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
         },
         conversation_navigation::ConversationNavigationData,
     },
     appearance::Appearance,
     terminal::{
-        self,
+        self, TerminalModel,
         event::BlockType,
-        input::message_bar::{common::render_standard_message, Message, MessageItem},
+        input::message_bar::{Message, MessageItem, common::render_standard_message},
         model::{
             blocks::BlockHeightItem,
             session::{BootstrapSessionType, Session, SessionType, Sessions},
@@ -37,7 +37,6 @@ use crate::{
         model_events::{AnsiHandlerEvent, ModelEvent, ModelEventDispatcher},
         prompt,
         view::TerminalAction,
-        TerminalModel,
     },
     util::time_format::format_approx_duration_from_now_utc,
 };

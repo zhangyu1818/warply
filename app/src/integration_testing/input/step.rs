@@ -1,6 +1,6 @@
 use pathfinder_geometry::vector::Vector2F;
 use warpui::integration::TestStep;
-use warpui::{windowing::WindowManager, SingletonEntity};
+use warpui::{SingletonEntity, windowing::WindowManager};
 
 use crate::{
     ai::blocklist::{InputConfig, InputType},
@@ -12,12 +12,12 @@ use crate::{
         },
     },
     terminal::{
+        CLIAgent,
         cli_agent_sessions::{
             CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
             CLIAgentSessionStatus, CLIAgentSessionsModel,
         },
         view::TerminalAction,
-        CLIAgent,
     },
 };
 

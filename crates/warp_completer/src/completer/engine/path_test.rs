@@ -129,14 +129,16 @@ pub fn test_sorted_paths_relative_to() {
         .into_iter()
         .map(|matched_suggestion| matched_suggestion.suggestion)
         .collect_vec(),
-        vec![Suggestion::with_same_display_and_replacement(
-            "src/",
-            Some("Directory".into()),
-            SuggestionType::Argument,
-            Priority::default(),
-        )
-        .with_icon_override(IconType::Folder)
-        .with_file_type(EngineFileType::Directory)]
+        vec![
+            Suggestion::with_same_display_and_replacement(
+                "src/",
+                Some("Directory".into()),
+                SuggestionType::Argument,
+                Priority::default(),
+            )
+            .with_icon_override(IconType::Folder)
+            .with_file_type(EngineFileType::Directory)
+        ]
     );
 
     assert_eq!(
@@ -224,14 +226,16 @@ pub fn test_sorted_directories_relative_to() {
         .into_iter()
         .map(|matched_suggestion| matched_suggestion.suggestion)
         .collect_vec(),
-        vec![Suggestion::with_same_display_and_replacement(
-            "src/",
-            Some("Directory".into()),
-            SuggestionType::Argument,
-            Priority::default(),
-        )
-        .with_icon_override(IconType::Folder)
-        .with_file_type(EngineFileType::Directory)]
+        vec![
+            Suggestion::with_same_display_and_replacement(
+                "src/",
+                Some("Directory".into()),
+                SuggestionType::Argument,
+                Priority::default(),
+            )
+            .with_icon_override(IconType::Folder)
+            .with_file_type(EngineFileType::Directory)
+        ]
     );
 }
 
@@ -421,15 +425,17 @@ pub fn test_path_completions_tilde_expansion() {
         .into_iter()
         .map(|matched_suggestion| matched_suggestion.suggestion)
         .collect_vec(),
-        vec![Suggestion::new(
-            "~ testdir/",
-            r"~/\~\ testdir/",
-            Some("Directory".into()),
-            SuggestionType::Argument,
-            Priority::default(),
-        )
-        .with_icon_override(IconType::Folder)
-        .with_file_type(EngineFileType::Directory),]
+        vec![
+            Suggestion::new(
+                "~ testdir/",
+                r"~/\~\ testdir/",
+                Some("Directory".into()),
+                SuggestionType::Argument,
+                Priority::default(),
+            )
+            .with_icon_override(IconType::Folder)
+            .with_file_type(EngineFileType::Directory),
+        ]
     );
 }
 
@@ -447,15 +453,17 @@ pub fn test_path_completions_home_env_var_special_characters() {
         .into_iter()
         .map(|matched_suggestion| matched_suggestion.suggestion)
         .collect_vec(),
-        vec![Suggestion::new(
-            "~ testdir/",
-            r"$HOME/\~\ testdir/",
-            Some("Directory".into()),
-            SuggestionType::Argument,
-            Priority::default(),
-        )
-        .with_icon_override(IconType::Folder)
-        .with_file_type(EngineFileType::Directory),]
+        vec![
+            Suggestion::new(
+                "~ testdir/",
+                r"$HOME/\~\ testdir/",
+                Some("Directory".into()),
+                SuggestionType::Argument,
+                Priority::default(),
+            )
+            .with_icon_override(IconType::Folder)
+            .with_file_type(EngineFileType::Directory),
+        ]
     );
 }
 

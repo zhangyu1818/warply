@@ -11,12 +11,12 @@ use {
     crate::util::git::{detect_current_branch_display, detect_main_branch},
     async_channel::Sender,
     repo_metadata::{
+        Repository, RepositoryUpdate,
         repositories::DetectedRepositories,
         repository::{RepositorySubscriber, SubscriberId},
-        Repository, RepositoryUpdate,
     },
     std::{collections::HashMap, time::Duration},
-    warpui::{r#async::SpawnedFutureHandle, ModelHandle, WeakModelHandle},
+    warpui::{ModelHandle, WeakModelHandle, r#async::SpawnedFutureHandle},
 };
 
 #[cfg(feature = "local_fs")]

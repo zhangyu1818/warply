@@ -1,4 +1,4 @@
-use crate::ai::blocklist::{render_ai_agent_mode_icon, AIQueryHistory, AIQueryHistoryOutputStatus};
+use crate::ai::blocklist::{AIQueryHistory, AIQueryHistoryOutputStatus, render_ai_agent_mode_icon};
 use crate::ui_components::icons::Icon as UIComponentsIcon;
 use async_channel::Sender;
 use chrono::{DateTime, Local};
@@ -12,14 +12,15 @@ use warp_command_signatures::IconType;
 use warp_completer::completer::{
     MatchType, PathSeparators, Suggestion, SuggestionResults, SuggestionType,
 };
-use warp_core::ui::theme::AnsiColorIdentifier;
 use warp_core::SessionId;
+use warp_core::ui::theme::AnsiColorIdentifier;
 use warpui::elements::{
     ChildAnchor, DispatchEventResult, Expanded, Hoverable, MouseStateHandle, ParentAnchor,
     ParentOffsetBounds, ScrollbarWidth,
 };
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, WeakViewHandle,
     accessibility::{AccessibilityContent, WarpA11yRole},
     elements::{
         Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -30,13 +31,12 @@ use warpui::{
         XAxisAnchor, YAxisAnchor,
     },
     fonts::{Cache, Properties, Weight},
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, WeakViewHandle,
 };
 
 use crate::appearance::Appearance;
+use crate::terminal::HistoryEntry;
 use crate::terminal::history::LinkedWorkflowData;
 use crate::terminal::rich_history::{render_ai_query_rich_history, render_rich_history};
-use crate::terminal::HistoryEntry;
 use crate::util::time_format::format_approx_duration_from_now;
 
 /// This enum allows the parent view to indicate which type of details panel is shown.

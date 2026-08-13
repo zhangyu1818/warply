@@ -4,9 +4,9 @@ use std::time::Duration;
 
 use base64::Engine;
 use parking_lot::FairMutex;
+use warpui::r#async::Timer;
 use warpui::clipboard::{ClipboardContent, ImageData};
 use warpui::elements::{ChildView, Container, Element, Empty};
-use warpui::r#async::Timer;
 use warpui::{
     AppContext, Entity, EntityId, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle,
 };
@@ -23,7 +23,7 @@ use crate::terminal::cli_agent_sessions::{
 };
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::{CLIAgent, TerminalModel};
-use crate::util::image::{infer_mime_type, MAX_IMAGE_SIZE_BYTES_FOR_CLI_AGENT, MIME_SNIFF_BYTES};
+use crate::util::image::{MAX_IMAGE_SIZE_BYTES_FOR_CLI_AGENT, MIME_SNIFF_BYTES, infer_mime_type};
 
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
 

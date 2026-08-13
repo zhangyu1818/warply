@@ -11,6 +11,7 @@ use warpui::units::{IntoLines as _, Lines};
 use crate::terminal::event::Event;
 
 use super::{
+    ObfuscateSecrets, RespectObfuscatedSecrets,
     ansi::{self, Attr, Handler, PrecmdValue, PreexecValue, Processor},
     block::{BlockGridPoint, BlockSize},
     blockgrid::BlockGrid,
@@ -19,9 +20,8 @@ use super::{
     grid::grid_handler::RegexIter,
     grid::{Cursor, RespectDisplayedOutput},
     index::{Point, VisibleRow},
-    ObfuscateSecrets, RespectObfuscatedSecrets,
 };
-use crate::terminal::{event_listener::ChannelEventListener, SizeInfo};
+use crate::terminal::{SizeInfo, event_listener::ChannelEventListener};
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 
 macro_rules! delegate {
@@ -825,7 +825,9 @@ impl HeaderGrid {
 
 impl ansi::Handler for HeaderGrid {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!("Handler method HeaderGrid::set_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method HeaderGrid::set_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn set_cursor_style(&mut self, style: Option<ansi::CursorStyle>) {
@@ -1052,11 +1054,15 @@ impl ansi::Handler for HeaderGrid {
     }
 
     fn push_title(&mut self) {
-        log::error!("Handler method HeaderGrid::push_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method HeaderGrid::push_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn pop_title(&mut self) {
-        log::error!("Handler method HeaderGrid::pop_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method HeaderGrid::pop_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn prompt_marker(&mut self, marker: ansi::PromptMarker) {

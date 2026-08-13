@@ -1,6 +1,6 @@
 pub use crate::util::openable_file_type::EditorLayout;
 use serde::{Deserialize, Serialize};
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 #[derive(
     Debug,

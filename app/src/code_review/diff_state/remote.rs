@@ -213,17 +213,15 @@ impl RemoteDiffStateModel {
                 host_id,
                 repo_path,
                 result,
-            } if self.matches_git_operation(host_id, repo_path) => {
-                match result {
-                    Ok(pr_info) => {
-                        if let Some(metadata) = &mut self.metadata {
-                            metadata.pr_info = pr_info.as_ref().map(PrInfo::from);
-                            ctx.emit(DiffStateModelEvent::MetadataRefreshed(metadata.clone()));
-                        }
+            } if self.matches_git_operation(host_id, repo_path) => match result {
+                Ok(pr_info) => {
+                    if let Some(metadata) = &mut self.metadata {
+                        metadata.pr_info = pr_info.as_ref().map(PrInfo::from);
+                        ctx.emit(DiffStateModelEvent::MetadataRefreshed(metadata.clone()));
                     }
-                    Err(error) => log::debug!("Remote PR lookup failed: {error}"),
                 }
-            }
+                Err(error) => log::debug!("Remote PR lookup failed: {error}"),
+            },
             RemoteServerManagerEvent::GitGenerateCommitMessageResponse {
                 host_id,
                 repo_path,
@@ -506,7 +504,10 @@ impl RemoteDiffStateModel {
     }
 
     pub fn diff_mode_for_base_branch(&self, base_branch: Option<&str>) -> DiffMode {
-        DiffMode::from_branch(base_branch.unwrap_or_default(), self.get_main_branch_name().as_deref())
+        DiffMode::from_branch(
+            base_branch.unwrap_or_default(),
+            self.get_main_branch_name().as_deref(),
+        )
     }
 
     pub fn get_main_branch_name(&self) -> Option<String> {
@@ -681,13 +682,7 @@ impl RemoteDiffStateModel {
         let remote_path = self.remote_path.clone();
         let session_id = self.session_id;
         RemoteServerManager::handle(ctx).update(ctx, |manager, ctx| {
-            manager.git_create_pr(
-                session_id,
-                remote_path,
-                branch,
-                autogenerate_content,
-                ctx,
-            );
+            manager.git_create_pr(session_id, remote_path, branch, autogenerate_content, ctx);
         });
     }
 

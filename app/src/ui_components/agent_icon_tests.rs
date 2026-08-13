@@ -1,4 +1,4 @@
-use super::{agent_icon_variant_from_terminal_inputs, CLISessionInputs, TerminalIconInputs};
+use super::{CLISessionInputs, TerminalIconInputs, agent_icon_variant_from_terminal_inputs};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::terminal::CLIAgent;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;

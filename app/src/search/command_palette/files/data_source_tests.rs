@@ -1,16 +1,16 @@
 #![cfg(feature = "local_fs")]
 use std::collections::HashSet;
 
-use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::RepoMetadataModel;
+use repo_metadata::repositories::DetectedRepositories;
 use warpui::App;
 
 use super::*;
 use crate::code::opened_files::OpenedFilesModel;
+use crate::search::QueryFilter;
 use crate::search::data_source::Query;
 use crate::search::files::model::FileSearchModel;
 use crate::search::files::search_item::FileSearchResult;
-use crate::search::QueryFilter;
 
 fn file(path: &str) -> FileSearchResult {
     FileSearchResult {

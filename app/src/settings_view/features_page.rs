@@ -6,30 +6,31 @@ use super::keybindings::KeyBindingModifyingState;
 #[cfg(feature = "local_tty")]
 use super::settings_page::render_sub_sub_header;
 use super::settings_page::{
-    add_setting, build_reset_button, render_body_item_label, render_dropdown_item_label, Category,
-    MatchData, PageType, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING,
+    AdditionalInfo, CONTENT_FONT_SIZE, HEADER_PADDING, SettingsPageMeta, SettingsPageViewHandle,
+    ToggleState, render_body_item, render_dropdown_item,
 };
 use super::settings_page::{
-    render_body_item, render_dropdown_item, AdditionalInfo, SettingsPageMeta,
-    SettingsPageViewHandle, ToggleState, CONTENT_FONT_SIZE, HEADER_PADDING,
+    Category, MatchData, PageType, SettingsWidget, TOGGLE_BUTTON_RIGHT_PADDING, add_setting,
+    build_reset_button, render_body_item_label, render_dropdown_item_label,
 };
-use super::{features, SettingsAction};
-use super::{flags, DisplayCount};
+use super::{DisplayCount, flags};
+use super::{SettingsAction, features};
 use super::{SettingsSection, ToggleSettingActionPair};
 use crate::editor::{
-    Event as EditorEvent, SingleLineEditorOptions, TextOptions,
-    ACCEPT_AUTOSUGGESTION_KEYBINDING_NAME,
+    ACCEPT_AUTOSUGGESTION_KEYBINDING_NAME, Event as EditorEvent, SingleLineEditorOptions,
+    TextOptions,
 };
 use crate::search::command_search::settings::CommandSearchSettings;
 use crate::settings::ai::AISettings;
-use crate::settings::{
-    log_setting_result, AliasExpansionSettings, AppEditorSettings, CodeEditorLineNumberMode,
-    CodeSettings, CtrlTabBehavior, DefaultSessionMode, ExtraMetaKeys, GPUSettings,
-    GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent, QuakeModeSettings, ScrollSettings,
-    SelectionSettings, TabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES,
-    QUAKE_WINDOW_AUTOHIDE_SUPPORTED,
-};
 use crate::settings::{AISettingsChangedEvent, ScrollSettingsChangedEvent};
+use crate::settings::{
+    AliasExpansionSettings, AppEditorSettings, CodeEditorLineNumberMode, CodeSettings,
+    CtrlTabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, DefaultSessionMode, ExtraMetaKeys,
+    GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
+    QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings, ScrollSettings, SelectionSettings,
+    TabBehavior, log_setting_result,
+};
+use crate::terminal::BlockListSettings;
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::{KeysSettings, KeysSettingsChangedEvent};
@@ -40,18 +41,17 @@ use crate::terminal::session_settings::{
 use crate::terminal::settings::{
     Osc52ClipboardAccess, TerminalSettings, TerminalSettingsChangedEvent,
 };
-use crate::terminal::BlockListSettings;
 use crate::undo_close::UndoCloseSettings;
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{
     keybinding_name_to_display_string, reset_keybinding_to_default, set_custom_keybinding,
 };
 use crate::view_components::{Dropdown, DropdownItem, FilterableDropdown};
-use crate::workspace::tab_settings::{NewTabPlacement, TabSettings};
 use crate::workspace::WorkspaceAction;
+use crate::workspace::tab_settings::{NewTabPlacement, TabSettings};
+use crate::{GlobalResourceHandles, themes};
 use crate::{appearance::Appearance, editor::EditorView};
 use crate::{root_view::QuakeModePinPosition, workspace::tab_settings::TabSettingsChangedEvent};
-use crate::{themes, GlobalResourceHandles};
 use ::settings::{Setting, ToggleableSetting};
 use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex};
@@ -69,11 +69,11 @@ use warpui::rendering::GPUPowerPreference;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
-use warpui::{elements::DispatchEventResult, platform::Cursor};
 use warpui::{
     Action, AppContext, DisplayIdx, Entity, EventContext, ModelHandle, SingletonEntity, Tracked,
     TypedActionView, View, ViewContext, ViewHandle,
 };
+use warpui::{elements::DispatchEventResult, platform::Cursor};
 
 static EXTRA_META_KEYS_LEFT_TEXT: &str = "Left Option key is Meta";
 static EXTRA_META_KEYS_RIGHT_TEXT: &str = "Right Option key is Meta";
@@ -5734,7 +5734,9 @@ impl SettingsWidget for Osc52ClipboardAccessWidget {
         render_dropdown_item(
             appearance,
             "Clipboard access (OSC 52)",
-            Some("Controls whether programs running in the terminal can read or write your system clipboard."),
+            Some(
+                "Controls whether programs running in the terminal can read or write your system clipboard.",
+            ),
             None,
             None,
             &view.osc52_clipboard_access_dropdown,

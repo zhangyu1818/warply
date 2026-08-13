@@ -38,7 +38,7 @@ impl TerminalView {
         use crate::{
             http_api::HttpApiProvider,
             terminal::{
-                event_listener::ChannelEventListener, model::block::BlockSize, BlockPadding,
+                BlockPadding, event_listener::ChannelEventListener, model::block::BlockSize,
             },
             themes::default_themes::dark_theme,
         };

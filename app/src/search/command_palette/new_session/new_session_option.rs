@@ -1,6 +1,6 @@
+use crate::WorkspaceAction;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::view::TerminalAction;
-use crate::WorkspaceAction;
 use std::borrow::Cow;
 use std::fmt;
 use warpui::Action;

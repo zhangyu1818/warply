@@ -1,33 +1,32 @@
 use crate::ai::agent::AgentReviewCommentBatch;
 use crate::code_review::code_review_header::HEADER_BUTTON_PADDING;
 use crate::code_review::code_review_view::{
-    CodeReviewCommentDebugState, CodeReviewView, CodeReviewViewEvent, ReviewActionTargetProvider,
-    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN,
+    CONTENT_LEFT_MARGIN, CONTENT_RIGHT_MARGIN, CodeReviewCommentDebugState, CodeReviewView,
+    CodeReviewViewEvent, ReviewActionTargetProvider,
 };
-use crate::pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT};
 use crate::pane_group::WorkingDirectoriesEvent;
+use crate::pane_group::pane::view::header::{PANE_HEADER_HEIGHT, components::HEADER_EDGE_PADDING};
 use crate::pane_group::{Event as PaneGroupEvent, PaneGroup, WorkingDirectoriesModel};
 use crate::settings::{AISettings, AISettingsChangedEvent};
+use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::MenuPositioning;
-use crate::terminal::CLIAgent;
 use crate::ui_components::{buttons::icon_button_with_color, icons};
-use crate::util::bindings::{keybinding_name_to_display_string, CustomAction};
+use crate::util::bindings::{CustomAction, keybinding_name_to_display_string};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::action_button::{ActionButton, PaneHeaderTheme};
 #[cfg(feature = "local_fs")]
 use crate::view_components::action_button::{NakedTheme, TooltipAlignment};
 use crate::view_components::{Dropdown, DropdownItem};
-use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 use crate::workspace::WorkspaceAction;
+use crate::workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME;
 use crate::{
     appearance::{Appearance, AppearanceEvent},
     terminal::resizable_data::{ModalType, ResizableData},
 };
 use crate::{
-    code::{buffer_location::LocalOrRemotePath},
-    code_review::diff_state::DiffStateModel,
+    code::buffer_location::LocalOrRemotePath, code_review::diff_state::DiffStateModel,
     terminal::view::TerminalView,
 };
 use dunce::canonicalize;
@@ -39,16 +38,16 @@ use std::{
 };
 use warp_core::ui::Icon;
 use warp_util::path::LineAndColumnArg;
+use warpui::EntityId;
 use warpui::elements::{ChildAnchor, Empty, PositionedElementAnchor};
 use warpui::keymap::EditableBinding;
-use warpui::EntityId;
 use warpui::{
-    elements::{
-        resizable_state_handle, Container, DragBarSide, Element, MainAxisSize, MouseStateHandle,
-        Resizable, ResizableStateHandle,
-    },
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle, WeakViewHandle,
+    elements::{
+        Container, DragBarSide, Element, MainAxisSize, MouseStateHandle, Resizable,
+        ResizableStateHandle, resizable_state_handle,
+    },
 };
 use warpui::{
     elements::{
@@ -685,14 +684,14 @@ impl RightPanelView {
             .get_code_review_view(pane_group_id, repo_path);
         if let Some(view) = existing_view {
             view.update(ctx, |view, ctx| {
-            view.on_open(Some(repo_path.clone()), ctx);
+                view.on_open(Some(repo_path.clone()), ctx);
             });
             self.recompute_terminal_availability(ctx);
         } else if let Some(view) =
             self.create_code_review_view(repo_path, diff_state_model.clone(), pane_group_id, ctx)
         {
             view.update(ctx, |view, ctx| {
-            view.on_open(Some(repo_path.clone()), ctx);
+                view.on_open(Some(repo_path.clone()), ctx);
             });
             self.recompute_terminal_availability(ctx);
         };
@@ -1348,12 +1347,7 @@ impl RightPanelView {
                 .get_terminal_id_for_root_path(pane_group_id, repo_path)
         });
         let chosen_terminal_id = selected_repo_path.as_ref().and_then(|repo_path| {
-            self.find_review_terminal(
-                pane_group,
-                repo_path.to_local_path()?,
-                ai_enabled,
-                ctx,
-            )
+            self.find_review_terminal(pane_group, repo_path.to_local_path()?, ai_enabled, ctx)
                 .map(|terminal_view| terminal_view.id())
         });
 

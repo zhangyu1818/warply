@@ -19,40 +19,40 @@ use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::WarpTheme;
+use warp_core::ui::theme::color::internal_colors;
 use warpui::color::ColorU;
 use warpui::{EntityId, ModelContext, SingletonEntity};
 
 use crate::ai::agent::CancellationReason;
 use crate::{
+    BlocklistAIHistoryModel, GlobalResourceHandlesProvider,
     ai::{
         agent::{
+            AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText, MarkdownTextSection,
             icons::{
                 failed_icon, gray_stop_icon, in_progress_icon, succeeded_icon, yellow_stop_icon,
             },
             todos::AIAgentTodoList,
-            AIAgentOutputMessage, AIAgentOutputMessageType, AIAgentText, MarkdownTextSection,
         },
         blocklist::{BlocklistAIHistoryEvent, ConversationStatusUpdate},
     },
     persistence::{
-        model::{AgentConversationData, PersistedAutoexecuteMode},
         ModelEvent,
+        model::{AgentConversationData, PersistedAutoexecuteMode},
     },
     ui_components::icons::Icon,
-    BlocklistAIHistoryModel, GlobalResourceHandlesProvider,
 };
 
 use super::task::UpdateTaskError;
 use super::{
-    task::{
-        transaction::{SavedTask, Transaction},
-        Task, TaskId,
-    },
     AIAgentAction, AIAgentActionId, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
     AIAgentInput, AIAgentOutputStatus, AIAgentTodo, AIAgentTodoId, FinishedAIAgentOutput,
     MessageId, RenderableAIError, SummarizationType, UserQueryMode,
+    task::{
+        Task, TaskId,
+        transaction::{SavedTask, Transaction},
+    },
 };
 use super::{AIAgentOutput, OutputModelInfo, Shared};
 

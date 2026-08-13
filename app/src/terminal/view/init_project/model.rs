@@ -9,8 +9,8 @@ use warpui::{Entity, ModelContext, SingletonEntity as _};
 use crate::{
     ai::persisted_workspace::PersistedWorkspace,
     terminal::view::init_project::{
-        lsp_server_selector::LSPServerInfo, InitActionResult, LanguageServersResult,
-        ProjectScopedRulesResult, FILES_TO_CHECK, LINKABLE_FILES,
+        FILES_TO_CHECK, InitActionResult, LINKABLE_FILES, LanguageServersResult,
+        ProjectScopedRulesResult, lsp_server_selector::LSPServerInfo,
     },
 };
 

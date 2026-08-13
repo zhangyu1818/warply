@@ -1,15 +1,15 @@
 use warpui::{
+    AppContext, Element, SingletonEntity,
     elements::{Container, Flex, ParentElement},
     fonts::Weight,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, SingletonEntity,
 };
 
 use crate::{
     appearance::Appearance,
     cloud_object::{
-        model::actions::{ObjectActionType, ObjectActions},
         CloudObjectMetadata,
+        model::actions::{ObjectActionType, ObjectActions},
     },
     drive::{CloudObjectTypeAndId, DriveObjectType},
     themes::theme::Fill,

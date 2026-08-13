@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::object_ids::{ClientId, SyncId};
-use crate::workflows::workflow::Workflow;
 use crate::workflows::SavedWorkflowModel;
+use crate::workflows::workflow::Workflow;
 use ordered_float::OrderedFloat;
 
-use super::{fuzzy_match_saved_prompts, SavedPromptCandidate, SavedPromptsSnapshot};
+use super::{SavedPromptCandidate, SavedPromptsSnapshot, fuzzy_match_saved_prompts};
 
 const TEST_FONT_FAMILY: warpui::fonts::FamilyId = warpui::fonts::FamilyId(0);
 

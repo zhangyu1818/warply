@@ -1,8 +1,8 @@
 use std::ops::RangeInclusive;
 
 use regex::escape;
-use regex_automata::hybrid::dfa::{Cache, DFA};
 use regex_automata::hybrid::BuildError;
+use regex_automata::hybrid::dfa::{Cache, DFA};
 use regex_automata::nfa::thompson;
 use regex_automata::util::pool::Pool;
 use regex_automata::util::syntax::Config;

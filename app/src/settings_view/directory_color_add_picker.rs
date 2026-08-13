@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use settings::Setting;
 use warp_util::path::user_friendly_path;
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable,
         MainAxisSize, MouseStateHandle, ParentElement, Text,
     },
     platform::Cursor,
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -19,8 +19,8 @@ use crate::{
     view_components::action_button::{ActionButton, SecondaryTheme},
     view_components::{DropdownItem, FilterableDropdown},
     workspace::tab_settings::{
-        canonical_directory_key, DirectoryTabColor, DirectoryTabColors, TabSettings,
-        TabSettingsChangedEvent,
+        DirectoryTabColor, DirectoryTabColors, TabSettings, TabSettingsChangedEvent,
+        canonical_directory_key,
     },
 };
 

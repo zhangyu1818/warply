@@ -4,4 +4,4 @@ mod citation;
 pub mod file_locations;
 
 pub use citation::AIAgentCitation;
-pub use file_locations::{group_file_contexts_for_display, FileLocations};
+pub use file_locations::{FileLocations, group_file_contexts_for_display};

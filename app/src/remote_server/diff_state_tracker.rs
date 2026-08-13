@@ -306,7 +306,8 @@ impl RemoteDiffStateManager {
         ctx: &mut ModelContext<Self>,
     ) {
         match event {
-            DiffStateModelEvent::RepositoryChanged | DiffStateModelEvent::DiffModeChanged { .. } => {}
+            DiffStateModelEvent::RepositoryChanged
+            | DiffStateModelEvent::DiffModeChanged { .. } => {}
             DiffStateModelEvent::DiffMetadataChanged(_) => {
                 let Some(model) = self.get_model(key) else {
                     return;

@@ -1,5 +1,6 @@
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::{
+    GlobalResourceHandles, GlobalResourceHandlesProvider,
     ai::{
         acp::model::AcpAgentModel, active_agent_views_model::ActiveAgentViewsModel,
         agent_conversations_model::AgentConversationsModel, blocklist::BlocklistAIHistoryModel,
@@ -29,8 +30,7 @@ use crate::{
     undo_close::UndoCloseStack,
     warp_managed_paths_watcher::WarpManagedPathsWatcher,
     workflows::local_workflows::LocalWorkflows,
-    workspace::{sync_inputs::SyncedInputState, ActiveSession, WorkspaceRegistry},
-    GlobalResourceHandles, GlobalResourceHandlesProvider,
+    workspace::{ActiveSession, WorkspaceRegistry, sync_inputs::SyncedInputState},
 };
 #[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
@@ -42,10 +42,10 @@ use super::*;
 use crate::terminal::resizable_data::ResizableData;
 use ai::project_context::model::ProjectContextModel;
 use pathfinder_geometry::rect::RectF;
-use warpui::windowing::{state::ApplicationStage, WindowManager};
+use warpui::windowing::{WindowManager, state::ApplicationStage};
 use warpui::{
-    platform::{WindowBounds, WindowStyle},
     App, ModelHandle,
+    platform::{WindowBounds, WindowStyle},
 };
 
 fn initialize_app(app: &mut App) {
@@ -806,11 +806,13 @@ fn test_terminal_pane_headers() {
 
             for terminal_pane in terminal_panes {
                 let pane_view = terminal_pane.pane_view();
-                assert!(pane_view
-                    .as_ref(ctx)
-                    .header()
-                    .as_ref(ctx)
-                    .is_visible_in_pane_group());
+                assert!(
+                    pane_view
+                        .as_ref(ctx)
+                        .header()
+                        .as_ref(ctx)
+                        .is_visible_in_pane_group()
+                );
             }
         });
 
@@ -826,11 +828,13 @@ fn test_terminal_pane_headers() {
             assert_eq!(terminal_panes.len(), 1);
 
             let pane_view = terminal_panes[0].pane_view();
-            assert!(pane_view
-                .as_ref(ctx)
-                .header()
-                .as_ref(ctx)
-                .is_visible_in_pane_group());
+            assert!(
+                pane_view
+                    .as_ref(ctx)
+                    .header()
+                    .as_ref(ctx)
+                    .is_visible_in_pane_group()
+            );
         });
 
         // Create a non-terminal split pane. Terminal pane header remains visible.
@@ -850,11 +854,13 @@ fn test_terminal_pane_headers() {
             assert_eq!(terminal_panes.len(), 1);
 
             let pane_view = terminal_panes[0].pane_view();
-            assert!(pane_view
-                .as_ref(ctx)
-                .header()
-                .as_ref(ctx)
-                .is_visible_in_pane_group());
+            assert!(
+                pane_view
+                    .as_ref(ctx)
+                    .header()
+                    .as_ref(ctx)
+                    .is_visible_in_pane_group()
+            );
         });
     });
 }

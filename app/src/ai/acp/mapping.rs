@@ -1,7 +1,7 @@
 use agent_client_protocol::schema::{ContentBlock, ContentChunk, SessionUpdate};
 
-use super::events::AcpEvent;
 use super::AcpToolCall;
+use super::events::AcpEvent;
 
 pub fn map_session_update(update: SessionUpdate) -> Option<AcpEvent> {
     match update {

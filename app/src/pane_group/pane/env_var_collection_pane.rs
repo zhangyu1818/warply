@@ -4,15 +4,15 @@ use crate::{
     app_state::{EnvVarCollectionPaneSnapshot, LeafContents},
     cloud_object::current_user_owner,
     env_vars::{
+        EnvVarCollectionType,
         manager::{EnvVarCollectionManager, EnvVarCollectionSource},
         view::env_var_collection::{EnvVarCollectionEvent, EnvVarCollectionView},
-        EnvVarCollectionType,
     },
     object_ids::SyncId,
     pane_group::focus_state::PaneFocusHandle,
 };
 
-use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, view::PaneView};
 
 pub struct EnvVarCollectionPane {
     view: ViewHandle<PaneView<EnvVarCollectionView>>,

@@ -1,7 +1,7 @@
 use asset_macro::bundled_asset;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
-use warp_core::ui::theme::WarpTheme;
 use warp_core::SessionId;
+use warp_core::ui::theme::WarpTheme;
 use warpui::assets::asset_cache::{AssetCache, AssetState};
 
 use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
@@ -10,12 +10,12 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::warpify;
 use crate::terminal::warpify::render::SSH_DOCS_URL;
 use crate::ui_components::icons::Icon as UiIcon;
+use warpui::AppContext;
 use warpui::elements::{HighlightedHyperlink, Hoverable, Icon, MouseStateHandle};
 use warpui::keymap::FixedBinding;
-use warpui::AppContext;
 use warpui::{
-    elements::{Border, Container, CrossAxisAlignment, Flex, ParentElement},
     Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
+    elements::{Border, Container, CrossAxisAlignment, Flex, ParentElement},
 };
 
 #[derive(Debug, Clone)]
@@ -81,7 +81,7 @@ pub fn warpify_description(
 
     let description = FormattedText::new(vec![FormattedTextLine::Line(vec![
         FormattedTextFragment::plain_text(
-            "Bring Warp's features to your remote session. Blocks, full text editing, auto-complete, and more. "
+            "Bring Warp's features to your remote session. Blocks, full text editing, auto-complete, and more. ",
         ),
         FormattedTextFragment::hyperlink("Learn more", SSH_DOCS_URL),
     ])]);

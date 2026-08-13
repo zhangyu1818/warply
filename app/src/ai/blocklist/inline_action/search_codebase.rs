@@ -4,17 +4,34 @@ use std::sync::{Arc, RwLock};
 use warp_core::ui::appearance::Appearance;
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{
+    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     elements::{
         Container, CornerRadius, CrossAxisAlignment, Element, Flex, FormattedTextElement,
         MainAxisAlignment, ParentElement, Radius, SelectableArea, SelectionHandle, Shrinkable,
     },
-    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use super::search_results_common::{
-    render_collapsible_search_results, CollapsibleSearchResultsState,
+    CollapsibleSearchResultsState, render_collapsible_search_results,
 };
 use crate::ai::blocklist::TextLocation;
+use crate::ai::{
+    agent::FileContext,
+    blocklist::{
+        action_model::AIActionStatus,
+        block::{
+            find::FindState,
+            secret_redaction::SecretRedactionState,
+            view_impl::{
+                FindContext, WithContentItemSpacing,
+                output::{
+                    LinkActionConstructors, RenderContext, RenderReadFileArg,
+                    render_read_files_text,
+                },
+            },
+        },
+    },
+};
 use crate::ai::{
     agent::icons::yellow_running_icon,
     blocklist::inline_action::{
@@ -24,27 +41,10 @@ use crate::ai::{
         inline_action_icons::cancelled_icon,
     },
 };
-use crate::ai::{
-    agent::FileContext,
-    blocklist::{
-        action_model::AIActionStatus,
-        block::{
-            find::FindState,
-            secret_redaction::SecretRedactionState,
-            view_impl::{
-                output::{
-                    render_read_files_text, LinkActionConstructors, RenderContext,
-                    RenderReadFileArg,
-                },
-                FindContext, WithContentItemSpacing,
-            },
-        },
-    },
-};
 use crate::terminal::view::RichContentLink;
-use crate::terminal::{find::TerminalFindModel, ShellLaunchData};
+use crate::terminal::{ShellLaunchData, find::TerminalFindModel};
 use crate::util::link_detection::{
-    detect_links, DetectedLinkType, DetectedLinksState, LinkLocation,
+    DetectedLinkType, DetectedLinksState, LinkLocation, detect_links,
 };
 
 pub enum SearchCodebaseViewEvent {

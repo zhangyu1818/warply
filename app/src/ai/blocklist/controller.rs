@@ -10,20 +10,20 @@ pub use slash_command::*;
 
 use super::ResponseStreamId;
 use super::{
+    BlocklistAIInputModel,
     action_model::{BlocklistAIActionEvent, BlocklistAIActionModel},
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::{BlocklistAIContextModel, PendingAttachment, PendingFile},
     history_model::BlocklistAIHistoryModel,
     queued_query::{QueuedQueryId, QueuedQueryModel},
-    BlocklistAIInputModel,
 };
 use crate::ai::acp::model::{AcpAgentModel, AcpRunTarget};
 use crate::ai::agent::conversation::{AIConversation, AIConversationId, ConversationStatus};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
-    extract_user_query_mode, AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment,
-    AIAgentContext, AIAgentExchangeId, AIAgentInput, CancellationReason, RunningCommand,
-    StaticQueryType, UserQueryMode,
+    AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
+    AIAgentExchangeId, AIAgentInput, CancellationReason, RunningCommand, StaticQueryType,
+    UserQueryMode, extract_user_query_mode,
 };
 use crate::ai::agent::{AnyFileContent, DocumentContentAttachmentSource, FileContext};
 use crate::ai::document::ai_document_model::{
@@ -33,7 +33,7 @@ use crate::ai::llms::LLMId;
 use crate::global_resource_handles::GlobalResourceHandlesProvider;
 use crate::persistence::ModelEvent;
 use crate::settings::AISettings;
-use crate::terminal::model::block::{formatted_terminal_contents_for_input, CURSOR_MARKER};
+use crate::terminal::model::block::{CURSOR_MARKER, formatted_terminal_contents_for_input};
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::{
     model::session::active_session::ActiveSession, model::terminal_model::TerminalModel,
@@ -43,7 +43,7 @@ use agent_client_protocol::schema::{
     ResourceLink, TextContent, TextResourceContents,
 };
 use anyhow::anyhow;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Local};
 use itertools::Itertools;
 use parking_lot::FairMutex;

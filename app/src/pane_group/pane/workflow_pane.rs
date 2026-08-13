@@ -4,9 +4,9 @@ use crate::{
     cloud_object::current_user_owner,
     object_ids::SyncId,
     workflows::{
+        WorkflowSelectionSource, WorkflowSource, WorkflowType, WorkflowViewMode,
         manager::{WorkflowManager, WorkflowOpenSource},
         workflow_view::{WorkflowView, WorkflowViewEvent},
-        WorkflowSelectionSource, WorkflowSource, WorkflowType, WorkflowViewMode,
     },
 };
 use std::{collections::HashMap, sync::Arc};

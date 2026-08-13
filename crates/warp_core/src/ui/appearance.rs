@@ -1,6 +1,6 @@
 use warpui::{
-    fonts::{FamilyId, Weight},
     Entity, ModelContext, SingletonEntity,
+    fonts::{FamilyId, Weight},
 };
 
 use super::{builder::UiBuilder, theme::WarpTheme};
@@ -103,7 +103,7 @@ impl Appearance {
     pub fn mock() -> Self {
         use warpui::color::ColorU;
 
-        use crate::ui::theme::{mock_terminal_colors, Details, Fill};
+        use crate::ui::theme::{Details, Fill, mock_terminal_colors};
 
         let mock_theme = WarpTheme::new(
             Fill::Solid(ColorU::from_u32(0x000000ff)),

@@ -10,9 +10,9 @@ use ordered_float::OrderedFloat;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
-use rstar::{primitives::Rectangle, RTree};
+use rstar::{RTree, primitives::Rectangle};
 use std::sync::Arc;
-use vec1::{vec1, Vec1};
+use vec1::{Vec1, vec1};
 
 #[derive(Clone)]
 pub struct Scene {
@@ -189,35 +189,19 @@ pub struct Dash {
 
 impl Border {
     pub fn top_width(&self) -> f32 {
-        if self.top {
-            self.width
-        } else {
-            0.0
-        }
+        if self.top { self.width } else { 0.0 }
     }
 
     pub fn right_width(&self) -> f32 {
-        if self.right {
-            self.width
-        } else {
-            0.0
-        }
+        if self.right { self.width } else { 0.0 }
     }
 
     pub fn bottom_width(&self) -> f32 {
-        if self.bottom {
-            self.width
-        } else {
-            0.0
-        }
+        if self.bottom { self.width } else { 0.0 }
     }
 
     pub fn left_width(&self) -> f32 {
-        if self.left {
-            self.width
-        } else {
-            0.0
-        }
+        if self.left { self.width } else { 0.0 }
     }
 }
 

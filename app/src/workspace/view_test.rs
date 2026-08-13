@@ -18,12 +18,12 @@ use crate::projects::ProjectManagementModel;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 #[cfg(feature = "local_fs")]
 use crate::user_config::tab_configs_dir;
-use repo_metadata::repositories::DetectedRepositories;
-use repo_metadata::watcher::DirectoryWatcher;
 #[cfg(feature = "local_fs")]
 use repo_metadata::CanonicalizedPath;
 #[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
+use repo_metadata::repositories::DetectedRepositories;
+use repo_metadata::watcher::DirectoryWatcher;
 use std::collections::HashMap;
 #[cfg(feature = "local_fs")]
 use tempfile::TempDir;
@@ -32,8 +32,8 @@ use watcher::HomeDirectoryWatcher;
 use crate::cloud_object::update_manager::UpdateManager;
 use crate::http_api::HttpApiProvider;
 
-use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::settings_view::DisplayCount;
+use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::system::SystemStats;
 use crate::tab_configs::tab_config::{TabConfigPaneNode, TabConfigPaneType};
 use crate::terminal::history::History;
@@ -43,6 +43,7 @@ use crate::util::bindings::keybinding_name_to_normalized_string;
 
 use crate::terminal::local_tty::spawner::PtySpawner;
 
+use crate::ObjectActions;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
@@ -50,15 +51,14 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use crate::undo_close::UndoCloseSettings;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workflows::local_workflows::LocalWorkflows;
-use crate::ObjectActions;
-use crate::{workspace, GlobalResourceHandlesProvider};
+use crate::{GlobalResourceHandlesProvider, workspace};
 
 use ai::project_context::model::ProjectContextModel;
 use pane_group::{PaneState, SplitPaneState, TerminalPaneId, WelcomePane};
 use terminal::view::ActiveSessionState;
 use warp_editor::editor::NavigationKey;
 use warpui::AddSingletonModel;
-use warpui::{platform::WindowStyle, App, ViewHandle};
+use warpui::{App, ViewHandle, platform::WindowStyle};
 
 #[test]
 fn test_tab_bar_traffic_light_space_regression_for_resource_center_overlap() {
@@ -238,10 +238,12 @@ fn assert_vertical_tabs_tools_panel_preserves_padding(config: HeaderToolbarChipS
         app.update(|ctx| {
             TabSettings::handle(ctx).update(ctx, |settings, ctx| {
                 assert!(settings.use_vertical_tabs.set_value(true, ctx).is_ok());
-                assert!(settings
-                    .header_toolbar_chip_selection
-                    .set_value(config, ctx)
-                    .is_ok());
+                assert!(
+                    settings
+                        .header_toolbar_chip_selection
+                        .set_value(config, ctx)
+                        .is_ok()
+                );
             });
         });
 
@@ -1022,9 +1024,11 @@ fn test_workspace_sessions_retrieves_tabs() {
                 .map(|tab| tab.read(ctx, |tab, _ctx| tab.pane_id_by_index(0).unwrap()))
                 .expect("WindowId was not retrieved.");
 
-            assert!(workspace
-                .workspace_sessions(ctx.window_id(), ctx)
-                .any(|x| { x.pane_view_locator().pane_id == pane_id }));
+            assert!(
+                workspace
+                    .workspace_sessions(ctx.window_id(), ctx)
+                    .any(|x| { x.pane_view_locator().pane_id == pane_id })
+            );
 
             // Add a tab and check if workspace_sessions finds the second session from the new tab.
             workspace.add_terminal_tab(false, ctx);
@@ -1033,9 +1037,11 @@ fn test_workspace_sessions_retrieves_tabs() {
                 .map(|tab| tab.read(ctx, |tab, _ctx| tab.pane_id_by_index(0).unwrap()))
                 .expect("WindowId was not retrieved.");
 
-            assert!(workspace
-                .workspace_sessions(ctx.window_id(), ctx)
-                .any(|x| { x.pane_view_locator().pane_id == new_pane_id }));
+            assert!(
+                workspace
+                    .workspace_sessions(ctx.window_id(), ctx)
+                    .any(|x| { x.pane_view_locator().pane_id == new_pane_id })
+            );
         });
     });
 }
@@ -1060,9 +1066,11 @@ fn test_workspace_sessions_retrieves_panes() {
                 .get_pane_group_view(0)
                 .map(|tab| tab.read(ctx, |tab, _ctx| tab.pane_id_by_index(1).unwrap()))
                 .expect("WindowId was not retrieved.");
-            assert!(workspace
-                .workspace_sessions(ctx.window_id(), ctx)
-                .any(|x| { x.pane_view_locator().pane_id == new_pane_id }));
+            assert!(
+                workspace
+                    .workspace_sessions(ctx.window_id(), ctx)
+                    .any(|x| { x.pane_view_locator().pane_id == new_pane_id })
+            );
         });
     });
 }
@@ -1653,10 +1661,12 @@ fn test_left_panel_new_conversation_event_opens_new_agent_tab() {
                 .as_ref(ctx)
                 .active_session_view(ctx)
                 .expect("new tab should have an active terminal");
-            assert!(terminal_view
-                .as_ref(ctx)
-                .active_conversation_id(ctx)
-                .is_some());
+            assert!(
+                terminal_view
+                    .as_ref(ctx)
+                    .active_conversation_id(ctx)
+                    .is_some()
+            );
         });
     });
 }
@@ -2369,11 +2379,13 @@ fn test_worktree_sidecar_search_editor_proxies_navigation_and_escape() {
             assert!(workspace.show_new_session_dropdown_menu.is_none());
             assert!(!workspace.show_new_session_sidecar);
             assert!(workspace.worktree_sidecar_search_query.is_empty());
-            assert!(workspace
-                .worktree_sidecar_search_editor
-                .as_ref(ctx)
-                .buffer_text(ctx)
-                .is_empty());
+            assert!(
+                workspace
+                    .worktree_sidecar_search_editor
+                    .as_ref(ctx)
+                    .buffer_text(ctx)
+                    .is_empty()
+            );
         });
     });
 }
@@ -2624,10 +2636,12 @@ fn test_close_tab_group_removes_group_and_members() {
 
             // All group members are closed and the group entry is removed.
             assert!(!workspace.tab_groups.contains_key(&group_id));
-            assert!(workspace
-                .tabs
-                .iter()
-                .all(|tab| tab.group_id != Some(group_id)));
+            assert!(
+                workspace
+                    .tabs
+                    .iter()
+                    .all(|tab| tab.group_id != Some(group_id))
+            );
         });
     });
 }

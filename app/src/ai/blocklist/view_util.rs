@@ -4,8 +4,8 @@ use std::sync::LazyLock;
 use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    elements::{ConstrainedBox, Container},
     AppContext, Element, EntityId, SingletonEntity,
+    elements::{ConstrainedBox, Container},
 };
 
 use crate::{

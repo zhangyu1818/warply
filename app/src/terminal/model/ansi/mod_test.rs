@@ -1,5 +1,5 @@
 use hex;
-use warp_core::{command::ExitCode, SessionId};
+use warp_core::{SessionId, command::ExitCode};
 use warpui::color::ColorU;
 
 use super::*;

@@ -6,12 +6,12 @@ use std::{
 use pathfinder_color::ColorU;
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
+    vector::{Vector2F, vec2f},
 };
 
 use crate::{
-    event::DispatchedEvent, platform::Cursor, AfterLayoutContext, AppContext, Element,
-    EventContext, PaintContext, SizeConstraint,
+    AfterLayoutContext, AppContext, Element, EventContext, PaintContext, SizeConstraint,
+    event::DispatchedEvent, platform::Cursor,
 };
 
 use super::{Fill, Point, ZIndex};
@@ -153,11 +153,7 @@ impl ResizableState {
 
             self.mode = ResizableMode::Dragging { last_position };
 
-            if resized {
-                Some(origin_delta)
-            } else {
-                None
-            }
+            if resized { Some(origin_delta) } else { None }
         } else {
             None
         }

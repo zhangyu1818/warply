@@ -14,8 +14,8 @@ use crate::code::editor::{
     scroll::{ScrollPosition, ScrollTrigger, ScrollWheelBehavior},
 };
 use crate::code::{
-    editor::EditorReviewComment, DiffResult, NoopCommentEditorProvider,
-    NoopFindReferencesCardProvider, ShowCommentEditorProvider, ShowFindReferencesCardProvider,
+    DiffResult, NoopCommentEditorProvider, NoopFindReferencesCardProvider,
+    ShowCommentEditorProvider, ShowFindReferencesCardProvider, editor::EditorReviewComment,
 };
 use crate::{
     appearance::Appearance,
@@ -37,7 +37,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::{collections::HashMap, ops::Range};
 use string_offset::CharOffset;
-use vec1::{vec1, Vec1};
+use vec1::{Vec1, vec1};
 use vim::vim::{Direction, InsertPosition, VimMode, VimModel, VimState, VimSubscriber};
 use warp_core::platform::SessionPlatform;
 use warp_editor::{
@@ -53,26 +53,28 @@ use warp_editor::{
     multiline::AnyMultilineString,
     render::{
         element::{
-            lens_element::RichTextElementLens, DisplayOptions, DisplayStateHandle, RichTextElement,
-            VerticalExpansionBehavior,
+            DisplayOptions, DisplayStateHandle, RichTextElement, VerticalExpansionBehavior,
+            lens_element::RichTextElementLens,
         },
         model::{
-            AutoScrollMode, BlockSpacing, Decoration, ExpansionType, LineCount, ParagraphStyles,
-            RichTextStyles, CODE_EDITOR_HIDDEN_SECTION_EXPANSION_LINES,
+            AutoScrollMode, BlockSpacing, CODE_EDITOR_HIDDEN_SECTION_EXPANSION_LINES, Decoration,
+            ExpansionType, LineCount, ParagraphStyles, RichTextStyles,
         },
     },
-    search::{SearchEvent, Searcher, MATCH_FILL, SELECTED_MATCH_FILL},
+    search::{MATCH_FILL, SELECTED_MATCH_FILL, SearchEvent, Searcher},
 };
 use warp_util::content_version::ContentVersion;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{
+    AppContext, BlurContext, CursorInfo, Element, Entity, FocusContext, ModelHandle,
+    SingletonEntity, View, ViewContext, ViewHandle, WeakViewHandle, WindowId,
     elements::{
-        new_scrollable::{
-            AxisConfiguration, DualAxisConfig, NewScrollableElement, ScrollableAppearance,
-        },
         ChildAnchor, ChildView, Dismiss, Fill, Flex, Margin, MouseStateHandle, NewScrollable,
         OffsetPositioning, Padding, ParentAnchor, ParentElement, ParentOffsetBounds,
         ScrollStateHandle, Shrinkable, Stack,
+        new_scrollable::{
+            AxisConfiguration, DualAxisConfig, NewScrollableElement, ScrollableAppearance,
+        },
     },
     event::ModifiersState,
     keymap::Keystroke,
@@ -80,13 +82,11 @@ use warpui::{
     prelude::RectF,
     text::point::Point,
     units::Pixels,
-    AppContext, BlurContext, CursorInfo, Element, Entity, FocusContext, ModelHandle,
-    SingletonEntity, View, ViewContext, ViewHandle, WeakViewHandle, WindowId,
 };
 
 mod actions;
-pub use actions::init;
 pub(super) use actions::CodeEditorViewAction;
+pub use actions::init;
 
 mod vim_handler;
 
@@ -1821,9 +1821,7 @@ impl CodeEditorView {
                     first_replace = if first_replace.is_uppercase() {
                         first_replace
                     } else {
-                        {
-                            first_replace.to_uppercase().next().unwrap_or(first_replace)
-                        }
+                        { first_replace.to_uppercase().next().unwrap_or(first_replace) }
                     };
                     result.push(first_replace);
                     result.push_str(&replace_chars.collect::<String>().to_lowercase());
@@ -2256,8 +2254,8 @@ impl View for CodeEditorView {
             let render_state_ref = render_state.as_ref(app);
             let softwrap_point = render_state_ref.offset_to_softwrap_point(*offset);
             let line_number = LineCount::from(softwrap_point.row() as usize + 1); // Convert 0-indexed to 1-indexed
-                                                                                  // Create a simple EditorLineLocation::Current with the line number
-                                                                                  // We don't have hunk range info here, so use a single-line range
+            // Create a simple EditorLineLocation::Current with the line number
+            // We don't have hunk range info here, so use a single-line range
             let anchor_line = EditorLineLocation::Current {
                 line_number,
                 line_range: line_number..line_number + LineCount::from(1),

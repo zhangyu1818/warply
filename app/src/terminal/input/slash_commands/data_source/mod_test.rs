@@ -1,13 +1,13 @@
 use crate::ai::acp::{events::AcpEvent, model::AcpAgentModel};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::search::SyncDataSource;
 use crate::search::data_source::Query;
 use crate::search::slash_command_menu::fuzzy_match::SlashCommandFuzzyMatchResult;
 use crate::search::slash_command_menu::static_commands::commands;
-use crate::search::SyncDataSource;
 use crate::terminal::input::tests::{add_window_with_bootstrapped_terminal, initialize_app};
 use warpui::SingletonEntity;
 
-use super::{prefix_match_bonus, AcceptSlashCommandOrSavedPrompt, InlineItem};
+use super::{AcceptSlashCommandOrSavedPrompt, InlineItem, prefix_match_bonus};
 
 #[test]
 fn exact_match_returns_full_bonus() {

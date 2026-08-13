@@ -1,9 +1,9 @@
 use itertools::Itertools;
 use warpui::{
+    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{Container, CrossAxisAlignment, Flex, ParentElement, Shrinkable},
     presenter::ChildView,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
     settings::log_setting_result,
     settings_view::features_page::render_group,
     terminal::session_settings::*,
-    view_components::{dropdown::TOP_MENU_BAR_HEIGHT, Dropdown, DropdownItem},
+    view_components::{Dropdown, DropdownItem, dropdown::TOP_MENU_BAR_HEIGHT},
 };
 
 #[derive(Clone, Debug)]

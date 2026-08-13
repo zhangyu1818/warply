@@ -29,7 +29,7 @@ use futures::prelude::*;
 use itertools::Itertools;
 use markdown_parser::markdown_parser::RUNNABLE_BLOCK_MARKDOWN_LANG;
 use markdown_parser::{
-    parse_markdown, CodeBlockText, FormattedText, FormattedTextFragment, FormattedTextLine,
+    CodeBlockText, FormattedText, FormattedTextFragment, FormattedTextLine, parse_markdown,
 };
 use pathfinder_geometry::vector::Vector2F;
 use string_offset::CharOffset;
@@ -38,17 +38,17 @@ use warp_core::features::FeatureFlag;
 use warp_editor::content::buffer::{AutoScrollBehavior, BufferSelectAction, SelectionOffsets};
 use warp_editor::content::text::{BlockType, BufferBlockStyle, CodeBlockType, TextStyles};
 use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
-use warp_editor::render::model::viewport::SizeInfo;
 use warp_editor::render::model::BlockItem;
 use warp_editor::render::model::RenderEvent;
+use warp_editor::render::model::viewport::SizeInfo;
 use warp_editor::selection::{TextDirection, TextUnit};
+use warpui::r#async::{FutureId, block_on};
 use warpui::elements::ListIndentLevel;
 use warpui::platform::WindowStyle;
 use warpui::presenter::ChildView;
-use warpui::r#async::{block_on, FutureId};
 use warpui::text::word_boundaries::WordBoundariesPolicy;
-use warpui::{r#async::Timer, App, Entity, ModelHandle, SingletonEntity, TypedActionView};
 use warpui::{AddSingletonModel, AppContext, Element, View, ViewHandle};
+use warpui::{App, Entity, ModelHandle, SingletonEntity, TypedActionView, r#async::Timer};
 
 /// Container for a [`RichTextEditorView`] in unit tests.
 struct TestView {
@@ -1107,10 +1107,12 @@ fn test_move_to_start_of_first_line() {
             editor.cursor_at(3.into(), ctx);
 
             editor.move_to_line_start(ctx);
-            assert!(editor
-                .buffer_selection_model()
-                .as_ref(ctx)
-                .first_selection_is_single_cursor());
+            assert!(
+                editor
+                    .buffer_selection_model()
+                    .as_ref(ctx)
+                    .first_selection_is_single_cursor()
+            );
             assert_eq!(
                 editor
                     .buffer_selection_model()
@@ -1132,10 +1134,12 @@ fn test_move_up_on_first_line() {
             editor.cursor_at(3.into(), ctx);
 
             editor.move_up(ctx);
-            assert!(editor
-                .buffer_selection_model()
-                .as_ref(ctx)
-                .first_selection_is_single_cursor());
+            assert!(
+                editor
+                    .buffer_selection_model()
+                    .as_ref(ctx)
+                    .first_selection_is_single_cursor()
+            );
             assert_eq!(
                 editor
                     .buffer_selection_model()
@@ -1158,10 +1162,12 @@ fn test_move_down_on_last_line() {
             editor.cursor_at(14.into(), ctx);
 
             editor.move_down(ctx);
-            assert!(editor
-                .buffer_selection_model()
-                .as_ref(ctx)
-                .first_selection_is_single_cursor());
+            assert!(
+                editor
+                    .buffer_selection_model()
+                    .as_ref(ctx)
+                    .first_selection_is_single_cursor()
+            );
             assert_eq!(
                 editor
                     .buffer_selection_model()
@@ -2382,14 +2388,18 @@ fn test_cut_mermaid_code_block_uses_fenced_markdown_plain_text() {
             assert_eq!(model.debug_buffer(ctx), "<text>Text<ul0>List<text>");
             let clipboard = ctx.clipboard().read();
             assert_eq!(clipboard.plain_text, "```mermaid\ngraph TD\nA --> B\n```");
-            assert!(clipboard
-                .html
-                .as_deref()
-                .is_some_and(|html| html.contains("language-mermaid")));
-            assert!(clipboard
-                .html
-                .as_deref()
-                .is_some_and(|html| html.contains("data:image/svg+xml;base64,")));
+            assert!(
+                clipboard
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains("language-mermaid"))
+            );
+            assert!(
+                clipboard
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,"))
+            );
             assert!(clipboard.images.is_none());
         });
     });
@@ -2416,14 +2426,18 @@ fn test_copy_mermaid_code_block_adds_html_without_image_clipboard_data() {
 
             let clipboard = ctx.clipboard().read();
             assert_eq!(clipboard.plain_text, "```mermaid\ngraph TD\nA --> B\n```");
-            assert!(clipboard
-                .html
-                .as_deref()
-                .is_some_and(|html| html.contains("language-mermaid")));
-            assert!(clipboard
-                .html
-                .as_deref()
-                .is_some_and(|html| html.contains("data:image/svg+xml;base64,")));
+            assert!(
+                clipboard
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains("language-mermaid"))
+            );
+            assert!(
+                clipboard
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains("data:image/svg+xml;base64,"))
+            );
             assert!(clipboard.images.is_none());
         })
     });
@@ -2451,10 +2465,12 @@ fn test_copy_selection_with_markdown_image_omits_image_clipboard_data() {
 
             let clipboard = ctx.clipboard().read();
             assert!(clipboard.plain_text.contains("![Alt text](diagram.png)"));
-            assert!(clipboard
-                .html
-                .as_deref()
-                .is_some_and(|html| html.contains("<img")));
+            assert!(
+                clipboard
+                    .html
+                    .as_deref()
+                    .is_some_and(|html| html.contains("<img"))
+            );
             assert!(clipboard.images.is_none());
         })
     });

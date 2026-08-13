@@ -9,11 +9,11 @@ use warp_util::path::warp_shell_path;
 
 use crate::{
     terminal::{
+        ShellLaunchData,
         available_shells::AvailableShell,
         bootstrap::{generate_session_id, init_shell_script_for_shell},
         local_tty::docker_sandbox::DockerSandboxShellStarter,
         shell::{ShellName, ShellType},
-        ShellLaunchData,
     },
     util::path::resolve_executable,
 };

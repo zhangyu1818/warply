@@ -1,6 +1,6 @@
 use crate::{
     completer::TopLevelCommandCaseSensitivity,
-    signatures::{get_matching_signature_for_input, CommandRegistry},
+    signatures::{CommandRegistry, get_matching_signature_for_input},
 };
 
 /// Returns the name of the argument that should be given at `idx` for the given command.

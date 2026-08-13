@@ -2,15 +2,15 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use settings::{
-    macros::{maybe_define_setting, register_settings_events},
     ChangeEventReason, Setting, SupportedPlatforms,
+    macros::{maybe_define_setting, register_settings_events},
 };
 use strum_macros::EnumIter;
 use warp_util::path::ShellFamily;
 use warpui::{AppContext, ModelContext};
 use warpui::{Entity, SingletonEntity};
 
-use crate::terminal::ssh::util::{parse_interactive_ssh_command, SshWarpifyCommand};
+use crate::terminal::ssh::util::{SshWarpifyCommand, parse_interactive_ssh_command};
 
 // Cannot directly use Vec<Regex> here b/c Regex doesn't impl Eq, Serialize, and Deserialize.
 maybe_define_setting!(AddedSubshellCommands, group: WarpifySettings, {

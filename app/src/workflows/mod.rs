@@ -18,9 +18,9 @@ pub mod workflow_view;
 use crate::appearance::Appearance;
 use crate::cloud_object::{CloudModelType, GenericCloudObject, ObjectType, SerializedModel};
 
-use crate::drive::items::workflow::LocalObjectWorkflow;
-use crate::drive::items::LocalObjectItem;
 use crate::drive::CloudObjectTypeAndId;
+use crate::drive::items::LocalObjectItem;
+use crate::drive::items::workflow::LocalObjectWorkflow;
 use crate::notebooks::NotebookLocation;
 use crate::object_ids::{ServerId, SyncId};
 use crate::persistence::ModelEvent;

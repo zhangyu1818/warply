@@ -7,15 +7,15 @@ use warpui::keymap::FixedBinding;
 
 use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
+use crate::Appearance;
 use crate::chip_configurator::{
-    render_chip_editor_modal, ChipConfigurator, ChipConfiguratorAction, ChipConfiguratorLayout,
-    ChipEditorModalConfig, ChipEditorMouseHandles,
+    ChipConfigurator, ChipConfiguratorAction, ChipConfiguratorLayout, ChipEditorModalConfig,
+    ChipEditorMouseHandles, render_chip_editor_modal,
 };
 use crate::settings::log_setting_result;
 use crate::terminal::session_settings::{
     AgentToolbarChipSelection, CLIAgentToolbarChipSelection, SessionSettings, ToolbarChipSelection,
 };
-use crate::Appearance;
 
 use settings::Setting as _;
 

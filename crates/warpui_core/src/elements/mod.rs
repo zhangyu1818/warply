@@ -74,20 +74,20 @@ pub use viewported_list::*;
 
 use crate::event::ModifiersState;
 use crate::platform::Cursor;
-use crate::{
-    event::DispatchedEvent,
-    text::{word_boundaries::WordBoundariesPolicy, IsRect, SelectionDirection, SelectionType},
-    Gradient,
-};
 pub use crate::{
-    scene::Dash, scene::ZIndex, AfterLayoutContext, AppContext, Event, EventContext, LayoutContext,
-    PaintContext, SizeConstraint,
+    AfterLayoutContext, AppContext, Event, EventContext, LayoutContext, PaintContext,
+    SizeConstraint, scene::Dash, scene::ZIndex,
+};
+use crate::{
+    Gradient,
+    event::DispatchedEvent,
+    text::{IsRect, SelectionDirection, SelectionType, word_boundaries::WordBoundariesPolicy},
 };
 use core::fmt;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
+    vector::{Vector2F, vec2f},
 };
 use std::any::Any;
 use std::borrow::Cow;

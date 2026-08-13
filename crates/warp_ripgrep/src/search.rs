@@ -137,9 +137,9 @@ pub fn run_search_subprocess(
 
 use std::process::Stdio;
 
+use futures::StreamExt as _;
 use futures::io::{AsyncBufReadExt as _, BufReader};
 use futures::stream::Stream;
-use futures::StreamExt as _;
 
 use crate::types::RipgrepMessage;
 

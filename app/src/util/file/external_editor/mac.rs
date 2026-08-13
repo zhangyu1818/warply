@@ -9,8 +9,8 @@ use cocoa::{
     foundation::{NSAutoreleasePool, NSString},
 };
 use command::r#async::Command;
-use warp_core::{channel::ChannelState, AppId};
-use warpui::{platform::mac::make_nsstring, ApplicationBundleInfo};
+use warp_core::{AppId, channel::ChannelState};
+use warpui::{ApplicationBundleInfo, platform::mac::make_nsstring};
 
 use super::*;
 

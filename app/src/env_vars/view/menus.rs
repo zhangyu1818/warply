@@ -1,18 +1,18 @@
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::context_flag::ContextFlag;
-use warpui::{keymap::Trigger, SingletonEntity, ViewContext, ViewHandle};
+use warpui::{SingletonEntity, ViewContext, ViewHandle, keymap::Trigger};
 
 use crate::{
-    cloud_object::update_manager::UpdateManager,
+    AppContext,
     cloud_object::GenericStringObjectFormat,
+    cloud_object::update_manager::UpdateManager,
     drive::CloudObjectTypeAndId,
     env_vars::active_env_var_collection_data::TrashStatus,
     external_secrets::SecretManager,
     menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields},
     pane_group::PaneEvent,
     ui_components::icons::Icon,
-    util::bindings::{keybinding_name_to_display_string, trigger_to_keystroke, CustomAction},
-    AppContext,
+    util::bindings::{CustomAction, keybinding_name_to_display_string, trigger_to_keystroke},
 };
 
 use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView, VariableRowIndex};

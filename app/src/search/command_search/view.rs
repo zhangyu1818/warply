@@ -8,18 +8,18 @@ use crate::search::mixer::AddAsyncSourceOptions;
 use lazy_static::lazy_static;
 use std::{collections::HashSet, ops::Range, time::Duration};
 use warpui::{
+    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WeakViewHandle,
     accessibility::{AccessibilityContent, WarpA11yRole},
     elements::{
-        resizable_state_handle, Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius,
-        CrossAxisAlignment, Dismiss, Fill, Flex, OffsetPositioning, OffsetType, ParentElement,
-        ParentOffsetBounds, PositionedElementOffsetBounds, PositioningAxis, Radius, Resizable,
-        ResizableStateHandle, SavePosition, ScrollStateHandle, Scrollable, ScrollableElement,
-        Shrinkable, Stack, UniformList, UniformListState, XAxisAnchor, YAxisAnchor,
+        Align, AnchorPair, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+        Dismiss, Fill, Flex, OffsetPositioning, OffsetType, ParentElement, ParentOffsetBounds,
+        PositionedElementOffsetBounds, PositioningAxis, Radius, Resizable, ResizableStateHandle,
+        SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, Shrinkable, Stack,
+        UniformList, UniformListState, XAxisAnchor, YAxisAnchor, resizable_state_handle,
     },
     presenter::ChildView,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, Element, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use crate::{
@@ -27,16 +27,16 @@ use crate::{
     appearance::Appearance,
     completer::SessionContext,
     search::{
+        QueryFilter,
         command_search::searcher::{CommandSearchItemAction, CommandSearchMixer},
         result_renderer::{QueryResultRenderer, QueryResultRendererStyles},
         search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering},
-        QueryFilter,
     },
     settings::AISettings,
     terminal::{
-        input::MenuPositioning,
-        resizable_data::{ModalType, ResizableData, DEFAULT_UNIVERSAL_SEARCH_WIDTH},
         History, HistoryEvent,
+        input::MenuPositioning,
+        resizable_data::{DEFAULT_UNIVERSAL_SEARCH_WIDTH, ModalType, ResizableData},
     },
 };
 use warp_core::SessionId;

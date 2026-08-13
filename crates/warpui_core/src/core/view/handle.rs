@@ -7,9 +7,9 @@ use std::{
 
 use parking_lot::Mutex;
 
-use crate::{core::RefCounts, AppContext, EntityId, WindowId};
+use crate::{AppContext, EntityId, WindowId, core::RefCounts};
 
-use super::{context::ViewContext, View};
+use super::{View, context::ViewContext};
 
 /// A strong reference to a particular [`View`] instance within the application.
 ///

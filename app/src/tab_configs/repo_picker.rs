@@ -2,11 +2,11 @@ use std::path::PathBuf;
 
 use warp_util::path::user_friendly_path;
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{Border, ChildView, Container, Hoverable, MouseStateHandle, Text},
     platform::Cursor,
     text_layout::ClipConfig,
     ui_components::components::UiComponentStyles,
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{

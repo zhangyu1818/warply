@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(AliasExpansionSettings, settings: [
     alias_expansion_enabled: AliasExpansionEnabled {

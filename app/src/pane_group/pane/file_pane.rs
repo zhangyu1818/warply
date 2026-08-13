@@ -10,7 +10,7 @@ use crate::{
     workspace::ActiveSession,
 };
 
-use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, view::PaneView};
 
 pub struct FilePane {
     view: ViewHandle<PaneView<FileNotebookView>>,

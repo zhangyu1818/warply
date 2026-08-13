@@ -1,5 +1,5 @@
 use diesel::associations::HasTable;
-use diesel::{prelude::*, result::Error, SqliteConnection};
+use diesel::{SqliteConnection, prelude::*, result::Error};
 use std::collections::HashMap;
 
 use super::model::{AgentConversation, AgentConversationData};

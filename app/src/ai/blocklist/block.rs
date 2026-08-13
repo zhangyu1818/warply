@@ -15,34 +15,34 @@ pub mod view_impl;
 
 pub use pending_user_query_block::{PendingUserQueryBlock, PendingUserQueryBlockEvent};
 
-use crate::ai::acp::{acp_raw_images, model::AcpAgentModel, AcpToolCall};
+use crate::ai::acp::{AcpToolCall, acp_raw_images, model::AcpAgentModel};
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::TodoOperation;
 use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
-use crate::ai::blocklist::agent_view::AgentViewController;
-use crate::ai::blocklist::context_model::AttachmentType;
 use crate::ai::blocklist::BlocklistAIContextEvent;
 use crate::ai::blocklist::BlocklistAIContextModel;
+use crate::ai::blocklist::agent_view::AgentViewController;
+use crate::ai::blocklist::context_model::AttachmentType;
 use repo_metadata::repositories::DetectedRepositories;
 
+use crate::AIAgentTodoList;
+use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
 use crate::code::editor::view::CodeEditorRenderOptions;
 use crate::code::editor_management::CodeSource;
-use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::comment_rendering::{CommentViewCard, HeaderClickHandler};
+use crate::terminal::TerminalModel;
 use crate::terminal::model::BlockId;
 use crate::terminal::model_events::ModelEvent;
 use crate::terminal::model_events::ModelEventDispatcher;
-use crate::terminal::TerminalModel;
 use crate::view_components::action_button::{
     ActionButtonTheme, NakedTheme, PrimaryTheme, SecondaryTheme,
 };
 use crate::view_components::compactible_action_button::CompactibleActionButton;
-use crate::AIAgentTodoList;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use pathfinder_color::ColorU;
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::Fill;
+use warp_core::ui::theme::color::internal_colors;
 
 use cli_controller::CLISubagentController;
 use cli_controller::CLISubagentEvent;
@@ -50,12 +50,12 @@ use find::FindState;
 use model::AIBlockOutputStatus;
 use parking_lot::FairMutex;
 use settings::Setting as _;
-use warpui::elements::get_rich_content_position_id;
 use warpui::elements::ClippedScrollStateHandle;
 use warpui::elements::TableStateHandle;
+use warpui::elements::get_rich_content_position_id;
 use warpui::ui_components::radio_buttons::RadioButtonStateHandle;
 
-use crate::ai::agent::conversation::AIConversationId;
+use crate::Appearance;
 use crate::ai::agent::AIAgentActionResultType;
 use crate::ai::agent::AIAgentOutput;
 use crate::ai::agent::AIAgentTextSection;
@@ -63,6 +63,7 @@ use crate::ai::agent::AIIdentifiers;
 use crate::ai::agent::MessageId;
 use crate::ai::agent::RequestFileEditsResult;
 use crate::ai::agent::SearchCodebaseResult;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::inline_action::ask_user_question_view::{
     self, AskUserQuestionView, AskUserQuestionViewEvent,
 };
@@ -73,11 +74,10 @@ use crate::code_review::events::CodeReviewPaneEntrypoint;
 use crate::terminal::view::{CodeDiffAction, TerminalAction};
 use crate::ui_components::icons::Icon;
 #[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::{is_supported_image_file, FileTarget};
+use crate::util::openable_file_type::{FileTarget, is_supported_image_file};
 use crate::view_components::action_button::ActionButton;
 use crate::view_components::action_button::ButtonSize;
 use crate::view_components::action_button::KeystrokeSource;
-use crate::Appearance;
 use indexmap::IndexMap;
 use parking_lot::{Mutex, RwLock};
 use std::cmp::Ordering;
@@ -99,17 +99,18 @@ use warp_editor::{
     content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
 };
 use warpui::{
+    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle, WeakViewHandle, WindowId,
     assets::asset_cache::AssetCache,
+    r#async::{SpawnedFutureHandle, Timer},
     clipboard::ClipboardContent,
     elements::{MouseStateHandle, SelectionBound, SelectionHandle},
     image_cache::ImageType,
     keymap::FixedBinding,
-    r#async::{SpawnedFutureHandle, Timer},
     text::SelectionType,
-    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WeakViewHandle, WindowId,
 };
 
+use crate::ToastStack;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionId, AIAgentActionType, AIAgentAttachment, AIAgentCitation,
     AIAgentContext, AIAgentOutputMessageType, CreateDocumentsRequest, CreateDocumentsResult,
@@ -135,7 +136,6 @@ use crate::terminal::model::session::active_session::{ActiveSession, ActiveSessi
 use crate::terminal::{ShellLaunchData, TerminalView};
 use crate::view_components::DismissibleToast;
 use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, WorkspaceAction};
-use crate::ToastStack;
 use agent_client_protocol::schema::{Diff as AcpDiff, ToolCallContent};
 use ai::agent::action::{AskUserQuestionItem, InsertReviewComment};
 
@@ -147,7 +147,7 @@ use crate::terminal::{
     find::TerminalFindModel,
     model::secrets::RichContentSecretTooltipInfo,
     safe_mode_settings::{
-        get_secret_obfuscation_mode, SafeModeSettings, SafeModeSettingsChangedEvent,
+        SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
     },
     view::{RichContentLink, RichContentLinkTooltipInfo},
 };
@@ -157,14 +157,16 @@ use self::model::AIBlockModelHelper;
 use super::inline_action::requested_action::CTRL_C_KEYSTROKE;
 use super::inline_action::requested_action::ENTER_KEYSTROKE;
 use crate::code_review::comments::{
-    attach_pending_imported_comments, convert_insert_review_comments, AttachedReviewComment,
-    CommentId, CommentOrigin,
+    AttachedReviewComment, CommentId, CommentOrigin, attach_pending_imported_comments,
+    convert_insert_review_comments,
 };
 use crate::{ai::agent::AIAgentInput, settings::AISettings};
 
-use super::controller::ClientIdentifiers;
 use super::ResponseStreamId;
+use super::controller::ClientIdentifiers;
 use super::{
+    BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
+    BlocklistAIHistoryModel, BlocklistAIPermissions,
     action_model::{AIActionStatus, BlocklistAIActionEvent},
     code_block::CodeSnippetButtonHandles,
     inline_action::code_diff_view::{
@@ -172,8 +174,6 @@ use super::{
     },
     inline_action::requested_command_attribution::is_command_copied_from_document,
     permissions::is_agent_mode_autonomy_allowed,
-    BlocklistAIActionModel, BlocklistAIController, BlocklistAIHistoryEvent,
-    BlocklistAIHistoryModel, BlocklistAIPermissions,
 };
 
 const HAS_PENDING_ACTION: &str = "HasPendingAction";

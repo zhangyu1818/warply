@@ -5,8 +5,8 @@ use async_channel::Sender;
 pub use command_executor::*;
 
 use anyhow::Result;
-use futures::future::{BoxFuture, Shared};
 use futures::FutureExt;
+use futures::future::{BoxFuture, Shared};
 use instant::Instant;
 use once_cell::sync::OnceCell;
 use smol_str::SmolStr;
@@ -23,20 +23,20 @@ use version_compare::Version;
 use warp_completer::completer::{
     CommandExitStatus, CommandOutput, PathSeparators, TopLevelCommandCaseSensitivity,
 };
-use warpui::{platform::OperatingSystem, Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext, SingletonEntity, platform::OperatingSystem};
 
 #[cfg(feature = "local_tty")]
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
-use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::ShellHost;
 use crate::terminal::ShellLaunchData;
+use crate::terminal::event::ExecutedExecutorCommandEvent;
 #[cfg(feature = "local_tty")]
 use command_executor::remote_server_executor::RemoteServerCommandExecutor;
 use parking_lot::{Mutex, RwLock};
 
+use crate::terminal::History;
 use crate::terminal::shell::{Shell, ShellType};
 use crate::terminal::warpify::SubshellSource;
-use crate::terminal::History;
 
 use super::ansi::{BootstrappedValue, InitShellValue, SSHValue};
 use super::terminal_model::{HistoryEntry, SubshellInitializationInfo};
@@ -662,7 +662,11 @@ impl SessionInfo {
         let shell_type = match ShellType::from_name(bootstrapped_value.shell.as_str()) {
             Some(value) => {
                 if value != self.shell.shell_type() {
-                    log::error!("Received ShellType {:?} in BootstrappedValue that conflicts with pending ShellType {:?}", value, self.shell.shell_type());
+                    log::error!(
+                        "Received ShellType {:?} in BootstrappedValue that conflicts with pending ShellType {:?}",
+                        value,
+                        self.shell.shell_type()
+                    );
                 }
                 value
             }
@@ -1546,7 +1550,9 @@ pub mod testing {
                 .set(external_commands_with_values(commands))
                 .is_err()
             {
-                log::warn!("Ignored call to set_external_commands, as external commands had already been set!");
+                log::warn!(
+                    "Ignored call to set_external_commands, as external commands had already been set!"
+                );
             };
         }
 

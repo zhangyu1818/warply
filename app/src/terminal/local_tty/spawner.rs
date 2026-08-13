@@ -6,7 +6,7 @@ use crate::terminal::local_tty::{self};
 use super::{PtyOptions, PtySpawnResult};
 use {
     crate::terminal::local_tty::server::TerminalServer,
-    anyhow::{bail, Context},
+    anyhow::{Context, bail},
     std::process::Child,
 };
 /// A handle that can be used to interact with a pty process.

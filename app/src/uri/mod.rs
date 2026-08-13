@@ -2,7 +2,7 @@ mod docker;
 
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::linear::{LinearAction, LinearIssueWork};
-use crate::root_view::{open_new_window_get_handles, OpenLaunchConfigArg};
+use crate::root_view::{OpenLaunchConfigArg, open_new_window_get_handles};
 use crate::tab_configs::TabConfig;
 use crate::ui_events::LaunchConfigUiLocation;
 use crate::util::openable_file_type::{
@@ -13,10 +13,10 @@ use crate::workspace::util::PaneViewLocator;
 use crate::workspace::{Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
 
-use crate::settings_view::{settings_widget_deeplink_target, SettingsSection};
+use crate::settings_view::{SettingsSection, settings_widget_deeplink_target};
 use crate::user_config::{load_launch_configs, load_tab_configs, tab_configs_dir};
-use crate::{quake_mode_window_id, quake_mode_window_is_open, ChannelState, OpenPath};
-use anyhow::{anyhow, Result};
+use crate::{ChannelState, OpenPath, quake_mode_window_id, quake_mode_window_is_open};
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -637,7 +637,7 @@ fn open_file(window_id: Option<WindowId>, path: PathBuf, ctx: &mut AppContext) {
         #[cfg(feature = "local_fs")]
         {
             use crate::code::editor_management::CodeSource;
-            use crate::root_view::{open_new_with_workspace_source, NewWorkspaceSource};
+            use crate::root_view::{NewWorkspaceSource, open_new_with_workspace_source};
             use crate::util::{
                 file::external_editor::EditorSettings,
                 openable_file_type::resolve_file_target_to_open_in_warp,

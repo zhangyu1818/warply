@@ -27,15 +27,15 @@ use crate::terminal::model::session::SessionType;
 use super::AcceptSlashCommandOrSavedPrompt;
 use crate::{
     ai::blocklist::{
+        BlocklistAIHistoryEvent,
         agent_view::{AgentViewController, AgentViewControllerEvent},
         block::cli_controller::{CLISubagentController, CLISubagentEvent},
-        BlocklistAIHistoryEvent,
     },
     search::{
-        slash_command_menu::{
-            static_commands::commands::COMMAND_REGISTRY, SlashCommandId, StaticCommand,
-        },
         SyncDataSource,
+        slash_command_menu::{
+            SlashCommandId, StaticCommand, static_commands::commands::COMMAND_REGISTRY,
+        },
     },
     settings::{AISettings, AISettingsChangedEvent, InputSettings, InputSettingsChangedEvent},
     terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent},

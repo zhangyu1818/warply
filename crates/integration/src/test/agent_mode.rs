@@ -3,9 +3,9 @@
 //! There are no tests with markdown disabled because Agent Mode Markdown has been fully rolled out.
 
 use super::new_builder;
-use crate::{util::skip_if_powershell_core_2303, Builder};
+use crate::{Builder, util::skip_if_powershell_core_2303};
 use lazy_static::lazy_static;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use settings::ToggleableSetting;
 use warp::{
     cmd_or_ctrl_shift,
@@ -20,7 +20,7 @@ use warp::{
     },
     settings::SelectionSettings,
 };
-use warpui::{async_assert, text::SelectionType, Event, SingletonEntity};
+use warpui::{Event, SingletonEntity, async_assert, text::SelectionType};
 
 lazy_static! {
     /// Position directly to the left of the first user query.

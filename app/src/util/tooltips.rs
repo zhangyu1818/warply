@@ -4,11 +4,11 @@
 use std::path::Path;
 
 use warpui::{
+    AppContext, Element, EventContext,
     elements::{
         Border, Container, CornerRadius, Flex, MouseStateHandle, ParentElement, Radius, Text,
     },
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Element, EventContext,
 };
 
 use crate::{appearance::Appearance, terminal::model::secrets::SecretLevel};
@@ -207,7 +207,7 @@ where
 pub fn should_show_open_in_warp_link(path: &Path, app: &AppContext) -> bool {
     use crate::{
         code::view::is_binary_file,
-        util::file::external_editor::{settings::EditorChoice, EditorSettings},
+        util::file::external_editor::{EditorSettings, settings::EditorChoice},
         util::openable_file_type::renders_in_warp_notebook_viewer,
     };
     use warpui::SingletonEntity;

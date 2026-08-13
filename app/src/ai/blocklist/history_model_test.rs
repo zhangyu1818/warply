@@ -6,22 +6,22 @@ use itertools::Itertools;
 use warpui::{App, EntityId};
 
 use crate::{
+    GlobalResourceHandles, GlobalResourceHandlesProvider,
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentExchange, AIAgentExchangeId, AIAgentInput,
-            AIAgentOutputMessageType, AIAgentOutputStatus, FinishedAIAgentOutput, Shared,
-            UserQueryMode,
+            AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputMessageType,
+            AIAgentOutputStatus, FinishedAIAgentOutput, Shared, UserQueryMode,
+            conversation::AIConversationId,
         },
-        blocklist::{controller::RequestInput, AcpResponseStreamTarget, ResponseStreamId},
+        blocklist::{AcpResponseStreamTarget, ResponseStreamId, controller::RequestInput},
         llms::LLMId,
     },
     input_suggestions::HistoryInputSuggestion,
     persistence::{
-        model::{AgentConversation, AgentConversationRecord, PersistedAutoexecuteMode},
         ModelEvent,
+        model::{AgentConversation, AgentConversationRecord, PersistedAutoexecuteMode},
     },
     test_util::settings::initialize_settings_for_tests,
-    GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 use warp_core::SessionId;
 

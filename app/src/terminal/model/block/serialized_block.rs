@@ -1,21 +1,21 @@
 use std::collections::HashSet;
 
+use crate::ai::agent::AIAgentActionId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::AIAgentActionId;
 use crate::ai::blocklist::block::cli_controller::LongRunningCommandControlState;
-use crate::terminal::model::block::{
-    has_block_failed, AgentViewVisibility, Block, BlockState, PromptInfo,
-    MAX_SERIALIZED_STYLIZED_OUTPUT_LINES,
-};
-use crate::terminal::model::BlockId;
 use crate::terminal::ShellHost;
+use crate::terminal::model::BlockId;
+use crate::terminal::model::block::{
+    AgentViewVisibility, Block, BlockState, MAX_SERIALIZED_STYLIZED_OUTPUT_LINES, PromptInfo,
+    has_block_failed,
+};
 use crate::util::extensions::TrimStringExt;
 use chrono::{DateTime, Local, TimeZone as _};
 use serde::{Deserialize, Serialize};
 use serde_bytes_repr::{ByteFmtDeserializer, ByteFmtSerializer};
-use warp_core::command::ExitCode;
 use warp_core::SessionId;
+use warp_core::command::ExitCode;
 
 use super::AgentInteractionMetadata;
 

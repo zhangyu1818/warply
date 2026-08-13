@@ -1,19 +1,19 @@
 //! Renders the AI block "header", which includes a version of the AI "prompt" as it was rendered
 //! when the query was submitted.
+use warpui::EntityId;
 use warpui::elements::MouseStateHandle;
 use warpui::elements::{ChildView, Hoverable, SavePosition};
 use warpui::platform::Cursor;
-use warpui::EntityId;
 use warpui::{
+    AppContext, Element, SingletonEntity, ViewHandle,
     elements::{
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, MainAxisAlignment,
         MainAxisSize, ParentElement, Radius, Text,
     },
-    AppContext, Element, SingletonEntity, ViewHandle,
 };
 
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::{
     get_ai_block_overflow_menu_element_position_id, get_attached_blocks_chip_element_position_id,
 };

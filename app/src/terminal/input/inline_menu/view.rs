@@ -4,17 +4,17 @@ use std::sync::LazyLock;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
+use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::Fill;
-use warp_core::ui::Icon;
 use warpui::color::ColorU;
 use warpui::elements::{
-    drag_resize::drag_resize_handle, ChildAnchor, Clipped, DispatchEventResult, DragResizeElement,
-    DragResizeHandle, EventHandler, Expanded, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseInBehavior, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
-    ParentOffsetBounds, ResizeEndFn, Scrollable, ScrollableElement, ScrollbarWidth,
-    SizeConstraintCondition, SizeConstraintSwitch, Stack, UniformList, UniformListState,
+    ChildAnchor, Clipped, DispatchEventResult, DragResizeElement, DragResizeHandle, EventHandler,
+    Expanded, Hoverable, MainAxisAlignment, MainAxisSize, MouseInBehavior, MouseStateHandle,
+    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, ResizeEndFn, Scrollable,
+    ScrollableElement, ScrollbarWidth, SizeConstraintCondition, SizeConstraintSwitch, Stack,
+    UniformList, UniformListState, drag_resize::drag_resize_handle,
 };
 use warpui::fonts::Weight;
 use warpui::platform::Cursor;
@@ -25,14 +25,14 @@ use warpui::prelude::{
 use warpui::scene::{Border, CornerRadius, Radius};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{elements::ScrollStateHandle, ModelHandle, View};
 use warpui::{
     Action, AppContext, Element, Entity, SingletonEntity, TypedActionView, ViewContext, ViewHandle,
     WeakViewHandle,
 };
+use warpui::{ModelHandle, View, elements::ScrollStateHandle};
 
 use crate::ai::blocklist::agent_view::{
-    agent_view_bg_color, AgentViewController, AgentViewControllerEvent,
+    AgentViewController, AgentViewControllerEvent, agent_view_bg_color,
 };
 use crate::search::item::IconLocation;
 use crate::search::mixer::{SearchMixer, SearchMixerEvent};
@@ -45,8 +45,8 @@ use crate::terminal::input::inline_menu::message_bar::{
 use crate::terminal::input::inline_menu::model::{InlineMenuModel, InlineMenuTabConfig};
 use crate::terminal::input::inline_menu::styles as inline_styles;
 use crate::terminal::input::inline_menu::{
-    default_navigation_message_items, positioning::Updated as PositionerUpdated,
-    InlineMenuMessageArgs, InlineMenuPositioner, InlineMenuType,
+    InlineMenuMessageArgs, InlineMenuPositioner, InlineMenuType, default_navigation_message_items,
+    positioning::Updated as PositionerUpdated,
 };
 use crate::terminal::input::message_bar::Message;
 use crate::terminal::input::suggestions_mode_model::{

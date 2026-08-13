@@ -18,18 +18,18 @@ use super::add_extra_positional;
 use crate::completer::GeneratorContext;
 use crate::{
     completer::{
+        CommandExitStatus, CompleterOptions, CompletionContext, CompletionsFallbackStrategy,
+        LocationType, MatchStrategy, MatchedSuggestion, Suggestion, SuggestionType,
         context::call_js_function,
         engine::path::{
             sorted_cd_directories, sorted_directories_relative_to, sorted_paths_relative_to,
         },
-        CommandExitStatus, CompleterOptions, CompletionContext, CompletionsFallbackStrategy,
-        LocationType, MatchStrategy, MatchedSuggestion, Suggestion, SuggestionType,
     },
     meta::{Span, Spanned},
     parsers::{
-        hir::{self, ShellCommand},
         ArgumentError::{MissingMandatoryPositional, MissingValueForName, UnexpectedArgument},
         ClassifiedCommand, ParseError, ParseErrorReason, ParsedToken,
+        hir::{self, ShellCommand},
     },
     signatures::{
         self, Argument, ArgumentValue, Command, GeneratorCompletionContext, GeneratorFn,

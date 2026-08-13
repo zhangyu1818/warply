@@ -12,7 +12,7 @@ use warpui::App;
 use crate::completer::SessionContext;
 use crate::terminal::model::session::Session;
 use crate::terminal::model::session::{
-    command_executor::testing::TestCommandExecutor, SessionInfo,
+    SessionInfo, command_executor::testing::TestCommandExecutor,
 };
 use crate::test_util::{Stub, VirtualFS};
 

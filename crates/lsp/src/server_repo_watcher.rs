@@ -3,13 +3,13 @@ use std::{future::Future, path::PathBuf, pin::Pin};
 use async_channel::Sender;
 use lsp_types::FileChangeType;
 use repo_metadata::{
-    repository::{RepositorySubscriber, SubscriberId},
     DirectoryWatcher, Repository, RepositoryUpdate,
+    repository::{RepositorySubscriber, SubscriberId},
 };
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{ModelContext, SingletonEntity, WeakModelHandle};
 
-use crate::{model::LspServerModel, types::WatchedFileChangeEvent, LspServerConfig};
+use crate::{LspServerConfig, model::LspServerModel, types::WatchedFileChangeEvent};
 
 enum RepoWatchState {
     NotWatching,

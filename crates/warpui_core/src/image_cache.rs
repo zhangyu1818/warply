@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core::fmt;
 use itertools::Itertools;
 use std::{
@@ -11,14 +11,14 @@ use std::{
 use strum_macros::EnumIter;
 
 use crate::{
+    Entity, SingletonEntity,
     assets::asset_cache::{Asset, AssetCache, AssetSource, AssetState},
     util::parse_u32,
-    Entity, SingletonEntity,
 };
 use image::{
+    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageFormat,
     codecs::{gif::GifDecoder, webp::WebPDecoder},
     imageops::FilterType,
-    AnimationDecoder, DynamicImage, Frame, ImageBuffer, ImageFormat,
 };
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use pathfinder_geometry::vector::Vector2I;

@@ -8,8 +8,8 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentAttachment, AIAgentContext, AIAgentExchangeId,
-            AIAgentInput, UserQueryMode,
+            AIAgentAttachment, AIAgentContext, AIAgentExchangeId, AIAgentInput, UserQueryMode,
+            conversation::AIConversationId,
         },
         llms::LLMId,
     },

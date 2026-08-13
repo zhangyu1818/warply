@@ -13,21 +13,21 @@ use warpui::elements::{ChildAnchor, OffsetPositioning, Radius, SavePosition, Shr
 use warpui::keymap::EditableBinding;
 use warpui::ui_components::components::UiComponent;
 pub use warpui::{
+    AppContext,
     accessibility::{AccessibilityContent, WarpA11yRole},
     elements::{ParentElement as _, Stack},
     geometry::vector::vec2f,
-    AppContext,
 };
 use warpui::{
+    Entity, SingletonEntity, TypedActionView, View,
     elements::{
         Align, Border, Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
         DropShadow, Element, Flex, Hoverable, MouseStateHandle, ParentAnchor, ParentOffsetBounds,
         Text,
     },
-    Entity, SingletonEntity, TypedActionView, View,
 };
-use warpui::{presenter::ChildView, ViewContext, ViewHandle};
 use warpui::{FocusContext, ModelHandle};
+use warpui::{ViewContext, ViewHandle, presenter::ChildView};
 
 pub const FIND_BAR_WIDTH: f32 = 500.;
 const ICON_PADDING: f32 = 4.;

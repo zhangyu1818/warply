@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use super::{
-    settings_page::{
-        render_sub_header, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-        SettingsWidget,
-    },
     SettingsSection,
+    settings_page::{
+        MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+        render_sub_header,
+    },
 };
 use crate::search_bar::SearchBar;
 use crate::util::bindings::{
@@ -24,8 +24,8 @@ use crate::{
 use itertools::Itertools;
 
 use warp_core::ui::theme::color::internal_colors;
-use warpui::{elements::Wrap, units::Pixels};
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Align, Border, ClippedScrollStateHandle, ClippedScrollable, Container, CornerRadius, Empty,
         EventHandler, Fill, Flex, Hoverable, MouseState, MouseStateHandle, ParentElement, Radius,
@@ -34,8 +34,8 @@ use warpui::{
     fonts::Weight,
     keymap::{Keystroke, Trigger},
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+use warpui::{elements::Wrap, units::Pixels};
 use warpui::{
     elements::{ConstrainedBox, DispatchEventResult},
     presenter::ChildView,

@@ -2,8 +2,8 @@
 //! JS-compatible command signatures struct (crate::signatures::CommandSignature).
 use std::collections::HashMap;
 
-use crate::completer::engine::{self, CompletionLocation};
 use crate::completer::LocationType;
+use crate::completer::engine::{self, CompletionLocation};
 use crate::{parsers::ClassifiedCommand, signatures::Command};
 
 use super::{CompleterOptions, CompletionContext, MatchedSuggestion, SuggestionTypeName};

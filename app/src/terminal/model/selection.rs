@@ -8,13 +8,13 @@ use std::fmt::Debug;
 use vec1::Vec1;
 use warp_terminal::model::grid::cell;
 
+use crate::terminal::Vector2F;
+use crate::terminal::model::GridStorage;
 use crate::terminal::model::ansi::CursorShape;
 use crate::terminal::model::cell::Flags;
-use crate::terminal::model::grid::grid_handler::GridHandler;
 use crate::terminal::model::grid::Dimensions;
+use crate::terminal::model::grid::grid_handler::GridHandler;
 use crate::terminal::model::index::{Point, Side};
-use crate::terminal::model::GridStorage;
-use crate::terminal::Vector2F;
 use std::cmp::{max, min};
 use std::mem;
 use std::ops::RangeInclusive;

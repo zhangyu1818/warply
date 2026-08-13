@@ -10,7 +10,7 @@ use warp_core::ui::{
 
 use async_trait::async_trait;
 use thiserror::Error;
-use warpui::{fonts::FontInfo, keymap::Keystroke, DisplayIdx};
+use warpui::{DisplayIdx, fonts::FontInfo, keymap::Keystroke};
 
 use crate::{
     interval_timer::IntervalTimer,

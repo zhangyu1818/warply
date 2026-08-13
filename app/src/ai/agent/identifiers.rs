@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::ai::llms::LLMId;
 
-use super::{conversation::AIConversationId, AIAgentExchangeId};
+use super::{AIAgentExchangeId, conversation::AIConversationId};
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct AIIdentifiers {

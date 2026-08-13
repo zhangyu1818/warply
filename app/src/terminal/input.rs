@@ -28,8 +28,8 @@ use crate::ai::blocklist::agent_view::{AgentViewEntryOrigin, EphemeralMessageMod
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::block::status_bar::BlocklistAIStatusBar;
 use crate::ai::blocklist::{
-    ai_indicator_height, BlocklistAIActionModel, QueuedQuery, QueuedQueryEvent, QueuedQueryId,
-    QueuedQueryModel, QueuedQueryOrigin, SlashCommandRequest,
+    BlocklistAIActionModel, QueuedQuery, QueuedQueryEvent, QueuedQueryId, QueuedQueryModel,
+    QueuedQueryOrigin, SlashCommandRequest, ai_indicator_height,
 };
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::predict::prompt_suggestions::{
@@ -40,9 +40,12 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search::slash_command_menu::static_commands::commands::{self, COMMAND_REGISTRY};
 
+#[allow(unused_imports)]
+use crate::ASSETS;
 use crate::suggestions::ignored_suggestions_model::{
     IgnoredSuggestionsModel, IgnoredSuggestionsModelEvent, SuggestionType,
 };
+use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::{
     CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
@@ -69,18 +72,15 @@ use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
+use crate::terminal::view::CodeDiffAction;
 use crate::terminal::view::queued_prompts_panel::{
     QueuedPromptsPanelEvent, QueuedPromptsPanelView,
 };
-use crate::terminal::view::CodeDiffAction;
-use crate::terminal::CLIAgent;
 use crate::ui_events::PaletteSource;
 use crate::util::bindings::keybinding_name_to_normalized_string;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor;
 use crate::util::truncation::truncate_from_end;
-#[allow(unused_imports)]
-use crate::ASSETS;
 
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
@@ -92,15 +92,14 @@ use crate::{
     ai::{
         agent::AIAgentContext,
         blocklist::{
-            BlocklistAIContextEvent, BlocklistAIContextModel, BlocklistAIController,
-            BlocklistAIControllerEvent, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
-            BlocklistAIInputEvent, BlocklistAIInputModel, InputConfig, InputType,
-            BLOCK_CONTEXT_ATTACHMENT_REGEX, DIFF_HUNK_ATTACHMENT_REGEX,
-            PLAN_CONTEXT_ATTACHMENT_REGEX,
+            BLOCK_CONTEXT_ATTACHMENT_REGEX, BlocklistAIContextEvent, BlocklistAIContextModel,
+            BlocklistAIController, BlocklistAIControllerEvent, BlocklistAIHistoryEvent,
+            BlocklistAIHistoryModel, BlocklistAIInputEvent, BlocklistAIInputModel,
+            DIFF_HUNK_ATTACHMENT_REGEX, InputConfig, InputType, PLAN_CONTEXT_ATTACHMENT_REGEX,
         },
         predict::next_command_model::{
-            is_command_valid, is_next_command_enabled, NextCommandModel, NextCommandModelEvent,
-            NextCommandSuggestionState, ZeroStateSuggestionInfo,
+            NextCommandModel, NextCommandModelEvent, NextCommandSuggestionState,
+            ZeroStateSuggestionInfo, is_command_valid, is_next_command_enabled,
         },
     },
     appearance::{Appearance, AppearanceEvent},
@@ -116,14 +115,14 @@ use crate::{
     },
     debounce::debounce,
     editor::{
-        default_cursor_colors, position_id_for_cached_point, position_id_for_cursor,
-        position_id_for_first_cursor, AttachedImage as AttachedImageRawData,
-        AutosuggestionLocation, AutosuggestionType, BaselinePositionComputationMethod,
-        CommandXRayAnchor, CursorColors, DisplayPoint, EditOrigin, EditorAction,
-        EditorDecoratorElements, EditorOptions, EditorSnapshot, EditorView, Event as EditorEvent,
-        ImageContextOptions, InteractionState, PlainTextEditorViewAction, Point as BufferPoint,
+        AttachedImage as AttachedImageRawData, AutosuggestionLocation, AutosuggestionType,
+        BaselinePositionComputationMethod, CommandXRayAnchor, CursorColors, DisplayPoint,
+        EditOrigin, EditorAction, EditorDecoratorElements, EditorOptions, EditorSnapshot,
+        EditorView, Event as EditorEvent, ImageContextOptions, InteractionState,
+        MAX_IMAGES_PER_CONVERSATION, PlainTextEditorViewAction, Point as BufferPoint,
         PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
-        PropagateHorizontalNavigationKeys, TextColors, TextRun, MAX_IMAGES_PER_CONVERSATION,
+        PropagateHorizontalNavigationKeys, TextColors, TextRun, default_cursor_colors,
+        position_id_for_cached_point, position_id_for_cursor, position_id_for_first_cursor,
     },
     features::FeatureFlag,
     input_suggestions::{
@@ -133,14 +132,14 @@ use crate::{
     object_ids::SyncId,
     prefix::longest_common_prefix,
     resource_center::{
-        mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipHint, TipsCompleted,
+        Tip, TipAction, TipHint, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
     },
     search::{
+        QueryFilter,
         ai_context_menu::{
             mixer::AIContextMenuSearchableAction, search::is_valid_search_query,
             view::AIContextMenuAction,
         },
-        QueryFilter,
     },
     session_management::SessionNavigationPromptElements,
     settings::{
@@ -148,7 +147,7 @@ use crate::{
         AppEditorSettingsChangedEvent, InputModeSettings, InputSettings, InputSettingsChangedEvent,
         MAX_TIMES_TO_SHOW_AUTOSUGGESTION_HINT,
     },
-    settings_view::{flags, SettingsSection},
+    settings_view::{SettingsSection, flags},
     terminal::view::inline_banner::PromptSuggestionsView,
     ui_components::{blended_colors, icons::Icon},
     ui_events::CommandXRayTrigger,
@@ -161,24 +160,22 @@ use crate::{
         VoltronFeatureViewMeta, VoltronItem, VoltronMetadata,
     },
     workflows::{
-        self,
+        self, WorkflowSelectionSource, WorkflowSource, WorkflowType,
         aliases::WorkflowAliases,
         command_parser::{
-            compute_workflow_display_data, compute_workflow_display_data_for_history_command,
-            compute_workflow_display_data_with_overrides, WorkflowArgumentIndex,
-            WorkflowDisplayData,
+            WorkflowArgumentIndex, WorkflowDisplayData, compute_workflow_display_data,
+            compute_workflow_display_data_for_history_command,
+            compute_workflow_display_data_with_overrides,
         },
         info_box::{
-            WorkflowsInfoBoxViewEvent, WorkflowsMoreInfoView, WORKFLOW_PARAMETER_HIGHLIGHT_COLOR,
+            WORKFLOW_PARAMETER_HIGHLIGHT_COLOR, WorkflowsInfoBoxViewEvent, WorkflowsMoreInfoView,
         },
         local_workflows::LocalWorkflows,
         workflow_enum::EnumVariants,
-        WorkflowSelectionSource, WorkflowSource, WorkflowType,
     },
     workspace::{
-        sync_inputs::SyncedInputState, CommandSearchOptions, ForkFromExchange,
-        ForkedConversationDestination, InitContent, RestoreConversationLayout, ToastStack,
-        WorkspaceAction,
+        CommandSearchOptions, ForkFromExchange, ForkedConversationDestination, InitContent,
+        RestoreConversationLayout, ToastStack, WorkspaceAction, sync_inputs::SyncedInputState,
     },
 };
 
@@ -211,30 +208,32 @@ use warp_completer::{
         MatchStrategy, MatchType, PathSeparators, SuggestionResults,
     },
     meta::{HasSpan, Spanned},
-    parsers::{simple::command_at_cursor_position, LiteCommand},
+    parsers::{LiteCommand, simple::command_at_cursor_position},
     signatures::CommandRegistry,
 };
-use warp_core::ui::theme::{color::internal_colors, AnsiColorIdentifier};
-use warp_core::user_preferences::GetUserPreferences as _;
 use warp_core::SessionId;
+use warp_core::ui::theme::{AnsiColorIdentifier, color::internal_colors};
+use warp_core::user_preferences::GetUserPreferences as _;
 use warp_editor::editor::NavigationKey;
 use warp_util::path::ShellFamily;
 use warpui::{
+    AppContext, Entity, EntityId, FocusContext, ModelAsRef, ModelHandle, SingletonEntity,
+    TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle,
     accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
+    r#async::SpawnedFutureHandle,
     clipboard::{ClipboardContent, ImageData},
     clipboard_utils::CLIPBOARD_IMAGE_MIME_TYPES,
     color::ColorU,
     elements::{
-        resizable_state_handle, Align, AnchorPair, ChildAnchor, Clipped, ConstrainedBox, Container,
-        CornerRadius, DispatchEventResult, DropTargetData, Element, EventHandler, Flex,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, OffsetType,
-        ParentAnchor, ParentElement, PositionedElementOffsetBounds, PositioningAxis, Radius,
-        ResizableStateHandle, SavePosition, SelectionHandle, Text, Wrap, XAxisAnchor, YAxisAnchor,
+        Align, AnchorPair, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
+        DispatchEventResult, DropTargetData, Element, EventHandler, Flex, MainAxisAlignment,
+        MainAxisSize, MouseStateHandle, OffsetPositioning, OffsetType, ParentAnchor, ParentElement,
+        PositionedElementOffsetBounds, PositioningAxis, Radius, ResizableStateHandle, SavePosition,
+        SelectionHandle, Text, Wrap, XAxisAnchor, YAxisAnchor, resizable_state_handle,
     },
     end_trace,
     keymap::{BindingDescription, EditableBinding, FixedBinding, Keystroke},
     presenter::ChildView,
-    r#async::SpawnedFutureHandle,
     start_trace,
     text_layout::TextStyle,
     ui_components::{
@@ -242,32 +241,31 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
     },
     units::IntoPixels,
-    AppContext, Entity, EntityId, FocusContext, ModelAsRef, ModelHandle, SingletonEntity,
-    TypedActionView, View, ViewContext, ViewHandle, WeakViewHandle,
 };
 pub use warpui::{
-    elements::{ParentElement as _, Stack},
-    geometry::vector::{vec2f, Vector2F},
     WindowId,
+    elements::{ParentElement as _, Stack},
+    geometry::vector::{Vector2F, vec2f},
 };
 
 use self::decorations::InputBackgroundJobOptions;
 use super::{
+    History, HistoryEntry, SizeInfo, TerminalModel, UpArrowHistoryConfig,
     alias::is_expandable_alias,
     block_list_viewport::InputMode,
     event::{BlockCompletedEvent, BlockType, UserBlockCompleted},
     ligature_settings::LigatureSettings,
     model::{
         block::{AgentInteractionMetadata, BlockId, BlockMetadata, BlocklistEnvVarMetadata},
-        session::{shell_quote_arg, Session, SessionType, Sessions},
+        session::{Session, SessionType, Sessions, shell_quote_arg},
     },
     prompt,
     prompt_render_helper::{
-        should_render_prompt_on_same_line, should_render_prompt_using_editor_decorator_elements,
-        PromptRenderHelper, SameLinePromptElements,
+        PromptRenderHelper, SameLinePromptElements, should_render_prompt_on_same_line,
+        should_render_prompt_using_editor_decorator_elements,
     },
     safe_mode_settings::{
-        get_secret_obfuscation_mode, SafeModeSettings, SafeModeSettingsChangedEvent,
+        SafeModeSettings, SafeModeSettingsChangedEvent, get_secret_obfuscation_mode,
     },
     session_settings::{SessionSettings, SessionSettingsChangedEvent},
     settings::{SpacingMode, TerminalSettings, TerminalSettingsChangedEvent},
@@ -276,15 +274,14 @@ use super::{
         UniversalDeveloperInputButtonBar, UniversalDeveloperInputButtonBarEvent,
     },
     view::{
+        ExecuteCommandEvent, PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT, SyncInputType,
+        TerminalAction,
         inline_banner::{
             PromptSuggestionBannerState, ZeroStatePromptSuggestionTriggeredFrom,
             ZeroStatePromptSuggestionType,
         },
-        ExecuteCommandEvent, SyncInputType, TerminalAction,
-        PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT,
     },
     warpify::SubshellSource,
-    History, HistoryEntry, SizeInfo, TerminalModel, UpArrowHistoryConfig,
 };
 use crate::ai::blocklist::agent_view::{
     AgentInputFooter, AgentInputFooterEvent, AgentViewController,
@@ -295,8 +292,8 @@ use parking_lot::FairMutex;
 #[cfg(feature = "local_fs")]
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use string_offset::ByteOffset;
 
 /// Drop target data for dropping content on the [`Input`].

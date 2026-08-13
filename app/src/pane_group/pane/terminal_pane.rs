@@ -14,9 +14,9 @@ use crate::{
     persistence::{BlockCompleted, ModelEvent},
     session_management::SessionNavigationData,
     terminal::cli_agent_sessions::CLIAgentSessionsModel,
-    terminal::{general_settings::GeneralSettings, view::Event, TerminalManager, TerminalView},
+    terminal::{TerminalManager, TerminalView, general_settings::GeneralSettings, view::Event},
     view_components::ToastFlavor,
-    workspace::{sync_inputs::SyncedInputState, PaneViewLocator},
+    workspace::{PaneViewLocator, sync_inputs::SyncedInputState},
 };
 
 #[cfg(feature = "local_fs")]

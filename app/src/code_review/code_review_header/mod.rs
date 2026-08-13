@@ -2,9 +2,9 @@ mod header_revamp;
 
 use crate::{appearance::Appearance, view_components::action_button::ActionButton};
 use warpui::{
+    Element, ViewHandle,
     elements::{ChildView, ConstrainedBox, Container},
     ui_components::components::Coords,
-    Element, ViewHandle,
 };
 
 pub(crate) const HEADER_BUTTON_PADDING: Coords = Coords {

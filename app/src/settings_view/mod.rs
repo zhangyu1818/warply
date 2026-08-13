@@ -1,5 +1,6 @@
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::{
+    GlobalResourceHandlesProvider,
     appearance::Appearance,
     editor::{
         EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
@@ -7,15 +8,14 @@ use crate::{
     },
     menu::{self, Menu, MenuItem, MenuItemFields},
     pane_group::{
-        pane::view, BackingView, Direction, PaneConfiguration, PaneEvent, SplitPaneState,
+        BackingView, Direction, PaneConfiguration, PaneEvent, SplitPaneState, pane::view,
     },
-    settings::{log_setting_result, BlockVisibilitySettings, SettingsFileError},
-    terminal::{model::blockgrid::BlockGrid, SizeInfo},
+    settings::{BlockVisibilitySettings, SettingsFileError, log_setting_result},
+    terminal::{SizeInfo, model::blockgrid::BlockGrid},
     ui_components::icons,
-    util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction},
+    util::bindings::{BindingGroup, CustomAction, keybinding_name_to_display_string},
     view_components::ToastFlavor,
     workspace::WorkspaceAction,
-    GlobalResourceHandlesProvider,
 };
 use about_page::AboutPageView;
 use ai_page::{AISettingsPageAction, AISettingsPageEvent, AISettingsPageView};
@@ -25,10 +25,10 @@ use itertools::Itertools as _;
 use keybindings::KeybindingsView;
 use nav::SettingsNavItem;
 use pathfinder_geometry::vector::Vector2F;
-use settings_file_footer::{render_footer, SettingsFooterKind, SettingsFooterMouseStates};
+use settings_file_footer::{SettingsFooterKind, SettingsFooterMouseStates, render_footer};
 use settings_page::{
-    MatchData, SettingsPage, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
-    HEADER_PADDING,
+    HEADER_PADDING, MatchData, SettingsPage, SettingsPageEvent, SettingsPageMeta,
+    SettingsPageViewHandle,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -41,6 +41,8 @@ use warp_editor::editor::NavigationKey;
 use warpify_page::{WarpifyPageAction, WarpifyPageView};
 use warpui::Element;
 use warpui::{
+    Action, AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateView as _,
+    View, ViewContext, ViewHandle,
     elements::{
         Align, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle,
         ClippedScrollable, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -51,8 +53,6 @@ use warpui::{
     fonts::{Properties, Weight},
     id,
     keymap::{ContextPredicate, EnabledPredicate, FixedBinding},
-    Action, AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateView as _,
-    View, ViewContext, ViewHandle,
 };
 
 mod about_page;
@@ -70,8 +70,8 @@ mod warpify_page;
 
 pub use features_page::FeaturesPageAction;
 pub use settings_page::{
-    render_body_item_label, render_info_icon, render_input_list, render_separator, AdditionalInfo,
-    InputListItem, ToggleState,
+    AdditionalInfo, InputListItem, ToggleState, render_body_item_label, render_info_icon,
+    render_input_list, render_separator,
 };
 
 const SIDEBAR_WIDTH: f32 = 248.;

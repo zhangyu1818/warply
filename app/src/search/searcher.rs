@@ -16,14 +16,14 @@ use tantivy::query::{
     AllQuery, BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery, TermQuery,
 };
 use tantivy::schema::{
-    BytesOptions, Field, FieldEntry, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing,
-    STORED, TEXT,
+    BytesOptions, Field, FieldEntry, IndexRecordOption, OwnedValue, STORED, Schema, TEXT,
+    TextFieldIndexing,
 };
 use tantivy::tokenizer::{Token, TokenStream, Tokenizer};
 use tantivy::{
-    snippet::SnippetGenerator, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term,
+    Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, snippet::SnippetGenerator,
 };
-use warpui::r#async::{block_on, executor::Background, Timer};
+use warpui::r#async::{Timer, block_on, executor::Background};
 
 pub type FullTextSearchDocumentEntry = HashMap<String, FullTextSearchFieldValue>;
 

@@ -5,7 +5,7 @@ use crate::{
     app_state::{AIFactPaneSnapshot, LeafContents},
 };
 
-use super::{view::PaneView, DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId};
+use super::{DetachType, PaneConfiguration, PaneContent, PaneGroup, PaneId, view::PaneView};
 
 pub struct AIFactPane {
     view: ViewHandle<PaneView<AIFactView>>,

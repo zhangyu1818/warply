@@ -5,12 +5,12 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use warp_core::SessionId;
 use warp_core::channel::ChannelState;
 use warp_core::safe_error;
-use warp_core::SessionId;
 use warp_util::standardized_path::StandardizedPath;
-use warpui::platform::TerminationMode;
 use warpui::r#async::{Spawnable, SpawnableOutput, SpawnedFutureHandle};
+use warpui::platform::TerminationMode;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::code::global_buffer_model::{GlobalBufferModel, GlobalBufferModelEvent};
@@ -18,32 +18,35 @@ use warp_files::{FileModel, FileModelEvent};
 use warp_util::content_version::ContentVersion;
 use warp_util::file::FileId;
 
+use super::diff_state_proto;
+use super::diff_state_tracker::{
+    DiffModelKey, DiffStateUpdate, RemoteDiffStateManager, SubscribeOutcome,
+};
 use super::proto::{
-    client_message, delete_file_response, discard_files_response, get_diff_state_response,
-    git_commit_chain_response, git_create_pr_response, git_generate_commit_message_response,
-    git_get_committed_branch_files_response, git_get_pr_info_response, git_push_response,
-    open_buffer_response, resolve_conflict_response, run_command_response, save_buffer_response, server_message,
-    write_file_response, Abort, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer,
-    DeleteFile, DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
+    Abort, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer, DeleteFile,
+    DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
     DiscardFilesSuccess, ErrorCode, ErrorResponse, FailedFileRead, FileContextProto,
-    FileOperationError, GetDiffStateResponse, Initialize, InitializeResponse, NavigatedToDirectory,
-    NavigatedToDirectoryResponse, OpenBuffer, OpenBufferResponse, OpenBufferSuccess, ReadFileContextResponse,
-    ResolveConflict, ResolveConflictResponse, ResolveConflictSuccess, RunCommandError,
-    RunCommandErrorCode, RunCommandRequest, RunCommandResponse, RunCommandSuccess, SaveBuffer,
-    SaveBufferResponse, SaveBufferSuccess, ServerMessage, SessionBootstrapped, TextEdit, WriteFile,
-    WriteFileResponse, WriteFileSuccess, GitCommitChainRequest, GitCommitChainResponse,
-    GitCommitChainMode, GitCommitChainSuccess, GitCreatePrRequest, GitCreatePrResponse,
+    FileOperationError, GetDiffStateResponse, GitCommitChainMode, GitCommitChainRequest,
+    GitCommitChainResponse, GitCommitChainSuccess, GitCreatePrRequest, GitCreatePrResponse,
     GitGenerateCommitMessageRequest, GitGenerateCommitMessageResponse,
     GitGetCommittedBranchFilesRequest, GitGetCommittedBranchFilesResponse,
     GitGetCommittedBranchFilesSuccess, GitGetPrInfoRequest, GitGetPrInfoResponse,
-    GitGetPrInfoSuccess, GitOpDelta, GitOpError, GitPushRequest, GitPushResponse,
+    GitGetPrInfoSuccess, GitOpDelta, GitOpError, GitPushRequest, GitPushResponse, Initialize,
+    InitializeResponse, NavigatedToDirectory, NavigatedToDirectoryResponse, OpenBuffer,
+    OpenBufferResponse, OpenBufferSuccess, ReadFileContextResponse, ResolveConflict,
+    ResolveConflictResponse, ResolveConflictSuccess, RunCommandError, RunCommandErrorCode,
+    RunCommandRequest, RunCommandResponse, RunCommandSuccess, SaveBuffer, SaveBufferResponse,
+    SaveBufferSuccess, ServerMessage, SessionBootstrapped, TextEdit, WriteFile, WriteFileResponse,
+    WriteFileSuccess, client_message, delete_file_response, discard_files_response,
+    get_diff_state_response, git_commit_chain_response, git_create_pr_response,
+    git_generate_commit_message_response, git_get_committed_branch_files_response,
+    git_get_pr_info_response, git_push_response, open_buffer_response, resolve_conflict_response,
+    run_command_response, save_buffer_response, server_message, write_file_response,
 };
-use super::diff_state_proto;
-use super::diff_state_tracker::{DiffModelKey, DiffStateUpdate, RemoteDiffStateManager, SubscribeOutcome};
+use super::server_buffer_tracker::{PendingBufferRequestKind, ServerBufferTracker};
 use crate::code_review::diff_state::{DiffMode, FileStatusInfo};
 use crate::code_review::git_actions;
 use crate::util::git;
-use super::server_buffer_tracker::{PendingBufferRequestKind, ServerBufferTracker};
 
 /// How long the daemon waits with no connections before exiting.
 pub const GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10 * 60);
@@ -52,7 +55,7 @@ pub const GRACE_PERIOD: std::time::Duration = std::time::Duration::from_secs(10 
 pub type ConnectionId = uuid::Uuid;
 use super::protocol::RequestId;
 use crate::ai::agent::FileLocations;
-use crate::ai::blocklist::{read_local_file_context, ReadFileContextResult};
+use crate::ai::blocklist::{ReadFileContextResult, read_local_file_context};
 use crate::terminal::model::session::command_executor::LocalCommandExecutor;
 
 /// Outcome of dispatching a request-style `ClientMessage`.
@@ -768,12 +771,7 @@ impl ServerModel {
 
     /// Handles `Abort` by cancelling the in-progress request it targets.
     /// This is a notification — no response is sent.
-    fn handle_abort(
-        &mut self,
-        abort: Abort,
-        request_id: &RequestId,
-        ctx: &mut ModelContext<Self>,
-    ) {
+    fn handle_abort(&mut self, abort: Abort, request_id: &RequestId, ctx: &mut ModelContext<Self>) {
         let target_id = RequestId::from(abort.request_id_to_abort);
         if let Some(handle) = self.in_progress.remove(&target_id) {
             log::info!(
@@ -1918,7 +1916,13 @@ impl ServerModel {
             move |me, result, _ctx| {
                 let response = match result {
                     Ok((commits, upstream_ref, pr_info)) => {
-                        let (commits, upstream_ref) = (commits.iter().map(super::diff_state_proto::commit_to_proto).collect(), upstream_ref);
+                        let (commits, upstream_ref) = (
+                            commits
+                                .iter()
+                                .map(super::diff_state_proto::commit_to_proto)
+                                .collect(),
+                            upstream_ref,
+                        );
                         GitCommitChainResponse {
                             result: Some(git_commit_chain_response::Result::Success(
                                 GitCommitChainSuccess {
@@ -1926,7 +1930,9 @@ impl ServerModel {
                                         unpushed_commits: commits,
                                         upstream_ref,
                                     }),
-                                    pr_info: pr_info.as_ref().map(super::diff_state_proto::pr_info_to_proto),
+                                    pr_info: pr_info
+                                        .as_ref()
+                                        .map(super::diff_state_proto::pr_info_to_proto),
                                 },
                             )),
                         }
@@ -1973,7 +1979,10 @@ impl ServerModel {
                 let response = match result {
                     Ok((commits, upstream_ref)) => GitPushResponse {
                         result: Some(git_push_response::Result::Success(GitOpDelta {
-                            unpushed_commits: commits.iter().map(super::diff_state_proto::commit_to_proto).collect(),
+                            unpushed_commits: commits
+                                .iter()
+                                .map(super::diff_state_proto::commit_to_proto)
+                                .collect(),
                             upstream_ref,
                         })),
                     },
@@ -2106,9 +2115,9 @@ impl ServerModel {
             move |me, result, _ctx| {
                 let response = match result {
                     Ok(message) => GitGenerateCommitMessageResponse {
-                        result: Some(
-                            git_generate_commit_message_response::Result::Message(message),
-                        ),
+                        result: Some(git_generate_commit_message_response::Result::Message(
+                            message,
+                        )),
                     },
                     Err(error) => GitGenerateCommitMessageResponse {
                         result: Some(git_generate_commit_message_response::Result::Error(
@@ -2147,20 +2156,18 @@ impl ServerModel {
             move |me, result, _ctx| {
                 let response = match result {
                     Ok(files) => GitGetCommittedBranchFilesResponse {
-                        result: Some(
-                            git_get_committed_branch_files_response::Result::Success(
-                                GitGetCommittedBranchFilesSuccess {
-                                    files: files.iter().map(Into::into).collect(),
-                                },
-                            ),
-                        ),
+                        result: Some(git_get_committed_branch_files_response::Result::Success(
+                            GitGetCommittedBranchFilesSuccess {
+                                files: files.iter().map(Into::into).collect(),
+                            },
+                        )),
                     },
                     Err(error) => GitGetCommittedBranchFilesResponse {
-                        result: Some(
-                            git_get_committed_branch_files_response::Result::Error(GitOpError {
+                        result: Some(git_get_committed_branch_files_response::Result::Error(
+                            GitOpError {
                                 message: error.to_string(),
-                            }),
-                        ),
+                            },
+                        )),
                     },
                 };
                 me.send_server_message(

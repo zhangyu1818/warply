@@ -1,11 +1,11 @@
 use crate::{
-    cloud_object::{model::persistence::CloudModel, Owner},
+    PaneViewLocator, WindowId,
+    cloud_object::{Owner, model::persistence::CloudModel},
     env_vars::view::env_var_collection::EnvVarCollectionView,
     object_ids::SyncId,
     pane_group::{EnvVarCollectionPane, PaneContent},
-    PaneViewLocator, WindowId,
 };
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 use warp_core::safe_warn;
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle};
 

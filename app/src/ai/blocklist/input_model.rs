@@ -28,8 +28,8 @@ use crate::{
     input_classifier::InputClassifierModel,
     settings::{AISettings, InputBoxType, InputSettings},
     terminal::{
-        input::decorations::ParsedTokensSnapshot, model::rich_content::RichContentType, History,
-        TerminalModel,
+        History, TerminalModel, input::decorations::ParsedTokensSnapshot,
+        model::rich_content::RichContentType,
     },
 };
 use warp_core::SessionId;

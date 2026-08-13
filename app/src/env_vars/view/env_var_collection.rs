@@ -1,6 +1,8 @@
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 
 use warpui::{
+    AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
+    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
     elements::{
         Align, AnchorPair, ChildAnchor, Clipped, ClippedScrollStateHandle, ClippedScrollable,
         ConstrainedBox, Container, CrossAxisAlignment, DispatchEventResult, EventHandler, Fill,
@@ -13,47 +15,45 @@ use warpui::{
     platform::Cursor,
     presenter::ChildView,
     ui_components::components::UiComponent,
-    AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
-    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
 };
 
 use crate::{
+    Appearance, CloudObjectTypeAndId,
     ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels,
     cloud_object::update_manager::UpdateManager,
     cloud_object::{
+        CloudObjectEventEntrypoint, Owner,
         breadcrumbs::ContainingObject,
         model::persistence::{CloudModel, CloudModelEvent},
-        CloudObjectEventEntrypoint, Owner,
     },
     editor::EditorView,
     env_vars::{
+        EnvVar, EnvVarCollection, EnvVarCollectionType, EnvVarValue, SavedEnvVarCollection,
+        SavedEnvVarCollectionModel,
         active_env_var_collection_data::{
             ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
             SavingStatus, TrashStatus,
         },
-        EnvVar, EnvVarCollection, EnvVarCollectionType, EnvVarValue, SavedEnvVarCollection,
-        SavedEnvVarCollectionModel,
     },
     external_secrets::SecretManager,
     menu::MenuItem,
     object_ids::SyncId,
     pane_group::{
-        focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent,
+        BackingView, PaneConfiguration, PaneEvent, focus_state::PaneFocusHandle, pane::view,
     },
     search::external_secrets::view::ExternalSecretsMenu,
     terminal::{model::secrets::SecretLevel, safe_mode_settings::get_secret_obfuscation_mode},
     ui_components::{
-        breadcrumb::{render_breadcrumbs, BreadcrumbState},
+        breadcrumb::{BreadcrumbState, render_breadcrumbs},
         buttons::icon_button,
         icons::Icon,
         menu_button::{
-            highlight_icon_button_with_context_menu, icon_button_with_context_menu, MenuDirection,
+            MenuDirection, highlight_icon_button_with_context_menu, icon_button_with_context_menu,
         },
     },
     util::bindings::CustomAction,
-    view_components::{alert::AlertConfig, Alert, DismissibleToast, ToastType},
+    view_components::{Alert, DismissibleToast, ToastType, alert::AlertConfig},
     workspace::ToastStack,
-    Appearance, CloudObjectTypeAndId,
 };
 
 use super::{command_dialog::EnvVarCommandDialog, menus::Menus};

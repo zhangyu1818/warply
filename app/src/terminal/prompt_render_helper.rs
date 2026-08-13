@@ -12,13 +12,13 @@ use settings::Setting as _;
 use std::fmt;
 use std::num::NonZeroUsize;
 use warp_core::semantic_selection::SemanticSelection;
-use warpui::elements::{DispatchEventResult, SelectionHandle};
 use warpui::ModelAsRef;
+use warpui::elements::{DispatchEventResult, SelectionHandle};
 use warpui::{
+    AppContext, EntityId, ModelHandle, SingletonEntity, ViewHandle,
     elements::{Container, Element, EventHandler, SavePosition, SelectableArea, Text},
     fonts::{Properties, Weight},
     presenter::ChildView,
-    AppContext, EntityId, ModelHandle, SingletonEntity, ViewHandle,
 };
 
 use super::input::InputRenderStateModel;
@@ -31,7 +31,7 @@ use super::model::blocks::CachedPromptData;
 use super::safe_mode_settings::get_secret_obfuscation_mode;
 use super::session_settings::SessionSettings;
 use super::settings::TerminalSettings;
-use super::{prompt, SizeInfo, TerminalModel};
+use super::{SizeInfo, TerminalModel, prompt};
 
 use crate::terminal::blockgrid_element::BlockGridElement;
 use crate::terminal::model::session::Sessions;

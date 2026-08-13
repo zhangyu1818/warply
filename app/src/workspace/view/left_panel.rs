@@ -1,19 +1,19 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::Icon;
+use warp_core::ui::theme::color::internal_colors;
 use warp_util::path::LineAndColumnArg;
 use warpui::{
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WeakViewHandle,
     elements::{
-        resizable_state_handle, ChildView, ConstrainedBox, Container, CrossAxisAlignment,
-        DragBarSide, Element, Empty, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        ParentElement, Resizable, ResizableStateHandle, Shrinkable,
+        ChildView, ConstrainedBox, Container, CrossAxisAlignment, DragBarSide, Element, Empty,
+        Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Resizable,
+        ResizableStateHandle, Shrinkable, resizable_state_handle,
     },
     platform::Cursor,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -27,9 +27,9 @@ use crate::pane_group::{PaneGroup, WorkingDirectoriesEvent, WorkingDirectoriesMo
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
+use crate::util::openable_file_type::FileTarget;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
-use crate::util::openable_file_type::FileTarget;
 use crate::workspace::view::conversation_list::view::{
     ConversationListView, Event as ConversationListViewEvent,
 };
@@ -44,7 +44,7 @@ use crate::workspace::view::{
 use crate::{
     appearance::Appearance,
     code::file_tree::FileTreeView,
-    pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT},
+    pane_group::pane::view::header::{PANE_HEADER_HEIGHT, components::HEADER_EDGE_PADDING},
     pane_group::{self},
     terminal::resizable_data::{ModalType, ResizableData},
     ui_components::{

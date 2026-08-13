@@ -35,9 +35,7 @@ impl ReviewComment {
                 let display_line = line_number + 1;
                 format!("{file_name}:{display_line}")
             }
-            (Some(file_path), None) => {
-                file_path.display_name().to_string()
-            }
+            (Some(file_path), None) => file_path.display_name().to_string(),
             (None, _) => self
                 .head_title
                 .as_ref()

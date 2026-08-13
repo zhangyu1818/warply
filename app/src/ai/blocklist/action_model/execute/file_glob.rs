@@ -12,16 +12,16 @@ use crate::ai::paths::{host_native_absolute_path, join_paths, shell_native_absol
 use crate::{
     ai::agent::AIAgentActionResultType,
     terminal::{
-        model::session::active_session::ActiveSession,
-        model::session::{shell_quote_arg, Session},
-        shell::ShellType,
         ShellLaunchData,
+        model::session::active_session::ActiveSession,
+        model::session::{Session, shell_quote_arg},
+        shell::ShellType,
     },
 };
 
 const FILE_GLOB_TIMEOUT: Duration = Duration::from_secs(10);
 
-use super::{is_git_repository, ActionExecution, AnyActionExecution, ExecuteActionInput};
+use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, is_git_repository};
 
 pub struct FileGlobExecutor {
     active_session: ModelHandle<ActiveSession>,

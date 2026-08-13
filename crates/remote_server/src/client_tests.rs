@@ -2,8 +2,8 @@ use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::proto::{
-    client_message, run_command_response, server_message, ClientMessage, ErrorCode,
-    InitializeResponse, RunCommandResponse, RunCommandSuccess, ServerMessage,
+    ClientMessage, ErrorCode, InitializeResponse, RunCommandResponse, RunCommandSuccess,
+    ServerMessage, client_message, run_command_response, server_message,
 };
 use crate::protocol;
 use warp_core::SessionId;

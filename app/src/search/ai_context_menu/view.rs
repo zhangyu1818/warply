@@ -1,7 +1,7 @@
 use crate::appearance::Appearance;
 use crate::debounce::debounce;
 use crate::search::ai_context_menu::blocks::data_source::BlockDataSource;
-use crate::search::ai_context_menu::code::data_source::{code_data_source, CodeSymbolCache};
+use crate::search::ai_context_menu::code::data_source::{CodeSymbolCache, code_data_source};
 use crate::search::ai_context_menu::code::is_code_symbols_indexing;
 use crate::search::ai_context_menu::commands::data_source::CommandDataSource;
 use crate::search::ai_context_menu::conversations::data_source::ConversationDataSource;
@@ -41,10 +41,10 @@ use warpui::elements::{
     SavePosition, Shrinkable, Stack, Text, XAxisAnchor, YAxisAnchor,
 };
 
-use warpui::platform::Cursor;
-use warpui::windowing::WindowManager;
 use warpui::SingletonEntity;
 use warpui::View;
+use warpui::platform::Cursor;
+use warpui::windowing::WindowManager;
 use warpui::{
     AppContext, Element, Entity, ModelHandle, TypedActionView, ViewContext, ViewHandle,
     WeakViewHandle,

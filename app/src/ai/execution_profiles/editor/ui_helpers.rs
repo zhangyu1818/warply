@@ -1,9 +1,9 @@
+use crate::Appearance;
 use crate::ai::execution_profiles::{AIExecutionProfile, ActionPermission};
 use crate::editor::EditorView;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::{Dropdown, SubmittableTextInput};
-use crate::Appearance;
 use pathfinder_geometry::vector::vec2f;
 use warpui::elements::Hoverable;
 use warpui::elements::MouseStateHandle;
@@ -18,7 +18,7 @@ use warpui::{Element, SingletonEntity, ViewHandle};
 use super::ExecutionProfileEditorView;
 use super::ExecutionProfileEditorViewAction;
 
-use crate::settings_view::{render_input_list, render_separator, InputListItem};
+use crate::settings_view::{InputListItem, render_input_list, render_separator};
 
 pub const DISABLED_AI_OPTION_TOOLTIP_MESSAGE: &str = "Enable AI to customize this option.";
 pub fn render_header_section(

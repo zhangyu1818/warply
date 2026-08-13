@@ -22,17 +22,18 @@ use warp_core::features::FeatureFlag;
 use warp_terminal::model::ansi::CharsetIndex;
 use warp_terminal::model::grid::cell;
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
-use warpui::image_cache::{resize_dimensions, FitType};
+use warpui::image_cache::{FitType, resize_dimensions};
 
 use crate::terminal::event::Event;
 use crate::terminal::event_listener::ChannelEventListener;
+use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::model::ansi::{
     self, Attr, Color, CursorStyle, Handler as _, NamedColor, PrecmdValue, PreexecValue,
 };
 use crate::terminal::model::cell::{Cell, Flags};
 use crate::terminal::model::char_or_str::CharOrStr;
 use crate::terminal::model::grid::indexing::IndexRegion as _;
-use crate::terminal::model::grid::{grapheme_cursor, Dimensions as _};
+use crate::terminal::model::grid::{Dimensions as _, grapheme_cursor};
 use crate::terminal::model::image_map::{ImagePlacementData, ImageType, StoredImageMetadata};
 use crate::terminal::model::index::{Point, VisibleRow};
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageDimensionUnit};
@@ -40,7 +41,6 @@ use crate::terminal::model::kitty::{
     CursorMovementPolicy, KittyAction, KittyError, KittyResponse, StorageError,
 };
 use crate::terminal::model::selection::ScrollDelta;
-use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::{ClipboardType, SizeInfo};
 use crate::ui_events::ImageProtocol;
 
@@ -138,7 +138,9 @@ impl State {
 
 impl ansi::Handler for GridHandler {
     fn set_title(&mut self, _: Option<String>) {
-        log::error!("Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::set_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn set_hyperlink(&mut self, hyperlink: Option<warp_terminal::model::ansi::Hyperlink>) {
@@ -1119,15 +1121,21 @@ impl ansi::Handler for GridHandler {
     }
 
     fn set_color(&mut self, _: usize, _: warpui::color::ColorU) {
-        log::error!("Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::set_color should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn dynamic_color_sequence<W: std::io::Write>(&mut self, _: &mut W, _: u8, _: usize, _: &str) {
-        log::error!("Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::dynamic_color_sequence should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn reset_color(&mut self, _: usize) {
-        log::error!("Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::reset_color should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn clipboard_store(&mut self, clipboard: u8, base64: &[u8]) {
@@ -1176,11 +1184,15 @@ impl ansi::Handler for GridHandler {
     }
 
     fn push_title(&mut self) {
-        log::error!("Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::push_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn pop_title(&mut self) {
-        log::error!("Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel.");
+        log::error!(
+            "Handler method GridHandler::pop_title should never be called. This should be handled by TerminalModel."
+        );
     }
 
     fn text_area_size_pixels<W: std::io::Write>(&mut self, writer: &mut W) {
@@ -1714,7 +1726,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 
@@ -1737,7 +1749,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 
@@ -1839,7 +1851,7 @@ impl GridHandler {
                         return Err(StorageError::UnknownId {
                             id: action.image_id,
                         }
-                        .into())
+                        .into());
                     }
                 };
 

@@ -7,6 +7,7 @@ use warp_util::path::ShellFamily;
 use warpui::r#async::block_on;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
+use crate::SessionSettings;
 use crate::ai::agent::AIAgentPtyWriteMode;
 use crate::terminal::input::CommandExecutionSource;
 use crate::terminal::model::completions::ShellCompletion;
@@ -16,16 +17,14 @@ use crate::terminal::model::session::{
 use crate::terminal::model::tmux::commands::TmuxCommand;
 use crate::terminal::model_events::AnsiHandlerEvent;
 use crate::terminal::view::LINEFEED_REGEX;
-use crate::terminal::writeable_pty::bootstrap_file::{permanent_bootstrap_file, TempBootstrapFile};
+use crate::terminal::writeable_pty::bootstrap_file::{TempBootstrapFile, permanent_bootstrap_file};
 use crate::terminal::{
-    bootstrap,
+    SizeUpdate, TerminalModel, bootstrap,
     line_editor_status::{LineEditorStatus, LineEditorStatusEvent},
     model::{ansi::Handler, escape_sequences, session::SessionInfo},
     model_events::{ModelEvent, ModelEventDispatcher},
     shell::ShellType,
-    SizeUpdate, TerminalModel,
 };
-use crate::SessionSettings;
 
 use super::Message;
 

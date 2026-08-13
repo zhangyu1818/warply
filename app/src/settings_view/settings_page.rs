@@ -5,13 +5,13 @@ use pathfinder_color::ColorU;
 use std::borrow::Cow;
 
 use super::{
+    SettingsSection,
     about_page::AboutPageView,
     ai_page::{AISettingsPageAction, AISettingsPageView},
     appearance_page::AppearanceSettingsPageView,
     features_page::FeaturesPageView,
     keybindings::KeybindingsView,
     warpify_page::WarpifyPageView,
-    SettingsSection,
 };
 use crate::{
     appearance::Appearance,
@@ -23,14 +23,15 @@ use pathfinder_geometry::vector::vec2f;
 use settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
+    Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
     elements::{
-        new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
         Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, OffsetPositioning,
         ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollTarget,
         ScrollToPositionMode, Shrinkable, SizeConstraintCondition, SizeConstraintSwitch, Stack,
         Text,
+        new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
     },
     fonts::{Properties, Weight},
     platform::Cursor,
@@ -38,7 +39,6 @@ use warpui::{
         button::{Button, ButtonVariant},
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
 };
 
 pub const TOGGLE_BUTTON_RIGHT_PADDING: f32 = 5.;
@@ -372,11 +372,7 @@ pub enum ToggleState {
 
 impl From<bool> for ToggleState {
     fn from(value: bool) -> Self {
-        if value {
-            Self::Enabled
-        } else {
-            Self::Disabled
-        }
+        if value { Self::Enabled } else { Self::Disabled }
     }
 }
 
@@ -712,16 +708,18 @@ pub(crate) fn render_settings_info_banner(
     .finish();
 
     let text = {
-        let mut children = vec![Container::new(
-            Text::new(
-                text.to_string(),
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
+        let mut children = vec![
+            Container::new(
+                Text::new(
+                    text.to_string(),
+                    appearance.ui_font_family(),
+                    appearance.ui_font_size(),
+                )
+                .with_color(appearance.theme().active_ui_text_color().into())
+                .finish(),
             )
-            .with_color(appearance.theme().active_ui_text_color().into())
             .finish(),
-        )
-        .finish()];
+        ];
 
         if let Some(subtext) = subtext {
             children.push(

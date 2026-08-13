@@ -3,7 +3,7 @@
 //! This module provides functionality to install and manage Node.js/npm
 //! for macOS architectures (x64, arm64).
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 cfg_if::cfg_if! {

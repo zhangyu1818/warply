@@ -14,8 +14,8 @@ use futures::channel::oneshot;
 use futures::future::{self, BoxFuture, FutureExt as _};
 use warp_core::safe_warn;
 use warp_util::sync::Condition;
-use warpui::r#async::{FutureId, SpawnedFutureHandle};
 use warpui::ModelHandle;
+use warpui::r#async::{FutureId, SpawnedFutureHandle};
 
 /// Represents either a file or directory in a repository.
 #[derive(Debug, Clone)]
@@ -27,10 +27,10 @@ pub enum RepoContent<'a> {
 use warp_util::standardized_path::StandardizedPath;
 
 use crate::{
+    RepoMetadataError,
     entry::{BudgetExceededBehavior, Entry, FileId, IgnoredPathStrategy, LAZY_LOAD_FILE_LIMIT},
     gitignores_for_directory, matches_gitignores,
     repository::Repository,
-    RepoMetadataError,
 };
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -49,8 +49,8 @@ use crate::file_tree_store::{
     FileTreeState,
 };
 use crate::file_tree_update::{
-    flatten_entry_metadata, DirectoryNodeMetadata, FileNodeMetadata, FileTreeEntryUpdate,
-    RepoMetadataUpdate, RepoNodeMetadata,
+    DirectoryNodeMetadata, FileNodeMetadata, FileTreeEntryUpdate, RepoMetadataUpdate,
+    RepoNodeMetadata, flatten_entry_metadata,
 };
 use ignore::gitignore::Gitignore;
 use warpui::ModelContext;

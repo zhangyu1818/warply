@@ -2,6 +2,8 @@ use std::fmt::Debug;
 
 use pathfinder_color::ColorU;
 use warpui::{
+    Action, AppContext, BlurContext, Entity, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, ConstrainedBox, Container, Element, Icon,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement,
@@ -14,8 +16,6 @@ use warpui::{
         button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    Action, AppContext, BlurContext, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 use crate::{

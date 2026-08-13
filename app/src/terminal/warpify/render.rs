@@ -16,8 +16,8 @@ use warpui::ui_components::components::UiComponent as _;
 use warpui::ui_components::components::UiComponentStyles;
 use warpui::{AppContext, Element, EventContext, PaintContext, SingletonEntity as _};
 
-use super::settings::WarpifySettings;
 use super::SubshellSource;
+use super::settings::WarpifySettings;
 
 /// The flag font size varies with the monospace font width, but if it gets too big it will start
 /// to overlap with the prompt grid. This should eventually be fixed by growing the block height to

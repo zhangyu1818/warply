@@ -3,8 +3,8 @@ use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentAction, AIAgentActionType,
-            CreateDocumentsRequest, CreateDocumentsResult, DocumentContext,
+            AIAgentAction, AIAgentActionType, CreateDocumentsRequest, CreateDocumentsResult,
+            DocumentContext, conversation::AIConversationId,
         },
         artifacts::Artifact,
         blocklist::BlocklistAIHistoryModel,

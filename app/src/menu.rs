@@ -9,16 +9,17 @@ use crate::{appearance::Appearance, ui_components::icons};
 use chrono::{DateTime, Local};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use warp_core::ui::color::blend::Blend;
+use warpui::WindowId;
 use warpui::elements::{
     ChildAnchor, ClippedScrollStateHandle, ClippedScrollable, DropShadow, OffsetPositioning,
     ParentAnchor, ParentOffsetBounds, PositionedElementAnchor, PositionedElementOffsetBounds,
     ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Stack,
 };
 use warpui::text_layout::ClipConfig;
-use warpui::WindowId;
 use warpui::{
+    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext,
     accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
     elements::{
         Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss,
@@ -30,7 +31,6 @@ use warpui::{
     keymap::FixedBinding,
     platform::Cursor,
     ui_components::components::UiComponent,
-    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 pub const CHEVRON_RIGHT_ALIGN_SVG_PATH: &str = "bundled/svg/chevron-right-align.svg";
@@ -1921,42 +1921,44 @@ impl<A: Action + Clone> SubMenu<A> {
         let depth = self.depth;
         match &self.menu_variant {
             MenuVariant::Fixed => {
-                let mut menus = vec![Flex::column()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                    .with_children(self.items.iter().enumerate().map(
-                        |(index, item)| -> Box<dyn Element> {
-                            let is_selected = selected_row == Some(index);
-                            // When the safe zone is active, suppress hover highlighting on
-                            // non-anchor rows so intermediate items don't flash as the
-                            // mouse moves toward the sidecar.
-                            let safe_zone_suppresses_hover =
-                                safe_zone_anchor_row.is_some_and(|anchor| anchor != index);
-                            let submenu_being_shown_for_item =
-                                submenu_being_shown_for_item_index == Some(index);
-                            let item = item.render(
-                                menu_background_color,
-                                depth,
-                                index,
-                                selected_item,
-                                dispatch_item_actions,
-                                is_selected,
-                                ignore_hover_when_covered,
-                                safe_zone_suppresses_hover,
-                                submenu_being_shown_for_item,
-                                appearance,
-                                submenu_width,
-                                app,
-                            );
-                            let item = if is_selected {
-                                let save_position = Self::save_position_id(depth);
-                                SavePosition::new(item, &save_position).finish()
-                            } else {
-                                item
-                            };
-                            Container::new(item).finish()
-                        },
-                    ))
-                    .finish()];
+                let mut menus = vec![
+                    Flex::column()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                        .with_children(self.items.iter().enumerate().map(
+                            |(index, item)| -> Box<dyn Element> {
+                                let is_selected = selected_row == Some(index);
+                                // When the safe zone is active, suppress hover highlighting on
+                                // non-anchor rows so intermediate items don't flash as the
+                                // mouse moves toward the sidecar.
+                                let safe_zone_suppresses_hover =
+                                    safe_zone_anchor_row.is_some_and(|anchor| anchor != index);
+                                let submenu_being_shown_for_item =
+                                    submenu_being_shown_for_item_index == Some(index);
+                                let item = item.render(
+                                    menu_background_color,
+                                    depth,
+                                    index,
+                                    selected_item,
+                                    dispatch_item_actions,
+                                    is_selected,
+                                    ignore_hover_when_covered,
+                                    safe_zone_suppresses_hover,
+                                    submenu_being_shown_for_item,
+                                    appearance,
+                                    submenu_width,
+                                    app,
+                                );
+                                let item = if is_selected {
+                                    let save_position = Self::save_position_id(depth);
+                                    SavePosition::new(item, &save_position).finish()
+                                } else {
+                                    item
+                                };
+                                Container::new(item).finish()
+                            },
+                        ))
+                        .finish(),
+                ];
                 let Some(selected_row) = self.selected_item() else {
                     return menus;
                 };
@@ -2012,20 +2014,22 @@ impl<A: Action + Clone> SubMenu<A> {
                         Container::new(item).finish()
                     }));
 
-                vec![ConstrainedBox::new(
-                    ClippedScrollable::vertical(
-                        scroll_state.clone(),
-                        column_of_items.finish(),
-                        ScrollbarWidth::Auto,
-                        appearance.theme().nonactive_ui_detail().into(),
-                        appearance.theme().active_ui_detail().into(),
-                        warpui::elements::Fill::None,
+                vec![
+                    ConstrainedBox::new(
+                        ClippedScrollable::vertical(
+                            scroll_state.clone(),
+                            column_of_items.finish(),
+                            ScrollbarWidth::Auto,
+                            appearance.theme().nonactive_ui_detail().into(),
+                            appearance.theme().active_ui_detail().into(),
+                            warpui::elements::Fill::None,
+                        )
+                        .with_overlayed_scrollbar()
+                        .finish(),
                     )
-                    .with_overlayed_scrollbar()
+                    .with_max_height(height)
                     .finish(),
-                )
-                .with_max_height(height)
-                .finish()]
+                ]
             }
         }
     }

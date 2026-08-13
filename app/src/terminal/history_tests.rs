@@ -1,6 +1,7 @@
 use crate::{
     ai::agent::conversation::AIConversationId,
     terminal::{
+        History,
         model::{
             block::{AgentInteractionMetadata, SerializedAIMetadata, SerializedBlock},
             bootstrap::BootstrapStage,
@@ -9,16 +10,15 @@ use crate::{
             test_utils::TestBlockBuilder,
         },
         shell::ShellType,
-        History,
     },
     test_util::{Stub, VirtualFS},
 };
 use chrono::Local;
-use futures::future::join_all;
 use futures::Future;
+use futures::future::join_all;
 use futures_lite::StreamExt;
 use itertools::Itertools;
-use warp_core::{command::ExitCode, SessionId};
+use warp_core::{SessionId, command::ExitCode};
 use warpui::{App, ModelHandle};
 
 use std::path::PathBuf;

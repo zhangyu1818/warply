@@ -10,10 +10,10 @@ use warp::features::FeatureFlag;
 use warp::{
     integration_testing::{
         code_review::{
-            assert_code_review_anchor, assert_code_review_line_text, assert_code_review_loaded,
-            assert_code_review_scroll_region, scroll_code_review_to_deleted_range,
-            scroll_code_review_to_footer, scroll_code_review_to_header, scroll_code_review_to_line,
-            ScrollRegion,
+            ScrollRegion, assert_code_review_anchor, assert_code_review_line_text,
+            assert_code_review_loaded, assert_code_review_scroll_region,
+            scroll_code_review_to_deleted_range, scroll_code_review_to_footer,
+            scroll_code_review_to_header, scroll_code_review_to_line,
         },
         terminal::wait_until_bootstrapped_single_pane_for_tab,
         view_getters::{single_terminal_view_for_tab, workspace_view},
@@ -21,12 +21,11 @@ use warp::{
     workspace::WorkspaceAction,
 };
 use warpui::{
-    async_assert,
+    App, WindowId, async_assert,
     integration::{AssertionCallback, TestStep},
-    App, WindowId,
 };
 
-use crate::{util::write_all_rc_files_for_test, Builder};
+use crate::{Builder, util::write_all_rc_files_for_test};
 
 use super::new_builder;
 

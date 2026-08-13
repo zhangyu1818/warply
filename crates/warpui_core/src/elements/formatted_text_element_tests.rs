@@ -1,7 +1,6 @@
 use super::{
-    apply_secret_replacements, FormattedTextElement, FrameMouseHandlers,
-    HeadingFontSizeMultipliers, HighlightedHyperlink, HyperlinkSupport, LaidOutTextFrame,
-    SecretRange,
+    FormattedTextElement, FrameMouseHandlers, HeadingFontSizeMultipliers, HighlightedHyperlink,
+    HyperlinkSupport, LaidOutTextFrame, SecretRange, apply_secret_replacements,
 };
 use crate::elements::{Element, PartialClickableElement, Point, SelectableElement, ZIndex};
 use crate::event::DispatchedEvent;
@@ -9,8 +8,8 @@ use crate::platform::WindowStyle;
 use crate::text::word_boundaries::WordBoundariesPolicy;
 use crate::text::{BlockHeaderSize, SelectionDirection, SelectionType};
 use crate::{
-    fonts::FamilyId, text_layout::TextFrame, App, AppContext, Entity, Event, Presenter,
-    TypedActionView,
+    App, AppContext, Entity, Event, Presenter, TypedActionView, fonts::FamilyId,
+    text_layout::TextFrame,
 };
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_color::ColorU;
@@ -218,9 +217,11 @@ fn smart_select_returns_none_when_point_is_outside_horizontal_bounds() {
     let element = test_formatted_text_element("hello", 10.0, 20.0);
     let point = vec2f(10.0 + 100.0, 25.0);
 
-    assert!(element
-        .smart_select(point, select_first_character)
-        .is_none());
+    assert!(
+        element
+            .smart_select(point, select_first_character)
+            .is_none()
+    );
 }
 
 const TEST_GLYPH_ADVANCE: f32 = 10.0;

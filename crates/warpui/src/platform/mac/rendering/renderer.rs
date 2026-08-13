@@ -4,7 +4,7 @@ use cocoa::base::id;
 use warpui_core::rendering::{
     GPUBackend, GPUDeviceInfo, GPUDeviceType, GPUPowerPreference, OnGPUDeviceSelected,
 };
-use warpui_core::{fonts, Scene};
+use warpui_core::{Scene, fonts};
 
 /// Trait to render the [`Scene`] onto the screen using the provided [`WindowState`].
 pub trait Renderer {

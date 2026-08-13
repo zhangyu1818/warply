@@ -11,7 +11,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{Fill as ThemeFill, WarpTheme};
-use warp_core::ui::{appearance::Appearance, Icon};
+use warp_core::ui::{Icon, appearance::Appearance};
 use warpui::elements::{
     ChildAnchor, ChildView, Dismiss, Empty, Hoverable, MainAxisSize, MouseStateHandle,
     ParentAnchor, ParentOffsetBounds, Rect, Shrinkable,
@@ -19,11 +19,11 @@ use warpui::elements::{
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, WeakModelHandle,
     elements::{
         Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Fill, Flex,
         MainAxisAlignment, OffsetPositioning, Padding, ParentElement, Radius, Stack,
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, WeakModelHandle,
 };
 use warpui::{TypedActionView, ViewContext, ViewHandle};
 

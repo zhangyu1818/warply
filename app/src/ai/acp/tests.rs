@@ -7,13 +7,13 @@ use agent_client_protocol::schema::{
     SessionInfoUpdate, SessionUpdate, TextContent, ToolCall, ToolCallUpdate, ToolCallUpdateFields,
 };
 
+use super::AcpToolCall;
 use super::backend::adapter_args;
 use super::config_options::flatten_config_options;
 use super::events::AcpEvent;
 use super::mapping::map_session_update;
 use super::model::default_config_options_to_apply;
 use super::registry::AcpAgentLaunch;
-use super::AcpToolCall;
 
 fn test_launch() -> AcpAgentLaunch {
     AcpAgentLaunch {
@@ -215,7 +215,7 @@ fn test_acp_tool_call_preserves_meta_without_terminal_trace_inference() {
     use agent_client_protocol::schema::{
         Terminal, ToolCall, ToolCallContent, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
     };
-    use serde_json::{json, Map};
+    use serde_json::{Map, json};
 
     let mut initial_meta = Map::new();
     initial_meta.insert(

@@ -4,8 +4,8 @@ use warp::integration_testing::terminal::util::current_shell_starter_and_version
 use warp::integration_testing::{
     clipboard::write_to_clipboard,
     input::{
-        assert_autosuggestion_state, input_contains_string, tab_completions_menu_is_open,
-        AutosuggestionState,
+        AutosuggestionState, assert_autosuggestion_state, input_contains_string,
+        tab_completions_menu_is_open,
     },
     step::new_step_with_default_assertions,
     terminal::{
@@ -15,7 +15,7 @@ use warp::integration_testing::{
     view_getters::{single_input_view_for_tab, single_terminal_view_for_tab},
 };
 use warp::terminal::shell::ShellType;
-use warpui::{async_assert_eq, integration::TestStep, Event};
+use warpui::{Event, async_assert_eq, integration::TestStep};
 
 use crate::Builder;
 

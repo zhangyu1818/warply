@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    config::LanguageId, model::LanguageServerId, supported_servers::LSPServerType, LspEvent,
-    LspServerConfig, LspServerModel,
+    LspEvent, LspServerConfig, LspServerModel, config::LanguageId, model::LanguageServerId,
+    supported_servers::LSPServerType,
 };
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 

@@ -1,7 +1,7 @@
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::{
-    profiles::{AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId},
     AIExecutionProfile, ActionPermission, WriteToPtyPermission,
+    profiles::{AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId},
 };
 use crate::ai::paths::host_native_absolute_path;
 use crate::editor::InteractionState;
@@ -10,23 +10,23 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::settings::{AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate};
 use crate::ui_components::icons::Icon;
 use crate::view_components::{
-    action_button::{ActionButton, DangerSecondaryTheme},
     Dropdown, DropdownItem, SubmittableTextInput, SubmittableTextInputEvent,
+    action_button::{ActionButton, DangerSecondaryTheme},
 };
 use crate::{
-    pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent},
     Appearance,
+    pane_group::{BackingView, PaneConfiguration, PaneEvent, pane::view},
 };
 use regex::Regex;
 
 use std::path::{Path, PathBuf};
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
     elements::{
         Align, ChildView, ClippedScrollStateHandle, ClippedScrollable, Container, Flex,
         MouseStateHandle, ParentElement, ScrollbarWidth,
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 #[derive(Default)]

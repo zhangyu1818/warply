@@ -1,6 +1,6 @@
-use super::items::folder::LocalObjectFolder;
-use super::items::LocalObjectItem;
 use super::CloudObjectTypeAndId;
+use super::items::LocalObjectItem;
+use super::items::folder::LocalObjectFolder;
 use crate::{
     appearance::Appearance,
     cloud_object::{CloudModelType, GenericCloudObject, ObjectType, SerializedModel, Space},

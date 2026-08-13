@@ -1,9 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::CommandBuilder;
 use crate::language_server_candidate::{LanguageServerCandidate, LanguageServerMetadata};
 use crate::supported_servers::CustomBinaryConfig;
-use crate::CommandBuilder;
 use async_trait::async_trait;
 
 use anyhow::Context;

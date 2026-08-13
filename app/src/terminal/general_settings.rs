@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{banner::BannerState, resource_center::Tip};
-use warp_core::settings::{macros::define_settings_group, SupportedPlatforms};
+use warp_core::settings::{SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(GeneralSettings, settings: [
     show_warning_before_quitting: ShowWarningBeforeQuitting {

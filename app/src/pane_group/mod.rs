@@ -7,17 +7,17 @@ use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
 use crate::ai::execution_profiles::profiles::ClientProfileId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
+use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code::view::CodeViewAction;
-use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
 use crate::code_review::diff_state::DiffMode;
 use crate::env_vars::EnvVarCollectionType;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
 use crate::pane_group::pane::ActionOrigin;
 use crate::quit_warning::UnsavedStateSummary;
-use crate::settings::{log_setting_result, AISettings, DefaultSessionMode, PaneSettings};
+use crate::settings::{AISettings, DefaultSessionMode, PaneSettings, log_setting_result};
 use crate::settings_view::SettingsSection;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
@@ -37,7 +37,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::sync::{mpsc::SyncSender, Arc};
+use std::sync::{Arc, mpsc::SyncSender};
 
 use settings::Setting as _;
 
@@ -48,13 +48,13 @@ use lazy_static::lazy_static;
 use markdown_parser::FormattedTextFragment;
 use parking_lot::FairMutex;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use serde::{Deserialize, Serialize};
 use tree::DEFAULT_FLEX_VALUE;
 use uuid::Uuid;
+use warp_core::HostId;
 use warp_core::command::ExitCode;
 use warp_core::context_flag::ContextFlag;
-use warp_core::HostId;
 #[cfg(feature = "local_fs")]
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
@@ -65,8 +65,8 @@ use warpui::notification::NotificationSendError;
 
 use warpui::windowing::WindowManager;
 use warpui::{
-    elements::{ChildView, Element, ParentElement},
     AppContext, Entity, EntityId, ModelHandle, TypedActionView, View, ViewHandle, WindowId,
+    elements::{ChildView, Element, ParentElement},
 };
 use warpui::{SingletonEntity, ViewContext};
 
@@ -89,7 +89,7 @@ use crate::notebooks::file::FileNotebookView;
 use crate::object_ids::{ObjectUid, SyncId};
 use crate::persistence::ModelEvent;
 use crate::resource_center::{
-    mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipsCompleted,
+    Tip, TipAction, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
 };
 use crate::session_management::SessionNavigationData;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
@@ -107,7 +107,7 @@ use crate::terminal::{MockTerminalManager, ShellLaunchData, ShellLaunchState};
 use crate::ui_events::PaletteSource;
 
 use crate::code::active_file::ActiveFileModel;
-use crate::util::bindings::{is_binding_pty_compliant, CustomAction};
+use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 
 use crate::palette::PaletteMode;
@@ -131,6 +131,8 @@ use focus_state::PaneGroupFocusState;
 mod tests;
 
 pub use crate::code_review::CodeReviewPanelArg;
+pub use pane::PaneHeaderAction;
+pub use pane::PaneHeaderCustomAction;
 pub use pane::ai_document_pane::AIDocumentPane;
 pub use pane::ai_fact_pane::AIFactPane;
 pub use pane::code_diff_pane::CodeDiffPane;
@@ -142,8 +144,6 @@ pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
 pub use pane::welcome_pane::WelcomePane;
 pub use pane::workflow_pane::WorkflowPane;
-pub use pane::PaneHeaderAction;
-pub use pane::PaneHeaderCustomAction;
 pub use pane::{
     AnyPaneContent, BackingView, PaneConfiguration, PaneConfigurationEvent, PaneContent, PaneEvent,
     PaneId, PaneView, TerminalPaneId,

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use super::proto;
 use warp_util::standardized_path::StandardizedPath;
 
-use crate::code_review::diff_size_limits::{DiffSize, UnrenderableReason, MAX_DIFF_SIZE};
+use crate::code_review::diff_size_limits::{DiffSize, MAX_DIFF_SIZE, UnrenderableReason};
 use crate::code_review::diff_state::{
     DiffHunk, DiffLine, DiffLineType, DiffMetadata, DiffMetadataAgainstBase, DiffMode, DiffState,
     DiffStats, FileDiff, FileDiffAndContent, FileStatusInfo, GitDiffData, GitDiffWithBaseContent,
@@ -596,7 +596,10 @@ pub fn file_diff_to_proto(
     let (size, content_at_base) = if f.is_binary {
         (f.size, None)
     } else if content_at_base.is_some_and(|content| content.len() > MAX_DIFF_SIZE) {
-        (DiffSize::Unrenderable(UnrenderableReason::FileTooLarge), None)
+        (
+            DiffSize::Unrenderable(UnrenderableReason::FileTooLarge),
+            None,
+        )
     } else {
         (f.size, content_at_base)
     };

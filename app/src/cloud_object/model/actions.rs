@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::{
-    object_ids::{parse_sqlite_id_to_uid, HashedSqliteId, ObjectUid},
+    object_ids::{HashedSqliteId, ObjectUid, parse_sqlite_id_to_uid},
     persistence::model::PersistedObjectAction,
 };
 

@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use warpui::{AppContext, SingletonEntity, View, ViewContext};
 
 use crate::ai::{
     agent::{
-        conversation::AIConversationId, AIAgentExchange, AIAgentExchangeId, AIAgentInput,
-        AIAgentOutputStatus, FinishedAIAgentOutput, Shared,
+        AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus,
+        FinishedAIAgentOutput, Shared, conversation::AIConversationId,
     },
     blocklist::{
         history_model,

@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    code_diff_pane_model::CodeDiffPaneModel, DetachType, PaneConfiguration, PaneContent, PaneEvent,
-    PaneId, PaneView,
+    DetachType, PaneConfiguration, PaneContent, PaneEvent, PaneId, PaneView,
+    code_diff_pane_model::CodeDiffPaneModel,
 };
 
 pub struct CodeDiffPane {

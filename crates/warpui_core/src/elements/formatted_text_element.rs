@@ -1,8 +1,9 @@
 use super::{Highlight, ListNumbering, Selection};
+use crate::Event;
 use crate::elements::{
     ClickableCharRange, CornerRadius, Fill, HighlightedRange, HoverableCharRange, MouseStateHandle,
-    PartialClickableElement, Radius, SecretRange, SelectableElement, SelectionFragment,
-    SmartSelectFn, ZIndex, SELECTED_HIGHLIGHT_COLOR,
+    PartialClickableElement, Radius, SELECTED_HIGHLIGHT_COLOR, SecretRange, SelectableElement,
+    SelectionFragment, SmartSelectFn, ZIndex,
 };
 use crate::event::ModifiersState;
 use crate::fonts::Weight;
@@ -10,24 +11,23 @@ use crate::geometry::rect::RectF;
 use crate::platform::Cursor;
 use crate::text::word_boundaries::WordBoundariesPolicy;
 use crate::text::{
-    char_slice, count_chars_up_to_byte, BlockHeaderSize, IsRect, SelectionDirection, SelectionType,
-    TextBuffer,
+    BlockHeaderSize, IsRect, SelectionDirection, SelectionType, TextBuffer, char_slice,
+    count_chars_up_to_byte,
 };
-use crate::text_layout::{ClipConfig, TextAlignment, DEFAULT_TOP_BOTTOM_RATIO};
-use crate::Event;
+use crate::text_layout::{ClipConfig, DEFAULT_TOP_BOTTOM_RATIO, TextAlignment};
 use crate::{
+    AfterLayoutContext, AppContext, Element, EventContext, LayoutContext, PaintContext,
+    SizeConstraint,
     elements::{Axis, Point},
     event::DispatchedEvent,
     fonts::{FamilyId, Properties, Style},
     platform::LineStyle,
     text_layout::{StyleAndFont, TextFrame, TextStyle},
-    AfterLayoutContext, AppContext, Element, EventContext, LayoutContext, PaintContext,
-    SizeConstraint,
 };
 use itertools::Itertools;
 use markdown_parser::{Action, FormattedText, FormattedTextFragment, FormattedTextLine, Hyperlink};
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::Reverse;
@@ -2307,11 +2307,7 @@ impl Element for FormattedTextElement {
     }
 
     fn as_selectable_element(&self) -> Option<&dyn SelectableElement> {
-        if self.is_selectable {
-            Some(self)
-        } else {
-            None
-        }
+        if self.is_selectable { Some(self) } else { None }
     }
 }
 

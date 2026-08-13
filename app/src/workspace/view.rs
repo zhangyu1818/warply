@@ -10,18 +10,19 @@ mod tests;
 mod vertical_tabs;
 
 use self::vertical_tabs::{
-    htab_group_position_id, pane_summary_kind, render_detail_sidecar, render_settings_popup,
-    render_summary_pane_kind_icons, show_before_indicator, vtab_group_position_id, SummaryPaneKind,
-    SummaryPaneKindIcons, VerticalTabsPanelState, VERTICAL_TABS_SETTINGS_BUTTON_POSITION_ID,
+    SummaryPaneKind, SummaryPaneKindIcons, VERTICAL_TABS_SETTINGS_BUTTON_POSITION_ID,
+    VerticalTabsPanelState, htab_group_position_id, pane_summary_kind, render_detail_sidecar,
+    render_settings_popup, render_summary_pane_kind_icons, show_before_indicator,
+    vtab_group_position_id,
 };
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use crate::ai::blocklist::FORK_PREFIX;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 #[cfg(feature = "local_fs")]
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryOrigin, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
 };
 use crate::ai::blocklist::history_model::RestoredConversationData;
-use crate::ai::blocklist::FORK_PREFIX;
 #[cfg(feature = "local_fs")]
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
@@ -30,16 +31,16 @@ use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::{
     agent::conversation::AIConversationId,
     blocklist::inline_action::code_diff_view::CodeDiffView,
-    facts::{view::AIFactPage, AIFactManager, AIFactView, AIFactViewEvent},
+    facts::{AIFactManager, AIFactView, AIFactViewEvent, view::AIFactPage},
 };
 use crate::app_state::{
     LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, PaneNodeSnapshot,
     PaneUuid, RightPanelSnapshot, SettingsPaneSnapshot, TabGroupSnapshot, TabSnapshot,
     TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
 };
-use crate::code_review::diff_state::DiffStateModel;
-use crate::code_review::GlobalCodeReviewModel;
 use crate::code::buffer_location::{FileLocation, LocalOrRemotePath};
+use crate::code_review::GlobalCodeReviewModel;
+use crate::code_review::diff_state::DiffStateModel;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::default_terminal::DefaultTerminal;
 use crate::notification::NotificationContext;
@@ -47,11 +48,11 @@ use crate::pane_group::pane::ActionOrigin;
 use crate::projects::ProjectManagementModel;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::session_settings::SessionSettings;
+use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::terminal::view::inline_banner::{
     ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
 };
 use crate::terminal::view::load_ai_conversation::{RestorationDirState, RestoredAIConversation};
-use crate::terminal::view::ConversationRestorationInNewPaneType;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::OpenConversationPreference;
 use crate::util::file::system_editor::{self, EditorApp};
@@ -72,21 +73,21 @@ use crate::util::file::external_editor::Editor;
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::openable_file_type::FileTarget;
 #[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::{resolve_file_target_with_editor_choice, EditorLayout};
+use crate::util::openable_file_type::{EditorLayout, resolve_file_target_with_editor_choice};
 
+use crate::BlocklistAIHistoryModel;
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::workspace::header_toolbar_editor::{HeaderToolbarEditorEvent, HeaderToolbarEditorModal};
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_group::{TabGroup, TabGroupId};
 use crate::workspace::tab_settings::TabCloseButtonPosition;
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
-use crate::BlocklistAIHistoryModel;
 use serde_json;
 use warpui::notification::NotificationSendError;
 
+use super::WorkspaceRegistry;
 use super::lightbox_view::{LightboxParams, LightboxView, LightboxViewEvent};
 use super::util;
-use super::WorkspaceRegistry;
 use crate::ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use crate::ai::execution_profiles::profiles::{AIExecutionProfilesModel, ClientProfileId};
 #[cfg(feature = "local_fs")]
@@ -117,8 +118,8 @@ use crate::workflows::workflow::Workflow;
 use repo_metadata::RemoteRepositoryIdentifier;
 
 use crate::env_vars::{
-    manager::{EnvVarCollectionManager, EnvVarCollectionSource},
     SavedEnvVarCollection,
+    manager::{EnvVarCollectionManager, EnvVarCollectionSource},
 };
 
 use crate::appearance::{Appearance, AppearanceManager};
@@ -126,11 +127,11 @@ use crate::banner::BannerState;
 use crate::cloud_object::toast_message::LocalObjectToastMessage;
 use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType};
 use crate::context_chips::ChipRuntimeCapabilities;
-use crate::drive::workflows::modal::{WorkflowModal, WorkflowModalEvent};
 use crate::drive::CloudObjectTypeAndId;
+use crate::drive::workflows::modal::{WorkflowModal, WorkflowModalEvent};
 use crate::menu::{
-    Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuSelectionSource, MenuVariant,
-    MENU_VERTICAL_PADDING,
+    Event as MenuEvent, MENU_VERTICAL_PADDING, Menu, MenuItem, MenuItemFields, MenuSelectionSource,
+    MenuVariant,
 };
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::pane_group::{
@@ -151,8 +152,8 @@ use crate::prompt::editor_modal::{
     OpenSource as PromptEditorOpenSource,
 };
 use crate::resource_center::{
-    mark_feature_used_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults,
     ResourceCenterEvent, ResourceCenterPage, ResourceCenterView, Tip, TipAction, TipsCompleted,
+    mark_feature_used_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults,
 };
 use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
 use crate::search::command_search::searcher::{
@@ -161,10 +162,10 @@ use crate::search::command_search::searcher::{
 use crate::search::command_search::view::{CommandSearchEvent, CommandSearchView};
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
 use crate::settings::{
-    active_theme_kind, log_setting_result, respect_system_theme, AccessibilitySettings,
-    AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings,
-    FontSettings, GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, SelectionSettings,
-    ThemeSettings,
+    AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
+    CursorBlink, DebugSettings, FontSettings, GPUSettings, InputSettings, MonospaceFontSize,
+    PaneSettings, SelectionSettings, ThemeSettings, active_theme_kind, log_setting_result,
+    respect_system_theme,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
@@ -177,7 +178,7 @@ use crate::terminal::model::blockgrid::BlockGrid;
 #[cfg(feature = "local_fs")]
 use crate::terminal::model::session::Session;
 use crate::terminal::resizable_data::{
-    ModalSizes, ModalType, ResizableData, DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH,
+    DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, ModalSizes, ModalType, ResizableData,
 };
 use crate::terminal::safe_mode_settings::SafeModeSettings;
 use crate::terminal::session_settings::{
@@ -192,11 +193,12 @@ use crate::terminal::{self, SizeInfo, TerminalView};
 use crate::ui_events::LaunchConfigUiLocation;
 use crate::updater::{UpdaterStatus, WarplyUpdater};
 use ::settings::{Setting, ToggleableSetting};
-use warp_core::{features::FeatureFlag, SessionId};
+use warp_core::{SessionId, features::FeatureFlag};
 
+use crate::GlobalResourceHandles;
 use crate::search::{self, QueryFilter};
 use crate::terminal::view::{
-    SyncEvent, SyncInputType, TerminalAction, NOTIFICATIONS_TROUBLESHOOT_URL,
+    NOTIFICATIONS_TROUBLESHOOT_URL, SyncEvent, SyncInputType, TerminalAction,
 };
 use crate::terminal::{BlockListSettings, TerminalModel};
 use crate::themes::theme::{AnsiColorIdentifier, RespectSystemTheme, ThemeKind};
@@ -206,28 +208,27 @@ use crate::themes::theme_deletion_modal::{ThemeDeletionModal, ThemeDeletionModal
 use crate::tips::{TipsEvent, TipsView};
 use crate::ui_components::buttons::{combo_inner_button, icon_button_with_color};
 use crate::undo_close::UndoCloseStack;
+use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 #[cfg(feature = "local_fs")]
 use crate::user_config::{
     ensure_default_worktree_config, find_unused_tab_config_path, find_unused_toml_path,
     find_unused_worktree_config_path, materialize_default_worktree_config, sanitize_toml_base_name,
     tab_configs_dir,
 };
-use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{keybinding_name_to_display_string, keybinding_name_to_keystroke};
-use crate::util::traffic_lights::{traffic_light_data, TrafficLightMouseStates, TrafficLightSide};
+use crate::util::traffic_lights::{TrafficLightMouseStates, TrafficLightSide, traffic_light_data};
 use crate::util::truncation::truncate_from_end;
 use crate::view_components::{DismissibleToast, DismissibleToastStack, ToastLink};
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent};
 use crate::workflows::{
-    manager::WorkflowOpenSource, AIWorkflowOrigin, SavedWorkflow, WorkflowSelectionSource,
-    WorkflowSource, WorkflowType, WorkflowViewMode,
+    AIWorkflowOrigin, SavedWorkflow, WorkflowSelectionSource, WorkflowSource, WorkflowType,
+    WorkflowViewMode, manager::WorkflowOpenSource,
 };
 use crate::workspace::action::CommandSearchOptions;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::toast_stack::{
     ToastStack as WorkspaceToastStack, ToastStackEvent as WorkspaceToastStackEvent,
 };
-use crate::GlobalResourceHandles;
 
 use itertools::Itertools;
 use parking_lot::FairMutex;
@@ -241,7 +242,7 @@ use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use warp_core::context_flag::ContextFlag;
 use warp_core::semantic_selection::SemanticSelection;
-use warp_util::path::{user_friendly_path, LineAndColumnArg};
+use warp_util::path::{LineAndColumnArg, user_friendly_path};
 use warpui::assets::asset_cache::AssetSource;
 use warpui::fonts::Weight;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
@@ -252,7 +253,7 @@ use warpui::elements::{
     MouseInBehavior, Rect,
 };
 use warpui::ui_components::button::Button;
-use warpui::windowing::{state::ApplicationStage, StateEvent, WindowManager};
+use warpui::windowing::{StateEvent, WindowManager, state::ApplicationStage};
 use warpui::{elements::MouseStateHandle, fonts::Properties};
 
 use crate::channel::ChannelState;
@@ -303,10 +304,10 @@ use crate::code::editor::{add_color, remove_color};
 use crate::palette::PaletteMode;
 use crate::search::command_palette::view::{Event as CommandPaletteEvent, View as CommandPalette};
 use crate::tab::{
+    COMPACT_TAB_WIDTH_THRESHOLD, ColorPickerTarget, MOVE_TO_GROUP_LABEL, NewSessionMenuItem,
+    PaneNameMenuTarget, SelectedTabColor, TAB_BAR_BORDER_HEIGHT, TAB_INDICATOR_HEIGHT,
+    TAB_PIN_INDICATOR_ICON_SIZE, TAB_PIN_VANISH_THRESHOLD, TabBarState, TabComponent, TabData,
     color_picker_menu_items, next_tab_color, tab_position_id, uses_vertical_tabs,
-    ColorPickerTarget, NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor, TabBarState,
-    TabComponent, TabData, COMPACT_TAB_WIDTH_THRESHOLD, MOVE_TO_GROUP_LABEL, TAB_BAR_BORDER_HEIGHT,
-    TAB_INDICATOR_HEIGHT, TAB_PIN_INDICATOR_ICON_SIZE, TAB_PIN_VANISH_THRESHOLD,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::ui_components::icons;
@@ -321,8 +322,8 @@ use std::path::PathBuf;
 use std::process;
 use std::sync::mpsc;
 use std::{cmp::Ordering, sync::Arc};
-use warp_core::ui::theme::{color::internal_colors, AnsiColors, Fill};
-use warp_core::ui::{color::coloru_with_opacity, Icon};
+use warp_core::ui::theme::{AnsiColors, Fill, color::internal_colors};
+use warp_core::ui::{Icon, color::coloru_with_opacity};
 use warp_editor::editor::NavigationKey;
 use warpui::keymap::Context;
 use warpui::notification::{RequestPermissionsOutcome, UserNotification};
@@ -332,6 +333,7 @@ use warpui::platform::{
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
+    AppContext, Entity, TypedActionView, UpdateView, View, ViewContext, ViewHandle,
     accessibility::{
         AccessibilityContent, AccessibilityVerbosity, ActionAccessibilityContent, WarpA11yRole,
     },
@@ -343,8 +345,7 @@ use warpui::{
         PositionedElementAnchor, PositionedElementOffsetBounds, Radius, SavePosition, Shrinkable,
         SizeConstraintCondition, SizeConstraintSwitch, Stack, Text,
     },
-    geometry::vector::{vec2f, Vector2F},
-    AppContext, Entity, TypedActionView, UpdateView, View, ViewContext, ViewHandle,
+    geometry::vector::{Vector2F, vec2f},
 };
 use warpui::{
     EntityId, FocusContext, ModelHandle, SingletonEntity, UpdateModel, ViewAsRef, WindowId,
@@ -3962,9 +3963,11 @@ impl Workspace {
         if !FeatureFlag::ConfigurableToolbar.is_enabled() {
             return;
         }
-        let items = vec![MenuItemFields::new("Re-arrange toolbar items")
-            .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
-            .into_item()];
+        let items = vec![
+            MenuItemFields::new("Re-arrange toolbar items")
+                .with_on_select_action(WorkspaceAction::OpenHeaderToolbarEditor)
+                .into_item(),
+        ];
         self.header_toolbar_context_menu
             .update(ctx, |menu, ctx| menu.set_items(items, ctx));
         self.show_header_toolbar_context_menu = Some(position);
@@ -6519,15 +6522,13 @@ impl Workspace {
             } else {
                 let active_pane_group = self.active_tab_pane_group().clone();
                 let read_result = active_pane_group.read(ctx, |pane_group, ctx| {
-                    pane_group
-                        .active_session_view(ctx)
-                        .map(|terminal_view| {
-                            terminal_view
-                                .as_ref(ctx)
-                                .current_repo_path()
-                                .cloned()
-                                .map(LocalOrRemotePath::Local)
-                        })
+                    pane_group.active_session_view(ctx).map(|terminal_view| {
+                        terminal_view
+                            .as_ref(ctx)
+                            .current_repo_path()
+                            .cloned()
+                            .map(LocalOrRemotePath::Local)
+                    })
                 });
                 read_result.and_then(|repo_path| {
                     let diff_state_model = repo_path.as_ref().and_then(|rp| {
@@ -6562,8 +6563,7 @@ impl Workspace {
                 .repo_path
                 .as_ref()
                 .is_some_and(|target_repo_path| {
-                    self.right_panel_view.as_ref(ctx).selected_repo_path()
-                        == Some(target_repo_path)
+                    self.right_panel_view.as_ref(ctx).selected_repo_path() == Some(target_repo_path)
                 });
         if panel_already_showing_repo {
             return;
@@ -6663,15 +6663,13 @@ impl Workspace {
 
         // Read repo_path from pane group (immutable context).
         let read_result = pane_group_handle.read(ctx, |pane_group, ctx| {
-            pane_group
-                .active_session_view(ctx)
-                .map(|terminal_view| {
-                    terminal_view
-                        .as_ref(ctx)
-                        .current_repo_path()
-                        .cloned()
-                        .map(LocalOrRemotePath::Local)
-                })
+            pane_group.active_session_view(ctx).map(|terminal_view| {
+                terminal_view
+                    .as_ref(ctx)
+                    .current_repo_path()
+                    .cloned()
+                    .map(LocalOrRemotePath::Local)
+            })
         });
         // Resolve DiffStateModel outside the read closure (needs mutable context).
         let context = read_result.and_then(|repo_path| {
@@ -6907,9 +6905,11 @@ impl Workspace {
         };
 
         let close_section = {
-            let mut items = vec![MenuItemFields::new("Close all tabs in group")
-                .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
-                .into_item()];
+            let mut items = vec![
+                MenuItemFields::new("Close all tabs in group")
+                    .with_on_select_action(WorkspaceAction::CloseTabGroup(group_id))
+                    .into_item(),
+            ];
             if has_tabs_outside {
                 items.push(
                     MenuItemFields::new("Close other tabs")
@@ -6949,9 +6949,11 @@ impl Workspace {
         } else {
             ("Pin group", WorkspaceAction::PinTabGroup(group_id))
         };
-        let pin_section = vec![MenuItemFields::new(pin_label)
-            .with_on_select_action(pin_action)
-            .into_item()];
+        let pin_section = vec![
+            MenuItemFields::new(pin_label)
+                .with_on_select_action(pin_action)
+                .into_item(),
+        ];
 
         // Color picker: same dot-based selector as individual tabs.
         let color_section = {
@@ -6979,9 +6981,11 @@ impl Workspace {
                     .into_item(),
             ],
             move_section,
-            vec![MenuItemFields::new("Rename")
-                .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
-                .into_item()],
+            vec![
+                MenuItemFields::new("Rename")
+                    .with_on_select_action(WorkspaceAction::RenameTabGroup(group_id))
+                    .into_item(),
+            ],
             close_section,
             color_section,
         ] {
@@ -10796,9 +10800,7 @@ impl Workspace {
         let terminal_cwds: Vec<(EntityId, LocalOrRemotePath)> = pane_group
             .as_ref(ctx)
             .terminal_view_working_directories(ctx)
-            .filter_map(|(id, cwd)| {
-                cwd.map(|c| (id, LocalOrRemotePath::Local(PathBuf::from(c))))
-            })
+            .filter_map(|(id, cwd)| cwd.map(|c| (id, LocalOrRemotePath::Local(PathBuf::from(c)))))
             .collect();
         let code_local_paths: Vec<(EntityId, String)> = pane_group
             .as_ref(ctx)

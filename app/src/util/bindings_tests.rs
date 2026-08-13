@@ -1,7 +1,7 @@
 use warpui::{
+    App,
     keymap::{EditableBinding, Keystroke, Trigger},
     platform::OperatingSystem,
-    App,
 };
 
 use crate::{
@@ -70,9 +70,10 @@ fn test_toggle_maximize_pane_binding_is_editable() {
         app.update(|ctx| {
             use crate::pane_group::TOGGLE_MAXIMIZE_PANE_BINDING_NAME;
 
-            assert!(ctx
-                .editable_bindings()
-                .any(|binding| binding.name == TOGGLE_MAXIMIZE_PANE_BINDING_NAME));
+            assert!(
+                ctx.editable_bindings()
+                    .any(|binding| binding.name == TOGGLE_MAXIMIZE_PANE_BINDING_NAME)
+            );
 
             let default = keybinding_name_to_display_string(TOGGLE_MAXIMIZE_PANE_BINDING_NAME, ctx);
             if OperatingSystem::get().is_mac() {

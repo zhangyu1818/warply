@@ -7,7 +7,7 @@ use cocoa::{
 use futures_util::future::LocalBoxFuture;
 use objc::{
     class, msg_send,
-    runtime::{Object, Sel, BOOL, NO, YES},
+    runtime::{BOOL, NO, Object, Sel, YES},
     sel, sel_impl,
 };
 
@@ -19,26 +19,26 @@ use std::{
 };
 
 use crate::platform::{
-    app::{AppBackend, AppBuilder},
     AsInnerMut,
+    app::{AppBackend, AppBuilder},
 };
 use warpui_core::{
+    AppContext, Event,
     assets::AssetProvider,
     integration::TestDriver,
     keymap::{Keystroke, Trigger},
     modals::{AlertDialog, ModalId},
+    platform::SaveFilePickerCallback,
     platform::app::{AppCallbackDispatcher, ApproveTerminateResult, TerminationRequestSource},
     platform::menu::{Menu, MenuBar},
-    platform::SaveFilePickerCallback,
     platform::{self, FilePickerCallback},
-    AppContext, Event,
 };
 
 use super::{
-    keycode::{Keycode, CMD_KEY, CONTROL_KEY, OPTION_KEY, SHIFT_KEY},
+    keycode::{CMD_KEY, CONTROL_KEY, Keycode, OPTION_KEY, SHIFT_KEY},
     make_nsstring,
     menus::{make_dock_menu, make_main_menu},
-    window::{get_window_state, IntegrationTestWindowManager, Window, WindowManager},
+    window::{IntegrationTestWindowManager, Window, WindowManager, get_window_state},
 };
 
 pub trait NSAlert: Sized {
@@ -257,10 +257,12 @@ impl AppExt for AppBuilder {
     }
 }
 
-unsafe fn get_app(object: &mut Object) -> &mut App { unsafe {
-    let wrapper_ptr: *mut c_void = *object.get_ivar(RUST_WRAPPER_IVAR_NAME);
-    &mut *(wrapper_ptr as *mut App)
-}}
+unsafe fn get_app(object: &mut Object) -> &mut App {
+    unsafe {
+        let wrapper_ptr: *mut c_void = *object.get_ivar(RUST_WRAPPER_IVAR_NAME);
+        &mut *(wrapper_ptr as *mut App)
+    }
+}
 
 pub(super) fn callback_dispatcher() -> &'static mut AppCallbackDispatcher {
     unsafe {
@@ -298,45 +300,47 @@ pub(crate) extern "C-unwind" fn warp_app_send_global_keybinding(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object) { unsafe {
-    log::info!("application will finish launching");
+pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object) {
+    unsafe {
+        log::info!("application will finish launching");
 
-    let app = get_app(this);
+        let app = get_app(this);
 
-    if app.activate_on_launch {
-        let _: () = msg_send![NSApp(), activateIgnoringOtherApps: YES];
+        if app.activate_on_launch {
+            let _: () = msg_send![NSApp(), activateIgnoringOtherApps: YES];
+        }
+
+        if let Some(init_fn) = app.init_fn.take() {
+            app.callbacks.initialize_app(init_fn);
+        }
+
+        let app_delegate: id = msg_send![NSApp(), delegate];
+
+        if app.callbacks.has_internet_reachability_changed_callback() {
+            let _: () = msg_send![app_delegate, setReachabilityListener];
+        }
+
+        if let Some(menu_bar_builder) = app.menu_bar_builder.take() {
+            let menu_bar = app.callbacks.with_mutable_app_context(menu_bar_builder);
+            let nsmenu = make_main_menu(menu_bar);
+            let () = msg_send![NSApp(), setMainMenu: nsmenu];
+        }
+
+        if let Some(dock_menu_builder) = app.dock_menu_builder.take() {
+            let dock_menu = app.callbacks.with_mutable_app_context(dock_menu_builder);
+            let nsmenu = make_dock_menu(dock_menu);
+            let _: () = msg_send![app_delegate, setDockMenu: nsmenu];
+        }
+
+        let show_dock_icon = if app.show_dock_icon_on_launch {
+            YES
+        } else {
+            NO
+        };
+        // `setDockIconVisible:` is a custom warp app-delegate selector.
+        let _: BOOL = msg_send![&*app_delegate, setDockIconVisible: show_dock_icon];
     }
-
-    if let Some(init_fn) = app.init_fn.take() {
-        app.callbacks.initialize_app(init_fn);
-    }
-
-    let app_delegate: id = msg_send![NSApp(), delegate];
-
-    if app.callbacks.has_internet_reachability_changed_callback() {
-        let _: () = msg_send![app_delegate, setReachabilityListener];
-    }
-
-    if let Some(menu_bar_builder) = app.menu_bar_builder.take() {
-        let menu_bar = app.callbacks.with_mutable_app_context(menu_bar_builder);
-        let nsmenu = make_main_menu(menu_bar);
-        let () = msg_send![NSApp(), setMainMenu: nsmenu];
-    }
-
-    if let Some(dock_menu_builder) = app.dock_menu_builder.take() {
-        let dock_menu = app.callbacks.with_mutable_app_context(dock_menu_builder);
-        let nsmenu = make_dock_menu(dock_menu);
-        let _: () = msg_send![app_delegate, setDockMenu: nsmenu];
-    }
-
-    let show_dock_icon = if app.show_dock_icon_on_launch {
-        YES
-    } else {
-        NO
-    };
-    // `setDockIconVisible:` is a custom warp app-delegate selector.
-    let _: BOOL = msg_send![&*app_delegate, setDockIconVisible: show_dock_icon];
-}}
+}
 
 #[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_did_become_active(this: &mut Object, _: Sel, _: id) {
@@ -402,11 +406,7 @@ pub(crate) extern "C-unwind" fn warp_app_are_key_bindings_disabled_for_window(
         .callbacks
         .with_mutable_app_context(|ctx| !ctx.key_bindings_enabled(window.id()));
 
-    if disabled {
-        YES
-    } else {
-        NO
-    }
+    if disabled { YES } else { NO }
 }
 
 #[unsafe(no_mangle)]
@@ -430,11 +430,7 @@ pub(crate) extern "C-unwind" fn warp_app_has_binding_for_keystroke(
         })
     });
 
-    if has_binding {
-        YES
-    } else {
-        NO
-    }
+    if has_binding { YES } else { NO }
 }
 
 #[unsafe(no_mangle)]
@@ -461,11 +457,7 @@ pub(crate) extern "C-unwind" fn warp_app_has_custom_action_for_keystroke(
             })
     });
 
-    if has_binding {
-        YES
-    } else {
-        NO
-    }
+    if has_binding { YES } else { NO }
 }
 
 #[unsafe(no_mangle)]

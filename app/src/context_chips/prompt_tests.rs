@@ -7,8 +7,8 @@ use crate::settings::WarpPromptSeparator;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::{
     context_chips::{
-        prompt::{PromptConfiguration, PromptSelection},
         ContextChipKind,
+        prompt::{PromptConfiguration, PromptSelection},
     },
     terminal::session_settings::SessionSettings,
 };

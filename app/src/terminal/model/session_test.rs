@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use warpui::{
-    elements::Empty, platform::WindowStyle, App, AppContext, Element, Entity, ModelHandle,
-    TypedActionView, View, ViewContext,
+    App, AppContext, Element, Entity, ModelHandle, TypedActionView, View, ViewContext,
+    elements::Empty, platform::WindowStyle,
 };
 
 use super::{Sessions, SessionsEvent};

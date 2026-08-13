@@ -1,16 +1,16 @@
 //! Shared styles for notebooks.
 
 use warpui::{
+    Element,
     elements::{Hoverable, MouseStateHandle},
     fonts,
     platform::Cursor,
     ui_components::components::UiComponent as _,
-    Element,
 };
 
 use crate::{
     appearance::Appearance,
-    settings::{derived_notebook_font_size, FontSettings},
+    settings::{FontSettings, derived_notebook_font_size},
     themes::theme::Fill,
     ui_components::{buttons::icon_button, icons::Icon},
 };

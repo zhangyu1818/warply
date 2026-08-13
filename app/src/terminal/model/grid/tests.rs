@@ -4,12 +4,12 @@ use grid_handler::GridHandler;
 use warp_terminal::model::grid::cell;
 
 use crate::features::FeatureFlag;
+use crate::terminal::SizeInfo;
 use crate::terminal::model::ansi::Handler;
 use crate::terminal::model::cell::{Cell, Flags};
 use crate::terminal::model::grid::Dimensions;
 use crate::terminal::model::index::{Point, VisiblePoint, VisibleRow};
 use crate::terminal::model::secrets::ObfuscateSecrets;
-use crate::terminal::SizeInfo;
 
 use super::*;
 

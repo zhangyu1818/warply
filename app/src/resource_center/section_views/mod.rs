@@ -1,17 +1,17 @@
 pub mod feature_section;
 use crate::{
     appearance::Appearance,
-    resource_center::{section_views::feature_section::FeatureSection, TipAction},
+    resource_center::{TipAction, section_views::feature_section::FeatureSection},
 };
 pub use feature_section::FeatureSectionView;
 use warpui::{
+    AppContext,
     elements::{
         Align, Border, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Hoverable,
         Icon, MouseStateHandle, ParentElement, ScrollbarWidth, Shrinkable,
     },
     platform::Cursor,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext,
 };
 
 pub const HEADER_FONT_SIZE: f32 = 16.;

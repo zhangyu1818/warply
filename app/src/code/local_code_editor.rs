@@ -11,8 +11,8 @@ use std::{
 
 use futures::stream::AbortHandle;
 use lsp::{
-    types::FileLocation, LanguageId, LanguageServerId, LspEvent, LspManagerModel,
-    LspManagerModelEvent, LspServerModel, ReferenceLocation,
+    LanguageId, LanguageServerId, LspEvent, LspManagerModel, LspManagerModelEvent, LspServerModel,
+    ReferenceLocation, types::FileLocation,
 };
 use lsp_types::FormattingOptions;
 use markdown_parser::FormattedText;
@@ -32,32 +32,32 @@ use warp_util::{
     sync::Condition,
 };
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    WindowId,
     elements::{
         Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, DropShadow, Flex, Hoverable, MainAxisAlignment,
         MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
         ParentOffsetBounds, Radius, Rect, Shrinkable, Stack, Text,
     },
-    keymap::{macros::*, FixedBinding},
+    keymap::{FixedBinding, macros::*},
     text::point::Point,
     ui_components::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-    WindowId,
 };
-use warpui::{platform::SaveFilePickerConfiguration, ModelHandle};
+use warpui::{ModelHandle, platform::SaveFilePickerConfiguration};
 
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 
 use crate::{
     code::{
+        SaveOutcome, ShowFindReferencesCardProvider,
         buffer_location::LocalOrRemotePath as BufferFileLocation,
         editor::model::HoverableLink,
         footer::{CodeFooterView, CodeFooterViewEvent},
         global_buffer_model::{BufferState, GlobalBufferModel},
-        SaveOutcome, ShowFindReferencesCardProvider,
     },
     debounce::debounce,
     settings::{AISettings, CodeSettings},
@@ -89,6 +89,7 @@ const HOVER_DEBOUNCE_PERIOD: Duration = Duration::from_millis(500);
 /// How long to wait after the user stops typing before triggering a debounced
 /// auto-save. Mirrors VS Code's default `files.autoSaveDelay` of 1000ms.
 const AUTO_SAVE_DEBOUNCE_PERIOD: Duration = Duration::from_millis(1000);
+use super::ImmediateSaveError;
 use super::diff_viewer::DiffViewer;
 use super::editor::{
     scroll::{ScrollPosition, ScrollTrigger},
@@ -96,7 +97,6 @@ use super::editor::{
 };
 use super::find_references_view::{FindReferencesView, FindReferencesViewEvent};
 use super::language_server_extension::ProcessedDiagnostic;
-use super::ImmediateSaveError;
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut ViewContext<LocalCodeEditorView>) + Send + Sync + 'static>;

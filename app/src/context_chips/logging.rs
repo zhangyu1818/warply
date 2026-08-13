@@ -1,6 +1,6 @@
-use std::sync::mpsc;
 #[cfg(not(test))]
 use std::sync::OnceLock;
+use std::sync::mpsc;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write as _},

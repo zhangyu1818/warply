@@ -4,10 +4,10 @@
 //! specify their header content without worrying about draggable behavior.
 
 use warpui::{
+    Element,
     elements::{DraggableState, MouseStateHandle},
     fonts::Properties,
     text_layout::ClipConfig,
-    Element,
 };
 
 /// Context provided to backing views when rendering header content.

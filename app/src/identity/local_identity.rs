@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use warpui::{AppContext, Entity, SingletonEntity};
 
-use super::{user::User, UserUid};
+use super::{UserUid, user::User};
 
 pub struct LocalIdentity {
     user: RwLock<User>,

@@ -12,6 +12,7 @@ use warp_core::HostId;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{AppContext, ModelContext, ModelHandle, SingletonEntity};
 
+use crate::RepoMetadataError;
 use crate::file_tree_store::FileTreeState;
 use crate::file_tree_update::RepoMetadataUpdate;
 use crate::local_model::{
@@ -19,7 +20,6 @@ use crate::local_model::{
 };
 use crate::remote_model::{RemoteRepoMetadataModel, RemoteRepositoryMetadataEvent};
 use crate::repository_identifier::{RemoteRepositoryIdentifier, RepositoryIdentifier};
-use crate::RepoMetadataError;
 
 /// Unified events emitted by the [`RepoMetadataModel`] wrapper.
 ///

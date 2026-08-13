@@ -1,5 +1,5 @@
 use settings::Setting as _;
-use warpui::{rendering::GPUPowerPreference, AppContext, SingletonEntity};
+use warpui::{AppContext, SingletonEntity, rendering::GPUPowerPreference};
 use warpui_extras::user_preferences;
 
 use crate::{
@@ -8,6 +8,7 @@ use crate::{
     resource_center::TipsCompleted,
     search::command_search::settings::CommandSearchSettings,
     terminal::{
+        BlockListSettings,
         alt_screen_reporting::AltScreenReporting,
         general_settings::GeneralSettings,
         keys_settings::KeysSettings,
@@ -16,7 +17,6 @@ use crate::{
         session_settings::{SessionSettings, SessionSettingsChangedEvent},
         settings::TerminalSettings,
         warpify::settings::WarpifySettings,
-        BlockListSettings,
     },
     undo_close::UndoCloseSettings,
     window_settings::WindowSettings,
@@ -27,10 +27,10 @@ use crate::{
 use warp_core::semantic_selection::SemanticSelection;
 
 use super::{
-    app_icon::AppIconSettings, AISettings, AccessibilitySettings, AliasExpansionSettings,
-    AppEditorSettings, BlockVisibilitySettings, CodeSettings, DebugSettings, FontSettings,
-    FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
-    PaneSettings, ScrollSettings, SelectionSettings, ThemeSettings, VimBannerSettings,
+    AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
+    BlockVisibilitySettings, CodeSettings, DebugSettings, FontSettings, FontSettingsChangedEvent,
+    GPUSettings, InputBoxType, InputModeSettings, InputSettings, PaneSettings, ScrollSettings,
+    SelectionSettings, ThemeSettings, VimBannerSettings, app_icon::AppIconSettings,
 };
 
 pub struct UserDefaultsOnStartup {

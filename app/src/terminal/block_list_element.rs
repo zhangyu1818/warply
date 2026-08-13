@@ -1,5 +1,5 @@
-use crate::ai::blocklist::agent_view::{agent_view_bg_fill, AgentViewState};
-use crate::ai::blocklist::{ai_brand_color, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT};
+use crate::ai::blocklist::agent_view::{AgentViewState, agent_view_bg_fill};
+use crate::ai::blocklist::{ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, ai_brand_color};
 use crate::appearance::Appearance;
 use crate::features::FeatureFlag;
 use crate::pane_group::SplitPaneState;
@@ -15,17 +15,17 @@ use crate::terminal::model::index::Point as IndexPoint;
 use crate::terminal::model::selection::{SelectAction, SelectionPoint};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::view::TerminalAction;
-use crate::terminal::{grid_renderer, SizeInfo};
+use crate::terminal::{SizeInfo, grid_renderer};
 use crate::themes::theme::WarpTheme;
 use crate::ui_components::icons as UIIcon;
 use crate::util::color::Opacity;
 use enum_iterator::Sequence;
 use parking_lot::FairMutex;
 use vec1::Vec1;
+use warp_core::SessionId;
 use warp_core::semantic_selection::SemanticSelection;
 use warp_core::ui::builder::UiBuilder;
 use warp_core::ui::theme::AnsiColorIdentifier;
-use warp_core::SessionId;
 use warp_util::user_input::UserInput;
 use warpui::platform::Cursor;
 use warpui::text::SelectionType;
@@ -47,14 +47,14 @@ use warpui::elements::{
 use warpui::event::{KeyState, ModifiersState};
 use warpui::fonts::{FamilyId, Properties, Weight};
 use warpui::geometry::rect::RectF;
-use warpui::geometry::vector::{vec2f, Vector2F};
+use warpui::geometry::vector::{Vector2F, vec2f};
 use warpui::ui_components::components::UiComponent;
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
-use warpui::{elements::Icon, ClipBounds};
 use warpui::{
-    elements::SavePosition, event::DispatchedEvent, AfterLayoutContext, AppContext, Element, Event,
-    EventContext, LayoutContext, PaintContext, SizeConstraint,
+    AfterLayoutContext, AppContext, Element, Event, EventContext, LayoutContext, PaintContext,
+    SizeConstraint, elements::SavePosition, event::DispatchedEvent,
 };
+use warpui::{ClipBounds, elements::Icon};
 use warpui::{EntityId, ModelHandle, SingletonEntity as _};
 
 use super::block_list_viewport::{ClampingMode, InputMode, ScrollPosition, ViewportState};
@@ -62,27 +62,27 @@ use super::blockgrid_renderer::GridRenderParams;
 use super::find::{BlockFindRenderData, TerminalFindModel};
 use super::grid_renderer::CellGlyphCache;
 
+use super::TerminalModel;
 use super::meta_shortcuts::handle_keystroke_despite_composing;
+use super::model::SecretHandle;
 use super::model::block::BlockId;
 use super::model::blocks::{RichContentItem, SelectionRange};
 use super::model::grid::grid_handler::{Link, TermMode};
 use super::model::image_map::StoredImageMetadata;
 use super::model::mouse::{MouseAction, MouseButton, MouseState};
 use super::model::terminal_model::{SelectedBlocks, WithinBlock, WithinModel};
-use super::model::SecretHandle;
 use super::view::{
-    BlocklistAIRenderContext, InlineBannerId, RichContentMetadata, SeparatorId, TerminalEditor,
-    TerminalViewRenderContext, BLOCK_BANNER_HEIGHT,
+    BLOCK_BANNER_HEIGHT, BlocklistAIRenderContext, InlineBannerId, RichContentMetadata,
+    SeparatorId, TerminalEditor, TerminalViewRenderContext,
 };
 use super::warpify::render::{draw_flag_pole, render_subshell_flag};
-use super::TerminalModel;
-use super::{heights_approx_eq, HEIGHT_FUDGE_FACTOR_LINES};
+use super::{HEIGHT_FUDGE_FACTOR_LINES, heights_approx_eq};
 use crate::terminal::blockgrid_renderer::BlockGridParams;
 use crate::terminal::model::terminal_model::BlockIndex;
 use crate::terminal::warpify::SubshellSource;
 
 use crate::terminal::model::escape_sequences::{
-    maybe_kitty_keyboard_escape_sequence, KeystrokeWithDetails, ToEscapeSequence,
+    KeystrokeWithDetails, ToEscapeSequence, maybe_kitty_keyboard_escape_sequence,
 };
 
 /// The number of pixels at the bottom of padding where selection scrolling is performed.
@@ -3094,7 +3094,8 @@ impl Element for BlockListElement {
 
                     let total_lines = grid_storage_lines + flat_storage_lines;
                     let total_bytes = grid_storage_bytes + flat_storage_bytes;
-                    let text = format!("\
+                    let text = format!(
+                        "\
                             Lines: {total_lines} (grid: {grid_storage_lines}, flat: {flat_storage_lines}); \
                             Size: {:#.1} (grid: {:#.1}, flat: {:#.1})\
                         ",

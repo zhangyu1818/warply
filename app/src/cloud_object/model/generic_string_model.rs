@@ -6,7 +6,7 @@ use crate::{
         CloudModelType, CloudObject, GenericCloudObject, GenericStringObjectFormat,
         GenericStringObjectUniqueKey, ObjectType, SerializedModel,
     },
-    drive::{items::LocalObjectItem, CloudObjectTypeAndId},
+    drive::{CloudObjectTypeAndId, items::LocalObjectItem},
     object_ids::{ObjectUid, ServerId, SyncId},
     persistence::ModelEvent,
 };

@@ -6,6 +6,7 @@ use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::Opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
+    AppContext, Element, SingletonEntity,
     elements::{
         Border, Container, CornerRadius, DropShadow, Flex, MainAxisAlignment, MainAxisSize,
         ParentElement, Radius, Shrinkable, Wrap,
@@ -15,12 +16,11 @@ use warpui::{
         chip::Chip,
         components::{Coords, UiComponent, UiComponentStyles},
     },
-    AppContext, Element, SingletonEntity,
 };
 
-use super::common::{render_query_text, FindContext};
-use crate::ai::blocklist::block::view_impl::common::UserQueryProps;
+use super::common::{FindContext, render_query_text};
 use crate::ai::blocklist::AttachmentType;
+use crate::ai::blocklist::block::view_impl::common::UserQueryProps;
 use crate::appearance::Appearance;
 use crate::{
     ai::blocklist::block::{DetectedLinksState, SecretRedactionState},

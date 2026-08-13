@@ -14,9 +14,9 @@ use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig};
 use warpui::elements::{
     Border, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, DragAxis, Draggable, DraggableState, Empty, Expanded, Fill, Flex,
-    Hoverable, MinSize, MouseStateHandle, ParentElement, Radius, SavePosition, ScrollbarWidth,
-    Shrinkable, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+    CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, DragAxis, Draggable, DraggableState, Empty,
+    Expanded, Fill, Flex, Hoverable, MinSize, MouseStateHandle, ParentElement, Radius,
+    SavePosition, ScrollbarWidth, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Style, Weight};
 use warpui::keymap::Keystroke;

@@ -1,6 +1,6 @@
 use crate::features::FeatureFlag;
 
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
 use warpui::{AppContext, SingletonEntity};
 
 define_settings_group!(LigatureSettings, settings: [

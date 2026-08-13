@@ -1,4 +1,4 @@
-use crate::elements::{Fill, DEFAULT_UI_LINE_HEIGHT_RATIO};
+use crate::elements::{DEFAULT_UI_LINE_HEIGHT_RATIO, Fill};
 use crate::fonts::{
     Cache as FontCache, FamilyId, Properties, RequestedFallbackFontSource, TextLayoutSystem,
 };
@@ -7,9 +7,9 @@ use crate::geometry::vector::vec2f;
 use crate::platform::LineStyle;
 use crate::scene::{Border, CornerRadius, Dash};
 use crate::{
+    Scene,
     fonts::{FontId, GlyphId},
     scene::GlyphFade,
-    Scene,
 };
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
@@ -25,7 +25,7 @@ use std::{
     ops::Range,
     sync::Arc,
 };
-use vec1::{vec1, Vec1};
+use vec1::{Vec1, vec1};
 
 type StyleRun = (Range<usize>, StyleAndFont);
 

@@ -1,5 +1,4 @@
 use crate::code::buffer_location::LocalOrRemotePath;
-use std::borrow::Cow;
 use crate::code::editor::comment_editor::DEFAULT_COMMENT_MAX_WIDTH;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorView};
 use crate::code_review::comment_rendering::CommentViewCard;
@@ -20,27 +19,30 @@ use crate::{
 use indexmap::IndexMap;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
+use std::borrow::Cow;
 use string_offset::CharOffset;
 use vec1::vec1;
 use warp_core::ui::color::blend::Blend;
 use warp_editor::model::CoreEditorModel;
 
+use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors::{
     accent_overlay_2, accent_overlay_3, neutral_1, neutral_3, neutral_4, neutral_6, text_main,
     text_sub,
 };
-use warp_core::ui::theme::Fill;
 use warpui::{
+    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle, WeakViewHandle,
     clipboard::ClipboardContent,
     elements::{
-        new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig},
-        resizable::{resizable_state_handle, DragBarSide, Resizable, ResizableStateHandle},
         Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox,
         Container, CornerRadius, CrossAxisAlignment, Dismiss, DispatchEventResult, Element, Empty,
         EventHandler, Expanded, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
         OffsetPositioning, ParentElement, PositionedElementAnchor, PositionedElementOffsetBounds,
         Radius, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable,
         Stack, Text,
+        new_scrollable::{NewScrollable, ScrollableAppearance, SingleAxisConfig},
+        resizable::{DragBarSide, Resizable, ResizableStateHandle, resizable_state_handle},
     },
     platform::Cursor,
     ui_components::{
@@ -48,8 +50,6 @@ use warpui::{
         components::{UiComponent, UiComponentStyles},
     },
     units::Pixels,
-    AppContext, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WeakViewHandle,
 };
 
 /// Header text for the outdated section when there is exactly one outdated comment.
@@ -1038,10 +1038,12 @@ impl CommentListView {
         html_url: Option<&str>,
         appearance: &Appearance,
     ) -> Vec<MenuItem<CommentListAction>> {
-        let mut items = vec![MenuItemFields::new("Copy text")
-            .with_icon(Icon::Copy)
-            .with_on_select_action(CommentListAction::CopyCommentText)
-            .into_item()];
+        let mut items = vec![
+            MenuItemFields::new("Copy text")
+                .with_icon(Icon::Copy)
+                .with_on_select_action(CommentListAction::CopyCommentText)
+                .into_item(),
+        ];
 
         let mut edit_item = MenuItemFields::new("Edit")
             .with_icon(Icon::Pencil)

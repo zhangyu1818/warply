@@ -1,3 +1,4 @@
+use crate::terminal::SizeInfo;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::ansi::{self, Handler};
 use crate::terminal::model::blockgrid::{BlockGrid, CursorDisplayPoint};
@@ -6,7 +7,6 @@ use crate::terminal::model::index::{Point, VisibleRow};
 use crate::terminal::model::kitty::{CursorMovementPolicy, KittyAction};
 use crate::terminal::model::secrets::ObfuscateSecrets;
 use crate::terminal::model::test_utils;
-use crate::terminal::SizeInfo;
 use crate::test_util::mock_blockgrid;
 use warp_core::features::FeatureFlag;
 

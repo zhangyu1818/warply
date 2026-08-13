@@ -18,10 +18,10 @@ use crate::terminal::event::ExecutedExecutorCommandEvent;
 use crate::terminal::shell::{Shell, ShellType};
 use warp_util::on_cancel::OnCancelFutureExt;
 
-use crate::terminal::model::session::command_executor::{
-    shared, CommandExecutor, ExecutorCommandEvent,
-};
 use crate::terminal::SizeInfo;
+use crate::terminal::model::session::command_executor::{
+    CommandExecutor, ExecutorCommandEvent, shared,
+};
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
 use warp_core::safe_info;
 
@@ -233,7 +233,11 @@ impl InBandCommandExecutor {
                         }
                     }
                 } else {
-                    log::warn!("Cached in-band command ID {} does not match ID of executed in-band command output {}", cmd.id, &event.command_id);
+                    log::warn!(
+                        "Cached in-band command ID {} does not match ID of executed in-band command output {}",
+                        cmd.id,
+                        &event.command_id
+                    );
                     // If the command event that we received is not for the current running command,
                     // we need to restore the command as the currently running command.
                     *current_command = Some(cmd);
@@ -326,7 +330,9 @@ impl InBandCommandExecutor {
 
                 let in_band_command = match shell.shell_type() {
                     ShellType::PowerShell => {
-                        format!("Warp-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore")
+                        format!(
+                            "Warp-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore"
+                        )
                     }
                     ShellType::Fish => {
                         // Add a leading space for in-band commands in fish, which omits them from

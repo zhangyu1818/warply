@@ -1,7 +1,7 @@
 use settings::Setting as _;
 use warpui::{
-    fonts::FamilyId, AddSingletonModel, AppContext, AssetProvider, Entity, ModelContext,
-    SingletonEntity,
+    AddSingletonModel, AppContext, AssetProvider, Entity, ModelContext, SingletonEntity,
+    fonts::FamilyId,
 };
 
 mod macos_app_icon {
@@ -12,19 +12,19 @@ mod macos_app_icon {
     };
     pub use objc::{class, msg_send, sel, sel_impl};
     pub use warp_core::channel::{Channel, ChannelState};
-    pub use warpui::platform::mac::{make_nsstring, AutoreleasePoolGuard};
+    pub use warpui::platform::mac::{AutoreleasePoolGuard, make_nsstring};
 
     pub use crate::settings::app_icon::{AppIcon, AppIconSettings, AppIconSettingsChangedEvent};
 }
 use macos_app_icon::*;
 
 use crate::{
+    ASSETS,
     settings::{
-        active_theme_kind, FontSettings, FontSettingsChangedEvent, MonospaceFontSize, Settings,
-        ThemeSettings,
+        FontSettings, FontSettingsChangedEvent, MonospaceFontSize, Settings, ThemeSettings,
+        active_theme_kind,
     },
     themes::theme::{ThemeKind, WarpTheme},
-    ASSETS,
 };
 
 use anyhow::anyhow;

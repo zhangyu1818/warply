@@ -1,4 +1,4 @@
-use crate::app_state::{get_app_state, AppState};
+use crate::app_state::{AppState, get_app_state};
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
@@ -6,7 +6,7 @@ use crate::editor::{
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::user_config::launch_configs_dir;
 #[cfg(feature = "local_fs")]
-use crate::user_config::{util::file_name_to_human_readable_name, WarpConfig};
+use crate::user_config::{WarpConfig, util::file_name_to_human_readable_name};
 use crate::util::bindings::keybinding_name_to_display_string;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
@@ -325,11 +325,7 @@ impl LaunchConfigSaveModal {
                 ..Default::default()
             });
 
-        if disabled {
-            button.disabled()
-        } else {
-            button
-        }
+        if disabled { button.disabled() } else { button }
     }
 
     fn render_save_config_button(

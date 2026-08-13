@@ -11,11 +11,11 @@ use futures::future::{self, BoxFuture, FutureExt as _};
 use warp_core::HostId;
 use warpui::ModelContext;
 
+use crate::RepoMetadataError;
 use crate::file_tree_store::{FileTreeEntry, FileTreeState};
 use crate::file_tree_update::RepoMetadataUpdate;
 use crate::local_model::{GetContentsArgs, IndexedRepoState, RepoContent};
 use crate::repository_identifier::RemoteRepositoryIdentifier;
-use crate::RepoMetadataError;
 
 use super::local_model::collect_contents_recursive;
 

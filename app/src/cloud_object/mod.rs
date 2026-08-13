@@ -1,7 +1,7 @@
 use self::{breadcrumbs::ContainingObject, model::persistence::CloudModel};
 use crate::{
     appearance::Appearance,
-    drive::{items::LocalObjectItem, CloudObjectTypeAndId},
+    drive::{CloudObjectTypeAndId, items::LocalObjectItem},
     identity::LocalIdentityProvider,
     object_ids::{ClientId, HashableId, HashedSqliteId, ObjectUid, SyncId, ToServerId},
     persistence::ModelEvent,

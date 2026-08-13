@@ -2,8 +2,8 @@ use pathfinder_geometry::vector::Vector2F;
 
 use super::Point;
 use crate::{
-    event::DispatchedEvent, AfterLayoutContext, AppContext, ClipBounds, Element, EventContext,
-    LayoutContext, PaintContext, SizeConstraint,
+    AfterLayoutContext, AppContext, ClipBounds, Element, EventContext, LayoutContext, PaintContext,
+    SizeConstraint, event::DispatchedEvent,
 };
 use std::any::Any;
 

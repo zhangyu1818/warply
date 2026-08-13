@@ -2,28 +2,28 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::BlocklistAIHistoryModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::document::ai_document_model::AIDocumentUserEditStatus;
 use crate::appearance::Appearance;
 use crate::notebooks::editor::view::RichTextEditorConfig;
 use crate::pane_group::focus_state::PaneFocusHandle;
+use crate::pane_group::pane::view::header::PaneHeaderAction;
 use crate::pane_group::pane::view::header::components::{
-    render_pane_header_buttons, render_pane_header_title_text, render_three_column_header,
-    CenteredHeaderEdgeWidth,
+    CenteredHeaderEdgeWidth, render_pane_header_buttons, render_pane_header_title_text,
+    render_three_column_header,
 };
 use crate::pane_group::pane::view::header::toolbelt_button_position_id;
-use crate::pane_group::pane::view::header::PaneHeaderAction;
 use crate::settings::FontSettings;
 use crate::terminal::input::MenuPositioning;
 use crate::terminal::view::TerminalView;
 use crate::util::bindings::keybinding_name_to_keystroke;
+use crate::view_components::DismissibleToast;
 use crate::view_components::action_button::{
     ButtonSize, NakedTheme, SecondaryTheme, TooltipAlignment,
 };
-use crate::view_components::DismissibleToast;
 use crate::workspace::ToastStack;
-use crate::BlocklistAIHistoryModel;
 use crate::{
     ai::document::ai_document_model::{
         AIDocumentId, AIDocumentInstance, AIDocumentModel, AIDocumentModelEvent,
@@ -39,7 +39,7 @@ use crate::{
         },
         link::{NotebookLinks, SessionSource},
     },
-    pane_group::{pane::view, BackingView, PaneConfiguration, PaneEvent},
+    pane_group::{BackingView, PaneConfiguration, PaneEvent, pane::view},
     ui_components::icons::Icon,
     view_components::action_button::{ActionButton, PrimaryTheme},
 };
@@ -55,11 +55,11 @@ use warpui::keymap::EditableBinding;
 use warpui::keymap::FixedBinding;
 use warpui::text_layout::ClipConfig;
 use warpui::{
-    elements::{ChildView, Container, Flex, OffsetPositioning, ParentElement, SavePosition, Stack},
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
+    elements::{ChildView, Container, Flex, OffsetPositioning, ParentElement, SavePosition, Stack},
 };
-use warpui::{id, EntityId};
+use warpui::{EntityId, id};
 
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(

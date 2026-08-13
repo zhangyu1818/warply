@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use warpui::{async_assert, integration::TestStep, SingletonEntity};
+use warpui::{SingletonEntity, async_assert, integration::TestStep};
 
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::ActionPermission;
+use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::integration_testing::agent_mode::ConversationTarget;
 use crate::integration_testing::{
     agent_mode::{assert_latest_task_succeeds_or_blocked, assert_task_is_blocked},
@@ -134,8 +134,8 @@ pub fn submit_ai_query(query: &str, timeout: Duration) -> TestStep {
 }
 
 /// Returns an assertion that prints the conversation ID to stdout once available.
-fn print_conversation_id_assertion(
-) -> impl FnMut(&mut warpui::App, warpui::WindowId) -> warpui::integration::AssertionOutcome {
+fn print_conversation_id_assertion()
+-> impl FnMut(&mut warpui::App, warpui::WindowId) -> warpui::integration::AssertionOutcome {
     |app, window_id| {
         use crate::BlocklistAIHistoryModel;
         use warpui::integration::AssertionOutcome;

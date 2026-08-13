@@ -10,7 +10,7 @@ mod task_store;
 pub(crate) mod util;
 
 // Re-export types that were moved to the ai crate.
-pub use ai::agent::{action::*, action_result::*, AIAgentCitation, FileLocations};
+pub use ai::agent::{AIAgentCitation, FileLocations, action::*, action_result::*};
 
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::block::view_impl::output::are_all_text_sections_empty;
@@ -39,7 +39,7 @@ use crate::ai::execution_context::AiExecutionContext;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::shell::ShellType;
 use derivative::Derivative;
-use markdown_parser::{parse_markdown, FormattedTable, FormattedText, FormattedTextInline};
+use markdown_parser::{FormattedTable, FormattedText, FormattedTextInline, parse_markdown};
 use serde::{Deserialize, Serialize};
 
 use super::llms::LLMId;

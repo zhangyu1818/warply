@@ -5,8 +5,9 @@ use crate::terminal::blockgrid_renderer::GridRenderParams;
 use crate::terminal::find::TerminalFindModel;
 use crate::terminal::grid_renderer::CellGlyphCache;
 use crate::terminal::meta_shortcuts::handle_keystroke_despite_composing;
+use crate::terminal::model::SecretHandle;
 use crate::terminal::model::escape_sequences::{
-    maybe_kitty_keyboard_escape_sequence, KeystrokeWithDetails, ToEscapeSequence,
+    KeystrokeWithDetails, ToEscapeSequence, maybe_kitty_keyboard_escape_sequence,
 };
 use crate::terminal::model::grid::grid_handler::{Link, TermMode};
 use crate::terminal::model::grid::{Dimensions, RespectDisplayedOutput};
@@ -14,13 +15,12 @@ use crate::terminal::model::index::Point;
 use crate::terminal::model::mouse::{MouseAction, MouseButton, MouseState};
 use crate::terminal::model::selection::{SelectAction, SelectionPoint};
 use crate::terminal::model::terminal_model::WithinModel;
-use crate::terminal::model::SecretHandle;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::view::{
     ActiveSessionState, TerminalAction, TerminalEditor, TerminalViewRenderContext,
 };
-use crate::terminal::{grid_renderer, SizeInfo};
-use crate::terminal::{heights_approx_eq, TerminalModel};
+use crate::terminal::{SizeInfo, grid_renderer};
+use crate::terminal::{TerminalModel, heights_approx_eq};
 use num_traits::Float as _;
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::vec2f;
@@ -40,10 +40,10 @@ use warpui::geometry::rect::RectF;
 use warpui::geometry::vector::Vector2F;
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
 use warpui::{
-    end_trace,
+    AfterLayoutContext, AppContext, Element, Event, EventContext, LayoutContext, PaintContext,
+    SizeConstraint, end_trace,
     event::{DispatchedEvent, InBoundsExt},
-    record_trace_event, start_trace, AfterLayoutContext, AppContext, Element, Event, EventContext,
-    LayoutContext, PaintContext, SizeConstraint,
+    record_trace_event, start_trace,
 };
 use warpui::{ClipBounds, EntityId, ModelHandle};
 

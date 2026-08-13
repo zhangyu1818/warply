@@ -21,7 +21,7 @@ use warp_editor::{
     render::model::AutoScrollMode,
     selection::{TextDirection, TextUnit},
 };
-use warpui::{text::point::Point, units::IntoPixels, SingletonEntity, ViewContext};
+use warpui::{SingletonEntity, ViewContext, text::point::Point, units::IntoPixels};
 
 impl VimHandler for CodeEditorView {
     fn insert_char(&mut self, c: char, ctx: &mut ViewContext<Self>) {

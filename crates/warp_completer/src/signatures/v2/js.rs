@@ -4,8 +4,8 @@
 //! `GeneratorCompletionContext`).
 use rquickjs::{FromJs, Function, Object, Value};
 use warp_js::{
-    util::{get_one_or_more_optional, get_one_or_more_required, get_optional, get_required},
     FromWarpJs, IntoWarpJs, JsFunctionRegistry,
+    util::{get_one_or_more_optional, get_one_or_more_required, get_optional, get_required},
 };
 
 use super::{

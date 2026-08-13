@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::terminal::model::block::BlockId;
 
 use super::{
-    conversation::context_in_exchanges, AIAgentContext, AIAgentExchange, AIAgentExchangeId,
-    MessageId,
+    AIAgentContext, AIAgentExchange, AIAgentExchangeId, MessageId,
+    conversation::context_in_exchanges,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

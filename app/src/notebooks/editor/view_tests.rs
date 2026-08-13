@@ -7,10 +7,10 @@ use warp_editor::render::{
 };
 use warp_util::user_input::UserInput;
 
-use warpui::event::ModifiersState;
 use warpui::r#async::block_on;
+use warpui::event::ModifiersState;
 use warpui::windowing::WindowManager;
-use warpui::{platform::WindowStyle, presenter::ChildView, App, Element, Entity, View, ViewHandle};
+use warpui::{App, Element, Entity, View, ViewHandle, platform::WindowStyle, presenter::ChildView};
 use warpui::{SingletonEntity, TypedActionView, WindowId};
 
 use super::{EditorViewAction, RichTextEditorConfig, RichTextEditorView};
@@ -30,8 +30,8 @@ use crate::terminal::keys::TerminalKeybindings;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::ActiveSession;
 use crate::{
-    cloud_object::model::persistence::CloudModel, search::files::model::FileSearchModel,
     GlobalResourceHandles, GlobalResourceHandlesProvider,
+    cloud_object::model::persistence::CloudModel, search::files::model::FileSearchModel,
 };
 
 /// Container for a [`RichTextEditorView`] in unit tests.

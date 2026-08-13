@@ -10,7 +10,7 @@ use warpui::{AppContext, Entity, ModelContext, ModelHandle};
 
 use crate::DirectoryWatcher;
 use crate::Repository;
-use futures::future::{ready, Either};
+use futures::future::{Either, ready};
 use warpui::SingletonEntity;
 
 /// Indicates why a repository detection event was emitted.

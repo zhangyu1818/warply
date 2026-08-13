@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use std::fmt::Write;
 use warpui::{
-    modals::{AlertDialogWithCallbacks, AppModalCallback, ModalButton},
     AppContext, EntityId, SingletonEntity, ViewContext, ViewHandle, WeakViewHandle, WindowId,
+    modals::{AlertDialogWithCallbacks, AppModalCallback, ModalButton},
 };
 
 use settings::Setting as _;
@@ -13,7 +13,7 @@ use crate::{
     code_review::code_review_view::CodeReviewView,
     pane_group::{CodePane, PaneGroup, PaneId, TerminalPane},
     session_management::{RunningSessionSummary, SessionNavigationData},
-    settings::{log_setting_result, CodeSettings},
+    settings::{CodeSettings, log_setting_result},
     terminal::general_settings::GeneralSettings,
 };
 
@@ -493,11 +493,7 @@ impl<'a> QuitWarningDialog<'a> {
 }
 
 fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
-    if count > 1 {
-        plural
-    } else {
-        singular
-    }
+    if count > 1 { plural } else { singular }
 }
 
 /// Callback to disable the quit warning modal.

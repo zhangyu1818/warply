@@ -2,10 +2,10 @@ use warpui::ViewContext;
 
 use crate::{
     ai::{
-        agent::{conversation::AIConversationId, CancellationReason},
+        agent::{CancellationReason, conversation::AIConversationId},
         blocklist::block::{FinishReason, PendingUserQueryBlock, PendingUserQueryBlockEvent},
     },
-    terminal::{view::PendingUserQueryKind, TerminalView},
+    terminal::{TerminalView, view::PendingUserQueryKind},
 };
 
 use super::rich_content::RichContentMetadata;

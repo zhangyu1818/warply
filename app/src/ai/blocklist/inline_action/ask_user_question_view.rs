@@ -5,31 +5,33 @@ use ai::agent::{
     action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult},
 };
 use itertools::Itertools;
-use warp_core::ui::theme::{color::internal_colors, WarpTheme};
+use warp_core::ui::theme::{WarpTheme, color::internal_colors};
 use warpui::{
+    AfterLayoutContext, AppContext, Element, Entity, EventContext, FocusContext, LayoutContext,
+    ModelHandle, PaintContext, SingletonEntity, SizeConstraint, TypedActionView, View, ViewContext,
+    ViewHandle,
+    r#async::{SpawnedFutureHandle, Timer},
     elements::{
-        new_scrollable::SingleAxisConfig, Border, ChildView, Clipped, ClippedScrollStateHandle,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Fill, Flex,
+        Border, ChildView, Clipped, ClippedScrollStateHandle, ConstrainedBox, Container,
+        CornerRadius, CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, Fill, Flex,
         FormattedTextElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-        Point, Radius, Stack, Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+        Point, Radius, Stack, Text, new_scrollable::SingleAxisConfig,
     },
     event::DispatchedEvent,
     geometry::vector::Vector2F,
     keymap::{FixedBinding, Keystroke},
-    r#async::{SpawnedFutureHandle, Timer},
     units::Pixels,
-    AfterLayoutContext, AppContext, Element, Entity, EventContext, FocusContext, LayoutContext,
-    ModelHandle, PaintContext, SingletonEntity, SizeConstraint, TypedActionView, View, ViewContext,
-    ViewHandle,
 };
 
 use crate::{
+    Appearance,
     ai::{
         agent::{
-            conversation::AIConversationId, icons::yellow_stop_icon, task::TaskId, AIAgentActionId,
-            AIAgentActionResult, AIAgentActionResultType,
+            AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
+            conversation::AIConversationId, icons::yellow_stop_icon, task::TaskId,
         },
         blocklist::{
+            BlocklistAIHistoryModel,
             action_model::{AIActionStatus, BlocklistAIActionEvent, BlocklistAIActionModel},
             block::{
                 compact_agent_input,
@@ -41,25 +43,23 @@ use crate::{
             },
             inline_action::{
                 inline_action_header::{
-                    ExpandedConfig, HeaderConfig, InteractionMode,
-                    INLINE_ACTION_HEADER_VERTICAL_PADDING, INLINE_ACTION_HORIZONTAL_PADDING,
+                    ExpandedConfig, HeaderConfig, INLINE_ACTION_HEADER_VERTICAL_PADDING,
+                    INLINE_ACTION_HORIZONTAL_PADDING, InteractionMode,
                 },
                 inline_action_icons::{self, icon_size},
                 requested_action::CTRL_C_KEYSTROKE,
             },
-            BlocklistAIHistoryModel,
         },
     },
     terminal::input::message_bar::{
-        common::{render_standard_message, standard_message_bar_height, styles},
         Message, MessageItem,
+        common::{render_standard_message, standard_message_bar_height, styles},
     },
     ui_components::{blended_colors, icons::Icon},
     view_components::{
         action_button::{ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme},
         compactible_action_button::CompactibleActionButton,
     },
-    Appearance,
 };
 
 const ASK_USER_QUESTION_ACTIVE: &str = "AskUserQuestionActive";

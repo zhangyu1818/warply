@@ -1,22 +1,22 @@
 use super::{
+    SettingsSection,
     settings_page::{
         MatchData, PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
         SettingsWidget,
     },
-    SettingsSection,
 };
 use crate::{
     appearance::Appearance, channel::ChannelState, themes::theme::ColorScheme,
     workspace::WorkspaceAction,
 };
 use warpui::{
+    AppContext, Entity, View, ViewContext, ViewHandle,
     assets::asset_cache::AssetSource,
     elements::{
         Align, CacheOption, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Image,
         MainAxisAlignment, MouseStateHandle, ParentElement, Wrap,
     },
     ui_components::components::UiComponent,
-    AppContext, Entity, View, ViewContext, ViewHandle,
 };
 
 pub struct AboutPageView {

@@ -13,6 +13,7 @@ use warp_core::ui::{
 };
 use warp_files::FileModel;
 use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Fill, Flex, Hoverable,
@@ -22,7 +23,6 @@ use warpui::{
     keymap::FixedBinding,
     platform::Cursor,
     prelude::Align,
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::search::result_renderer::ItemHighlightState;

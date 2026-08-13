@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(AltScreenReporting, settings: [
     mouse_reporting_enabled: MouseReportingEnabled {

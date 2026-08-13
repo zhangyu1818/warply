@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use warp_core::{command::ExitCode, SessionId};
+use warp_core::{SessionId, command::ExitCode};
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::{
@@ -19,7 +19,7 @@ use crate::{
     terminal::model::session::Session,
     util::dedupe_from_last,
     workflows::{
-        local_workflows::LocalWorkflows, workflow::Workflow, WorkflowSource, WorkflowType,
+        WorkflowSource, WorkflowType, local_workflows::LocalWorkflows, workflow::Workflow,
     },
 };
 

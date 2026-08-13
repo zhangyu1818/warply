@@ -11,8 +11,8 @@ use futures::{
 use jsonrpc::Transport;
 use simple_logger::SimpleLogger;
 use warpui::r#async::{
-    executor::{Background, BackgroundTask},
     Timer,
+    executor::{Background, BackgroundTask},
 };
 
 /// Transport implementation for LSP communication over process stdin/stdout.

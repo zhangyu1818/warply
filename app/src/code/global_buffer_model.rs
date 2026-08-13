@@ -12,7 +12,7 @@ use string_offset::{ByteOffset, CharOffset};
 use vec1::vec1;
 use warp_core::features::FeatureFlag;
 use warp_editor::content::buffer::{Buffer, ToBufferCharOffset};
-use warp_editor::content::diff::{text_diff, TextDiff};
+use warp_editor::content::diff::{TextDiff, text_diff};
 use warp_editor::content::edit::PreciseDelta;
 use warp_editor::content::version::BufferVersion;
 use warp_util::content_version::ContentVersion;
@@ -204,9 +204,7 @@ pub enum GlobalBufferModelEvent {
     },
     /// A remote buffer update conflicted with local edits.
     /// The UI should present a resolution dialog.
-    RemoteBufferConflict {
-        file_id: FileId,
-    },
+    RemoteBufferConflict { file_id: FileId },
     /// A server-local buffer was updated from a file-watcher event.
     /// Carries the incremental diff edits for the ServerModel to push
     /// to connected clients as `BufferUpdatedPush`.
@@ -1725,7 +1723,10 @@ impl GlobalBufferModel {
         };
         ctx.spawn(
             async move {
-                let response = client.open_buffer(path, true).await.map_err(|e| e.to_string())?;
+                let response = client
+                    .open_buffer(path, true)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 match response.result {
                     Some(remote_server::proto::open_buffer_response::Result::Success(success)) => {
                         Ok(success)

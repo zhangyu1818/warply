@@ -2,9 +2,9 @@
 // `crate::remote_server::*` imports in `app` continue to work.
 pub use remote_server::*;
 
-pub mod identity_context;
 pub mod diff_state_proto;
 pub(crate) mod diff_state_tracker;
+pub mod identity_context;
 pub(crate) mod server_buffer_tracker;
 pub mod server_model;
 pub mod ssh_transport;

@@ -2,10 +2,10 @@
 //! when rendering Grids within Warp.
 use warpui::elements::DEFAULT_LINE_HEIGHT_RATIO;
 
+use warpui::PaintContext;
 use warpui::fonts::{Cache as FontCache, FamilyId, FontId, GlyphId, Properties};
 use warpui::platform::LineStyle;
-use warpui::text_layout::{StyleAndFont, DEFAULT_TOP_BOTTOM_RATIO};
-use warpui::PaintContext;
+use warpui::text_layout::{DEFAULT_TOP_BOTTOM_RATIO, StyleAndFont};
 
 use std::collections::HashMap;
 

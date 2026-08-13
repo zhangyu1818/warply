@@ -1,10 +1,10 @@
 pub use std::sync::mpsc::SendError;
 use std::{
     io,
-    sync::{mpsc, Arc, Mutex},
+    sync::{Arc, Mutex, mpsc},
 };
 
-use mio::{event, Token, Waker};
+use mio::{Token, Waker, event};
 
 /// Create a [`Sender`] and [`Receiver`] pair, for sending messages into a
 /// [`mio`]-managed event loop.

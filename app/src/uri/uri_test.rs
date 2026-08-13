@@ -1,8 +1,8 @@
 use super::*;
+use crate::ChannelState;
 use crate::launch_configs::launch_config::make_mock_single_window_launch_config;
 use crate::linear::{LinearAction, LinearIssueWork};
 use crate::tab_configs::TabConfig;
-use crate::ChannelState;
 use std::{collections::HashMap, path::PathBuf};
 
 #[test]

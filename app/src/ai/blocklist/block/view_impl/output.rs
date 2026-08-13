@@ -3,7 +3,7 @@
 //! This includes text, code snippets, suggested commands, and interactive inline action UX.
 #[cfg(test)]
 use crate::ai::acp::format_acp_terminal_trace;
-use crate::ai::acp::{acp_tool_call_content_sections, AcpPermissionRequest, AcpPlan, AcpToolCall};
+use crate::ai::acp::{AcpPermissionRequest, AcpPlan, AcpToolCall, acp_tool_call_content_sections};
 use crate::ai::agent::comment::ReviewComment;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
@@ -17,28 +17,28 @@ use agent_client_protocol::schema::{ContentBlock, ToolCallContent};
 use agent_client_protocol::schema::{
     PermissionOptionKind, PlanEntryStatus, ToolCallStatus, ToolKind,
 };
-use ai::agent::file_locations::{group_file_contexts_for_display, FileLocations};
+use ai::agent::file_locations::{FileLocations, group_file_contexts_for_display};
 
 use crate::ai::blocklist::block::view_impl::common::{
-    MaybeShimmeringText, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
-    BLOCKED_ACTION_MESSAGE_FOR_READING_FILES, BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE,
+    BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB, BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
+    BLOCKED_ACTION_MESSAGE_FOR_SEARCHING_CODEBASE, MaybeShimmeringText,
 };
 use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
 
+use crate::AIAgentTodoList;
 use crate::code::editor_management::CodeSource;
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
-use crate::AIAgentTodoList;
 
 use ai::agent::action::{RequestComputerUseRequest, UseComputerRequest};
 use pathfinder_color::ColorU;
-use ui_components::{button, Component as _, Options as _};
+use ui_components::{Component as _, Options as _, button};
 use warp_core::ui::theme::color::internal_colors;
-use warpui::elements::new_scrollable::SingleAxisConfig;
-use warpui::elements::NewScrollable;
 use warpui::EntityId;
+use warpui::elements::NewScrollable;
+use warpui::elements::new_scrollable::SingleAxisConfig;
 
 use crate::ai::blocklist::block::{
     CollapsibleElementState, CollapsibleExpansionState, ImportedCommentGroup,
@@ -46,38 +46,38 @@ use crate::ai::blocklist::block::{
 use indexmap::IndexMap;
 use std::{collections::HashMap, rc::Rc};
 
-use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
+use crate::util::link_detection::{DetectedLinksState, add_link_detection_mouse_interactions};
 use crate::{
     ai::{
         agent::{
-            icons::{self, gray_stop_icon},
             AIAgentAction, AIAgentActionId, AIAgentActionResult, AIAgentActionResultType,
             AIAgentActionType, AIAgentCitation, AIAgentOutputMessage, AIAgentOutputMessageType,
             AIAgentText, AIAgentTextSection, MessageId, ReadFilesRequest,
             RequestCommandOutputResult, SearchCodebaseFailureReason, SearchCodebaseResult,
             SummarizationType,
+            icons::{self, gray_stop_icon},
         },
         blocklist::{
+            BlocklistAIActionModel,
             action_model::AIActionStatus,
             block::{
-                model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus},
                 AIBlock, AIBlockAction, AIBlockStateHandles, ActionButtons,
                 AutonomySettingSpeedbump, EmbeddedCodeEditorView, RequestedEdit, TextLocation,
                 TodoListElementState,
+                model::{AIBlockModel, AIBlockModelHelper, AIBlockOutputStatus},
             },
             history_model::BlocklistAIHistoryModel,
             inline_action::{
                 ask_user_question_view::AskUserQuestionView,
                 inline_action_header::{
-                    HeaderConfig, InteractionMode, INLINE_ACTION_HEADER_VERTICAL_PADDING,
-                    INLINE_ACTION_HORIZONTAL_PADDING,
+                    HeaderConfig, INLINE_ACTION_HEADER_VERTICAL_PADDING,
+                    INLINE_ACTION_HORIZONTAL_PADDING, InteractionMode,
                 },
                 inline_action_icons::{self, icon_size},
-                requested_action::{render_requested_action_body_text, RenderableAction},
+                requested_action::{RenderableAction, render_requested_action_body_text},
                 requested_command::RequestedCommand,
                 search_codebase::SearchCodebaseView,
             },
-            BlocklistAIActionModel,
         },
         paths::shell_native_absolute_path,
     },
@@ -93,20 +93,21 @@ use itertools::Itertools;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::channel::ChannelState;
 
+use super::CONTENT_HORIZONTAL_PADDING;
 use super::common::{
-    render_failed_output, render_output_status_text, render_scrollable_collapsible_content,
-    render_text_sections, FailedOutputProps, FindContext, TextSectionsProps,
-    STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
+    FailedOutputProps, FindContext, STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
+    TextSectionsProps, render_failed_output, render_output_status_text,
+    render_scrollable_collapsible_content, render_text_sections,
 };
 use super::imported_comments::render_imported_comments;
 use super::todos::render_todos;
-use super::CONTENT_HORIZONTAL_PADDING;
 use super::{
-    add_highlights_to_rich_text, render_autonomy_checkbox_setting_speedbump_footer,
-    render_citation_chips, todos::render_completed_todo_items, WithContentItemSpacing,
-    CONTENT_ITEM_VERTICAL_MARGIN,
+    CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing, add_highlights_to_rich_text,
+    render_autonomy_checkbox_setting_speedbump_footer, render_citation_chips,
+    todos::render_completed_todo_items,
 };
 use warpui::{
+    Action, AppContext, Element, ModelHandle, SingletonEntity, View, ViewHandle,
     elements::{
         Align, Border, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
         CrossAxisAlignment, Expanded, Fill, Flex, FormattedTextElement, Hoverable,
@@ -118,7 +119,6 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
         radio_buttons::{RadioButtonItem, RadioButtonLayout},
     },
-    Action, AppContext, Element, ModelHandle, SingletonEntity, View, ViewHandle,
 };
 
 /// Data required to render the AI block output component.
@@ -1604,11 +1604,7 @@ fn format_acp_tool_call_content(tool_call: &AcpToolCall) -> Option<String> {
         .filter_map(format_acp_tool_call_content_item)
         .filter(|part| !part.trim().is_empty())
         .join("\n\n");
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
+    if text.is_empty() { None } else { Some(text) }
 }
 
 #[cfg(test)]

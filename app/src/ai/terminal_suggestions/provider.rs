@@ -9,8 +9,8 @@ use crate::ai::predict::terminal_prompt_suggestions::{
 };
 use crate::http_api::AIApiError;
 
-use super::client::OpenAICompatibleClient;
 use super::TerminalSuggestionsConfig;
+use super::client::OpenAICompatibleClient;
 
 #[async_trait]
 pub trait SuggestionProvider: Send + Sync {

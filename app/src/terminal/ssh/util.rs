@@ -291,10 +291,12 @@ mod tests {
             parse_interactive_ssh_command("gcloud compute ssh --zone us-west1-a my-instance")
                 .is_some()
         );
-        assert!(parse_interactive_ssh_command(
-            "gcloud compute ssh --zone us-west1-a my-instance --project my-project"
-        )
-        .is_some());
+        assert!(
+            parse_interactive_ssh_command(
+                "gcloud compute ssh --zone us-west1-a my-instance --project my-project"
+            )
+            .is_some()
+        );
     }
 
     #[test]

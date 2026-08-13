@@ -7,26 +7,26 @@ use std::cmp::{Ordering, PartialEq};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use warp_core::ui::appearance::Appearance;
 use warp_core::ui::Icon;
+use warp_core::ui::appearance::Appearance;
 use warp_editor::render::element::VerticalExpansionBehavior;
 use warpui::elements::{ConstrainedBox, ScrollbarWidth};
 use warpui::ui_components::components::UiComponent as _;
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateView, View,
+    ViewContext, ViewHandle,
     elements::{
         Align, Border, ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Expanded,
         Flex, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentElement, Radius, Stack,
         Text,
     },
     keymap::{Context, EditableBinding, FixedBinding, Keystroke},
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, UpdateView, View,
-    ViewContext, ViewHandle,
 };
 
 use warpui::{EntityId, EventContext};
 
 use crate::ai::agent::RequestCommandOutputResult;
-use crate::ai::agent::{icons, AIAgentActionResultType};
+use crate::ai::agent::{AIAgentActionResultType, icons};
 use crate::ai::blocklist::block::cli_controller::{
     LongRunningCommandControlState, UserTakeOverReason,
 };
@@ -39,32 +39,32 @@ use crate::ai::blocklist::{
 use crate::ai::{
     agent::{AIAgentActionId, AIAgentCitation, AIAgentOutputMessageType},
     blocklist::{
+        BlocklistAIActionModel,
         action_model::AIActionStatus,
         block::{
-            view_impl::{
-                render_citation, render_citation_chips, CONTENT_HORIZONTAL_PADDING,
-                CONTENT_ITEM_VERTICAL_MARGIN,
-            },
             AIBlockAction, AutonomySettingSpeedbump,
+            view_impl::{
+                CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN, render_citation,
+                render_citation_chips,
+            },
         },
         inline_action::{
             inline_action_header::INLINE_ACTION_HORIZONTAL_PADDING,
             inline_action_header::{ExpandedConfig, HeaderConfig, InteractionMode},
         },
-        BlocklistAIActionModel,
     },
 };
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::editor::InteractionState;
 use crate::menu::{Event as MenuEvent, Menu, MenuItemFields, MenuVariant};
+use crate::terminal::TerminalModel;
 use crate::terminal::block_list_viewport::InputMode;
 use crate::terminal::model::block::Block;
-use crate::terminal::TerminalModel;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::view_components::action_button::{ButtonSize, KeystrokeSource, NakedTheme};
 use crate::view_components::compactible_action_button::{
-    CompactibleActionButton, RenderCompactibleActionButton, LARGE_SIZE_SWITCH_THRESHOLD,
-    MEDIUM_SIZE_SWITCH_THRESHOLD,
+    CompactibleActionButton, LARGE_SIZE_SWITCH_THRESHOLD, MEDIUM_SIZE_SWITCH_THRESHOLD,
+    RenderCompactibleActionButton,
 };
 use crate::view_components::compactible_split_action_button::CompactibleSplitActionButton;
 use crate::{cmd_or_ctrl_shift, settings::InputModeSettings, ui_components::blended_colors};

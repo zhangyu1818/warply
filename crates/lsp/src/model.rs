@@ -1,35 +1,35 @@
 use crate::{
-    config::{lsp_uri_to_path, LanguageId},
+    LspServerConfig, LspServerLogLevel, LspService,
+    config::{LanguageId, lsp_uri_to_path},
     server_repo_watcher::LspRepoWatcher,
     supported_servers::LSPServerType,
     types::{
         DefinitionLocation, DocumentVersion, HoverResult, Location, ReferenceLocation,
         TextDocumentContentChangeEvent, TextEdit, WatchedFileChangeEvent,
     },
-    LspServerConfig, LspServerLogLevel, LspService,
 };
 use instant::Instant;
 use lsp_types::{
-    notification::{self, Notification},
     FormattingOptions, NumberOrString, ProgressParams, ProgressParamsValue,
     PublishDiagnosticsParams, WorkDoneProgress,
+    notification::{self, Notification},
 };
 use std::{
     collections::HashMap,
     future::Future,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
-use crate::{spawn_lsp_service, LspServiceInitializationResult};
+use crate::{LspServiceInitializationResult, spawn_lsp_service};
 use anyhow::{Error, Result};
 use jsonrpc::ServerNotificationEvent;
 use simple_logger::manager::LogManager;
 use warpui::SingletonEntity;
-use warpui::{r#async::executor::Background, Entity, ModelContext};
+use warpui::{Entity, ModelContext, r#async::executor::Background};
 
 static NEXT_LANGUAGE_SERVER_ID: AtomicUsize = AtomicUsize::new(0);
 

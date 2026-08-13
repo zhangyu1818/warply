@@ -1,7 +1,7 @@
 use crate::completer::SessionContext;
 use crate::terminal::model::session::Session;
 use crate::terminal::model::session::{
-    command_executor::testing::TestCommandExecutor, SessionInfo,
+    SessionInfo, command_executor::testing::TestCommandExecutor,
 };
 use crate::test_util::settings::initialize_settings_for_tests;
 use settings::Setting;

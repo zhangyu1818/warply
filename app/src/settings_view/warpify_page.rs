@@ -7,14 +7,14 @@ use strum::IntoEnumIterator;
 use warpui::elements::{FormattedTextElement, HighlightedHyperlink};
 use warpui::keymap::ContextPredicate;
 use warpui::{
+    Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
     elements::{Container, Flex, MouseStateHandle, ParentElement},
     presenter::ChildView,
     ui_components::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
     },
-    Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
 };
 
 use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettingsChangedEvent};
@@ -26,17 +26,17 @@ use crate::{
     view_components::{SubmittableTextInput, SubmittableTextInputEvent},
 };
 
-use super::settings_page::{
-    render_body_item, render_dropdown_item, render_page_title, AdditionalInfo, Category, MatchData,
-    PageType, SettingsPageEvent, SettingsWidget, ToggleState, HEADER_FONT_SIZE, HEADER_PADDING,
-};
 use super::SettingsSection;
+use super::settings_page::{
+    AdditionalInfo, Category, HEADER_FONT_SIZE, HEADER_PADDING, MatchData, PageType,
+    SettingsPageEvent, SettingsWidget, ToggleState, render_body_item, render_dropdown_item,
+    render_page_title,
+};
 use super::{
-    flags,
+    SettingsAction, ToggleSettingActionPair, flags,
     settings_page::{
-        add_setting, render_alternating_color_list, SettingsPageMeta, SettingsPageViewHandle,
+        SettingsPageMeta, SettingsPageViewHandle, add_setting, render_alternating_color_list,
     },
-    SettingsAction, ToggleSettingActionPair,
 };
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 
@@ -69,8 +69,7 @@ const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_
 const SSH_TMUX_WARPIFICATION_DESCRIPTION: &str = "Tmux Warpification keeps Warp features available inside SSH sessions, and may require you to confirm Warpification. Takes effect in new tabs.";
 const SSH_REUSE_CONTROL_MASTER_DESCRIPTION: &str = "Attach to a live SSH ControlMaster already configured for the destination host instead of creating a Warp-owned one. Takes effect in new tabs.";
 
-const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str =
-    "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
+const SSH_EXTENSION_INSTALL_MODE_DESCRIPTION: &str = "Controls the installation behavior for Warp's SSH extension when a remote host doesn't have it installed.";
 
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from

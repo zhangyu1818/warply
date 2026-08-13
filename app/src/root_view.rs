@@ -7,8 +7,8 @@ use crate::linear::LinearIssueWork;
 use crate::object_ids::SyncId;
 use crate::persistence::ModelEvent;
 use crate::settings::QuakeModeSettings;
-use crate::settings_view::flags;
 use crate::settings_view::SettingsSection;
+use crate::settings_view::flags;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
@@ -22,21 +22,21 @@ use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates};
 use crate::window_settings::WindowSettings;
 use crate::workspace::WorkspaceAction;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceRegistry};
+use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::{
+    UpdateQuakeModeEventArg,
     app_state::{AppState, PaneUuid, WindowSnapshot},
     pane_group::{NewTerminalOptions, PanesLayout},
-    UpdateQuakeModeEventArg,
 };
-use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
 use serde::{Deserialize, Serialize};
 use settings::Setting as _;
 use std::path::Path;
-use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
+use std::sync::mpsc::SyncSender;
 use std::{collections::HashMap, path::PathBuf};
 use warp_core::context_flag::ContextFlag;
 use warpui::keymap::{EditableBinding, FixedBinding};
@@ -46,11 +46,11 @@ use warpui::elements::{
     ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
 };
 use warpui::rendering::OnGPUDeviceSelected;
-use warpui::{id, AddWindowOptions, DisplayId, EntityId, SingletonEntity};
+use warpui::{AddWindowOptions, DisplayId, EntityId, SingletonEntity, id};
 use warpui::{
+    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
     platform::{WindowBounds, WindowStyle},
     presenter::ChildView,
-    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
 };
 use warpui::{FocusContext, NextNewWindowsHasThisWindowsBoundsUponClose};
 

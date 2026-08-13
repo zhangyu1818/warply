@@ -6,8 +6,8 @@ use warp_util::path::user_friendly_path;
 use crate::terminal::shell::ShellType;
 
 use super::{
-    context_chip::{GeneratorContext, ShellCommand, ShellCommandGenerator},
     ChipValue,
+    context_chip::{GeneratorContext, ShellCommand, ShellCommandGenerator},
 };
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 define_settings_group!(CommandSearchSettings, settings: [
     show_global_workflows_in_universal_search: ShowGlobalWorkflowsInUniversalSearch {

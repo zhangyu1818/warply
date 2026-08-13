@@ -1,5 +1,5 @@
 use ai::workspace::WorkspaceMetadata;
-use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
+use fuzzy_match::{FuzzyMatchResult, match_indices_case_insensitive};
 use itertools::Itertools;
 use warpui::{AppContext, Entity, SingletonEntity};
 

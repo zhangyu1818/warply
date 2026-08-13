@@ -13,9 +13,9 @@ use crate::{
     object_ids::{ClientId, SyncId},
     persistence::{BlockCompleted, ModelEvent},
     tab::SelectedTabColor,
-    terminal::model::block::SerializedBlock,
     terminal::ShellLaunchData,
-    workflows::{workflow::Workflow, SavedWorkflow, SavedWorkflowModel},
+    terminal::model::block::SerializedBlock,
+    workflows::{SavedWorkflow, SavedWorkflowModel, workflow::Workflow},
 };
 
 use super::{

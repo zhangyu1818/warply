@@ -17,7 +17,7 @@ use crate::terminal::model::index::Point;
 use std::ops::RangeInclusive;
 use std::{collections::HashMap, sync::Arc};
 
-use alt_screen::{run_find_on_alt_screen, AltScreenFindRun};
+use alt_screen::{AltScreenFindRun, run_find_on_alt_screen};
 use parking_lot::FairMutex;
 use settings::Setting as _;
 use warp_core::features::FeatureFlag;
@@ -25,7 +25,7 @@ use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHa
 
 use crate::{
     settings::InputModeSettings,
-    terminal::model::{terminal_model::BlockIndex, TerminalModel},
+    terminal::model::{TerminalModel, terminal_model::BlockIndex},
     view_components::find::{FindEvent, FindModel},
 };
 

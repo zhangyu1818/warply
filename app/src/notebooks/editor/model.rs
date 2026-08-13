@@ -1,4 +1,4 @@
-use base64::{prelude::BASE64_STANDARD, Engine as _};
+use base64::{Engine as _, prelude::BASE64_STANDARD};
 use std::{any::Any, borrow::Cow, collections::HashMap, ops::Range, time::Duration};
 
 use itertools::Itertools;
@@ -8,11 +8,11 @@ use mermaid_to_svg::MermaidTheme;
 use num_traits::SaturatingSub;
 use regex::Regex;
 use url::Url;
-use vec1::{vec1, Vec1};
+use vec1::{Vec1, vec1};
 use warpui::{
+    AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity, WindowId,
     accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
     clipboard::ClipboardContent,
-    AppContext, Entity, ModelAsRef, ModelContext, ModelHandle, SingletonEntity, WindowId,
 };
 
 use crate::{
@@ -52,9 +52,9 @@ use warp_editor::{
 use warpui::elements::ListIndentLevel;
 
 use super::{
-    super::events::SelectionMode as NotebookSelectionMode, embedding_model::NotebookEmbed,
-    interaction_state_model::InteractionStateModel, notebook_command::NotebookCommand,
-    NotebookWorkflow,
+    super::events::SelectionMode as NotebookSelectionMode, NotebookWorkflow,
+    embedding_model::NotebookEmbed, interaction_state_model::InteractionStateModel,
+    notebook_command::NotebookCommand,
 };
 
 const DEBOUNCED_RESIZE_PERIOD: Duration = Duration::from_millis(5);

@@ -16,11 +16,11 @@ use std::{
 use chrono::Utc;
 use log::LevelFilter;
 use lsp::{
-    spawn_lsp_service, supported_servers::LSPServerType, LspServerConfig, LspService,
-    LspServiceInitializationResult,
+    LspServerConfig, LspService, LspServiceInitializationResult, spawn_lsp_service,
+    supported_servers::LSPServerType,
 };
 use lsp_types::Position;
-use warpui::r#async::{executor::Background, Timer};
+use warpui::r#async::{Timer, executor::Background};
 
 fn init_logging() {
     let mut base_logger = env_logger::builder();
@@ -43,7 +43,7 @@ fn find_workspace_root() -> anyhow::Result<PathBuf> {
             None => {
                 return Err(anyhow::anyhow!(
                     "Could not find workspace root with Cargo.toml"
-                ))
+                ));
             }
         }
     }

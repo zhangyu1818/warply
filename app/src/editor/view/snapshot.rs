@@ -29,17 +29,17 @@ use warpui::text::point::Point;
 
 use string_offset::ByteOffset;
 
+use warpui::EntityId;
 use warpui::fonts::{FamilyId, Properties};
 use warpui::platform::LineStyle;
 use warpui::text_layout::{
-    default_compute_baseline_position_fn, ClipConfig, ComputeBaselinePositionFn, StyleAndFont,
-    TextAlignment, TextStyle, DEFAULT_TOP_BOTTOM_RATIO,
+    ClipConfig, ComputeBaselinePositionFn, DEFAULT_TOP_BOTTOM_RATIO, StyleAndFont, TextAlignment,
+    TextStyle, default_compute_baseline_position_fn,
 };
-use warpui::EntityId;
 use warpui::{
+    AppContext, ModelHandle,
     fonts::Cache as FontCache,
     text_layout::{self, LayoutCache},
-    AppContext, ModelHandle,
 };
 
 /// Ratio to calculate font size of cursor avatar.

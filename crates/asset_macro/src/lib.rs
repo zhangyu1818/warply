@@ -20,8 +20,8 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use std::{env, path::PathBuf};
-use syn::{parse::Parse, Token};
-use syn::{parse_macro_input, LitStr};
+use syn::{LitStr, parse_macro_input};
+use syn::{Token, parse::Parse};
 use warp_util::assets::{ASSETS_DIR, ASYNC_ASSETS_DIR, BUNDLED_ASSETS_DIR};
 
 struct MacroArgs {

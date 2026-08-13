@@ -1,8 +1,9 @@
 use warp_core::ui::appearance::Appearance;
-use warpui::{platform::WindowStyle, App, ViewHandle};
+use warpui::{App, ViewHandle, platform::WindowStyle};
 
 use crate::identity::LocalIdentityProvider;
 use crate::{
+    GlobalResourceHandles, GlobalResourceHandlesProvider,
     cloud_object::model::{actions::ObjectActions, persistence::CloudModel},
     cloud_object::update_manager::UpdateManager,
     env_vars::{
@@ -13,7 +14,6 @@ use crate::{
     settings_view::keybindings::KeybindingChangedNotifier,
     test_util::settings::initialize_settings_for_tests,
     workspace::ActiveSession,
-    GlobalResourceHandles, GlobalResourceHandlesProvider,
 };
 
 fn initialize_app(app: &mut App) {

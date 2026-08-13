@@ -1,7 +1,7 @@
-use warpui::{platform::SystemTheme, AppContext};
+use warpui::{AppContext, platform::SystemTheme};
 
 use crate::themes::theme::{RespectSystemTheme, SelectedSystemThemes, ThemeKind};
-use settings::{macros::define_settings_group, Setting, SupportedPlatforms};
+use settings::{Setting, SupportedPlatforms, macros::define_settings_group};
 
 // Settings group for themes related settings.
 // Note that we store just the information needed to derive the current

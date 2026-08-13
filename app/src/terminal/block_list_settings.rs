@@ -1,4 +1,4 @@
-use settings::{macros::define_settings_group, SupportedPlatforms};
+use settings::{SupportedPlatforms, macros::define_settings_group};
 
 // Settings for controlling the behavior of the block list.
 define_settings_group!(BlockListSettings, settings: [

@@ -4,12 +4,12 @@ use crate::{
     appearance::Appearance,
     menu::{Menu, MenuItem},
     pane_group::{
+        BackingView, Direction, PaneDragDropLocation, PaneId, TabBarAxis, TabBarHoverIndex,
         focus_state::{PaneFocusHandle, PaneGroupFocusEvent},
         pane::{
-            view::StandardHeader, ActionOrigin, PaneConfiguration, PaneConfigurationEvent,
-            PaneStack, PaneStackEvent, ToolbeltButton,
+            ActionOrigin, PaneConfiguration, PaneConfigurationEvent, PaneStack, PaneStackEvent,
+            ToolbeltButton, view::StandardHeader,
         },
-        BackingView, Direction, PaneDragDropLocation, PaneId, TabBarAxis, TabBarHoverIndex,
     },
     tab::tab_position_id,
     workspace::{TabBarLocation, VerticalTabsPaneDropTargetData},
@@ -21,9 +21,11 @@ use super::header_content::{HeaderContent, HeaderRenderContext, StandardHeaderOp
 
 use pathfinder_geometry::{
     rect::RectF,
-    vector::{vec2f, Vector2F},
+    vector::{Vector2F, vec2f},
 };
 use warpui::{
+    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
     elements::{
         AcceptedByDropTarget, Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Draggable, DraggableState, Empty, Flex, Hoverable, Icon,
@@ -32,8 +34,6 @@ use warpui::{
         Radius, SavePosition, Shrinkable, Stack, Text,
     },
     presenter::ChildView,
-    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
 };
 
 use super::PaneDropTargetData;

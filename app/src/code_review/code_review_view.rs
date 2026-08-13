@@ -24,18 +24,18 @@ use crate::{
     ai::agent::CurrentHead,
     code::editor::view::CodeEditorRenderOptions,
     code::editor::{CommentEditor, CommentEditorEvent, EditorCommentsModel, EditorReviewComment},
-    code_review::{comments::ReviewCommentBatch, DiffSetScope},
+    code_review::{DiffSetScope, comments::ReviewCommentBatch},
 };
 use crate::{
     ai::agent::{AIAgentAttachment, DiffBase},
     code::{
         editor::{
-            view::{CodeEditorEvent, CodeEditorView},
             GutterHoverTarget,
+            view::{CodeEditorEvent, CodeEditorView},
         },
         editor_management::CodeEditorStatus,
         local_code_editor::{
-            render_unsaved_circle_with_tooltip, LocalCodeEditorEvent, LocalCodeEditorView,
+            LocalCodeEditorEvent, LocalCodeEditorView, render_unsaved_circle_with_tooltip,
         },
         view::PendingSaveIntent,
     },
@@ -54,7 +54,7 @@ use crate::{
 
 use crate::{
     code::editor::line::EditorLineLocation,
-    ui_components::dialog::{dialog_styles, Dialog},
+    ui_components::dialog::{Dialog, dialog_styles},
 };
 use crate::{
     code::global_buffer_model::GlobalBufferModel, code_review::comments::ReviewCommentBatchEvent,
@@ -62,19 +62,19 @@ use crate::{
 use crate::{
     menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields},
     pane_group::{
-        focus_state::{PaneFocusHandle, PaneGroupFocusEvent},
         PaneId,
+        focus_state::{PaneFocusHandle, PaneGroupFocusEvent},
     },
     quit_warning::UnsavedStateSummary,
     terminal::input::MenuPositioning,
     terminal::view::{InitProjectModel, TerminalAction, TerminalView},
-    util::bindings::{custom_tag_to_keystroke, CustomAction},
+    util::bindings::{CustomAction, custom_tag_to_keystroke},
     view_components::{
+        DismissibleToast,
         action_button::{
             ActionButton, AdjoinedSide, ButtonSize, DangerPrimaryTheme, KeystrokeSource,
             NakedTheme, SecondaryTheme,
         },
-        DismissibleToast,
     },
     workspace::{ToastStack, WorkspaceAction},
 };
@@ -86,9 +86,9 @@ use crate::terminal::cli_agent::{
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
 #[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
-#[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
+#[cfg(feature = "local_fs")]
+use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
 use crate::view_components::find::{Event as FindViewEvent, Find, FindEvent, FindWithinBlockState};
 use ai::project_context::model::ProjectContextModel;
 #[cfg(feature = "local_fs")]
@@ -98,8 +98,8 @@ use string_offset::CharOffset;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{vec2f, Vector2F};
-use rand::{distributions::Alphanumeric, Rng};
+use pathfinder_geometry::vector::{Vector2F, vec2f};
+use rand::{Rng, distributions::Alphanumeric};
 use warp_core::{
     channel::{Channel, ChannelState},
     safe_error, safe_info,
@@ -107,18 +107,20 @@ use warp_core::{
     ui::theme::color::internal_colors,
 };
 use warpui::{
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
     clipboard::ClipboardContent,
     elements::{
-        new_scrollable::{
-            NewScrollable, NewScrollableElement, ScrollableAppearance, SingleAxisConfig,
-        },
-        resizable_state_handle, Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult,
+        Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
+        CornerRadius, CrossAxisAlignment, DEFAULT_UI_LINE_HEIGHT_RATIO, DispatchEventResult,
         DragBarSide, Element, Empty, EventHandler, Flex, List, ListState, MainAxisAlignment,
         MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
         Percentage, PositionedElementAnchor, PositionedElementOffsetBounds, Radius, Rect,
         Resizable, ResizableStateHandle, ScrollOffset, ScrollStateHandle, ScrollbarWidth, Stack,
-        Text, DEFAULT_UI_LINE_HEIGHT_RATIO,
+        Text,
+        new_scrollable::{
+            NewScrollable, NewScrollableElement, ScrollableAppearance, SingleAxisConfig,
+        },
+        resizable_state_handle,
     },
     keymap::Keystroke,
     ui_components::{
@@ -126,21 +128,20 @@ use warpui::{
         components::{Coords, UiComponentStyles},
     },
     units::Pixels,
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
+};
+use warpui::{
+    ModelHandle, WeakViewHandle,
+    r#async::SpawnedFutureHandle,
+    fonts::{Properties, Weight},
 };
 use warpui::{
     elements::{Clipped, MainAxisSize, Shrinkable},
-    text_layout::{default_compute_baseline_position, ClipConfig},
+    text_layout::{ClipConfig, default_compute_baseline_position},
 };
 use warpui::{
     elements::{Hoverable, SavePosition},
     platform::Cursor,
     ui_components::components::UiComponent,
-};
-use warpui::{
-    fonts::{Properties, Weight},
-    r#async::SpawnedFutureHandle,
-    ModelHandle, WeakViewHandle,
 };
 
 use crate::code::footer::{CodeFooterView, CodeFooterViewEvent};
@@ -156,25 +157,25 @@ use crate::{
     code::editor::{add_color, remove_color},
     code_review::diff_selector::{DiffSelector, DiffSelectorEvent, DiffTarget},
     editor::InteractionState,
-    pane_group::pane::{view, BackingView, PaneEvent},
+    pane_group::pane::{BackingView, PaneEvent, view},
     themes::theme::WarpTheme,
 };
 
 use vec1::Vec1;
 
 use super::{
+    GlobalCodeReviewEvent, GlobalCodeReviewModel,
     code_review_header::CodeReviewHeader,
     comment_list_view::{CommentListDebugState, CommentListEvent, CommentListView},
     comments::{AttachedReviewComment, CommentOrigin},
     diff_size_limits::DiffSize,
     file_invalidation_queue::FileInvalidationTask,
     git_dialog::{GitDialog, GitDialogEvent, GitDialogKind},
-    GlobalCodeReviewEvent, GlobalCodeReviewModel,
 };
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::{ShowCommentEditorProvider, ShowFindReferencesCard};
 use crate::code_review::comments::CommentId;
-use crate::ui_components::render_file_search_row::{render_file_search_row, FileSearchRowOptions};
+use crate::ui_components::render_file_search_row::{FileSearchRowOptions, render_file_search_row};
 use crate::workspace::view::right_panel::{ReviewDestination, ReviewSubmissionResult};
 use warp_editor::model::CoreEditorModel;
 use warp_editor::render::model::AutoScrollMode;
@@ -183,9 +184,7 @@ use warp_editor::{
     render::{element::VerticalExpansionBehavior, model::LineCount},
 };
 use warp_util::{
-    content_version::ContentVersion,
-    path::LineAndColumnArg,
-    standardized_path::StandardizedPath,
+    content_version::ContentVersion, path::LineAndColumnArg, standardized_path::StandardizedPath,
 };
 
 pub struct CodeReviewHeaderFields {
@@ -751,11 +750,7 @@ impl CodeReviewView {
 
     /// Called when the code review view is opened/attached to a pane group.
     /// Subscribes to the diff state model and triggers diff loading.
-    pub fn on_open(
-        &mut self,
-        repo_path: Option<LocalOrRemotePath>,
-        ctx: &mut ViewContext<Self>,
-    ) {
+    pub fn on_open(&mut self, repo_path: Option<LocalOrRemotePath>, ctx: &mut ViewContext<Self>) {
         if self.is_open {
             return;
         }
@@ -2319,10 +2314,9 @@ impl CodeReviewView {
         match event {
             DiffStateModelEvent::RepositoryChanged => {
                 let old_path = self.repo_path().cloned();
-                let repo_path =
-                    diff_state_model
-                        .read(ctx, |model, _| model.active_repository_path(ctx))
-                        .map(LocalOrRemotePath::Local);
+                let repo_path = diff_state_model
+                    .read(ctx, |model, _| model.active_repository_path(ctx))
+                    .map(LocalOrRemotePath::Local);
 
                 safe_info!(
                     safe: ("Code Review: Repository changed. Branch list cleared."),
@@ -5694,9 +5688,8 @@ impl CodeReviewView {
     }
 
     fn discard_file(&mut self, path: &Path, should_stash: bool, ctx: &mut ViewContext<Self>) {
-        let file_info = self.create_file_status_info(
-            StandardizedPath::from_local_absolute_unchecked(path),
-        );
+        let file_info =
+            self.create_file_status_info(StandardizedPath::from_local_absolute_unchecked(path));
 
         let branch_name = match &self.discard_dialog_state.operation_type {
             DiscardOperationType::FileChangesAgainstBranch(None) => {
@@ -5722,9 +5715,7 @@ impl CodeReviewView {
         let file_infos: Vec<FileStatusInfo> = file_paths
             .into_iter()
             .map(|path| {
-                self.create_file_status_info(StandardizedPath::from_local_absolute_unchecked(
-                    &path,
-                ))
+                self.create_file_status_info(StandardizedPath::from_local_absolute_unchecked(&path))
             })
             .collect();
 
