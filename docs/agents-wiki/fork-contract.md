@@ -33,6 +33,13 @@ No maintained feature should require Warp login, Warp billing, Warp cloud object
 - Assistant text, reasoning, tool calls, tool updates, plans, permission requests, available commands, session info, current mode, and config options must retain protocol structure.
 - Permission UI answers ACP permission requests. It must not reuse old Warp auto-approve semantics as if they were ACP semantics.
 
+### ACP ownership and Warp Agent migration
+
+- The ACP client is the sole owner of agent execution, sessions, and provider semantics. AgentView, terminal input, local context, and ACP event rendering are host/UI layers around that client.
+- Upstream Warp Agent behavior is neither automatically retained nor automatically removed. Review the source, call graph, persistence, and service dependencies feature by feature.
+- Port useful old behavior only when it can run locally or through ACP, preserving the upstream implementation first and adapting only the provider boundary. Do not restore the old Warp Agent backend to preserve a UI or setting.
+- Legacy settings remain out of scope unless they control a live ACP or local path. In particular, `memory_enabled` only controls the legacy rules-pane state; ACP prompt construction independently injects project rules discovered by `ProjectContextModel`. It must not be presented as an ACP memory switch without explicit ACP wiring.
+
 ### Suggestions
 
 - Next Command and Prompt Suggestions are independent from ACP Agent.
@@ -58,6 +65,7 @@ These were deliberately removed. If upstream changes touch them, the default dec
 - `app/src/autoupdate/`: upstream Warp update/changelog infrastructure. This fork uses its own Sparkle 2 updater under `app/src/updater/` instead.
 - `app/src/crash_reporting/` and Sentry scripts.
 - `app/src/ai/agent_sdk/`: old Warp-hosted Agent SDK and harnesses.
+- Legacy Warp Agent memory/saved-rules controls and backend-only settings that do not control a live ACP or local runtime path.
 - `app/src/ai/agent_management/`: cloud agent management UI.
 - `app/src/ai/ambient_agents/`: ambient/scheduled/cloud agents.
 - `Icon::AmbientAgentMode` and `app/assets/bundled/svg/ambient-agent-mode.svg`: ambient/cloud agent icon surface.
@@ -92,6 +100,7 @@ These are still in scope and should receive compatible upstream fixes:
 - Do not bundle or restore skills that teach agents to manage Warp-owned `.mcp.json` server config, a Warp MCP settings pane, provider-specific hosted agents, tab/settings helpers, app-distributed MCP workflows, local skill scanners, `/skills` or `/open-skill` UI, `ReadSkill`/`InvokeSkill` actions, or tab-config skill CTAs.
 - Web/WASM and Linux/Windows host branches are not retained compatibility layers. Keep native macOS host behavior direct; keep remote host detection only as part of SSH/remote-server setup.
 - Local persisted objects used by workflows, prompts, AI facts, and local conversation data.
+- Project-local rules and other local context when the current code path explicitly serializes them into ACP prompt context. This is ACP context plumbing, not old Warp Agent memory.
 - Retained local objects must not require cloud online status, cloud sync state, or Warp sharing permissions for local edit/delete behavior.
 - Retained local object pending state may exist for local persistence and quit-warning accounting, but it must not render Warp cloud sync badges or cloud save/error UX.
 - Environment-variable collection references to user-installed secret-manager CLIs such as 1Password or LastPass are retained local shell integrations. Do not restore Warp managed secrets, cloud secret storage, cloud credential discovery, or account-backed secret APIs around them.
@@ -125,5 +134,6 @@ Names alone are not merge evidence.
 - `ServerId` is legacy naming only if still present in retained local-object data. `stable_object_id` is the current SQLite column for that server-style local identifier form. Do not add new compatibility fallback around either.
 - `remote_server` is remote terminal support, not account login by itself.
 - References to Linux/Windows inside terminal protocol parsing, shell target metadata, or path conversion must be checked before removal. Preserve SSH/remote terminal behavior; remove only local host platform support unless the code is required by macOS-to-remote workflows.
+- `memory_enabled` is a legacy Warp Agent setting name. Its presence in settings or rules-pane code does not establish an ACP runtime dependency; inspect the ACP request construction before exposing or restoring it.
 
 Before deleting or restoring code with these names, inspect call sites and persistence usage.

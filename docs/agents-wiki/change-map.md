@@ -16,6 +16,15 @@ This map explains the large fork baseline change at a path level.
 | `app/src/ai/predict/terminal_prompt_suggestions.rs` | Replaced hosted Prompt Suggestions request path with OpenAI-compatible requests. | Keep separate from ACP Agent and do not restore Warp-hosted suggestion APIs. |
 | `app/src/settings/ai.rs`, `app/src/settings_view/ai_page.rs` | AI settings retain ACP, terminal suggestions, and local third-party CLI-agent behavior; the current fork still exposes only part of the local CLI-agent settings UI. | Classify settings widgets and runtime paths individually. Reject account/billing/cloud-agent/privacy telemetry/MCP/skills sections, not the whole AI page. |
 
+### ACP Agent ownership boundary
+
+The fork replaces the Warp Agent backend with the ACP client. This is a runtime-ownership rule, not a blanket deletion of every Agent-labeled UI path:
+
+- ACP execution, sessions, provider configuration, permission protocol, and agent event semantics belong to `app/src/ai/acp/`.
+- AgentView, terminal input, local context, navigation, and generic ACP rendering may be retained or ported when their execution stays local or routes through ACP.
+- A useful old Warp Agent feature must be researched from upstream source and call sites, then ported at the smallest provider-neutral boundary. Do not restore the old Agent SDK, service APIs, cloud-agent orchestration, or backend-only settings.
+- `memory_enabled` is a documented example of the boundary: it affects the legacy rules-pane state, but ACP request construction independently injects `ProjectContextModel` project rules. It is not a valid ACP memory setting without explicit ACP wiring.
+
 ## 2026-05 No-Compatibility Cleanup
 
 | Path | Change | Merge rule |

@@ -40,6 +40,8 @@ The same correction applies to the upstream Code settings page. Keep local edito
 
 The correction does not reopen removed pages or sections whose core behavior remains service-owned. Knowledge widgets tied to Suggested Rules/Warp Drive context, old Warp Agent model/profile/credit flows, app-managed MCP/skills, cloud environments, billing, Teams, account/auth, and cloud sharing remain rejected. Local rules/AI facts, ACP configuration, and local terminal settings may still be retained where their call sites prove that ownership.
 
+The same call-site test applies to legacy settings that look agent-related. `memory_enabled` is not an ACP request switch: it only changes the legacy rules-pane state, while `app/src/ai/blocklist/context_model.rs` adds project rules discovered by `ProjectContextModel` to ACP request context independently. Do not restore a "saved rules" or "memory" row as an ACP setting unless a verified ACP context path gives it real effect.
+
 ## Superseded historical decision
 
 `upstream-master-audit-2026-08-03.md` classified `fe8138bce8` as rejected because the fork's `ai_page.rs` was an ACP-only single-widget page. That classification was too coarse after `048e052751` restored the local CLI-agent Rich Input foundation and `f7605db59e` added the local Ctrl+Enter setting. The commit is now a selective local-settings port candidate, not a request to restore the full upstream AI settings page.

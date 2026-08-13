@@ -11,6 +11,7 @@ The fork's purpose is to remove Warp **server/cloud/account/telemetry dependenci
 - The maintained app target is macOS only.
 - Warp-hosted Agent, Warp cloud accounts, and Warp server APIs are removed.
 - AgentView remains the UI shell, but all agent backend behavior is ACP-only.
+- The ACP client is the sole owner of agent execution, sessions, and provider semantics. Upstream Warp Agent behavior is not a missing feature by default; retain or port it only when its local behavior or UI can be routed through ACP.
 - Next Command and Prompt Suggestions remain OpenAI-compatible terminal suggestion flows, not Warp-hosted AI APIs.
 - SSH remote terminal, SSH remote server, and Warpify are retained terminal features.
 - MCP and skills belong to the ACP agent process, not the Warp app bundle or app settings.
@@ -39,6 +40,13 @@ Every upstream commit must be reviewed before it is applied.
 - Record meaningful merge decisions and cleanup rationale in `docs/agents-wiki/`.
 - Do not treat passing tests as proof that product boundaries are preserved; inspect the actual code paths.
 - Review every commit for both product behavior and cross-cutting engineering changes. Feature-oriented triage must not skip manifests, toolchains, formatter/lint configuration, build scripts, workspace metadata, or retained prerequisite infrastructure.
+
+### ACP Agent Ownership
+
+- Treat `app/src/ai/acp/` as the only agent backend and execution boundary. AgentView, terminal input, local context, and ACP event rendering are host/UI layers around that boundary.
+- For every upstream Warp Agent change, classify the actual runtime path as ACP protocol/client behavior, local AgentView or terminal behavior, or legacy Warp Agent service/product behavior. Accept or adapt the first two; reject the third.
+- If an old Warp Agent behavior is useful, inspect its upstream source, call graph, persistence, and service dependencies, then port only the provider-neutral behavior into the ACP path. Do not restore the old backend merely to preserve its UI or setting name.
+- A legacy setting is not a retained setting merely because its field or widget still exists. It must control a live local or ACP data path. `memory_enabled` currently affects the legacy rules-pane state, while ACP request construction independently injects project rules from `ProjectContextModel`; do not expose it as an ACP memory switch or restore old Warp Agent memory semantics without an explicit ACP wiring change.
 
 ## Upstream Source Fidelity
 
@@ -89,6 +97,7 @@ Do not restore these systems from upstream:
 - Billing, usage credits, referrals, upgrade, invite, Teams, workspace discovery.
 - Cloud Warp Drive sharing, sync, import, export, and cloud sharing UI.
 - Old Warp Agent SDK, cloud agents, ambient agents, scheduled agents, orchestration, handoff, and cloud remote-control semantics.
+- Legacy Warp Agent memory/saved-rules controls and other backend-only agent settings that do not control a live ACP or local runtime path.
 - Warp cloud GraphQL clients/schema, server API clients, managed secrets, hosted isolation, cloud environments.
 - App-managed MCP configuration, MCP capability probing, MCP server startup, MCP persistence, MCP permissions, or MCP settings panes.
 - App-bundled skills, bundled MCP skills, channel-gated skills, local skill scanners/managers, `/skills`, `/open-skill`, `ReadSkill`, or `InvokeSkill`.
@@ -107,6 +116,7 @@ Do not restore these systems from upstream:
 | New local or provider-backed product behavior | Accept or adapt after reviewing runtime ownership and data flow. Remove rollout/service plumbing as needed; do not reject behavior merely because it postdates the baseline. |
 | GPUI/Warp UI framework, macOS windowing, rendering | Usually accept if it does not depend on removed product surfaces. |
 | ACP, AgentView, `blocklist`, conversation history, AI settings | Selectively port the upstream implementation and preserve ACP-only backend behavior. |
+| Warp Agent behavior and settings | Treat ACP as the sole backend. Port local UI, context, and provider-neutral behavior only after call-graph review and route it through ACP; reject old Warp Agent service, memory, model/profile, cloud-agent, and backend-only semantics. |
 | Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep the OpenAI-compatible provider. |
 | SSH, remote terminal, remote server, Warpify | Keep when it supports terminal behavior without Warp account auth. Reject Warp-hosted downloads, token auth, and cloud remote-control semantics. |
 | Persistence and migrations | Accept only for retained local data. Reject account/team/billing/cloud/MCP/skills compatibility migrations. |
