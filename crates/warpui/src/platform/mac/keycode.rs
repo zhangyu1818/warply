@@ -16,7 +16,7 @@ pub const SHIFT_KEY: u16 = 512;
 pub const OPTION_KEY: u16 = 2048;
 pub const CONTROL_KEY: u16 = 4096;
 
-extern "C" {
+unsafe extern "C" {
     fn charToKeyCodes(keyChar: id) -> id;
     fn keyCodeToChar(keyCode: NSUInteger, shifted: BOOL) -> id;
 }
@@ -45,7 +45,7 @@ impl Keycode {
 
     // There could have multiple keycodes mapping to one virtual key. Return an iterator
     // to all possible values of keycode here.
-    pub fn keycodes_from_key_name(key_name: &str) -> impl Iterator<Item = Keycode> {
+    pub fn keycodes_from_key_name(key_name: &str) -> impl Iterator<Item = Keycode> + use<> {
         unsafe {
             let keycodes: id = charToKeyCodes(make_nsstring(key_name));
             let keycodes_length = keycodes.count();

@@ -116,7 +116,7 @@ impl MenuItemData {
 /// We hand Cocoa a void* which is really an unwrapped Box<Rc<MenuItemData>>.
 /// The NSMenuItem logically holds a reference count on this Rc, which is balanced in our dealloc callback below.
 /// The following functions are invoked from Cocoa.
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_menu_item_needs_update(item: id, ctx: *mut c_void) {
     let ctx = MenuItemData::read_context(ctx);
     let props: MenuItemProperties = ctx.props.borrow().clone();
@@ -140,20 +140,20 @@ extern "C-unwind" fn warp_menu_item_needs_update(item: id, ctx: *mut c_void) {
     unsafe { apply_changes(updated_properties, item) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_menu_item_triggered(_item: id, ctx: *mut c_void) {
     let func = &MenuItemData::read_context(ctx).triggered;
     callback_dispatcher().menu_item_triggered(func);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_menu_item_deallocated(ctx: *mut c_void) {
     MenuItemData::consume_context(ctx)
 }
 
 // Declarations of functions implemented in ObjC files.
 // These signatures must be manually synced - there's no type checking here.
-extern "C" {
+unsafe extern "C" {
     fn make_delegated_menu(title: id) -> id;
     fn make_warp_custom_menu_item(ctx: *mut c_void) -> id;
     fn set_menu_item_submenu(item: id, submenu: id);
@@ -235,7 +235,7 @@ fn resolve_key_equivalent(keystroke: Option<&Keystroke>) -> (id, NSEventModifier
 }
 
 // Apply any differences between the two states to the menu item.
-unsafe fn apply_changes(changes: MenuItemPropertyChanges, item: id) {
+unsafe fn apply_changes(changes: MenuItemPropertyChanges, item: id) { unsafe {
     // Wrap in a local autorelease pool: AppKit invokes `warp_menu_item_needs_update`
     // on every menu validation (per menu open and per keystroke for shortcut matching),
     // so this is a hot path. A local pool bounds peak memory for the NSString temporaries
@@ -265,17 +265,17 @@ unsafe fn apply_changes(changes: MenuItemPropertyChanges, item: id) {
         set_menu_item_submenu(item, nsmenu);
     }
     pool.drain();
-}
+}}
 
-unsafe fn make_submenu(menu_items: Vec<MenuItem>) -> id {
+unsafe fn make_submenu(menu_items: Vec<MenuItem>) -> id { unsafe {
     let nsmenu = make_delegated_menu(make_nsstring(""));
     for menu_item in menu_items {
         nsmenu.addItem_(make_menu_item(menu_item));
     }
     nsmenu
-}
+}}
 
-unsafe fn make_menu_item(menu_item: MenuItem) -> id {
+unsafe fn make_menu_item(menu_item: MenuItem) -> id { unsafe {
     match menu_item {
         MenuItem::Custom(custom_menu_item) => {
             let props = custom_menu_item.properties;
@@ -311,11 +311,11 @@ unsafe fn make_menu_item(menu_item: MenuItem) -> id {
         MenuItem::Separator => NSMenuItem::separatorItem(nil),
         MenuItem::Services => make_services_menu_item(),
     }
-}
+}}
 
 /// \return an autoreleased NSMenuItem with a submenu represented by \p menu.
 // This supports creating the top-level menu bar.
-unsafe fn make_top_level_menu_item(menu: Menu) -> id {
+unsafe fn make_top_level_menu_item(menu: Menu) -> id { unsafe {
     let nsmenu = make_delegated_menu(make_nsstring(&menu.title));
 
     if menu.is_window_menu() {
@@ -331,25 +331,25 @@ unsafe fn make_top_level_menu_item(menu: Menu) -> id {
     let menuitem = NSMenuItem::alloc(nil).init().autorelease();
     menuitem.setSubmenu_(nsmenu);
     menuitem
-}
+}}
 
 /// \return an autoreleased NSMenu representing the given menu bar.
-pub unsafe fn make_main_menu(menubar: MenuBar) -> id {
+pub unsafe fn make_main_menu(menubar: MenuBar) -> id { unsafe {
     let main_menu = NSMenu::alloc(nil).init().autorelease();
     for menu in menubar.menus {
         main_menu.addItem_(make_top_level_menu_item(menu));
     }
     main_menu
-}
+}}
 
 /// \return an autoreleased NSMenu representing the given dock menu.
-pub unsafe fn make_dock_menu(menu: Menu) -> id {
+pub unsafe fn make_dock_menu(menu: Menu) -> id { unsafe {
     let dock_menu = NSMenu::alloc(nil).init().autorelease();
     for item in menu.menu_items {
         dock_menu.addItem_(make_menu_item(item));
     }
     dock_menu
-}
+}}
 
 #[cfg(test)]
 #[path = "menus_tests.rs"]

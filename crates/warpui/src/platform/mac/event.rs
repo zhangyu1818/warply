@@ -48,7 +48,7 @@ pub unsafe fn from_native(
     native_event: id,
     window_height: Option<f32>,
     is_first_mouse: bool,
-) -> Option<Event> {
+) -> Option<Event> { unsafe {
     let event_type = native_event.eventType();
 
     // Filter out event types that aren't in the NSEventType enum.
@@ -246,4 +246,4 @@ pub unsafe fn from_native(
         }),
         _ => None,
     }
-}
+}}

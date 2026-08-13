@@ -169,7 +169,7 @@ impl<'a> ParagraphStyle<'a> {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     fn CFAttributedStringBeginEditing(mutable_string: CFMutableAttributedStringRef);
 
     fn CFAttributedStringEndEditing(mutable_string: CFMutableAttributedStringRef);
@@ -474,12 +474,11 @@ fn merge_adjacent_identical_runs(
     let mut merged: Vec<(Range<usize>, StyleAndFont)> = Vec::with_capacity(style_runs.len());
     merged.extend_from_slice(&style_runs[..first_mergeable]);
     for (range, style) in &style_runs[first_mergeable..] {
-        if let Some(last) = merged.last_mut() {
-            if last.0.end == range.start && last.1 == *style {
-                last.0.end = range.end;
-            } else {
-                merged.push((range.clone(), *style));
-            }
+        if let Some(last) = merged.last_mut()
+            && last.0.end == range.start
+            && last.1 == *style
+        {
+            last.0.end = range.end;
         } else {
             merged.push((range.clone(), *style));
         }

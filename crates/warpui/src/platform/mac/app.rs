@@ -89,7 +89,7 @@ pub fn create_native_platform_modal(dialog: AlertDialog) -> id {
 
 const RUST_WRAPPER_IVAR_NAME: &str = "rustWrapper";
 
-extern "C" {
+unsafe extern "C" {
     // Implemented in ObjC to get the warp NSApplication subclass.
     pub(super) fn get_warp_app() -> id;
 }
@@ -257,10 +257,10 @@ impl AppExt for AppBuilder {
     }
 }
 
-unsafe fn get_app(object: &mut Object) -> &mut App {
+unsafe fn get_app(object: &mut Object) -> &mut App { unsafe {
     let wrapper_ptr: *mut c_void = *object.get_ivar(RUST_WRAPPER_IVAR_NAME);
     &mut *(wrapper_ptr as *mut App)
-}
+}}
 
 pub(super) fn callback_dispatcher() -> &'static mut AppCallbackDispatcher {
     unsafe {
@@ -270,7 +270,7 @@ pub(super) fn callback_dispatcher() -> &'static mut AppCallbackDispatcher {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_send_global_keybinding(
     this: &mut Object,
     modifiers: NSUInteger,
@@ -297,8 +297,8 @@ pub(crate) extern "C-unwind" fn warp_app_send_global_keybinding(
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object) {
+#[unsafe(no_mangle)]
+pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object) { unsafe {
     log::info!("application will finish launching");
 
     let app = get_app(this);
@@ -336,15 +336,15 @@ pub unsafe extern "C-unwind" fn warp_app_will_finish_launching(this: &mut Object
     };
     // `setDockIconVisible:` is a custom warp app-delegate selector.
     let _: BOOL = msg_send![&*app_delegate, setDockIconVisible: show_dock_icon];
-}
+}}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_did_become_active(this: &mut Object, _: Sel, _: id) {
     let app = unsafe { get_app(this) };
     app.callbacks.app_became_active();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_internet_reachability_changed(
     this: &mut Object,
     can_reach: u8,
@@ -356,7 +356,7 @@ pub(crate) extern "C-unwind" fn warp_app_internet_reachability_changed(
 }
 
 /// Returns whether or not we can proceed with termination.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_should_terminate_app(
     this: &mut Object,
     system_initiated: BOOL,
@@ -376,7 +376,7 @@ pub(crate) extern "C-unwind" fn warp_app_should_terminate_app(
 
 /// Returns a NSAlert object if we want to show a dialog for users to confirm or
 /// nil for closing the window immediately.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_should_close_window(
     this: &mut Object,
     window_id: &mut Object,
@@ -390,7 +390,7 @@ pub(crate) extern "C-unwind" fn warp_app_should_close_window(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_are_key_bindings_disabled_for_window(
     this: &mut Object,
     window_id: &mut Object,
@@ -409,7 +409,7 @@ pub(crate) extern "C-unwind" fn warp_app_are_key_bindings_disabled_for_window(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_has_binding_for_keystroke(
     this: &mut Object,
     event: id,
@@ -437,7 +437,7 @@ pub(crate) extern "C-unwind" fn warp_app_has_binding_for_keystroke(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_has_custom_action_for_keystroke(
     this: &mut Object,
     event: id,
@@ -468,13 +468,13 @@ pub(crate) extern "C-unwind" fn warp_app_has_custom_action_for_keystroke(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_disable_warning_modal(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.warning_modal_disabled();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_process_modal_response(
     this: &mut Object,
     modal_id: ModalId,
@@ -486,7 +486,7 @@ pub(crate) extern "C-unwind" fn warp_app_process_modal_response(
         .process_platform_modal_response(modal_id, response, disable_modal);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_app_notification_clicked(
     this: &mut Object,
     date: f64,
@@ -500,25 +500,25 @@ pub(crate) extern "C-unwind" fn warp_app_notification_clicked(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_did_resign_active(this: &mut Object, _: Sel, _: id) {
     let app = unsafe { get_app(this) };
     app.callbacks.app_resigned_active();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_will_terminate(this: &mut Object, _: Sel, _: id) {
     let app = unsafe { get_app(this) };
     app.callbacks.app_will_terminate();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_new_window(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.open_new_window();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_active_window_changed(this: &mut Object) {
     let app = unsafe { get_app(this) };
     Window::close_ime_on_active_window();
@@ -526,45 +526,45 @@ extern "C-unwind" fn warp_app_active_window_changed(this: &mut Object) {
         .active_window_changed(Window::active_window_id());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_window_did_resize(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.window_resized();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_window_did_move(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.window_moved();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_window_will_close(this: &mut Object, window: &mut Object) {
     let app = unsafe { get_app(this) };
     let window_state = unsafe { get_window_state(window) };
     app.callbacks.window_will_close(window_state.id());
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_screen_did_change(this: &mut Object) {
     log::info!("received NSApplicationDidChangeScreenParametersNotification");
     let app = unsafe { get_app(this) };
     app.callbacks.screen_changed();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn cpu_awakened(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.cpu_awakened();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn cpu_will_sleep(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.cpu_will_sleep();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_open_files(this: &mut Object, paths: id) {
     let paths = unsafe {
         (0..paths.count())
@@ -584,7 +584,7 @@ extern "C-unwind" fn warp_app_open_files(this: &mut Object, paths: id) {
     app.callbacks.open_files(paths);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_open_urls(this: &mut Object, urls: id) {
     let urls = unsafe {
         (0..urls.count())
@@ -605,14 +605,14 @@ extern "C-unwind" fn warp_app_open_urls(this: &mut Object, urls: id) {
     app.callbacks.open_urls(urls);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C-unwind" fn warp_app_os_appearance_changed(this: &mut Object) {
     let app = unsafe { get_app(this) };
     app.callbacks.os_appearance_changed();
 }
 
 // Calls the callback with None if no file was selected
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_open_panel_file_selected(urls: id, callback: *mut c_void) {
     // Start by converting the callback from a raw pointer back into a Box, to
     // avoid the memory leak that would occur if we left it in raw pointer form.
@@ -643,7 +643,7 @@ pub(crate) extern "C-unwind" fn warp_open_panel_file_selected(urls: id, callback
 }
 
 // Calls the save callback with the selected path or None if cancelled
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C-unwind" fn warp_save_panel_file_selected(url: id, callback: *mut c_void) {
     let callback = unsafe { Box::from_raw(callback as *mut SaveFilePickerCallback) };
 
