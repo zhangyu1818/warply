@@ -63,7 +63,9 @@ These were not fully represented in the reported 22-feature list.
 
 ### Cross-cutting Rust edition migration
 
-The upstream workspace migration commit `abea51cd1e` was previously treated as a single mixed cloud/platform change and therefore skipped wholesale. That was a merge-process error: workspace-wide engineering migrations must be reviewed independently of deleted product areas. The retained macOS `warpui` path now follows the authoritative Rust 2024 migration in `ead36c7cd`; `cargo build -p warp --all-targets` passed before `cargo clean`. The current toolchain is Rust 1.92.0 and supports let chains, so the earlier diagnostic was caused by the crate manifest still declaring edition 2021, not by a local compiler limitation. Deleted cloud, TUI, and unsupported-platform crates were not blindly migrated.
+The upstream workspace migration commit `abea51cd1e` was previously treated as a single mixed cloud/platform change and therefore skipped wholesale. This had two causes: the old merge guidance did not classify workspace-wide toolchain/edition work as an independent retained concern, and the review execution incorrectly used the removed product paths in that commit to reject the whole change. It was not a local compiler limitation. Rust 1.92.0 supports let chains; the earlier diagnostic came from retained crate manifests still declaring edition 2021.
+
+The authoritative migration was subsequently applied to every current workspace manifest and retained Rust path in `7ec00c837`. All current workspace crates now declare Rust 2024, `.rustfmt.toml` targets edition 2024, and the required `gen` keyword, RPIT capture, unsafe-FFI, and 2024 pattern changes are source-faithful compatibility edits around the upstream migration. `cargo check --workspace --all-targets` and `cargo build --workspace --all-targets` passed before `cargo clean`. Deleted cloud, MCP/skills, TUI, and unsupported-platform crates were not restored or blindly migrated.
 
 ### Queued Prompts And Terminal Command Queueing
 
