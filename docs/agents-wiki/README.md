@@ -117,12 +117,15 @@ The fork removes:
 - `upstream-master-audit-2026-08-09.md`: Incremental audit for `d78ced530..upstream/master` (6 commits). No commits ported — all six touch removed surfaces only (TUI focus-stealing, Warp Drive search scoping, Billing & Usage team scoping, cloud environment selector, cloud-agent/ambient-agent/agent-SDK session retention, multi-level orchestration drill-down). Each shared-file edit was verified to have no anchor symbol in the fork (`attach_execution_session*`, `AmbientAgentLiveSessionState`, `orchestration_topology`, `MultiLevelOrchestration` flag, etc.), so they are not applicable rather than cherry-pick candidates.
 - `upstream-master-audit-2026-08-11.md`: Incremental audit for `7d93fa468..upstream/master` (22 commits), including retained zero-size resize log-level fix, Find in File Vim-mode click re-activation, code-review renamed-file baseline/diff fix (adapted from `diff_state/local.rs` to `diff_state.rs`), local-command process-group kill on cancellation (adapted to `safe_warn!`), watcher empty-path guard against macOS `CFRelease(NULL)` crash (partial port of the warpctrl file.open fix), plus rejected TUI/orchestration/cloud-run/cloud-shared-session/factory-mcp-skill/winit/build_cache/model-discount/CI-bump changes, and a deferred context-chip active-surface refactor pending the `ShouldRenderCLIAgentToolbar` setting.
 - `upstream-master-full-reaudit-2026-08-12.md`: Full re-audit of all 1825 commits in `27f4933b8..5fb3144db9`, including the 13-commit tail after the earlier snapshot, under the local/provider-backed feature-preservation and upstream-source-fidelity rules. It supersedes blanket rejections based on absent feature flags, missing prerequisites, patch size, architectural drift, or workspace-wide edition changes; records the missing feature stacks, the Rust 2024 migration correction, and current remote code-review port boundary.
+- `upstream-master-audit-2026-08-13.md`: Settings-surface correction after the local CLI-agent Rich Input ports. It supersedes the earlier page-level rejection of `fe8138bce8` and records the widget-level rule: retain local third-party CLI-agent, editor, code-review, project-explorer, external-editor, and LSP settings while rejecting only their Warp-service/cloud/account/telemetry/MCP/skills/platform dependencies.
 
 ## Quick Merge Principle
 
 When an upstream commit improves generic terminal behavior, port it.
 
 When an upstream commit improves AI UI or local data structures, adapt it to ACP and local suggestions.
+
+When an upstream settings page mixes retained local controls with removed cloud controls, split the page by widget and runtime ownership. Never reject or restore the whole page solely because of its upstream grouping.
 
 When an upstream commit restores cloud product behavior, reject it or reduce it to a local utility.
 

@@ -49,7 +49,7 @@ Also N/A due to absent `warpui_core/src/runtime/` and `warpui_core/src/elements/
 
 ### Settings / cloud features (Reject — removed surfaces)
 
-`fe8138bce` (third-party CLI agents settings — fork ai_page is ACP-only single-widget), `ddadceeaa` (Knowledge settings — Suggested Rules / Warp Drive context removed), `f79df8d9d` (cloud conversation storage setting — `settings/privacy.rs` absent).
+`fe8138bce` (historical page-level rejection of third-party CLI agents settings — superseded by `upstream-master-audit-2026-08-13.md`), `ddadceeaa` (Knowledge settings — Suggested Rules / Warp Drive context removed), `f79df8d9d` (cloud conversation storage setting — `settings/privacy.rs` absent).
 
 ### Linux / Windows / WASM platform / Windows installer CI (Reject — macOS-only)
 

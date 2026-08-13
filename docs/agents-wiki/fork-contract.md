@@ -41,7 +41,10 @@ No maintained feature should require Warp login, Warp billing, Warp cloud object
 
 ### Settings
 
-- The AI page should expose ACP Agent settings and terminal suggestion settings.
+- Settings navigation and upstream page ownership are not product boundaries. A page may contain both retained local/provider-backed widgets and removed Warp-service widgets; classify the widgets, actions, persistence, and runtime call sites separately.
+- The AI page should expose ACP Agent settings, terminal suggestion settings, and retained local third-party CLI-agent settings.
+- Third-party CLI-agent settings include local CLI toolbar visibility and layout, Rich Input lifecycle and submission behavior, command matching, and other settings whose state and execution stay in the terminal client or an external local CLI/plugin. They are not Warp-hosted Agent settings.
+- Local editor, code-review, project-explorer, external-editor, and LSP settings remain in scope even when upstream places them beside codebase-indexing or cloud/workspace settings.
 - It should not expose account, privacy telemetry, billing, Teams, Warp Drive cloud, usage credits, cloud BYOK, cloud agent, or old Warp agent settings.
 - Execution profiles should expose local permission behavior only. Do not add compatibility code for stored model choices or context-window overrides.
 

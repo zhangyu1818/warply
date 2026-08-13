@@ -7,10 +7,10 @@ Use this guide when pulling commits from original Warp into this fork.
 For every upstream commit, ask:
 
 ```text
-Does this improve a local terminal/ACP/suggestions feature (retained or new), or does it restore a removed Warp cloud product feature?
+Which parts improve local terminal/ACP/provider-backed behavior, and which parts restore a removed Warp cloud product feature?
 ```
 
-That answer decides the merge path. A feature need not have existed at baseline to qualify — purely local features that upstream adds later are in scope.
+That answer decides the merge path at the smallest meaningful unit. A feature need not have existed at baseline to qualify — purely local features that upstream adds later are in scope. A settings page, module, or umbrella section is not an atomic product feature.
 
 ## Decision Process
 
@@ -56,7 +56,7 @@ Apply the exact upstream retained code first, then adapt it when upstream touche
 | `app/src/ai/acp/` | Preserve ACP protocol-native state and event mapping. |
 | `app/src/ai/predict/` | Keep Next Command and Prompt Suggestions context/UI improvements, but use the OpenAI-compatible suggestions provider. |
 | `app/src/ai/terminal_suggestions/` | Keep OpenAI-compatible endpoint/model/API key flow for Next Command and Prompt Suggestions. |
-| `app/src/settings/ai.rs` and `app/src/settings_view/ai_page.rs` | Keep only ACP and terminal suggestions settings. |
+| `app/src/settings/ai.rs` and `app/src/settings_view/ai_page.rs` | Keep ACP, terminal suggestions, and retained local third-party CLI-agent settings; strip old Warp Agent, account, cloud, billing, telemetry, MCP, and skills sections. |
 | `app/src/terminal/input*` | Keep NLD and `/agent` behavior entering ACP AgentView. |
 | AgentView conversation list/navigation | Keep as retained local ACP UI. Do not restore rollout flags that make the local conversation list optional. |
 | Local context references | Keep `<plan:...>`, `<block:...>`, `<change:...>`, file, and diff context wiring when it becomes ACP prompt context. Do not reinterpret this as app-managed skills or MCP. |
@@ -65,6 +65,16 @@ Apply the exact upstream retained code first, then adapt it when upstream touche
 | `crates/remote_server/` | Keep local/SSH terminal behavior; reject account-auth token requirements. |
 | SSH/subshell Warpify | Preserve command blocks, completions, input editor behavior, syntax highlighting, file tree/code diff integration, and other full Warp terminal features inside nested or remote sessions. Do not remove Warpify as cloud cleanup. Do not restore Warp-hosted portable tmux download/install paths; remote package-manager install scripts are the retained Linux path. |
 | Web/network-backed PTY (`remote_tty`, `ssh-proxy-server`, websocket PTY client) | Reject. This fork keeps SSH remote server and Warpify, not the old Warp-on-Web remote PTY path. |
+
+### Settings pages are not atomic
+
+For every upstream settings page, inspect each widget, action, setting, persistence path, and runtime call site before deciding. The page name, file name, location under an AI/Code umbrella, or the presence of one removed sibling section is not enough to reject the page.
+
+- Keep local and retained-provider settings when their state and execution remain in the macOS client, ACP, OpenAI-compatible suggestions, SSH/remote terminal, or an external local CLI/plugin.
+- Selectively port mixed pages from the exact upstream widgets and hunks. Preserve local UI and behavior, then remove only Warp account, cloud API, billing, sync, hosted-agent, telemetry, app-managed MCP/skills, or unsupported-platform plumbing.
+- The upstream Third party CLI agents page is a retained local candidate: toolbar visibility, Rich Input lifecycle/submission, command-pattern mapping, and CLI toolbar layout are all local CLI-agent behavior. Do not restore Warp-hosted Agent, cloud handoff, plugin marketplace, or telemetry rows that may appear elsewhere in the AI settings implementation.
+- The upstream Code settings page is mixed: local editor, code review, project explorer, external editor, and LSP controls remain candidates, while cloud/remote codebase indexing and account/workspace controls must be rejected or split away.
+- Reject a widget only when its core behavior requires a removed Warp service or unsupported local platform and cannot run through a retained local or provider boundary. Do not reject it merely because the page is large, shared with cloud widgets, missing from the fork, or absent at the baseline.
 
 ## Reject
 
