@@ -20,9 +20,9 @@ Treat each upstream Warp Agent feature as a migration candidate. Inspect its sou
 
 - ACP protocol/client behavior or a host capability: accept or adapt while preserving ACP semantics.
 - Local AgentView/terminal behavior or provider-neutral context/UI: accept or adapt and route it through ACP.
-- Old Warp Agent service, SDK, cloud-agent, account, billing, orchestration, memory, model/profile, or backend-only behavior: reject.
+- Old Warp Agent service, SDK, cloud-agent, account, billing, orchestration, or backend-only behavior: reject.
 
-An upstream setting is not missing merely because the field or page row survives. It must control a live ACP or local runtime path. `memory_enabled` is the concrete example: it controls the legacy rules-pane state, while the ACP request path independently adds `ProjectContextModel` project rules. Do not expose it as an ACP memory toggle unless an explicit ACP context path is added and verified.
+An upstream setting is not missing merely because the field or page row survives. Classify its live runtime ownership and retain it only when it controls an ACP or local path. Settings whose ownership cannot be mapped to either path are legacy Warp Agent residue, not ACP settings.
 
 ## Decision Process
 
@@ -97,7 +97,7 @@ Reject or strip these upstream changes unless they can be reduced to a retained 
 - Unused cloud/billing/team/referral icons and assets. Do not remove retained generic upload/publish icons merely because their filename contains `cloud`.
 - Cloud Warp Drive sharing/sync/import/export UI.
 - `app/src/ai/agent_sdk/`, `agent_management`, `ambient_agents`, scheduled/cloud agents.
-- Legacy Warp Agent memory/saved-rules controls and backend-only agent settings with no live ACP or local runtime path.
+- Legacy Warp Agent settings whose runtime ownership cannot be mapped to a live ACP or local path.
 - Old server-backed AI APIs, Warp-hosted suggestion APIs, cloud orchestration, handoff, remote-control cloud controls.
 - Ambient/cloud agent icons or menu entries. Keep the retained `agentmode.svg` entrypoint only when it routes to ACP AgentView.
 - `crates/graphql/`, `crates/warp_graphql_schema/`, cloud GraphQL generated queries/mutations.

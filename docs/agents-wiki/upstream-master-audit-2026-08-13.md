@@ -40,7 +40,9 @@ The same correction applies to the upstream Code settings page. Keep local edito
 
 The correction does not reopen removed pages or sections whose core behavior remains service-owned. Knowledge widgets tied to Suggested Rules/Warp Drive context, old Warp Agent model/profile/credit flows, app-managed MCP/skills, cloud environments, billing, Teams, account/auth, and cloud sharing remain rejected. Local rules/AI facts, ACP configuration, and local terminal settings may still be retained where their call sites prove that ownership.
 
-The same call-site test applies to legacy settings that look agent-related. `memory_enabled` is not an ACP request switch: it only changes the legacy rules-pane state, while `app/src/ai/blocklist/context_model.rs` adds project rules discovered by `ProjectContextModel` to ACP request context independently. Do not restore a "saved rules" or "memory" row as an ACP setting unless a verified ACP context path gives it real effect.
+## Legacy Warp Agent setting classification
+
+The specific audit finding for `memory_enabled` is that it is a legacy rules-pane/UI-state control, not an ACP request control: `app/src/ai/blocklist/context_model.rs` adds project rules discovered by `ProjectContextModel` to ACP request context independently. This belongs in the settings audit as a classification example; future settings should be judged by the general runtime-ownership and data-flow test above.
 
 ## Superseded historical decision
 

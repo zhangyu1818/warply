@@ -23,7 +23,7 @@ The fork replaces the Warp Agent backend with the ACP client. This is a runtime-
 - ACP execution, sessions, provider configuration, permission protocol, and agent event semantics belong to `app/src/ai/acp/`.
 - AgentView, terminal input, local context, navigation, and generic ACP rendering may be retained or ported when their execution stays local or routes through ACP.
 - A useful old Warp Agent feature must be researched from upstream source and call sites, then ported at the smallest provider-neutral boundary. Do not restore the old Agent SDK, service APIs, cloud-agent orchestration, or backend-only settings.
-- `memory_enabled` is a documented example of the boundary: it affects the legacy rules-pane state, but ACP request construction independently injects `ProjectContextModel` project rules. It is not a valid ACP memory setting without explicit ACP wiring.
+- Legacy setting names are not evidence of retained ACP behavior. Classify their call sites and data flow; only settings with a live ACP or local owner belong in the retained surface.
 
 ## 2026-05 No-Compatibility Cleanup
 

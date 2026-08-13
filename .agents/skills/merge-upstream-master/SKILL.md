@@ -29,8 +29,7 @@ Read these before touching code for upstream merge work:
 - The ACP client is the sole owner of agent execution, sessions, and provider semantics in this fork. AgentView and terminal code are host/UI layers around ACP, not a second Warp Agent backend.
 - Treat every upstream Warp Agent change as a migration candidate, not as automatically retained or automatically deleted. Inspect its runtime owner, call graph, persistence, and service dependencies.
 - Accept or adapt ACP protocol/client behavior, local AgentView/terminal behavior, local context, and provider-neutral settings. Route adapted behavior through the current ACP path.
-- Reject old Warp Agent SDK/service APIs, cloud-agent orchestration, account or billing semantics, and legacy settings that do not control a live ACP or local path. A setting name or surviving field is not proof that the setting belongs in the fork.
-- For example, `memory_enabled` only changes the legacy rules-pane state; the ACP request path independently adds project rules found by `ProjectContextModel`. Do not restore it as an ACP memory toggle unless the setting is explicitly wired to an ACP context path.
+- Reject old Warp Agent SDK/service APIs, cloud-agent orchestration, account or billing semantics, and legacy settings whose live runtime ownership cannot be mapped to an ACP or local path. A setting name or surviving field is not proof that the setting belongs in the fork.
 
 ## Source-First Workflow
 

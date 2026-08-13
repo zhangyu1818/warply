@@ -38,7 +38,7 @@ No maintained feature should require Warp login, Warp billing, Warp cloud object
 - The ACP client is the sole owner of agent execution, sessions, and provider semantics. AgentView, terminal input, local context, and ACP event rendering are host/UI layers around that client.
 - Upstream Warp Agent behavior is neither automatically retained nor automatically removed. Review the source, call graph, persistence, and service dependencies feature by feature.
 - Port useful old behavior only when it can run locally or through ACP, preserving the upstream implementation first and adapting only the provider boundary. Do not restore the old Warp Agent backend to preserve a UI or setting.
-- Legacy settings remain out of scope unless they control a live ACP or local path. In particular, `memory_enabled` only controls the legacy rules-pane state; ACP prompt construction independently injects project rules discovered by `ProjectContextModel`. It must not be presented as an ACP memory switch without explicit ACP wiring.
+- Legacy settings remain out of scope unless their live runtime ownership can be mapped to an ACP or local path. A surviving field or page row is not evidence that the setting belongs in the ACP surface.
 
 ### Suggestions
 
@@ -65,7 +65,7 @@ These were deliberately removed. If upstream changes touch them, the default dec
 - `app/src/autoupdate/`: upstream Warp update/changelog infrastructure. This fork uses its own Sparkle 2 updater under `app/src/updater/` instead.
 - `app/src/crash_reporting/` and Sentry scripts.
 - `app/src/ai/agent_sdk/`: old Warp-hosted Agent SDK and harnesses.
-- Legacy Warp Agent memory/saved-rules controls and backend-only settings that do not control a live ACP or local runtime path.
+- Legacy Warp Agent settings whose runtime ownership cannot be mapped to a live ACP or local path.
 - `app/src/ai/agent_management/`: cloud agent management UI.
 - `app/src/ai/ambient_agents/`: ambient/scheduled/cloud agents.
 - `Icon::AmbientAgentMode` and `app/assets/bundled/svg/ambient-agent-mode.svg`: ambient/cloud agent icon surface.
@@ -134,6 +134,6 @@ Names alone are not merge evidence.
 - `ServerId` is legacy naming only if still present in retained local-object data. `stable_object_id` is the current SQLite column for that server-style local identifier form. Do not add new compatibility fallback around either.
 - `remote_server` is remote terminal support, not account login by itself.
 - References to Linux/Windows inside terminal protocol parsing, shell target metadata, or path conversion must be checked before removal. Preserve SSH/remote terminal behavior; remove only local host platform support unless the code is required by macOS-to-remote workflows.
-- `memory_enabled` is a legacy Warp Agent setting name. Its presence in settings or rules-pane code does not establish an ACP runtime dependency; inspect the ACP request construction before exposing or restoring it.
+- Legacy agent setting names are not merge evidence. Inspect their call sites, persistence, and ACP request data flow before exposing or restoring them.
 
 Before deleting or restoring code with these names, inspect call sites and persistence usage.
