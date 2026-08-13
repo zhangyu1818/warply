@@ -33,6 +33,11 @@ message ClientMessage {
     GitGetPrInfoRequest git_get_pr_info = 18;
     GitGenerateCommitMessageRequest git_generate_commit_message = 19;
     GitGetCommittedBranchFilesRequest git_get_committed_branch_files = 20;
+    OpenBuffer open_buffer = 23;
+    BufferEdit buffer_edit = 24;
+    CloseBuffer close_buffer = 25;
+    SaveBuffer save_buffer = 26;
+    ResolveConflict resolve_conflict = 27;
   }
 }
 // Top-level envelope for all server → client messages.
@@ -62,6 +67,11 @@ message ServerMessage {
     GitGetPrInfoResponse git_get_pr_info_response = 20;
     GitGenerateCommitMessageResponse git_generate_commit_message_response = 21;
     GitGetCommittedBranchFilesResponse git_get_committed_branch_files_response = 22;
+    OpenBufferResponse open_buffer_response = 23;
+    BufferUpdatedPush buffer_updated = 24;
+    SaveBufferResponse save_buffer_response = 25;
+    ResolveConflictResponse resolve_conflict_response = 26;
+    BufferConflictDetected buffer_conflict_detected = 27;
   }
 }
 
@@ -421,4 +431,94 @@ message GitGenerateCommitMessageResponse {
     string message = 1;
     GitOpError error = 2;
   }
+}
+
+// ── Buffer syncing ────────────────────────────────────────────────
+
+// Client → server: open a buffer for bidirectional syncing.
+message OpenBuffer {
+  string path = 1;
+  // When true, the server discards any in-memory buffer state and re-reads
+  // the file from disk. Used by the client to resolve conflicts ("accept
+  // server" / discard local edits). Other connections that have the buffer
+  // open receive a BufferUpdatedPush with the fresh content.
+  bool force_reload = 2;
+}
+
+// Server → client: response to OpenBuffer with the initial file content.
+message OpenBufferResponse {
+  oneof result {
+    OpenBufferSuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message OpenBufferSuccess {
+  string content = 1;
+  uint64 server_version = 2;
+}
+
+// Client → server: push an incremental edit (fire-and-forget notification).
+message BufferEdit {
+  string path = 1;
+  uint64 expected_server_version = 2;
+  uint64 new_client_version = 3;
+  repeated TextEdit edits = 4;
+}
+
+message TextEdit {
+  uint64 start_offset = 1;
+  uint64 end_offset = 2;
+  string text = 3;
+}
+
+// Server → client push: file changed on disk.
+message BufferUpdatedPush {
+  string path = 1;
+  uint64 new_server_version = 2;
+  uint64 expected_client_version = 3;
+  repeated TextEdit edits = 4;
+}
+
+// Client → server: close a buffer (stop watching).
+message CloseBuffer {
+  string path = 1;
+}
+
+// Client → server: persist the current in-memory buffer to disk.
+message SaveBuffer {
+  string path = 1;
+}
+
+message SaveBufferResponse {
+  oneof result {
+    SaveBufferSuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message SaveBufferSuccess {}
+
+// Client → server: resolve a conflict by accepting the client's content.
+message ResolveConflict {
+  string path = 1;
+  uint64 acknowledged_server_version = 2;
+  string client_content = 3;
+  uint64 current_client_version = 4;
+}
+
+message ResolveConflictResponse {
+  oneof result {
+    ResolveConflictSuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message ResolveConflictSuccess {}
+
+// Server → client push: the file changed on disk while the client had
+// unsaved edits. The server does NOT apply the disk change to its buffer;
+// the client should show a conflict resolution banner.
+message BufferConflictDetected {
+  string path = 1;
 }

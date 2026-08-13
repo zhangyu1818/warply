@@ -28,6 +28,7 @@ use repo_metadata::repositories::DetectedRepositories;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
 use crate::code::editor::view::CodeEditorRenderOptions;
 use crate::code::editor_management::CodeSource;
+use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::comment_rendering::{CommentViewCard, HeaderClickHandler};
 use crate::terminal::model::BlockId;
 use crate::terminal::model_events::ModelEvent;
@@ -86,6 +87,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use warp_util::path::ShellFamily;
+use warp_util::standardized_path::StandardizedPath;
 use warpui::elements::SecretRange;
 
 use crate::util::link_detection::*;
@@ -508,7 +510,7 @@ impl ImportedCommentElementState {
 }
 
 pub(super) struct ImportedCommentGroup {
-    repo_path: PathBuf,
+    repo_path: LocalOrRemotePath,
     base_branch: Option<String>,
     cards: Vec<CommentViewCard>,
     element_states: Vec<ImportedCommentElementState>,
@@ -516,7 +518,7 @@ pub(super) struct ImportedCommentGroup {
 
 impl ImportedCommentGroup {
     fn new(
-        repo_path: PathBuf,
+        repo_path: LocalOrRemotePath,
         base_branch: Option<String>,
         cards: Vec<CommentViewCard>,
         element_states: Vec<ImportedCommentElementState>,
@@ -1933,8 +1935,9 @@ impl AIBlock {
                         {
                             // Since this is a code snippet, construct a fake path name for looking up the language.
                             let fake_path_string = format!("snippet.{extension}");
-                            let fake_path = std::path::Path::new(&fake_path_string);
-                            view.set_language_with_path(fake_path, ctx);
+                            if let Ok(fake_path) = StandardizedPath::try_new(&fake_path_string) {
+                                view.set_language_with_path(&fake_path, ctx);
+                            }
                         }
                     }
                     let starting_line_number = source.as_ref().and_then(|s| {
@@ -1995,8 +1998,9 @@ impl AIBlock {
                     // Apply language immediately on initial creation so restored blocks get syntax highlighting.
                     if let Some(ext) = language.as_ref().and_then(|lang| lang.to_extension()) {
                         let fake_path_string = format!("snippet.{ext}");
-                        let fake_path = std::path::Path::new(&fake_path_string);
-                        view.set_language_with_path(fake_path, ctx);
+                        if let Ok(fake_path) = StandardizedPath::try_new(&fake_path_string) {
+                            view.set_language_with_path(&fake_path, ctx);
+                        }
                     }
 
                     ctx.notify();
@@ -3159,21 +3163,26 @@ impl AIBlock {
         base_branch: Option<&str>,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Canonicalize the repo_path to resolve case differences on case-insensitive
-        // filesystems (e.g. macOS). The action's repo_path comes from the terminal CWD
-        // which may have non-canonical casing, while the CodeReviewView's repo_path
-        // comes from git detection which canonicalizes. Without this, comment file paths
-        // won't match editor paths in relocate_comments, marking all comments as outdated.
-        let canonical_repo_path =
-            dunce::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
-        let repo_path = canonical_repo_path.as_path();
+        let Some(repo_location) = self
+            .active_session
+            .as_ref(ctx)
+            .location_for_path(repo_path.to_string_lossy().as_ref(), ctx)
+        else {
+            log::warn!(
+                "Cannot import review comments for repo path without an active session location: {}",
+                repo_path.display()
+            );
+            return;
+        };
 
         let pending = convert_insert_review_comments(comments);
-        let flattened = attach_pending_imported_comments(pending, repo_path);
+        let flattened = attach_pending_imported_comments(pending, &repo_location);
 
         let cards: Vec<CommentViewCard> = flattened
             .into_iter()
-            .map(|comment| CommentViewCard::new(comment, true, true, None, Some(repo_path), ctx))
+            .map(|comment| {
+                CommentViewCard::new(comment, true, true, None, Some(&repo_location), ctx)
+            })
             .collect();
 
         let element_states = cards
@@ -3200,7 +3209,7 @@ impl AIBlock {
 
         self.imported_comments.insert(
             action_id,
-            ImportedCommentGroup::new(canonical_repo_path, base_branch, cards, element_states),
+            ImportedCommentGroup::new(repo_location, base_branch, cards, element_states),
         );
 
         self.update_imported_comments_disabled_state(ctx);
@@ -4036,12 +4045,12 @@ impl AIBlock {
         self.has_imported_comments
     }
 
-    /// Returns `true` if the canonicalized CWD is within any of this block's
+    /// Returns `true` if the current working directory is within any of this block's
     /// imported comment group repo roots.
-    fn cwd_matches_any_imported_comment_repo(&self, canonical_cwd: &Path) -> bool {
+    fn cwd_matches_any_imported_comment_repo(&self, cwd: &LocalOrRemotePath) -> bool {
         self.imported_comments
             .values()
-            .any(|group| canonical_cwd.starts_with(&group.repo_path))
+            .any(|group| group.repo_path.strip_repo_prefix(cwd).is_some())
     }
 
     /// Returns the repo path associated with this block's imported comments, if any.
@@ -4049,11 +4058,20 @@ impl AIBlock {
     /// All imported comment groups in a single block share the same repo
     /// (they were fetched in the same terminal context), so any group's
     /// path is representative.
-    pub(crate) fn imported_comment_repo_path(&self) -> Option<&Path> {
+    pub(crate) fn imported_comment_repo_path(&self) -> Option<&LocalOrRemotePath> {
         self.imported_comments
             .values()
             .next()
-            .map(|group| group.repo_path.as_path())
+            .map(|group| &group.repo_path)
+    }
+
+    fn current_working_directory_location(
+        &self,
+        ctx: &mut ViewContext<Self>,
+    ) -> Option<LocalOrRemotePath> {
+        self.active_session
+            .as_ref(ctx)
+            .current_working_directory_location(ctx)
     }
 
     /// Disables or enables the per-comment "Open in code review" buttons and the
@@ -4061,22 +4079,14 @@ impl AIBlock {
     /// directory is still within the imported comments' repository.
     fn update_imported_comments_disabled_state(&mut self, ctx: &mut ViewContext<Self>) {
         if self.has_imported_comments {
-            let canonical_cwd = self
-                .active_session
-                .as_ref(ctx)
-                .current_working_directory()
-                .and_then(|cwd| dunce::canonicalize(cwd).ok());
-            self.update_own_imported_comments_disabled_state(canonical_cwd.as_deref(), ctx);
+            let cwd_location = self.current_working_directory_location(ctx);
+            self.update_own_imported_comments_disabled_state(cwd_location.as_ref(), ctx);
         } else if BlocklistAIHistoryModel::as_ref(ctx)
             .conversation_has_imported_comments(&self.client_ids.conversation_id)
             && self.model.is_latest_non_passive_exchange_in_root_task(ctx)
         {
-            let canonical_cwd = self
-                .active_session
-                .as_ref(ctx)
-                .current_working_directory()
-                .and_then(|cwd| dunce::canonicalize(cwd).ok());
-            self.update_open_all_button_disabled_state(canonical_cwd.as_deref(), ctx);
+            let cwd_location = self.current_working_directory_location(ctx);
+            self.update_open_all_button_disabled_state(cwd_location.as_ref(), ctx);
         } else {
             return;
         }
@@ -4088,11 +4098,11 @@ impl AIBlock {
     /// imported comments. We assume all comment groups share the same repo.
     fn update_own_imported_comments_disabled_state(
         &mut self,
-        canonical_cwd: Option<&Path>,
+        cwd_location: Option<&LocalOrRemotePath>,
         ctx: &mut ViewContext<Self>,
     ) {
         let cwd_matches_repo =
-            canonical_cwd.is_some_and(|cwd| self.cwd_matches_any_imported_comment_repo(cwd));
+            cwd_location.is_some_and(|cwd| self.cwd_matches_any_imported_comment_repo(cwd));
         let should_disable = !cwd_matches_repo;
 
         for group in self.imported_comments.values() {
@@ -4100,14 +4110,14 @@ impl AIBlock {
         }
 
         let repo_path = if should_disable {
-            self.imported_comment_repo_path().map(Path::to_owned)
+            self.imported_comment_repo_path().cloned()
         } else {
             None
         };
         set_imported_comment_button_disabled(
             &self.open_all_comments_button,
             should_disable,
-            repo_path.as_deref(),
+            repo_path.as_ref(),
             ctx,
         );
     }
@@ -4117,23 +4127,23 @@ impl AIBlock {
     /// Derives the repo root from the block's CWD via `DetectedRepositories`.
     fn update_open_all_button_disabled_state(
         &self,
-        canonical_cwd: Option<&Path>,
+        cwd_location: Option<&LocalOrRemotePath>,
         ctx: &mut ViewContext<Self>,
     ) {
-        let repo_path = self
-            .current_working_directory
-            .as_ref()
-            .and_then(|cwd| DetectedRepositories::as_ref(ctx).get_root_for_path(Path::new(cwd)));
+        let repo_path = cwd_location
+            .and_then(LocalOrRemotePath::to_local_path)
+            .and_then(|cwd| DetectedRepositories::as_ref(ctx).get_root_for_path(cwd))
+            .map(LocalOrRemotePath::Local);
 
-        let cwd_matches_repo = match (canonical_cwd, repo_path.as_deref()) {
-            (Some(cwd), Some(rp)) => cwd.starts_with(rp),
+        let cwd_matches_repo = match (cwd_location, repo_path.as_ref()) {
+            (Some(cwd), Some(rp)) => rp.strip_repo_prefix(cwd).is_some(),
             _ => false,
         };
 
         set_imported_comment_button_disabled(
             &self.open_all_comments_button,
             !cwd_matches_repo,
-            repo_path.as_deref(),
+            repo_path.as_ref(),
             ctx,
         );
     }
@@ -4160,14 +4170,14 @@ pub(crate) struct ImportedBlockComments {
 fn set_imported_comment_button_disabled(
     handle: &ViewHandle<ActionButton>,
     should_disable: bool,
-    repo_path: Option<&Path>,
+    repo_path: Option<&LocalOrRemotePath>,
     ctx: &mut ViewContext<AIBlock>,
 ) {
     handle.update(ctx, |button, ctx| {
         button.set_disabled(should_disable, ctx);
         if should_disable {
             let tooltip = repo_path
-                .map(|path| format!("Navigate to {} to open these comments", path.display()));
+                .map(|path| format!("Navigate to {} to open these comments", path.display_path()));
             button.set_tooltip(tooltip, ctx);
         } else {
             button.set_tooltip(None::<String>, ctx);
@@ -4320,7 +4330,7 @@ pub enum AIBlockEvent {
     /// after the initial output completes.
     PassiveCodeDiffLoaded,
     OpenImportedCommentInCodeReview {
-        repo_path: PathBuf,
+        repo_path: LocalOrRemotePath,
         comment: Box<AttachedReviewComment>,
         base_branch: Option<String>,
     },

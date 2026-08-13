@@ -108,6 +108,21 @@ fn version_is_compatible(client: Option<&str>, server: &str) -> bool {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
+fn client_event_kind(event: &ClientEvent) -> &'static str {
+    match event {
+        ClientEvent::Disconnected => "disconnected",
+        ClientEvent::RepoMetadataSnapshotReceived { .. } => "repo_metadata_snapshot",
+        ClientEvent::RepoMetadataUpdated { .. } => "repo_metadata_updated",
+        ClientEvent::DiffStateSnapshotReceived { .. } => "diff_state_snapshot",
+        ClientEvent::DiffStateMetadataUpdateReceived { .. } => "diff_state_metadata_update",
+        ClientEvent::DiffStateFileDeltaReceived { .. } => "diff_state_file_delta",
+        ClientEvent::BufferUpdated { .. } => "buffer_updated",
+        ClientEvent::BufferConflictDetected { .. } => "buffer_conflict_detected",
+        ClientEvent::MessageDecodingError => "message_decoding_error",
+    }
+}
+
 /// Per-session connection state. Encodes which data is available at each
 /// lifecycle stage so the compiler prevents invalid combinations.
 ///
@@ -310,6 +325,15 @@ pub enum RemoteServerManagerEvent {
         repo_path: StandardizedPath,
         result: Result<Vec<crate::proto::FileChangeEntry>, String>,
     },
+    /// A buffer was updated on the remote host (file changed on disk).
+    /// The app layer should forward this to `GlobalBufferModel::handle_buffer_updated_push`.
+    BufferUpdated {
+        host_id: HostId,
+        path: String,
+        new_server_version: u64,
+        expected_client_version: u64,
+        edits: Vec<crate::proto::TextEdit>,
+    },
 
     // --- Setup events ---
     /// Intermediate state change during the binary check/install flow.
@@ -381,7 +405,8 @@ impl RemoteServerManagerEvent {
             | RemoteServerManagerEvent::GitCreatePrResponse { .. }
             | RemoteServerManagerEvent::GitGetPrInfoResponse { .. }
             | RemoteServerManagerEvent::GitGenerateCommitMessageResponse { .. }
-            | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. } => None,
+            | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. }
+            | RemoteServerManagerEvent::BufferUpdated { .. } => None,
         }
     }
 }
@@ -1636,6 +1661,25 @@ impl RemoteServerManager {
             }
             ClientEvent::MessageDecodingError => {
                 log::warn!("Remote server message decoding error: session={session_id:?}");
+            }
+            ClientEvent::BufferUpdated {
+                path,
+                new_server_version,
+                expected_client_version,
+                edits,
+            } => {
+                ctx.emit(RemoteServerManagerEvent::BufferUpdated {
+                    host_id,
+                    path,
+                    new_server_version,
+                    expected_client_version,
+                    edits,
+                });
+            }
+            ClientEvent::BufferConflictDetected { path } => {
+                log::debug!(
+                    "Remote server buffer conflict notification ignored by manager: session={session_id:?} path={path}"
+                );
             }
             ClientEvent::Disconnected => {
                 // Handled by the drain loop's completion callback.

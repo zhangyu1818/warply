@@ -148,7 +148,7 @@ fn test_parse_git_status_modified_file_with_spaces() {
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 test file.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].0, std::path::PathBuf::from("test file.txt"));
+    assert_eq!(result[0].0, "test file.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
 }
 
@@ -158,10 +158,7 @@ fn test_parse_git_status_modified_file_with_multiple_spaces() {
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 path to/my test file.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(
-        result[0].0,
-        std::path::PathBuf::from("path to/my test file.txt")
-    );
+    assert_eq!(result[0].0, "path to/my test file.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
 }
 
@@ -170,7 +167,7 @@ fn test_parse_git_status_new_file_with_spaces() {
     let status_output = "1 A. N... 000000 100644 100644 0000000 abc1234 new file name.rs";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].0, std::path::PathBuf::from("new file name.rs"));
+    assert_eq!(result[0].0, "new file name.rs");
     assert_eq!(result[0].1, GitFileStatus::New);
 }
 
@@ -182,7 +179,7 @@ fn test_parse_git_status_renamed_file_with_spaces() {
         "2 R. N... 100644 100644 100644 abc1234 def5678 R100 new name.txt\0old name.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].0, std::path::PathBuf::from("new name.txt"));
+    assert_eq!(result[0].0, "new name.txt");
     assert!(matches!(
         &result[0].1,
         GitFileStatus::Renamed { old_path } if old_path == "old name.txt"
@@ -194,10 +191,7 @@ fn test_parse_git_status_untracked_file_with_spaces() {
     let status_output = "? my untracked file.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(
-        result[0].0,
-        std::path::PathBuf::from("my untracked file.txt")
-    );
+    assert_eq!(result[0].0, "my untracked file.txt");
     assert_eq!(result[0].1, GitFileStatus::Untracked);
 }
 
@@ -209,7 +203,7 @@ fn test_parse_git_status_unmerged_file_with_spaces() {
         "u UU N... 100644 100644 100644 100644 abc1234 def5678 ghi9012 conflict file.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].0, std::path::PathBuf::from("conflict file.txt"));
+    assert_eq!(result[0].0, "conflict file.txt");
     assert_eq!(result[0].1, GitFileStatus::Conflicted);
 }
 
@@ -221,12 +215,9 @@ fn test_parse_git_status_mixed_entries_with_spaces() {
          ? another file with spaces.rs";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 3);
-    assert_eq!(result[0].0, std::path::PathBuf::from("test file.txt"));
-    assert_eq!(result[1].0, std::path::PathBuf::from("normal.txt"));
-    assert_eq!(
-        result[2].0,
-        std::path::PathBuf::from("another file with spaces.rs")
-    );
+    assert_eq!(result[0].0, "test file.txt");
+    assert_eq!(result[1].0, "normal.txt");
+    assert_eq!(result[2].0, "another file with spaces.rs");
 }
 
 #[test]
@@ -235,7 +226,7 @@ fn test_parse_git_status_file_without_spaces_still_works() {
     let status_output = "1 .M N... 100644 100644 100644 abc1234 def5678 simple.txt";
     let result = DiffStateModel::parse_git_status(status_output).unwrap();
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].0, std::path::PathBuf::from("simple.txt"));
+    assert_eq!(result[0].0, "simple.txt");
     assert_eq!(result[0].1, GitFileStatus::Modified);
 }
 
@@ -246,7 +237,7 @@ async fn untracked_directory_diff_is_empty_and_non_binary() {
 
     let diff = DiffStateModel::get_file_diff(
         repo_dir.path(),
-        &std::path::PathBuf::from("nested-repo/"),
+        "nested-repo/",
         &GitFileStatus::Untracked,
         false,
         None,
@@ -267,7 +258,7 @@ async fn untracked_directory_has_no_baseline_content() {
 
     let dir_content = DiffStateModel::get_file_content_at_head(
         repo_dir.path(),
-        std::path::Path::new("nested-repo/"),
+        "nested-repo/",
         &GitFileStatus::Untracked,
     )
     .await;
@@ -275,7 +266,7 @@ async fn untracked_directory_has_no_baseline_content() {
 
     let file_content = DiffStateModel::get_file_content_at_head(
         repo_dir.path(),
-        std::path::Path::new("new-file.txt"),
+        "new-file.txt",
         &GitFileStatus::Untracked,
     )
     .await;

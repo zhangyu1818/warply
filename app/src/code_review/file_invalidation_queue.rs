@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use warp_core::sync_queue::{IsTransientError, SyncQueueTaskTrait};
 
@@ -25,7 +26,8 @@ pub struct FileInvalidationTask {
 
 impl SyncQueueTaskTrait for FileInvalidationTask {
     type Error = FileInvalidationError;
-    type Result = (PathBuf, Option<FileDiffAndContent>);
+    /// The first element is the repo-relative path of the updated file.
+    type Result = (String, Option<Arc<FileDiffAndContent>>);
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Result, Self::Error>> + Send>>;
 
     fn run(&mut self) -> Self::Fut {

@@ -112,11 +112,11 @@ fn assert_repo_detected() -> AssertionCallback {
 }
 
 fn scroll_code_review_to_target_line() -> TestStep {
-    scroll_code_review_to_line(PathBuf::from(TEST_FILE_NAME), TARGET_LINE_NUMBER)
+    scroll_code_review_to_line(TEST_FILE_NAME, TARGET_LINE_NUMBER)
         .set_timeout(Duration::from_secs(10))
         .set_retries(2)
         .add_assertion(assert_code_review_anchor(
-            PathBuf::from(TEST_FILE_NAME),
+            TEST_FILE_NAME,
             modified_line_text(TARGET_LINE_NUMBER),
             Some(TARGET_LINE_NUMBER),
         ))
@@ -194,7 +194,7 @@ fn code_review_scroll_anchor_builder(
             TestStep::new("Wait for code review to reflect the inserted lines")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_line_text(
-                    PathBuf::from(TEST_FILE_NAME),
+                    TEST_FILE_NAME,
                     insertion_line_number,
                     inserted_line_text,
                 )),
@@ -203,7 +203,7 @@ fn code_review_scroll_anchor_builder(
             TestStep::new("Wait for code review to preserve the visible anchor text")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_anchor(
-                    PathBuf::from(TEST_FILE_NAME),
+                    TEST_FILE_NAME,
                     modified_line_text(TARGET_LINE_NUMBER),
                     None,
                 )),
@@ -347,21 +347,18 @@ pub fn test_code_review_scroll_preserved_deleted_range() -> Builder {
                 .add_assertion(assert_code_review_loaded()),
         )
         .with_step(
-            scroll_code_review_to_deleted_range(
-                PathBuf::from(TEST_FILE_NAME),
-                DELETED_RANGE_NEAR_LINE,
-            )
-            .set_timeout(Duration::from_secs(10))
-            .set_retries(2)
-            .add_assertion(assert_code_review_scroll_region(ScrollRegion::RemovedLine))
-            .set_post_step_pause(Duration::from_millis(250)),
+            scroll_code_review_to_deleted_range(TEST_FILE_NAME, DELETED_RANGE_NEAR_LINE)
+                .set_timeout(Duration::from_secs(10))
+                .set_retries(2)
+                .add_assertion(assert_code_review_scroll_region(ScrollRegion::RemovedLine))
+                .set_post_step_pause(Duration::from_millis(250)),
         )
         .with_step(mutate_test_file(INSERT_ABOVE_LINE_NUMBER, "above"))
         .with_step(
             TestStep::new("Wait for code review to reflect the inserted lines")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_line_text(
-                    PathBuf::from(TEST_FILE_NAME),
+                    TEST_FILE_NAME,
                     INSERT_ABOVE_LINE_NUMBER,
                     inserted_line_text,
                 ))
@@ -428,7 +425,7 @@ pub fn test_code_review_scroll_preserved_header_range() -> Builder {
                 .add_assertion(assert_code_review_loaded()),
         )
         .with_step(
-            scroll_code_review_to_header(PathBuf::from(TEST_FILE_NAME))
+            scroll_code_review_to_header(TEST_FILE_NAME)
                 .set_timeout(Duration::from_secs(10))
                 .set_retries(2)
                 .add_assertion(assert_code_review_scroll_region(ScrollRegion::Header))
@@ -439,7 +436,7 @@ pub fn test_code_review_scroll_preserved_header_range() -> Builder {
             TestStep::new("Wait for code review to reflect the inserted lines")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_line_text(
-                    PathBuf::from(TEST_FILE_NAME),
+                    TEST_FILE_NAME,
                     INSERT_ABOVE_LINE_NUMBER,
                     inserted_line_text,
                 )),
@@ -528,7 +525,7 @@ pub fn test_code_review_scroll_preserved_footer_range() -> Builder {
                 .add_assertion(assert_code_review_loaded()),
         )
         .with_step(
-            scroll_code_review_to_footer(PathBuf::from(FIRST_FILE_NAME))
+            scroll_code_review_to_footer(FIRST_FILE_NAME)
                 .set_timeout(Duration::from_secs(10))
                 .set_retries(2)
                 .add_assertion(assert_code_review_scroll_region(ScrollRegion::Footer))
@@ -543,7 +540,7 @@ pub fn test_code_review_scroll_preserved_footer_range() -> Builder {
             TestStep::new("Wait for code review to reflect the inserted lines")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_line_text(
-                    PathBuf::from(FIRST_FILE_NAME),
+                    FIRST_FILE_NAME,
                     MULTI_FILE_INSERT_LINE,
                     inserted_line_text,
                 )),
@@ -623,11 +620,11 @@ pub fn test_code_review_scroll_preserved_second_file() -> Builder {
         )
         // Scroll to a target line in the SECOND file (index 1)
         .with_step(
-            scroll_code_review_to_line(PathBuf::from(SECOND_FILE_NAME), MULTI_FILE_TARGET_LINE)
+            scroll_code_review_to_line(SECOND_FILE_NAME, MULTI_FILE_TARGET_LINE)
                 .set_timeout(Duration::from_secs(10))
                 .set_retries(2)
                 .add_assertion(assert_code_review_anchor(
-                    PathBuf::from(SECOND_FILE_NAME),
+                    SECOND_FILE_NAME,
                     multi_file_modified_line("second", MULTI_FILE_TARGET_LINE),
                     Some(MULTI_FILE_TARGET_LINE),
                 ))
@@ -643,7 +640,7 @@ pub fn test_code_review_scroll_preserved_second_file() -> Builder {
             TestStep::new("Wait for code review to reflect the inserted lines in second file")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_line_text(
-                    PathBuf::from(SECOND_FILE_NAME),
+                    SECOND_FILE_NAME,
                     MULTI_FILE_INSERT_LINE,
                     inserted_line_text,
                 )),
@@ -652,7 +649,7 @@ pub fn test_code_review_scroll_preserved_second_file() -> Builder {
             TestStep::new("Wait for code review to preserve the visible anchor in second file")
                 .set_timeout(Duration::from_secs(20))
                 .add_assertion(assert_code_review_anchor(
-                    PathBuf::from(SECOND_FILE_NAME),
+                    SECOND_FILE_NAME,
                     multi_file_modified_line("second", MULTI_FILE_TARGET_LINE),
                     None,
                 )),

@@ -1,10 +1,12 @@
 use crate::{
     ai::agent::{CurrentHead, DiffBase},
-    code::editor::{line::EditorLineLocation, EditorReviewComment},
+    code::{
+        buffer_location::LocalOrRemotePath,
+        editor::{line::EditorLineLocation, EditorReviewComment},
+    },
 };
 use chrono::{DateTime, Local};
 use std::fmt::{Display, Formatter};
-use std::path::PathBuf;
 use warp_editor::render::model::LineCount;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -109,18 +111,18 @@ pub struct AttachedReviewComment {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AttachedReviewCommentTarget {
     Line {
-        absolute_file_path: PathBuf,
+        absolute_file_path: LocalOrRemotePath,
         line: EditorLineLocation,
         content: LineDiffContent,
     },
     File {
-        absolute_file_path: PathBuf,
+        absolute_file_path: LocalOrRemotePath,
     },
     General,
 }
 
 impl AttachedReviewCommentTarget {
-    pub(crate) fn absolute_file_path(&self) -> Option<&PathBuf> {
+    pub(crate) fn absolute_file_path(&self) -> Option<&LocalOrRemotePath> {
         match self {
             AttachedReviewCommentTarget::Line {
                 absolute_file_path, ..
@@ -141,7 +143,7 @@ impl AttachedReviewCommentTarget {
 impl AttachedReviewComment {
     pub(crate) fn from_editor_review_comment(
         comment: EditorReviewComment,
-        absolute_file_path: PathBuf,
+        absolute_file_path: LocalOrRemotePath,
         base: Option<DiffBase>,
         head: Option<CurrentHead>,
     ) -> AttachedReviewComment {

@@ -39,7 +39,7 @@ use crate::app_state::{
 };
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::GlobalCodeReviewModel;
-use crate::code::buffer_location::LocalOrRemotePath;
+use crate::code::buffer_location::{FileLocation, LocalOrRemotePath};
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::default_terminal::DefaultTerminal;
 use crate::notification::NotificationContext;
@@ -4173,17 +4173,35 @@ impl Workspace {
                 self.handle_file_tree_event(pane_group, pane_group_event, ctx);
             }
             LeftPanelEvent::OpenFileWithTarget {
-                path,
+                location,
                 target,
                 line_col,
             } => {
-                self.open_file_with_target(
-                    path.clone(),
-                    target.clone(),
-                    *line_col,
-                    CodeSource::FileTree { path: path.clone() },
-                    ctx,
-                );
+                let code_source = CodeSource::FileTree {
+                    location: location.clone(),
+                };
+                match location {
+                    FileLocation::Local(path) => {
+                        self.open_file_with_target(
+                            path.clone(),
+                            target.clone(),
+                            *line_col,
+                            code_source,
+                            ctx,
+                        );
+                    }
+                    FileLocation::Remote(_) => {
+                        #[cfg(feature = "local_fs")]
+                        self.open_code(
+                            code_source,
+                            crate::util::openable_file_type::EditorLayout::SplitPane,
+                            None,
+                            false,
+                            &[],
+                            ctx,
+                        );
+                    }
+                }
             }
             LeftPanelEvent::NewConversationInNewTab => {
                 self.add_terminal_tab_with_new_agent_view(
@@ -4244,9 +4262,22 @@ impl Workspace {
             RightPanelEvent::OpenFileInNewTab {
                 path,
                 line_and_column,
-            } => {
-                self.add_tab_for_code_file(path, line_and_column, ctx);
-            }
+            } => match path {
+                LocalOrRemotePath::Local(path) => {
+                    self.add_tab_for_code_file(path, line_and_column, ctx);
+                }
+                path @ LocalOrRemotePath::Remote(_) => {
+                    self.open_code(
+                        CodeSource::FileTree { location: path },
+                        EditorLayout::NewTab,
+                        line_and_column,
+                        false,
+                        &[],
+                        ctx,
+                    );
+                }
+            },
+            #[cfg(not(target_family = "wasm"))]
             RightPanelEvent::OpenLspLogs { log_path } => {
                 self.open_lsp_logs(&log_path, ctx);
             }
@@ -6043,10 +6074,18 @@ impl Workspace {
                     if preview {
                         code_view.open_in_preview_or_promote_and_jump(path, line_col, ctx);
                     } else {
-                        code_view.open_or_focus_existing(Some(path), line_col, ctx);
+                        code_view.open_or_focus_existing(
+                            Some(FileLocation::Local(path)),
+                            line_col,
+                            ctx,
+                        );
                     }
                     for extra in additional_paths {
-                        code_view.open_or_focus_existing(Some(extra.clone()), None, ctx);
+                        code_view.open_or_focus_existing(
+                            Some(FileLocation::Local(extra.clone())),
+                            None,
+                            ctx,
+                        );
                     }
                 });
                 // Only focus the pane for non-preview opens
@@ -6082,7 +6121,7 @@ impl Workspace {
                                     );
                                 } else {
                                     code_view.open_or_focus_existing(
-                                        Some(path.clone()),
+                                        Some(FileLocation::Local(path.clone())),
                                         line_col,
                                         ctx,
                                     );
@@ -6090,7 +6129,7 @@ impl Workspace {
 
                                 for extra in additional_paths {
                                     code_view.open_or_focus_existing(
-                                        Some(extra.clone()),
+                                        Some(FileLocation::Local(extra.clone())),
                                         None,
                                         ctx,
                                     );
@@ -6145,7 +6184,11 @@ impl Workspace {
             if let Some(code_view) = code_view_handle {
                 code_view.update(ctx, |code_view, ctx| {
                     for path in additional_paths {
-                        code_view.open_or_focus_existing(Some(path.clone()), None, ctx);
+                        code_view.open_or_focus_existing(
+                            Some(FileLocation::Local(path.clone())),
+                            None,
+                            ctx,
+                        );
                     }
                 });
             }
@@ -6519,14 +6562,15 @@ impl Workspace {
                 .repo_path
                 .as_ref()
                 .is_some_and(|target_repo_path| {
-                    self.right_panel_view.as_ref(ctx).selected_repo_path() == Some(target_repo_path)
+                    self.right_panel_view.as_ref(ctx).selected_repo_path()
+                        == Some(target_repo_path)
                 });
         if panel_already_showing_repo {
             return;
         }
 
-        let repo_path = panel_context.repo_path.clone();
-        let diff_state_model = repo_path.as_ref().and_then(|rp| {
+        let repo_location = panel_context.repo_path.clone();
+        let diff_state_model = repo_location.as_ref().and_then(|rp| {
             self.working_directories_model.update(ctx, |model, ctx| {
                 model.get_or_create_diff_state_model(rp.clone(), ctx)
             })
@@ -6535,7 +6579,7 @@ impl Workspace {
             return;
         };
         let context = CodeReviewPaneContext {
-            repo_path,
+            repo_path: repo_location,
             diff_state_model,
         };
 
@@ -11222,7 +11266,11 @@ impl Workspace {
                                     // After removing the file from the origin's editor, we want to open it in the target's editor.
                                     if let Some(path) = moved_file_path {
                                         target_code_view.update(ctx, |view, ctx| {
-                                            view.open_or_focus_existing(Some(path), None, ctx);
+                                            view.open_or_focus_existing(
+                                                Some(FileLocation::Local(path)),
+                                                None,
+                                                ctx,
+                                            );
                                         });
                                     }
                                     return;
@@ -11590,6 +11638,27 @@ impl Workspace {
                         left_panel.on_left_panel_visibility_changed(*is_open, ctx);
                     });
                 }
+            }
+            pane_group::Event::InsertCodeReviewComments {
+                repo_path,
+                comments,
+                diff_mode,
+                open_code_review,
+            } => {
+                if let Some(open_code_review) = open_code_review {
+                    self.open_code_review_panel_from_arg(open_code_review, pane_group.clone(), ctx);
+                }
+
+                self.working_directories_model
+                    .update(ctx, |working_directories, ctx| {
+                        working_directories.insert_code_review_comments(
+                            pane_group.id(),
+                            repo_path,
+                            comments,
+                            diff_mode,
+                            ctx,
+                        )
+                    });
             }
             pane_group::Event::OpenCodeReviewPaneAndScrollToComment {
                 open_code_review,

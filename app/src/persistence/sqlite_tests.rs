@@ -327,7 +327,7 @@ fn test_sqlite_round_trips_code_pane_with_multiple_tabs() {
                         ],
                         active_tab_index: 1,
                         source: Some(CodeSource::FileTree {
-                            path: PathBuf::from("/tmp/main.rs"),
+                            location: PathBuf::from("/tmp/main.rs").into(),
                         }),
                     }),
                 }),

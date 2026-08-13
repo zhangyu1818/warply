@@ -777,23 +777,22 @@ impl WorkingDirectoriesModel {
         diff_mode: &DiffMode,
         ctx: &mut ModelContext<Self>,
     ) {
-        if let Some(code_review_view) = self.get_code_review_view(pane_group_id, repo_path) {
-            code_review_view.update(ctx, |code_review_view, ctx| {
-                code_review_view.set_diff_base(diff_mode.to_owned(), ctx);
-                code_review_view.expand_comment_list(ctx);
-            })
-        } else {
-            log::error!(
-                "WorkingDirectoriesModel did not find CodeReviewView for repo path {:?}",
-                repo_path
-            );
+        if repo_path.is_local() {
+            if let Some(code_review_view) = self.get_code_review_view(pane_group_id, repo_path) {
+                code_review_view.update(ctx, |code_review_view, ctx| {
+                    code_review_view.set_diff_base(diff_mode.to_owned(), ctx);
+                    code_review_view.expand_comment_list(ctx);
+                })
+            } else {
+                log::error!(
+                    "WorkingDirectoriesModel did not find CodeReviewView for repo path {:?}",
+                    repo_path
+                );
+            }
         }
 
         if let Some(comment_batch) = self.get_or_create_code_review_comments(repo_path, ctx) {
             let comments = comments.to_owned();
-            let Some(repo_path) = repo_path.to_local_path() else {
-                return;
-            };
             let comments = attach_pending_imported_comments(comments, repo_path);
             comment_batch.update(ctx, |comment_batch, ctx| {
                 comment_batch.upsert_imported_comments(comments, ctx);

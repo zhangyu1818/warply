@@ -104,7 +104,10 @@ use crate::ai::blocklist::block::{AIBlockAction, FinishReason};
 use crate::ai::blocklist::model::AIBlockOutputStatus;
 #[cfg(feature = "local_fs")]
 use crate::ai::persisted_workspace::PersistedWorkspace;
-use crate::code_review::comments::AttachedReviewComment;
+use crate::ai::agent::InsertReviewComment;
+use crate::code_review::comments::{
+    convert_insert_review_comments, AttachedReviewComment, PendingImportedReviewComment,
+};
 #[cfg(feature = "local_fs")]
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::diff_state::{DiffMode, GitDeltaPreference};
@@ -419,6 +422,7 @@ use crate::ui_events::PaletteSource;
 use crate::view_components::find::{Event as FindEvent, Find, FindDirection, FindWithinBlockState};
 use settings::Setting;
 use warp_core::semantic_selection::SemanticSelection;
+use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::text::SelectionType;
 
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
@@ -1457,6 +1461,12 @@ pub enum Event {
     },
     OpenCodeReviewPane(CodeReviewPanelArg),
     ToggleCodeReviewPane(CodeReviewPanelArg),
+    InsertCodeReviewComments {
+        repo_path: LocalOrRemotePath,
+        comments: Vec<PendingImportedReviewComment>,
+        diff_mode: DiffMode,
+        open_code_review: Option<CodeReviewPanelArg>,
+    },
     OpenCodeReviewPaneAndScrollToComment {
         open_code_review: CodeReviewPanelArg,
         comment: AttachedReviewComment,
@@ -3607,6 +3617,7 @@ impl TerminalView {
                 | RemoteServerManagerEvent::RepoMetadataSnapshot { .. }
                 | RemoteServerManagerEvent::RepoMetadataUpdated { .. }
                 | RemoteServerManagerEvent::RepoMetadataDirectoryLoaded { .. }
+                | RemoteServerManagerEvent::BufferUpdated { .. }
                 | RemoteServerManagerEvent::DiffStateSnapshotReceived { .. }
                 | RemoteServerManagerEvent::DiffStateMetadataUpdateReceived { .. }
                 | RemoteServerManagerEvent::DiffStateFileDeltaReceived { .. }
@@ -4978,7 +4989,6 @@ impl TerminalView {
             &DiffSetScope::All,
             &diff_mode,
             main_branch_name.as_deref(),
-            &repo_path,
         );
 
         // Insert the reference into the terminal input immediately
@@ -5181,9 +5191,59 @@ impl TerminalView {
                     ctx,
                 );
             }
-            BlocklistAIActionEvent::InsertCodeReviewComments { .. } => {}
+            BlocklistAIActionEvent::InsertCodeReviewComments {
+                repo_path,
+                comments,
+                base_branch,
+                ..
+            } => {
+                self.handle_insert_code_review_comments_event(
+                    repo_path,
+                    comments,
+                    base_branch.as_deref(),
+                    ctx,
+                );
+            }
             BlocklistAIActionEvent::QueuedAction(_) => {}
         }
+    }
+
+    fn handle_insert_code_review_comments_event(
+        &mut self,
+        repo_path: &Path,
+        comments: &[InsertReviewComment],
+        base_branch: Option<&str>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let pending_comments = convert_insert_review_comments(comments);
+
+        if pending_comments.is_empty() {
+            log::warn!("No valid comments to insert");
+            return;
+        }
+
+        // Determine DiffMode from the base branch.
+        if self.current_repo_path.is_none() {
+            log::error!("Cannot insert PR comments: not in a git repository");
+            return;
+        }
+
+        let diff_mode = self.diff_mode_for_branch(base_branch, ctx);
+
+        let open_code_review = Some(CodeReviewPanelArg {
+            repo_path: Some(LocalOrRemotePath::Local(repo_path.to_path_buf())),
+            terminal_view: self.view_handle.clone(),
+            entrypoint: CodeReviewPaneEntrypoint::InvokedByAgent,
+            focus_new_pane: false,
+            cli_agent: None,
+        });
+
+        ctx.emit(Event::InsertCodeReviewComments {
+            repo_path: LocalOrRemotePath::Local(repo_path.to_path_buf()),
+            comments: pending_comments,
+            diff_mode,
+            open_code_review,
+        });
     }
 
     /// Gets the DiffMode for the given branch name by fetching the main branch name
@@ -16883,7 +16943,7 @@ impl TerminalView {
     /// rich input when open or the PTY when closed.
     pub fn send_diff_hunk_to_cli_agent_or_rich_input(
         &mut self,
-        file_path: &Path,
+        file_path: &str,
         start_line: usize,
         end_line: usize,
         lines_added: u32,

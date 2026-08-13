@@ -912,9 +912,10 @@ impl CodeDiffView {
                 let file_path = diff.base.file_path.clone();
 
                 // Set up the editor buffer with the pre-loaded content.
-                let path = Path::new(&file_path);
                 editor.update(ctx, |editor_view, ctx| {
-                    editor_view.set_language_with_path(path, ctx);
+                    if let Ok(path) = StandardizedPath::try_new(&file_path) {
+                        editor_view.set_language_with_path(&path, ctx);
+                    }
                     let state = InitialBufferState::plain_text(&diff.base.content);
                     editor_view.reset(state, ctx);
                 });

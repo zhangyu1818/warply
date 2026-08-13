@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use super::buffer_location::LocalOrRemotePath;
 use serde::{Deserialize, Serialize};
 use warp_util::path::LineAndColumnArg;
 use warpui::{AppContext, Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
@@ -116,8 +117,8 @@ pub enum CodeSource {
     AIAction { id: AIAgentActionId },
     /// Opened from project rules (WARP.md) file.
     ProjectRules { path: PathBuf },
-    /// Opened from file tree.
-    FileTree { path: PathBuf },
+    /// Opened from file tree (local or remote).
+    FileTree { location: LocalOrRemotePath },
     /// Opened from macOS Finder via "Open With".
     Finder { path: PathBuf },
 }
@@ -139,13 +140,31 @@ impl CodeSource {
     pub fn path(&self) -> Option<PathBuf> {
         match self {
             Self::New { .. } | Self::AIAction { .. } => None,
+            Self::FileTree { location, .. } => location.to_local_path().map(Path::to_path_buf),
             Self::Link { path, .. }
             | Self::ProjectRules { path }
-            | Self::FileTree { path }
             | Self::Finder { path } => Some(path.clone()),
         }
     }
 
+    /// Returns the local-or-remote location for file tree sources.
+    pub fn file_location(&self) -> Option<&LocalOrRemotePath> {
+        match self {
+            Self::FileTree { location } => Some(location),
+            _ => None,
+        }
+    }
+
+    /// Returns the local-or-remote location for any source that has a backing file.
+    pub fn location(&self) -> Option<LocalOrRemotePath> {
+        match self {
+            Self::New { .. } | Self::AIAction { .. } => None,
+            Self::FileTree { location } => Some(location.clone()),
+            Self::Link { path, .. }
+            | Self::ProjectRules { path }
+            | Self::Finder { path } => Some(LocalOrRemotePath::Local(path.clone())),
+        }
+    }
     pub fn omit_line_col(&self) -> CodeSource {
         if let CodeSource::Link { path, .. } = self {
             CodeSource::Link {
@@ -163,7 +182,13 @@ impl CodeSource {
     /// `AIAction` is ephemeral (tied to a live conversation) and should not
     /// be restored.
     pub fn is_restorable(&self) -> bool {
-        !matches!(self, Self::AIAction { .. })
+        !matches!(
+            self,
+            Self::AIAction { .. }
+                | Self::FileTree {
+                    location: LocalOrRemotePath::Remote(_),
+                }
+        )
     }
 }
 

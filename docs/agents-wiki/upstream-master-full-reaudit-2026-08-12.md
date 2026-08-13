@@ -13,7 +13,7 @@ The original full re-audit indexed 1812 commits by subject, touched paths, prior
 
 The 13-commit tail after `69254d73db` was reviewed individually. `12e455c56e` and `5fb3144db9` were ported as retained macOS/local editor behavior; the other 11 commits are cloud, bundled skills/MCP, CI/documentation, Windows, or TUI-only and were rejected or marked not applicable. The live range is therefore 1,825/1,825 reviewed commits.
 
-The audit established corrected decisions; the source-faithful follow-up ports recorded below have now closed all 22 reported omission rows. The audit history remains the evidence for why each feature is retained, adapted, or conditional.
+The audit established corrected decisions; the source-faithful follow-up ports recorded below have now closed all 22 reported omission rows. The remote Code Review renderer boundary was then completed from the authoritative upstream buffer/editor path migration. The audit history remains the evidence for why each feature is retained, adapted, or conditional.
 
 ## Decision Rules Applied
 
@@ -53,7 +53,7 @@ The audit established corrected decisions; the source-faithful follow-up ports r
 
 ### Closure status (2026-08-13)
 
-The reported omission list is **22/22 resolved**: 19 rows are source-faithful ports, two rows were already present in the fork, and `JsonTreeView` remains a conditional local prerequisite until an ACP structured tool-call consumer needs it. No upstream core feature was reconstructed from prose, screenshots, or memory.
+The reported omission list is **22/22 resolved**: 19 rows are source-faithful ports, two rows were already present in the fork, and `JsonTreeView` remains a conditional local prerequisite until an ACP structured tool-call consumer needs it. The separate remote Code Review renderer follow-up is also complete. No upstream core feature was reconstructed from prose, screenshots, or memory.
 
 The completed tab grouping/pinning source ledger is: `fc110333ac`, `f3bfb750bc`, `4f5d0d6f8d`, `98dbf7831e`, `910d0fc467`, `9e23bd22f2`, `662bd73767`, `d3757291a1`, `981cb1c7d0`, `a44fbf1633`, `b24fce3db8`, `e0535ca2cb`, `665f0f6578`, `984a889626`, `ebaef155b3`, `f658c30b57`, `011d9da709`, `ae7f6574ad`, `af532bdc3c`, `d0d3d064da`, `53f273e921`, `2a251933c6`, `1cdb4794e6`, `8794f73251`, `79fdd7cebb`, `8de0888ae2`, `b101722e9b`, `3cdccdc81e`, `fc6260c013`, `034e25bec6`, `79fd190898`, `4441e381c1`, `cd233ebde5`, `ad730534b0`, `0b1e4ab4e5`, `97bc2646dd`, `86289c931d`, `c5d5175f51`, `b802cdf571`, `d275b2dcdf`, `9c59c69df0`, `21e28cccee`, `f1701be39a`, `9dcb9b890c`, `3015d875b7`, `8089a74d3c`, `94804667d0`, and `a612c95919`. After that infrastructure existed, the previously inapplicable grouped-color branch and tests from `f73d44f11b` were restored from that source commit as well.
 
@@ -92,10 +92,23 @@ The security stack `32d21d15c9`, `ca745b402c`, and `51bd326780` was deferred onl
 
 - `0d24d2cffa`: reuse a user's existing SSH ControlMaster without taking ownership or killing it.
 - `f0ca7861fe`: wait briefly for the remote-server child exit status before presenting an error, avoiding the retained manager race.
-- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling. The split diff-state/transport stack and source-faithful git dialogs/entrypoint path model are now committed in `5f669bbda`, `9f98ab97e`, and `ad2115c78`; the existing fork CodeReviewView renderer still accepts local `PathBuf` and therefore the end-to-end remote review UI remains an explicitly tracked follow-up.
+- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering for retained SSH code review and remote file handling. The split diff-state/transport stack, source-faithful git dialogs/entrypoint path model, and remote renderer are now complete in the fork.
 - `a18da95904`: avoid registering macOS secure storage inside the remote daemon.
 
 These commits are local/SSH functionality. Remote Linux/macOS host code needed by the SSH server is retained even though native Linux/Windows clients are not.
+
+### Remote Code Review Renderer Closure (2026-08-13)
+
+The remaining end-to-end renderer gap was ported from the exact upstream source chain rather than recreated:
+
+- `38ead212ec`: remote-backed global buffer model, local/remote file locations, server buffer tracker, and protocol events.
+- `c83e1efa44`: CodeReviewView/editor migration to the remote-backed buffer boundary.
+- `09a35b58af`, `48a648b10b`, and `3239e96b07`: diff-state and global-path follow-ups required by the renderer.
+- `4d844f14e1`: `LocalOrRemotePath` migration across CodeReviewView, comments, editor state, workspace routing, tests, and retained remote-server paths.
+- `b3187d0280`: remote Code Review entrypoint/editor integration.
+- `08487819fe` and `4b5c94d434`: remote git operations and large/binary-file filtering used by the retained SSH review path.
+
+The fork keeps the upstream local/remote state model, buffer lifecycle, diff updates, editor location identity, comments, and source tests. Adaptations are limited to the ACP/local provider boundary and removal of cloud/auth/telemetry branches; no Warp service client or app-managed MCP/skills path was restored. Remote-only operations that require a local filesystem (LSP footer, local terminal comment submission, local discard/save) remain explicitly gated at their local boundary.
 
 ### AgentView And Local AI-Surface Behavior
 
@@ -215,7 +228,7 @@ At least the tab-grouping foundation commit `183d0aa1b4` describes itself as a â
 
 ### 2026-08-13 continuation
 
-The re-audit currently tracks 41 major retained feature groups. 40 are complete; the remote Code Review group remains in progress at the renderer boundary described below. The following source-led ports closed the remaining local AgentView, terminal, Markdown, and attachment gaps:
+The re-audit tracks 41 major retained feature groups, all complete. The following source-led ports closed the remaining local AgentView, terminal, Markdown, attachment, and remote Code Review gaps:
 
 - `170b791b8f`: local AgentView conversation-row fork/open/context actions, with cloud sharing, debug-only actions, and telemetry removed.
 - `bcfd978737`, `a8df317229`, `d58850b2cc`, `b9d1c0ebdb`: local link-tooltip, block-selection focus, ask-question focus, and Droid rich-status behavior.
@@ -223,8 +236,7 @@ The re-audit currently tracks 41 major retained feature groups. 40 are complete;
 - `83c11f155b`, `a90be740b2`: ask-question option alignment and content-sized cards; 26 focused ask-question tests pass.
 - `d9c4c1a70b`: `/fork` carries pending local image attachments into the new ACP conversation; the fork path drains attachments only when an initial prompt is present.
 - `2e5ff6f429`, `912e4540f8`: copied the upstream paint-bound image sizing prerequisite and Mermaid fit-width rendering; `cargo build -p warp --all-targets --message-format short` passed and build artifacts were cleaned.
-
-The remaining group is the remote Code Review Git stack from `08487819fe` and `4b5c94d434`. Its split local/remote diff-state model, host-scoped protocol, git operations, dialog sources, and `LocalOrRemotePath` entrypoint plumbing have been ported from upstream and verified with focused tests plus a full `cargo build -p warp --all-targets`, followed by `cargo clean`. The current renderer still uses the fork's local `PathBuf` CodeReviewView boundary; completing remote rendering requires the authoritative upstream path/editor source chain, not a hand-written substitute or Warp server/AI API calls.
+- `38ead212ec`, `c83e1efa44`, `09a35b58af`, `48a648b10b`, `3239e96b07`, `4d844f14e1`, `b3187d0280`, `08487819fe`, and `4b5c94d434`: copied the upstream remote-backed global-buffer, path identity, CodeReviewView/editor, diff-state, protocol, git-operation, and entrypoint chains. The fork adapts only local/ACP boundaries and retains local-only LSP/save/discard/terminal-submission gates. Focused Code Review/remote-server tests passed; the final `cargo build -p warp --all-targets` and workspace build are recorded with the merge commit, each followed by `cargo clean`.
 
 ## Port Order
 
@@ -232,6 +244,7 @@ The remaining group is the remote Code Review Git stack from `08487819fe` and `4
 2. Complete prerequisite stacks: DCS integrity, repo metadata, Async Find, NLD, and Rich Input footer/settings.
 3. Completed major local feature cluster: queued prompts.
 4. Source-faithful closure of the remaining editor/UI rows: local Markdown image invalidation, OSC 52 controls, the height-capped new-session menu, file-only palette search, and bounded expandable toasts.
+5. Remote Code Review renderer closure from the authoritative global-buffer and `LocalOrRemotePath` source chain.
 
 Each port should use a dedicated upstream-source commit series with provenance recorded per commit. A feature is complete only after upstream tests or faithful fork adaptations cover its retained behavior and deleted-surface scans confirm that Warp services and tracking were not restored.
 

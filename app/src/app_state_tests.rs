@@ -59,7 +59,7 @@ fn test_code_pane_snapshot_single_tab() {
         }],
         active_tab_index: 0,
         source: Some(CodeSource::FileTree {
-            path: PathBuf::from("/tmp/test.rs"),
+            location: PathBuf::from("/tmp/test.rs").into(),
         }),
     };
     let CodePaneSnapShot::Local {

@@ -158,7 +158,7 @@ pub struct DiffHunk {
 /// This matches Git Desktop's FileDiff structure.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FileDiff {
-    pub file_path: PathBuf,
+    pub file_path: String,
     pub status: GitFileStatus,
     pub hunks: Arc<Vec<DiffHunk>>,
     pub is_binary: bool,
@@ -1772,26 +1772,24 @@ impl LocalDiffStateModel {
     }
 
     pub async fn diff_metadata_against_head(repo_path: &Path) -> Result<DiffMetadataAgainstBase> {
-        // First, get the list of changed files with their status
         log::debug!(
             "[GIT OPERATION] diff_state.rs diff_metadata_against_head git --no-optional-locks status --untracked-files=all --branch --porcelain=2 -z"
         );
         let status_output = run_git_command(
             repo_path,
             &[
-                "--no-optional-locks", // Avoid taking locks that might interfere with other git operations
+                "--no-optional-locks",
                 "status",
-                "--untracked-files=all", // Get all untracked files
-                "--branch",              // Get branch information
-                "--porcelain=2",         // Use porcelain=2 to match git desktop implementation
-                "-z",                    // Split output by null characters
+                "--untracked-files=all",
+                "--branch",
+                "--porcelain=2",
+                "-z",
             ],
         )
         .await?;
 
         let changed_files = Self::parse_git_status(&status_output)?;
         let num_stat_metadata = Self::get_diff_metadata_using_numstat(repo_path, "HEAD").await?;
-
         let mut total_additions = 0;
         let mut total_deletions = 0;
         let mut files = Vec::with_capacity(changed_files.len());
@@ -1801,7 +1799,7 @@ impl LocalDiffStateModel {
                 (metadata.lines_added, metadata.lines_removed)
             } else if matches!(status, GitFileStatus::Untracked) {
                 (
-                    Self::num_lines_for_untracked_entry(repo_path, file_path).await,
+                    Self::num_lines_for_untracked_entry(repo_path, Path::new(file_path)).await,
                     0,
                 )
             } else {
@@ -1810,7 +1808,7 @@ impl LocalDiffStateModel {
             total_additions += additions;
             total_deletions += deletions;
             files.push(FileChangeEntry {
-                path: file_path.to_string_lossy().to_string(),
+                path: file_path.clone(),
                 additions,
                 deletions,
             });
@@ -1826,7 +1824,7 @@ impl LocalDiffStateModel {
         })
     }
 
-    async fn file_statuses_against_head(repo_path: &Path) -> Result<Vec<(PathBuf, GitFileStatus)>> {
+    async fn file_statuses_against_head(repo_path: &Path) -> Result<Vec<(String, GitFileStatus)>> {
         // First, get the list of changed files with their status
         log::debug!(
             "[GIT OPERATION] diff_state.rs file_statuses_against_head git --no-optional-locks status --untracked-files=all --branch --porcelain=2 -z"
@@ -1902,20 +1900,14 @@ impl LocalDiffStateModel {
     /// or `git diff --name-status` (base-branch mode) limited to a single path.
     async fn file_status_for_path(
         repo_path: &Path,
-        file: &Path,
+        relative: &str,
         mode: &DiffMode,
         merge_base: Option<&str>,
-    ) -> Result<Option<(PathBuf, GitFileStatus)>> {
-        let relative = file
-            .strip_prefix(repo_path)
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|_| file.to_path_buf());
-        let rel_str = relative.to_str().ok_or_else(|| anyhow!("non-UTF-8 path"))?;
-
+    ) -> Result<Option<(String, GitFileStatus)>> {
         match (mode, merge_base) {
             (DiffMode::Head, _) => {
                 log::debug!(
-                    "[GIT OPERATION] diff_state.rs file_status_for_path git status -- {rel_str}"
+                    "[GIT OPERATION] local.rs file_status_for_path git status -- {relative}"
                 );
                 let output = run_git_command(
                     repo_path,
@@ -1925,7 +1917,7 @@ impl LocalDiffStateModel {
                         "--porcelain=2",
                         "-z",
                         "--",
-                        rel_str,
+                        relative,
                     ],
                 )
                 .await?;
@@ -1934,11 +1926,11 @@ impl LocalDiffStateModel {
             }
             (_, Some(base)) => {
                 log::debug!(
-                    "[GIT OPERATION] diff_state.rs file_status_for_path git diff --name-status -z {base} -- {rel_str}"
+                    "[GIT OPERATION] local.rs file_status_for_path git diff --name-status -z {base} -- {relative}"
                 );
                 let diff_output = run_git_command(
                     repo_path,
-                    &["diff", "--name-status", "-z", base, "--", rel_str],
+                    &["diff", "--name-status", "-z", base, "--", relative],
                 )
                 .await?;
 
@@ -1952,11 +1944,13 @@ impl LocalDiffStateModel {
                 // The file may be untracked (not in the base diff). Fall back to
                 // `git status` scoped to this path to detect untracked files.
                 log::debug!(
-                    "[GIT OPERATION] diff_state.rs file_status_for_path git status -- {rel_str} (untracked fallback)"
+                    "[GIT OPERATION] local.rs file_status_for_path git status -- {relative} (untracked fallback)"
                 );
-                let status_output =
-                    run_git_command(repo_path, &["status", "--porcelain=2", "-z", "--", rel_str])
-                        .await?;
+                let status_output = run_git_command(
+                    repo_path,
+                    &["status", "--porcelain=2", "-z", "--", relative],
+                )
+                .await?;
                 let status_files = Self::parse_git_status(&status_output)?;
                 Ok(status_files
                     .into_iter()
@@ -1968,21 +1962,19 @@ impl LocalDiffStateModel {
 
     /// Checks whether a single file is binary by running a scoped
     /// `git diff --numstat <commit> -- <file>`.
-    async fn is_file_binary(repo_path: &Path, file: &Path, commit: &str) -> Result<bool> {
-        let relative = file
-            .strip_prefix(repo_path)
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|_| file.to_path_buf());
-        let rel_str = relative.to_str().ok_or_else(|| anyhow!("non-UTF-8 path"))?;
-
+    async fn is_file_binary(repo_path: &Path, relative: &str, commit: &str) -> Result<bool> {
         log::debug!(
-            "[GIT OPERATION] diff_state.rs is_file_binary git diff --numstat {commit} -- {rel_str}"
+            "[GIT OPERATION] local.rs is_file_binary git diff --numstat {commit} -- {relative}"
         );
-        let output =
-            match run_git_command(repo_path, &["diff", "--numstat", commit, "--", rel_str]).await {
-                Ok(o) => o,
-                Err(_) => return Ok(false),
-            };
+        let output = match run_git_command(
+            repo_path,
+            &["diff", "--numstat", commit, "--", relative],
+        )
+        .await
+        {
+            Ok(o) => o,
+            Err(_) => return Ok(false),
+        };
 
         // numstat output: "<add>\t<del>\t<file>" — binary files use "-\t-".
         Ok(output
@@ -2001,14 +1993,16 @@ impl LocalDiffStateModel {
         file: &Path,
         mode: &DiffMode,
         merge_base: Option<&str>,
-    ) -> Result<(PathBuf, Option<FileDiffAndContent>)> {
+    ) -> Result<(String, Option<Arc<FileDiffAndContent>>)> {
         let relative = file
             .strip_prefix(repo_path)
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|_| file.to_path_buf());
+            .unwrap_or(file)
+            .to_str()
+            .ok_or_else(|| anyhow!("non-UTF-8 path"))?
+            .to_owned();
 
         let Some((file_path, status)) =
-            Self::file_status_for_path(repo_path, file, mode, merge_base).await?
+            Self::file_status_for_path(repo_path, &relative, mode, merge_base).await?
         else {
             // File is no longer part of the diff.
             return Ok((relative, None));
@@ -2018,18 +2012,18 @@ impl LocalDiffStateModel {
             DiffMode::Head => "HEAD",
             _ => merge_base.unwrap_or("HEAD"),
         };
-        let is_binary = Self::is_file_binary(repo_path, file, commit).await?;
+        let is_binary = Self::is_file_binary(repo_path, &relative, commit).await?;
 
         let diff =
             Self::file_diff_for_path(is_binary, repo_path, &file_path, &status, merge_base).await?;
 
-        Ok((relative, diff))
+        Ok((relative, diff.map(Arc::new)))
     }
 
     async fn file_diff_for_path(
         is_binary: bool,
         repo_path: &Path,
-        file_path: &PathBuf,
+        file_path: &str,
         status: &GitFileStatus,
         merge_base: Option<&str>,
     ) -> Result<Option<FileDiffAndContent>> {
@@ -2057,19 +2051,11 @@ impl LocalDiffStateModel {
                     GitFileStatus::Renamed { old_path } => {
                         Self::get_file_content_at_commit(repo_path, old_path, base).await
                     }
-                    _ => {
-                        Self::get_file_content_at_commit(
-                            repo_path,
-                            &file_path.to_string_lossy(),
-                            base,
-                        )
-                        .await
-                    }
+                    _ => Self::get_file_content_at_commit(repo_path, file_path, base).await,
                 },
                 None => Self::get_file_content_at_head(repo_path, file_path, status).await,
             }
         };
-
         file_diff.is_autogenerated =
             crate::code_review::is_file_autogenerated(file_path, content_at_head.as_deref());
 
@@ -2082,7 +2068,7 @@ impl LocalDiffStateModel {
     async fn file_statuses_against_base(
         repo_path: &Path,
         merge_base: &str,
-    ) -> Result<Vec<(PathBuf, GitFileStatus)>> {
+    ) -> Result<Vec<(String, GitFileStatus)>> {
         log::debug!(
             "[GIT OPERATION] diff_state.rs file_statuses_against_base git diff --name-status -z {merge_base}"
         );
@@ -2252,7 +2238,7 @@ impl LocalDiffStateModel {
                 (metadata.lines_added, metadata.lines_removed)
             } else if matches!(status, GitFileStatus::Untracked) {
                 (
-                    Self::num_lines_for_untracked_entry(repo_path, file_path).await,
+                    Self::num_lines_for_untracked_entry(repo_path, Path::new(file_path)).await,
                     0,
                 )
             } else {
@@ -2261,7 +2247,7 @@ impl LocalDiffStateModel {
             total_additions += additions;
             total_deletions += deletions;
             files.push(FileChangeEntry {
-                path: file_path.to_string_lossy().to_string(),
+                path: file_path.clone(),
                 additions,
                 deletions,
             });
@@ -2397,7 +2383,7 @@ impl LocalDiffStateModel {
 
     /// Parses git status output to get changed files and their status
     /// This handles porcelain=2 format to match git desktop implementation
-    fn parse_git_status(status_output: &str) -> Result<Vec<(PathBuf, GitFileStatus)>> {
+    fn parse_git_status(status_output: &str) -> Result<Vec<(String, GitFileStatus)>> {
         if status_output.is_empty() {
             return Ok(Vec::new());
         }
@@ -2438,7 +2424,7 @@ impl LocalDiffStateModel {
                                 e
                             )
                         })?;
-                        files.push((PathBuf::from(path), status));
+                        files.push((path.to_string(), status));
                     } else {
                         log::warn!("Invalid format for changed entry: '{token}' - expected at least 9 parts, got {}", parts.len());
                     }
@@ -2474,7 +2460,7 @@ impl LocalDiffStateModel {
                             })?
                         };
 
-                        files.push((PathBuf::from(path), status));
+                        files.push((path.to_string(), status));
                         i += 1; // Skip the old path token
                     } else {
                         log::warn!("Invalid format for renamed/copied entry: '{token}' - expected at least 10 parts, got {}", parts.len());
@@ -2486,7 +2472,7 @@ impl LocalDiffStateModel {
                     let parts: Vec<&str> = token.splitn(11, ' ').collect();
                     if parts.len() >= 11 {
                         let path = parts[10];
-                        files.push((PathBuf::from(path), GitFileStatus::Conflicted));
+                        files.push((path.to_string(), GitFileStatus::Conflicted));
                     } else {
                         log::warn!("Invalid format for unmerged entry: '{}' - expected at least 11 parts, got {}", token, parts.len());
                     }
@@ -2495,7 +2481,7 @@ impl LocalDiffStateModel {
                     // Untracked entry: ? <path>
                     if token.len() > 2 {
                         let path = &token[2..]; // Skip "? "
-                        files.push((PathBuf::from(path), GitFileStatus::Untracked));
+                        files.push((path.to_string(), GitFileStatus::Untracked));
                     } else {
                         log::warn!("Invalid format for untracked entry: '{token}' - expected path after '? '");
                     }
@@ -2517,14 +2503,14 @@ impl LocalDiffStateModel {
     }
 
     /// Get binary files using git diff --numstat
-    async fn get_binary_files(repo_path: &Path) -> Result<std::collections::HashSet<PathBuf>> {
+    async fn get_binary_files(repo_path: &Path) -> Result<std::collections::HashSet<String>> {
         Self::get_binary_files_vs_commit(repo_path, "HEAD").await
     }
 
     /// Gets the file content at HEAD commit for diff comparison
     async fn get_file_content_at_head(
         repo_path: &Path,
-        file_path: &Path,
+        file_path: &str,
         status: &GitFileStatus,
     ) -> Option<String> {
         match status {
@@ -2541,14 +2527,10 @@ impl LocalDiffStateModel {
             }
             _ => {
                 log::debug!(
-                    "[GIT OPERATION] diff_state.rs get_file_content_at_head git show HEAD:{}",
-                    file_path.display()
+                    "[GIT OPERATION] local.rs get_file_content_at_head git show HEAD:{file_path}"
                 );
-                (run_git_command(
-                    repo_path,
-                    &["show", &format!("HEAD:{}", file_path.to_str()?)],
-                )
-                .await)
+                run_git_command(repo_path, &["show", &format!("HEAD:{file_path}")])
+                    .await
                     .ok()
             }
         }
@@ -2559,7 +2541,7 @@ impl LocalDiffStateModel {
     /// If commit is provided, diffs against that commit; otherwise handles different statuses appropriately
     async fn get_file_diff(
         repo_path: &Path,
-        file_path: &PathBuf,
+        file_path: &str,
         status: &GitFileStatus,
         is_binary: bool,
         commit: Option<&str>,
@@ -2570,7 +2552,7 @@ impl LocalDiffStateModel {
         // If it's a binary file, don't fetch or parse the diff content
         if is_binary {
             return Ok(FileDiff {
-                file_path: file_path.clone(),
+                file_path: file_path.to_owned(),
                 status: status.clone(),
                 hunks: Arc::new(Vec::new()),
                 is_binary: true,
@@ -2583,7 +2565,7 @@ impl LocalDiffStateModel {
 
         if matches!(status, GitFileStatus::Untracked) && repo_path.join(file_path).is_dir() {
             return Ok(FileDiff {
-                file_path: file_path.clone(),
+                file_path: file_path.to_owned(),
                 status: status.clone(),
                 hunks: Arc::new(Vec::new()),
                 is_binary: false,
@@ -2593,11 +2575,6 @@ impl LocalDiffStateModel {
                 size: DiffSize::Normal,
             });
         }
-
-        let file_path_str = file_path
-            .to_str()
-            .ok_or_else(|| anyhow!("Invalid file path: contains invalid UTF-8"))?;
-
         // Get the actual diff content for text files only
         // Use the same diff arguments as Git Desktop or compare against specific commit
         let diff_args = if let Some(commit) = commit {
@@ -2614,7 +2591,7 @@ impl LocalDiffStateModel {
                         "--no-index",
                         "--",
                         "/dev/null",
-                        file_path_str,
+                        file_path,
                     ]
                 }
                 // For renamed files, we compare the old file path to the new file path.
@@ -2628,7 +2605,7 @@ impl LocalDiffStateModel {
                         commit,
                         "--",
                         old_path,
-                        file_path_str,
+                        file_path,
                     ]
                 }
                 _ => {
@@ -2641,7 +2618,7 @@ impl LocalDiffStateModel {
                         "--no-color",
                         commit,
                         "--",
-                        file_path_str,
+                        file_path,
                     ]
                 }
             }
@@ -2659,7 +2636,7 @@ impl LocalDiffStateModel {
                         "--no-index",
                         "--",
                         "/dev/null",
-                        file_path_str,
+                        file_path,
                     ]
                 }
                 GitFileStatus::Renamed { old_path } => {
@@ -2674,7 +2651,7 @@ impl LocalDiffStateModel {
                         "HEAD",
                         "--",
                         old_path,
-                        file_path_str,
+                        file_path,
                     ]
                 }
                 _ => {
@@ -2687,7 +2664,7 @@ impl LocalDiffStateModel {
                         "--no-color",
                         "HEAD",
                         "--",
-                        file_path_str,
+                        file_path,
                     ]
                 }
             }
@@ -2701,12 +2678,12 @@ impl LocalDiffStateModel {
             Ok(output) => output,
             Err(error) => {
                 log::info!(
-                    "Failed to get file diff for {file_path:?}{}: {error}",
+                    "Failed to get file diff for {file_path}{}: {error}",
                     commit.map(|c| format!(" vs {c}")).unwrap_or_default()
                 );
                 // If diff fails, treat as binary or empty
                 return Ok(FileDiff {
-                    file_path: file_path.clone(),
+                    file_path: file_path.to_owned(),
                     status: status.clone(),
                     hunks: Arc::new(hunks),
                     is_binary: true,
@@ -2725,7 +2702,7 @@ impl LocalDiffStateModel {
             .any(|line| line.starts_with("Binary files ") && line.contains(" differ"))
         {
             return Ok(FileDiff {
-                file_path: file_path.clone(),
+                file_path: file_path.to_owned(),
                 status: status.clone(),
                 hunks: Arc::new(Vec::new()),
                 is_binary: true,
@@ -2756,7 +2733,7 @@ impl LocalDiffStateModel {
         let size = compute_diff_size(&hunks, diff_output.len());
 
         Ok(FileDiff {
-            file_path: file_path.clone(),
+            file_path: file_path.to_owned(),
             status: status.clone(),
             hunks: Arc::new(hunks),
             is_binary,
@@ -2919,7 +2896,7 @@ impl LocalDiffStateModel {
     /// Parses git diff --name-status output with -z flag (null-separated)
     /// Format: status<null>filename<null>status<null>filename<null>...
     /// For renamed/copied files: status<null>old_path<null>new_path<null>
-    fn parse_git_diff_name_status(diff_output: &str) -> Result<Vec<(PathBuf, GitFileStatus)>> {
+    fn parse_git_diff_name_status(diff_output: &str) -> Result<Vec<(String, GitFileStatus)>> {
         if diff_output.is_empty() {
             return Ok(Vec::new());
         }
@@ -2983,7 +2960,7 @@ impl LocalDiffStateModel {
                 _ => GitFileStatus::Modified,
             };
 
-            files.push((PathBuf::from(file_path), status));
+            files.push((file_path.to_string(), status));
 
             // Move to next status token (skip status + filename, or status + old_path + new_path for R/C)
             i += 2;
@@ -2996,7 +2973,7 @@ impl LocalDiffStateModel {
     async fn get_diff_metadata_using_numstat(
         repo_path: &Path,
         commit: &str,
-    ) -> Result<HashMap<PathBuf, GitNumStatMetadata>> {
+    ) -> Result<HashMap<String, GitNumStatMetadata>> {
         log::debug!(
             "[GIT OPERATION] diff_state.rs get_diff_metadata_using_numstat git diff --numstat {commit}"
         );
@@ -3028,7 +3005,7 @@ impl LocalDiffStateModel {
                     is_binary_file: additions == "-" && deletions == "-",
                 };
 
-                diff_metadata.insert(PathBuf::from(filename), metadata);
+                diff_metadata.insert(filename.to_string(), metadata);
             }
         }
 
@@ -3039,7 +3016,7 @@ impl LocalDiffStateModel {
     async fn get_binary_files_vs_commit(
         repo_path: &Path,
         commit: &str,
-    ) -> Result<std::collections::HashSet<PathBuf>> {
+    ) -> Result<std::collections::HashSet<String>> {
         let diff_metadata = Self::get_diff_metadata_using_numstat(repo_path, commit).await?;
 
         let binary_files = diff_metadata
@@ -3164,7 +3141,7 @@ pub enum DiffStateModelEvent {
     /// Event dispatched when new diffs are computed.
     NewDiffsComputed(Option<Arc<GitDiffWithBaseContent>>),
     SingleFileUpdated {
-        path: PathBuf,
+        path: String,
         diff: Option<Arc<FileDiffAndContent>>,
     },
     MetadataRefreshed(DiffMetadata),

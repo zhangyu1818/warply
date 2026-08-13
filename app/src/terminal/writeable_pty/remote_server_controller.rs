@@ -143,6 +143,7 @@ impl<T: EventLoopSender> RemoteServerController<T> {
             | RemoteServerManagerEvent::GitGetPrInfoResponse { .. }
             | RemoteServerManagerEvent::GitGenerateCommitMessageResponse { .. }
             | RemoteServerManagerEvent::GitGetCommittedBranchFilesResponse { .. }
+            | RemoteServerManagerEvent::BufferUpdated { .. }
             | RemoteServerManagerEvent::SetupStateChanged { .. } => {}
         });
 

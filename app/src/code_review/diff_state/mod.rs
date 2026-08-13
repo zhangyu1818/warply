@@ -4,7 +4,7 @@
 //! The local implementation remains the source of truth for local git work;
 //! the remote variant is the host-scoped transport-backed model.
 
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}, sync::Arc};
 
 use crate::util::git::{Commit, FileChangeEntry, PrInfo};
 use anyhow::Result;
@@ -468,7 +468,7 @@ impl DiffStateModel {
         file: &Path,
         mode: &DiffMode,
         merge_base: Option<&str>,
-    ) -> Result<(PathBuf, Option<FileDiffAndContent>)> {
+    ) -> Result<(String, Option<Arc<FileDiffAndContent>>)> {
         LocalDiffStateModel::retrieve_diff_state(repo_path, file, mode, merge_base).await
     }
 

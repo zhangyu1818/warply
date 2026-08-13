@@ -6413,7 +6413,8 @@ fn render_local_object_detail_section(
 }
 
 fn code_detail_kind_label(file_name: &str) -> Option<String> {
-    language_by_filename(Path::new(file_name)).map(|language| language.display_name().to_string())
+    language_by_filename(Path::new(file_name))
+        .map(|language| language.display_name().to_string())
 }
 
 fn typed_pane_local_object_type(typed: &TypedPane<'_>) -> Option<DriveObjectType> {

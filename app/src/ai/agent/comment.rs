@@ -1,5 +1,5 @@
+use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::comments::CommentId;
-use std::path::PathBuf;
 
 /// The current state of a code review.
 #[derive(Debug, Clone, Default)]
@@ -31,19 +31,12 @@ impl ReviewComment {
     pub fn title(&self) -> String {
         match (&self.diff.file_path, self.diff.line_number) {
             (Some(file_path), Some(line_number)) => {
-                let file_name = file_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("Invalid File Name");
+                let file_name = file_path.display_name();
                 let display_line = line_number + 1;
                 format!("{file_name}:{display_line}")
             }
             (Some(file_path), None) => {
-                let file_name = file_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("Invalid File Name");
-                file_name.to_string()
+                file_path.display_name().to_string()
             }
             (None, _) => self
                 .head_title
@@ -101,6 +94,6 @@ impl From<crate::code_review::comments::AttachedReviewCommentTarget> for ReviewD
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ReviewDiff {
-    pub file_path: Option<PathBuf>,
+    pub file_path: Option<LocalOrRemotePath>,
     pub line_number: Option<usize>,
 }
