@@ -39,6 +39,7 @@ use crate::app_state::{
 };
 use crate::code_review::diff_state::DiffStateModel;
 use crate::code_review::GlobalCodeReviewModel;
+use crate::code::buffer_location::LocalOrRemotePath;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::default_terminal::DefaultTerminal;
 use crate::notification::NotificationContext;
@@ -630,7 +631,7 @@ enum DefaultSessionModeBehavior {
 
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 struct CodeReviewPaneContext {
-    repo_path: Option<PathBuf>,
+    repo_path: Option<LocalOrRemotePath>,
     diff_state_model: ModelHandle<DiffStateModel>,
 }
 
@@ -6469,7 +6470,7 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         // If context is provided, use it directly. Otherwise, derive from active pane group.
-        let context_data: Option<(Option<PathBuf>, ModelHandle<DiffStateModel>)> =
+        let context_data: Option<(Option<LocalOrRemotePath>, ModelHandle<DiffStateModel>)> =
             if let Some(context) = context {
                 Some((context.repo_path.clone(), context.diff_state_model.clone()))
             } else {
@@ -6477,10 +6478,16 @@ impl Workspace {
                 let read_result = active_pane_group.read(ctx, |pane_group, ctx| {
                     pane_group
                         .active_session_view(ctx)
-                        .map(|terminal_view| terminal_view.as_ref(ctx).current_repo_path().cloned())
+                        .map(|terminal_view| {
+                            terminal_view
+                                .as_ref(ctx)
+                                .current_repo_path()
+                                .cloned()
+                                .map(LocalOrRemotePath::Local)
+                        })
                 });
                 read_result.and_then(|repo_path| {
-                    let diff_state_model = repo_path.as_ref().and_then(|rp: &PathBuf| {
+                    let diff_state_model = repo_path.as_ref().and_then(|rp| {
                         self.working_directories_model.update(ctx, |model, ctx| {
                             model.get_or_create_diff_state_model(rp.clone(), ctx)
                         })
@@ -6614,11 +6621,17 @@ impl Workspace {
         let read_result = pane_group_handle.read(ctx, |pane_group, ctx| {
             pane_group
                 .active_session_view(ctx)
-                .map(|terminal_view| terminal_view.as_ref(ctx).current_repo_path().cloned())
+                .map(|terminal_view| {
+                    terminal_view
+                        .as_ref(ctx)
+                        .current_repo_path()
+                        .cloned()
+                        .map(LocalOrRemotePath::Local)
+                })
         });
         // Resolve DiffStateModel outside the read closure (needs mutable context).
         let context = read_result.and_then(|repo_path| {
-            let diff_state_model = repo_path.as_ref().and_then(|rp: &PathBuf| {
+            let diff_state_model = repo_path.as_ref().and_then(|rp| {
                 self.working_directories_model.update(ctx, |model, ctx| {
                     model.get_or_create_diff_state_model(rp.clone(), ctx)
                 })
@@ -10736,10 +10749,12 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         let pane_group_id = pane_group.id();
-        let terminal_cwds: Vec<(EntityId, String)> = pane_group
+        let terminal_cwds: Vec<(EntityId, LocalOrRemotePath)> = pane_group
             .as_ref(ctx)
             .terminal_view_working_directories(ctx)
-            .filter_map(|(id, cwd)| cwd.map(|c| (id, c)))
+            .filter_map(|(id, cwd)| {
+                cwd.map(|c| (id, LocalOrRemotePath::Local(PathBuf::from(c))))
+            })
             .collect();
         let code_local_paths: Vec<(EntityId, String)> = pane_group
             .as_ref(ctx)
@@ -11628,7 +11643,7 @@ impl Workspace {
                 if let Some(code_review_view) = self
                     .working_directories_model
                     .as_ref(ctx)
-                    .get_code_review_view(pane_group.id(), repo_path.as_path())
+                    .get_code_review_view(pane_group.id(), repo_path)
                 {
                     code_review_view.update(ctx, |code_review_view, ctx| {
                         code_review_view.set_diff_base(diff_mode.clone(), ctx);
@@ -16312,7 +16327,11 @@ impl TypedActionView for Workspace {
                         pane_group
                             .terminal_view_from_pane_id(locator.pane_id, ctx)
                             .map(|terminal_view| {
-                                terminal_view.as_ref(ctx).current_repo_path().cloned()
+                                terminal_view
+                                    .as_ref(ctx)
+                                    .current_repo_path()
+                                    .cloned()
+                                    .map(LocalOrRemotePath::Local)
                             })
                     });
                     if let Some(repo_path) = read_result {

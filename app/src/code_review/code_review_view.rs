@@ -4373,6 +4373,7 @@ impl CodeReviewView {
             ReviewSubmissionResult::Success {
                 comment_count: _,
                 file_count: _,
+                ..
             } => {
                 log::info!("Successfully submitted review comments to terminal");
 
@@ -6373,7 +6374,8 @@ impl CodeReviewView {
                 let has_upstream = diff_state.upstream_ref(ctx).is_some();
                 ctx.add_typed_action_view(|ctx| {
                     GitDialog::new_for_commit(
-                        repo_path,
+                        repo_path.clone().into(),
+                        self.diff_state_model.clone(),
                         branch_name,
                         allow_create_pr,
                         has_upstream,
@@ -6386,7 +6388,14 @@ impl CodeReviewView {
                     .diff_state_model
                     .read(ctx, |model, ctx| model.unpushed_commits(ctx).to_vec());
                 ctx.add_typed_action_view(|ctx| {
-                    GitDialog::new_for_push(repo_path, branch_name, publish, commits, ctx)
+                    GitDialog::new_for_push(
+                        repo_path.into(),
+                        self.diff_state_model.clone(),
+                        branch_name,
+                        publish,
+                        commits,
+                        ctx,
+                    )
                 })
             }
             GitDialogKind::CreatePr => {
@@ -6394,7 +6403,13 @@ impl CodeReviewView {
                     .diff_state_model
                     .read(ctx, |model, ctx| model.get_main_branch_name(ctx));
                 ctx.add_typed_action_view(|ctx| {
-                    GitDialog::new_for_pr(repo_path, branch_name, base_branch_name, ctx)
+                    GitDialog::new_for_pr(
+                        repo_path.into(),
+                        self.diff_state_model.clone(),
+                        branch_name,
+                        base_branch_name,
+                        ctx,
+                    )
                 })
             }
         };

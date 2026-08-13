@@ -42,6 +42,10 @@ impl warpui::Entity for DiffStateModel {
 }
 
 impl DiffStateModel {
+    pub fn new_local(repo_path: PathBuf, ctx: &mut ModelContext<Self>) -> Self {
+        Self::new(Some(repo_path.display().to_string()), ctx)
+    }
+
     pub fn new(repo_path: Option<String>, ctx: &mut ModelContext<Self>) -> Self {
         let local = ctx.add_model(|ctx| LocalDiffStateModel::new(repo_path, ctx));
         ctx.subscribe_to_model(&local, Self::forward_event);

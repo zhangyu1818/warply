@@ -9,39 +9,31 @@
 //! + confirm async, extend `GitDialogMode`, add the per-mode action and
 //! outcome variant, and wire up dispatch.
 
-use std::path::PathBuf;
-
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
+use warpui::elements::{
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Flex, Hoverable,
+    Icon as IconElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
+    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, ScrollbarWidth, Stack, Text,
+};
+use warpui::keymap::{self, FixedBinding};
+use warpui::platform::Cursor;
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    elements::{
-        Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Flex, Hoverable,
-        Icon as IconElement, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-        ParentAnchor, ParentElement, ParentOffsetBounds, Radius, ScrollbarWidth, Stack, Text,
-    },
-    keymap::{self, FixedBinding},
-    platform::Cursor,
-    ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
-#[cfg(feature = "local_tty")]
-use crate::terminal::local_shell::LocalShellState;
-use crate::{
-    code::editor::{add_color, remove_color},
-    ui_components::{
-        dialog::{dialog_styles, Dialog},
-        icons::Icon,
-    },
-    util::git::{Commit, FileChangeEntry},
-    view_components::{
-        action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme},
-        DismissibleToast,
-    },
-    workspace::ToastStack,
-};
+use crate::code::buffer_location::LocalOrRemotePath;
+use crate::code::editor::{add_color, remove_color};
+use crate::code_review::diff_state::{DiffStateModel, DiffStateModelEvent, GitOpResult};
+use crate::ui_components::dialog::{dialog_styles, Dialog};
+use crate::ui_components::icons::Icon;
+use crate::util::git::{Commit, FileChangeEntry};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, SecondaryTheme};
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 
 pub(crate) mod commit;
 pub(crate) mod pr;
@@ -67,25 +59,6 @@ pub fn init(ctx: &mut AppContext) {
         GitDialogAction::Cancel,
         warpui::id!("GitDialog"),
     )]);
-}
-
-/// Future that resolves to the user's interactive-shell `PATH` (or `None`
-/// if capture failed). Result is cached in `LocalShellState`.
-#[cfg(feature = "local_tty")]
-pub(super) fn interactive_path_future(
-    ctx: &mut ViewContext<GitDialog>,
-) -> futures::future::BoxFuture<'static, Option<String>> {
-    LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
-        shell_state.get_interactive_path_env_var(ctx)
-    })
-}
-
-#[cfg(not(feature = "local_tty"))]
-pub(super) fn interactive_path_future(
-    _ctx: &mut ViewContext<GitDialog>,
-) -> futures::future::BoxFuture<'static, Option<String>> {
-    use futures::FutureExt;
-    futures::future::ready(None).boxed()
 }
 
 /// Top-level action dispatched to `GitDialog`.
@@ -125,12 +98,29 @@ fn show_toast(msg: impl Into<String>, ctx: &mut ViewContext<GitDialog>) {
     });
 }
 
+/// Whether the git-operations AI autogen flow should send an AI request.
+///
+/// Folds the parent feature flag, the user's dedicated per-feature AI toggle
+/// (which itself requires active AI / auth / remote-session org policy to
+/// allow AI), and the current team's Git Operations AI tier policy.
+///
+/// When this returns `false`, call sites skip AI entirely: commit.rs opens
+/// with the manual-type placeholder and pr.rs goes straight to
+/// `gh pr create --fill`.
+fn should_send_git_ops_ai_request(_app: &AppContext) -> bool {
+    false
+}
+
 /// Maps a raw git error string to a user-friendly toast message. Known
 /// failure modes get dedicated copy; anything else falls back to a generic
 /// message (the raw error is always logged separately at the call site).
 fn user_facing_git_error(raw: &str) -> &'static str {
     let lower = raw.to_lowercase();
-    if lower.contains("nothing to commit") {
+    if lower.contains("no changes added to commit") {
+        // Distinct from a clean tree: changes exist but nothing is staged
+        // (e.g. "include unstaged" off with an empty index).
+        "No staged changes to commit."
+    } else if lower.contains("nothing to commit") {
         "No changes to commit."
     } else if lower.contains("please tell me who you are")
         || lower.contains("author identity unknown")
@@ -168,6 +158,10 @@ fn user_facing_git_error(raw: &str) -> &'static str {
         // Phrases mirror `context_chips::current_prompt::is_gh_auth_error`,
         // which has been vetted against real `gh` failure output.
         "GitHub CLI not authenticated. Run `gh auth login`."
+    } else if lower.contains("another git operation is in progress") {
+        // Daemon-side guard for a repo mid-merge/rebase/cherry-pick or with a
+        // held index lock (see `git_operation_in_progress`).
+        "Another git operation is in progress. Finish or abort it first."
     } else {
         "Git operation failed."
     }
@@ -461,7 +455,8 @@ pub enum GitDialogMode {
 }
 
 pub struct GitDialog {
-    repo_path: PathBuf,
+    repo_location: LocalOrRemotePath,
+    diff_state_model: ModelHandle<DiffStateModel>,
     branch_name: String,
     mode: GitDialogMode,
     loading: bool,
@@ -472,7 +467,8 @@ pub struct GitDialog {
 
 impl GitDialog {
     pub fn new_for_commit(
-        repo_path: PathBuf,
+        repo_location: LocalOrRemotePath,
+        diff_state_model: ModelHandle<DiffStateModel>,
         branch_name: String,
         allow_create_pr: bool,
         has_upstream: bool,
@@ -484,9 +480,16 @@ impl GitDialog {
         // will actually run on click.
         let (confirm_button, cancel_button, close_button) =
             Self::build_dialog_buttons("Confirm", None, ctx);
-        let state = commit::new_state(&repo_path, allow_create_pr, has_upstream, ctx);
-        let this = Self {
-            repo_path,
+        ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
+        let state = commit::new_state(
+            repo_location.to_local_path(),
+            allow_create_pr,
+            has_upstream,
+            ctx,
+        );
+        let mut this = Self {
+            repo_location,
+            diff_state_model,
             branch_name,
             mode: GitDialogMode::Commit(state),
             loading: false,
@@ -494,12 +497,20 @@ impl GitDialog {
             cancel_button,
             close_button,
         };
+        // Open-time AI commit-message autogen runs for both backends; the model
+        // generates it (local in-process, remote on the daemon) and the result
+        // returns via the diff-state subscription wired up just above.
+        commit::maybe_start_commit_message_autogen(&this, ctx);
+        // Remote repos source the Changes box from synced metadata (the local
+        // path loads it from the working tree in `commit::new_state`).
+        commit::refresh_remote_file_changes(&mut this, ctx);
         this.refresh_confirm_enabled(ctx);
         this
     }
 
     pub fn new_for_push(
-        repo_path: PathBuf,
+        repo_location: LocalOrRemotePath,
+        diff_state_model: ModelHandle<DiffStateModel>,
         branch_name: String,
         publish: bool,
         commits: Vec<Commit>,
@@ -510,9 +521,11 @@ impl GitDialog {
             Some(push::confirm_icon(publish)),
             ctx,
         );
+        ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
         let state = push::new_state(publish, commits);
         Self {
-            repo_path,
+            repo_location,
+            diff_state_model,
             branch_name,
             mode: GitDialogMode::Push(state),
             loading: false,
@@ -523,23 +536,32 @@ impl GitDialog {
     }
 
     pub fn new_for_pr(
-        repo_path: PathBuf,
+        repo_location: LocalOrRemotePath,
+        diff_state_model: ModelHandle<DiffStateModel>,
         branch_name: String,
         base_branch_name: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let (confirm_button, cancel_button, close_button) =
             Self::build_dialog_buttons(pr::confirm_label_for(), Some(pr::confirm_icon_for()), ctx);
-        let state = pr::new_state(&repo_path, base_branch_name, ctx);
-        Self {
-            repo_path,
+        ctx.subscribe_to_model(&diff_state_model, Self::handle_diff_state_event);
+        let state = pr::new_state(base_branch_name);
+        let mut this = Self {
+            repo_location,
+            diff_state_model,
             branch_name,
             mode: GitDialogMode::CreatePr(state),
             loading: false,
             confirm_button,
             cancel_button,
             close_button,
-        }
+        };
+        // Fetch the committed branch diff on open (committed-only, so the
+        // Changes box previews exactly what the PR will contain). Both backends
+        // deliver the result via `BranchCommittedFilesReceived`, applied in
+        // `handle_diff_state_event`.
+        pr::fetch_committed_file_changes(&mut this, ctx);
+        this
     }
 
     fn build_dialog_buttons(
@@ -576,8 +598,77 @@ impl GitDialog {
         (confirm_button, cancel_button, close_button)
     }
 
-    fn repo_path(&self) -> &PathBuf {
-        &self.repo_path
+    fn repo_location(&self) -> &LocalOrRemotePath {
+        &self.repo_location
+    }
+
+    fn diff_state_model(&self) -> &ModelHandle<DiffStateModel> {
+        &self.diff_state_model
+    }
+
+    // ── Model event handling ─────────────────────────────────────────
+
+    fn handle_diff_state_event(
+        &mut self,
+        _model: ModelHandle<DiffStateModel>,
+        event: &DiffStateModelEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        // Commit-message autogen arrives at dialog open (before any op is
+        // initiated), so it's handled outside the `loading` gate the
+        // op-completion events use below.
+        if let DiffStateModelEvent::CommitMessageGenerated(result) = event {
+            commit::apply_generated_commit_message(self, result.clone(), ctx);
+            return;
+        }
+        // Commit mode (remote) sources its Changes box from synced metadata, so
+        // refresh it whenever metadata lands. Arrives independently of any
+        // in-flight op, so it's handled outside the `loading` gate below.
+        if let DiffStateModelEvent::MetadataRefreshed(_) = event {
+            commit::refresh_remote_file_changes(self, ctx);
+            return;
+        }
+        // The create-PR dialog fetches its committed file list on open
+        // (committed-only, so it matches what the PR will contain); the result
+        // arrives here and populates the Changes box.
+        if let DiffStateModelEvent::BranchCommittedFilesReceived(files) = event {
+            pr::apply_committed_file_changes(self, files.clone(), ctx);
+            return;
+        }
+        let DiffStateModelEvent::GitOpCompleted(result) = event else {
+            return;
+        };
+        // Only act when we're in a loading state (i.e. we initiated the op).
+        if !self.loading {
+            return;
+        }
+        match result {
+            GitOpResult::CommitChainCompleted(result) => {
+                let intent = match &self.mode {
+                    GitDialogMode::Commit(state) => state.intent,
+                    _ => return,
+                };
+                // Unified completion path (toast + telemetry + close) for both
+                // backends; the model already applied the delta / PR info to
+                // metadata before emitting this event.
+                commit::finish_commit_chain(self, intent, result.clone(), ctx);
+            }
+            GitOpResult::PushCompleted(result) => {
+                let publish = match &self.mode {
+                    GitDialogMode::Push(state) => state.publish,
+                    _ => return,
+                };
+                push::finish_push(
+                    self,
+                    publish,
+                    result.clone().map_err(|e| anyhow::anyhow!(e)),
+                    ctx,
+                );
+            }
+            GitOpResult::PrCreated(result) => {
+                pr::finish_create_pr(self, result.clone().map_err(|e| anyhow::anyhow!(e)), ctx);
+            }
+        }
     }
 
     fn branch_name(&self) -> &str {

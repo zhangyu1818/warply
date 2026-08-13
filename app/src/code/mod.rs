@@ -7,6 +7,7 @@ use warpui::elements::DropTargetData;
 use warpui::AppContext;
 
 pub mod find_references_view;
+pub mod buffer_location;
 pub mod language_server_extension;
 pub mod local_code_editor;
 pub use local_code_editor::ShowFindReferencesCard;

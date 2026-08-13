@@ -455,6 +455,12 @@ impl RemoteServerManager {
             .find_map(|session_id| self.client_for_session(*session_id))
     }
 
+    pub fn find_connected_session(&self, host_id: &HostId) -> Option<SessionId> {
+        self.host_to_sessions.get(host_id)?.iter().copied().find(|session_id| {
+            self.client_for_session(*session_id).is_some()
+        })
+    }
+
     pub fn get_diff_state(
         &mut self,
         session_id: SessionId,

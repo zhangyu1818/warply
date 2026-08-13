@@ -25,7 +25,11 @@ use crate::{
     appearance::{Appearance, AppearanceEvent},
     terminal::resizable_data::{ModalType, ResizableData},
 };
-use crate::{code_review::diff_state::DiffStateModel, terminal::view::TerminalView};
+use crate::{
+    code::{buffer_location::LocalOrRemotePath},
+    code_review::diff_state::DiffStateModel,
+    terminal::view::TerminalView,
+};
 use dunce::canonicalize;
 use itertools::Itertools;
 use pathfinder_color::ColorU;
@@ -170,11 +174,11 @@ impl ReviewActionTargetProvider for RightPanelReviewActionTargetProvider {
 
 struct CodeReviewState {
     dropdown: ViewHandle<Dropdown<RightPanelAction>>,
-    available_repos: Vec<PathBuf>,
+    available_repos: Vec<LocalOrRemotePath>,
     /// The repository path of the focused terminal
-    focused_repo_path: Option<PathBuf>,
+    focused_repo_path: Option<LocalOrRemotePath>,
     /// The repository path of the repository selected in the dropdown
-    selected_repo_path: Option<PathBuf>,
+    selected_repo_path: Option<LocalOrRemotePath>,
     /// Avoid showing the jump-to-repo button if the focused repo has not changed
     did_focused_repo_change: bool,
 }
@@ -232,13 +236,17 @@ impl CodeReviewState {
     #[cfg(not(feature = "local_fs"))]
     fn set_available_repos(
         &mut self,
-        _repos: Vec<PathBuf>,
+        _repos: Vec<LocalOrRemotePath>,
         _ctx: &mut ViewContext<RightPanelView>,
     ) {
     }
 
     #[cfg(feature = "local_fs")]
-    fn set_available_repos(&mut self, repos: Vec<PathBuf>, ctx: &mut ViewContext<RightPanelView>) {
+    fn set_available_repos(
+        &mut self,
+        repos: Vec<LocalOrRemotePath>,
+        ctx: &mut ViewContext<RightPanelView>,
+    ) {
         let should_clear = self
             .selected_repo_path
             .as_ref()
@@ -262,19 +270,23 @@ impl CodeReviewState {
     #[cfg(not(feature = "local_fs"))]
     pub fn set_selected_repo(
         &mut self,
-        _repo_path: PathBuf,
+        _repo_path: LocalOrRemotePath,
         _ctx: &mut ViewContext<RightPanelView>,
     ) {
     }
 
     #[cfg(feature = "local_fs")]
-    pub fn set_selected_repo(&mut self, repo_path: PathBuf, ctx: &mut ViewContext<RightPanelView>) {
+    pub fn set_selected_repo(
+        &mut self,
+        repo_path: LocalOrRemotePath,
+        ctx: &mut ViewContext<RightPanelView>,
+    ) {
         self.set_selected_repo_internal(repo_path, true, ctx);
     }
 
     pub fn set_focused_repo(
         &mut self,
-        repo_path: Option<PathBuf>,
+        repo_path: Option<LocalOrRemotePath>,
         ctx: &mut ViewContext<RightPanelView>,
     ) {
         self.did_focused_repo_change = true;
@@ -288,7 +300,7 @@ impl CodeReviewState {
     #[cfg(feature = "local_fs")]
     fn set_selected_repo_internal(
         &mut self,
-        repo_path: PathBuf,
+        repo_path: LocalOrRemotePath,
         update_dropdown: bool,
         ctx: &mut ViewContext<RightPanelView>,
     ) {
@@ -308,11 +320,9 @@ impl CodeReviewState {
     }
 
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-    fn get_repo_display_name(&self, repo_path: &Path) -> Option<String> {
-        repo_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| name.to_string())
+    fn get_repo_display_name(&self, repo_path: &LocalOrRemotePath) -> Option<String> {
+        let name = repo_path.display_name();
+        (!name.is_empty()).then(|| name.to_string())
     }
 
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
@@ -360,7 +370,7 @@ impl CodeReviewState {
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub enum RightPanelAction {
     SelectRepo {
-        repo_path: PathBuf,
+        repo_path: LocalOrRemotePath,
         from_dropdown: bool,
     },
     OpenRepository,
@@ -510,14 +520,18 @@ impl RightPanelView {
         ctx.notify();
     }
 
-    pub fn selected_repo_path(&self) -> Option<&PathBuf> {
+    pub fn selected_repo_path(&self) -> Option<&LocalOrRemotePath> {
         self.code_review_state
             .as_ref()
             .and_then(|s| s.selected_repo_path.as_ref())
     }
 
     #[cfg(feature = "local_fs")]
-    pub fn update_selected_repo(&mut self, repo_path: PathBuf, ctx: &mut ViewContext<Self>) {
+    pub fn update_selected_repo(
+        &mut self,
+        repo_path: LocalOrRemotePath,
+        ctx: &mut ViewContext<Self>,
+    ) {
         self.handle_action(
             &RightPanelAction::SelectRepo {
                 repo_path,
@@ -622,9 +636,7 @@ impl RightPanelView {
                         .most_recent_repositories_for_pane_group(pane_group_id)
                         .map(|repos| repos.collect())
                         .unwrap_or_default();
-                    let saved = model
-                        .get_selected_review_repo(pane_group_id)
-                        .map(Path::to_path_buf);
+                    let saved = model.get_selected_review_repo(pane_group_id).cloned();
                     (repos, saved)
                 });
             state.selected_repo_path = saved_selection;
@@ -650,7 +662,7 @@ impl RightPanelView {
     /// Will only update repo_path if one is not already set
     pub fn open_code_review(
         &mut self,
-        repo_path: Option<PathBuf>,
+        repo_path: Option<LocalOrRemotePath>,
         diff_state_model: ModelHandle<DiffStateModel>,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -673,14 +685,20 @@ impl RightPanelView {
             .get_code_review_view(pane_group_id, repo_path);
         if let Some(view) = existing_view {
             view.update(ctx, |view, ctx| {
-                view.on_open(Some(repo_path.clone()), ctx);
+            let Some(local_repo_path) = repo_path.to_local_path() else {
+                return;
+            };
+            view.on_open(Some(local_repo_path.to_path_buf()), ctx);
             });
             self.recompute_terminal_availability(ctx);
         } else if let Some(view) =
             self.create_code_review_view(repo_path, diff_state_model.clone(), pane_group_id, ctx)
         {
             view.update(ctx, |view, ctx| {
-                view.on_open(Some(repo_path.clone()), ctx);
+            let Some(local_repo_path) = repo_path.to_local_path() else {
+                return;
+            };
+            view.on_open(Some(local_repo_path.to_path_buf()), ctx);
             });
             self.recompute_terminal_availability(ctx);
         };
@@ -692,7 +710,7 @@ impl RightPanelView {
     fn close_code_review_view(
         &self,
         pane_group_id: EntityId,
-        repo_path: &Path,
+        repo_path: &LocalOrRemotePath,
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(code_review_view) = self
@@ -1048,11 +1066,12 @@ impl RightPanelView {
 
     fn create_code_review_view(
         &self,
-        repo_path: &Path,
+        repo_path: &LocalOrRemotePath,
         diff_state_model: ModelHandle<DiffStateModel>,
         pane_group_id: EntityId,
         ctx: &mut ViewContext<Self>,
     ) -> Option<ViewHandle<CodeReviewView>> {
+        let local_repo_path = repo_path.to_local_path()?.to_path_buf();
         // Early check: if pane group has no active repositories, don't create a view
         let has_active_repos = self
             .working_directories_model
@@ -1076,7 +1095,7 @@ impl RightPanelView {
             });
         let code_review_view = ctx.add_typed_action_view(|ctx| {
             CodeReviewView::new(
-                Some(repo_path.to_path_buf()),
+                Some(local_repo_path),
                 diff_state_model_clone,
                 code_review_comment_batch,
                 Some(action_target_provider),
@@ -1088,7 +1107,7 @@ impl RightPanelView {
         self.working_directories_model.update(ctx, |model, _ctx| {
             model.store_code_review_view(
                 pane_group_id,
-                repo_path.to_path_buf(),
+                repo_path.clone(),
                 code_review_view.clone(),
             );
         });
@@ -1219,6 +1238,11 @@ impl RightPanelView {
             .unwrap_or_else(|| "<none>".to_string())
     }
 
+    fn format_optional_repo_path(path: Option<&LocalOrRemotePath>) -> String {
+        path.map(LocalOrRemotePath::display_path)
+            .unwrap_or_else(|| "<none>".to_string())
+    }
+
     fn review_terminal_status(
         tv: &ViewHandle<TerminalView>,
         repo_path: Option<&Path>,
@@ -1301,7 +1325,7 @@ impl RightPanelView {
         let Some(pane_group) = &self.active_pane_group else {
             log::info!(
                 "Review comment send status for active tab: no active pane group, selected_repo_path={}, ai_enabled={}",
-                Self::format_optional_path(selected_repo_path.as_deref()),
+                Self::format_optional_repo_path(selected_repo_path.as_ref()),
                 ai_enabled,
             );
             if let Some(debug_state) = &code_review_debug_state {
@@ -1320,13 +1344,18 @@ impl RightPanelView {
                 .get_terminal_id_for_root_path(pane_group_id, repo_path)
         });
         let chosen_terminal_id = selected_repo_path.as_ref().and_then(|repo_path| {
-            self.find_review_terminal(pane_group, repo_path, ai_enabled, ctx)
+            self.find_review_terminal(
+                pane_group,
+                repo_path.to_local_path()?,
+                ai_enabled,
+                ctx,
+            )
                 .map(|terminal_view| terminal_view.id())
         });
 
         log::info!(
             "Review comment send status for active tab: pane_group_id={pane_group_id}, selected_repo_path={}, ai_enabled={}, focused_pane_id={focused_pane_id}, preferred_terminal_id={preferred_terminal_id:?}, chosen_terminal_id={chosen_terminal_id:?}, visible_pane_count={}",
-            Self::format_optional_path(selected_repo_path.as_deref()),
+            Self::format_optional_repo_path(selected_repo_path.as_ref()),
             ai_enabled,
             visible_pane_ids.len(),
         );
@@ -1363,7 +1392,9 @@ impl RightPanelView {
             let terminal_id = terminal_view.id();
             let terminal_status = Self::review_terminal_status(
                 &terminal_view,
-                selected_repo_path.as_deref(),
+                selected_repo_path
+                    .as_ref()
+                    .and_then(LocalOrRemotePath::to_local_path),
                 ai_enabled,
                 ctx,
             );
@@ -1460,10 +1491,11 @@ impl RightPanelView {
         let terminal_views = pane_group.read(ctx, |pg, ctx| pg.visible_terminal_views(ctx));
         let focused_terminal = pane_group.read(ctx, |pg, ctx| pg.focused_session_view(ctx));
         let pane_group_id = pane_group.id();
+        let repo_key = LocalOrRemotePath::Local(repo_path.to_path_buf());
         let preferred_terminal_id = self
             .working_directories_model
             .as_ref(ctx)
-            .get_terminal_id_for_root_path(pane_group_id, repo_path);
+            .get_terminal_id_for_root_path(pane_group_id, &repo_key);
 
         Self::find_available_terminal_for_review(
             &terminal_views,
@@ -1515,7 +1547,11 @@ impl RightPanelView {
         });
     }
 
-    fn ensure_code_review_view_exists(&mut self, repo_path: &Path, ctx: &mut ViewContext<Self>) {
+    fn ensure_code_review_view_exists(
+        &mut self,
+        repo_path: &LocalOrRemotePath,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let Some(pane_group) = &self.active_pane_group else {
             return;
         };
@@ -1533,14 +1569,16 @@ impl RightPanelView {
             if is_panel_open {
                 // on_open is idempotent (guards on is_open), so this is safe for
                 // already-open views and correctly re-opens cached-but-closed ones.
-                let repo_path = repo_path.to_path_buf();
+                let Some(repo_path) = repo_path.to_local_path().map(Path::to_path_buf) else {
+                    return;
+                };
                 view.update(ctx, |view, ctx| {
                     view.on_open(Some(repo_path), ctx);
                 });
             }
         } else {
             let diff_state_model = self.working_directories_model.update(ctx, |model, ctx| {
-                model.get_or_create_diff_state_model(repo_path.to_path_buf(), ctx)
+                model.get_or_create_diff_state_model(repo_path.clone(), ctx)
             });
 
             let Some(diff_state_model) = diff_state_model else {
@@ -1569,7 +1607,9 @@ impl RightPanelView {
                     self.create_code_review_view(repo_path, diff_state_model, pane_group_id, ctx)
                 {
                     if is_panel_open {
-                        let repo_path = repo_path.to_path_buf();
+                    let Some(repo_path) = repo_path.to_local_path().map(Path::to_path_buf) else {
+                        return;
+                    };
                         view.update(ctx, |view, ctx| {
                             view.on_open(Some(repo_path), ctx);
                         });

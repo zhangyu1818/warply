@@ -4882,7 +4882,7 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let arg = CodeReviewPanelArg {
-            repo_path: self.current_repo_path.clone(),
+            repo_path: self.current_repo_path.clone().map(Into::into),
             terminal_view: self.view_handle.clone(),
             entrypoint,
             focus_new_pane,
@@ -14874,7 +14874,7 @@ impl TerminalView {
                 base_branch,
             } => {
                 let arg = CodeReviewPanelArg {
-                    repo_path: Some(repo_path.clone()),
+                    repo_path: Some(repo_path.clone().into()),
                     terminal_view: self.view_handle.clone(),
                     entrypoint: CodeReviewPaneEntrypoint::AgentModeRunning,
                     focus_new_pane: true,
@@ -14952,7 +14952,7 @@ impl TerminalView {
 
     fn imported_comments_panel_arg(&self) -> CodeReviewPanelArg {
         CodeReviewPanelArg {
-            repo_path: self.current_repo_path.clone(),
+            repo_path: self.current_repo_path.clone().map(Into::into),
             terminal_view: self.view_handle.clone(),
             entrypoint: CodeReviewPaneEntrypoint::AgentModeRunning,
             focus_new_pane: true,
@@ -15729,7 +15729,7 @@ impl TerminalView {
             }
             InputEvent::OpenCodeReviewPane => {
                 ctx.emit(Event::OpenCodeReviewPane(CodeReviewPanelArg {
-                    repo_path: self.current_repo_path.clone(),
+                    repo_path: self.current_repo_path.clone().map(Into::into),
                     terminal_view: self.view_handle.clone(),
                     entrypoint: CodeReviewPaneEntrypoint::GitDiffChip,
                     focus_new_pane: true,
@@ -20325,7 +20325,7 @@ impl TypedActionView for TerminalView {
             }
             ToggleCodeReviewPane { entrypoint } => {
                 ctx.emit(Event::ToggleCodeReviewPane(CodeReviewPanelArg {
-                    repo_path: self.current_repo_path.clone(),
+                    repo_path: self.current_repo_path.clone().map(Into::into),
                     terminal_view: self.view_handle.clone(),
                     entrypoint: *entrypoint,
                     focus_new_pane: true,

@@ -10,6 +10,7 @@ pub mod file_type;
 pub mod host_id;
 pub mod on_cancel;
 pub mod path;
+pub mod local_or_remote_path;
 pub mod remote_path;
 pub mod standardized_path;
 pub mod sync;
