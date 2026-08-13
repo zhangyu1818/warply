@@ -38,6 +38,7 @@ Every upstream commit must be reviewed before it is applied.
 - If a retained feature is involved, adapt it to the current fork architecture instead of restoring upstream dependency chains.
 - Record meaningful merge decisions and cleanup rationale in `docs/agents-wiki/`.
 - Do not treat passing tests as proof that product boundaries are preserved; inspect the actual code paths.
+- Review every commit for both product behavior and cross-cutting engineering changes. Feature-oriented triage must not skip manifests, toolchains, formatter/lint configuration, build scripts, workspace metadata, or retained prerequisite infrastructure.
 
 ## Upstream Source Fidelity
 
@@ -50,7 +51,18 @@ For upstream merge work, the exact upstream source and commit history are the im
 - If the code cannot be applied cleanly, inspect upstream parents, call sites, history, and prerequisite commits. If the authoritative source cannot be inspected, do not reconstruct it by guessing.
 - New handwritten code is limited to necessary fork integration glue and provider-boundary replacements around the copied upstream core implementation.
 
+The mandatory port order for accepted or adapted changes is:
+
+1. Inspect and classify the upstream commit and prerequisites.
+2. Apply the exact upstream implementation to the worktree. Prefer `git cherry-pick --no-commit` for fully retained commits; for mixed commits, use an exact three-way patch or copy the exact upstream files and hunks.
+3. Resolve conflicts on the applied upstream source, preserving its core behavior and making only the smallest fork-specific removals or provider-boundary adaptations.
+4. Compare the result with the upstream patch and record every intentionally omitted path or meaningful hunk.
+
+Do not start from a blank local implementation. A selective or manual port is still copied upstream code followed by conflict resolution and fork adaptation.
+
 Workspace-wide engineering migrations are retained scope. Rust edition, minimum-toolchain, resolver, formatter, build-profile, and similar upstream migrations must be reviewed independently from product-service decisions. Do not drop a retained crate's migration because the same upstream commit also touches removed cloud, MCP, skills, or unsupported-platform code. Apply the authoritative upstream migration to retained paths first, then make the smallest source-faithful compatibility edits required by the fork.
+
+For those migrations, inventory every retained workspace manifest and build path touched upstream. A commit is not fully reviewed until each retained crate is migrated or a concrete compiler/toolchain blocker is recorded. Do not preserve an older Rust dialect by rewriting upstream code when the fork can adopt the upstream edition.
 
 ## Retained Areas
 
@@ -98,6 +110,7 @@ Do not restore these systems from upstream:
 | Next Command, Prompt Suggestions, prediction APIs | Port UI/context improvements only; keep the OpenAI-compatible provider. |
 | SSH, remote terminal, remote server, Warpify | Keep when it supports terminal behavior without Warp account auth. Reject Warp-hosted downloads, token auth, and cloud remote-control semantics. |
 | Persistence and migrations | Accept only for retained local data. Reject account/team/billing/cloud/MCP/skills compatibility migrations. |
+| Rust edition, toolchain, resolver, formatter, build profile, workspace metadata | Apply the upstream migration to every retained crate and build path, independently of removed product paths in the same commit. Resolve diagnostics with minimal source-faithful edits. |
 | `CloudObject`, `server_id`, `local_object_model` naming | Inspect data flow before deciding. Some names remain for local schema compatibility, not cloud behavior. |
 | MCP or skills | Reject app-side config, discovery, capability probing, invocation, or bundled resources. Keep only ACP protocol event rendering and ACP client capabilities for retained host handlers. |
 | Linux/Windows/Web platform code | Reject local client platform implementation and packaging code. Keep remote-host detection only for retained SSH/remote-server behavior. |
@@ -128,7 +141,7 @@ Inspect call sites, persistence usage, settings, and runtime ownership before ac
 
 ## Verification
 
-For merge or code changes, run focused checks first, then expand as needed:
+For merge or code changes, run focused checks first, then expand as needed. Every independently ported feature must pass `cargo build -p warp --all-targets --message-format short`; immediately run `cargo clean` after the build succeeds before moving to the next feature. Edition, toolchain, resolver, formatter, build-profile, or other workspace-wide migrations must instead pass `cargo build --workspace --all-targets --message-format short`, followed immediately by `cargo clean`.
 
 ```bash
 cargo check -p warp --all-targets --message-format short

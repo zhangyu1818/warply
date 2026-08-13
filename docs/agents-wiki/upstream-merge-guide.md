@@ -16,11 +16,19 @@ That answer decides the merge path. A feature need not have existed at baseline 
 
 1. Inspect upstream changed paths.
 2. Classify each path as accept, adapt, or reject.
-3. Resolve conflicts according to that classification.
-4. Run focused tests for touched areas.
-5. Run workspace checks before considering the merge complete.
+3. Apply the exact upstream commit, patch, files, or hunks for every accepted and adapted path.
+4. Resolve conflicts on that applied upstream source according to the classification.
+5. Compare the result with upstream and record intentionally omitted paths and meaningful hunks.
+6. Run focused tests for touched areas.
+7. Run workspace checks before considering the merge complete.
 
 Prefer small upstream batches. Large upstream merges are likely to reintroduce deleted cloud modules.
+
+## Source-First Application
+
+Upstream source and commit history are the implementation authority. For a fully retained commit, prefer `git cherry-pick --no-commit <commit>` so the exact patch is present before adaptation. For a mixed commit, apply the retained upstream paths with an exact three-way patch or copy the exact upstream files and hunks. Resolve conflicts by preserving the upstream core and removing only fork-incompatible service, tracking, platform, or provider plumbing.
+
+Do not write an equivalent implementation from a description, screenshot, observed behavior, or memory. A selective or manual port means selecting upstream source and adapting it after application; it does not mean implementing the behavior from scratch.
 
 ## Accept
 
@@ -39,7 +47,7 @@ Accept or cherry-pick directly when the change is limited to local generic behav
 
 ## Adapt
 
-Port the behavior manually when upstream touches retained but forked areas:
+Apply the exact upstream retained code first, then adapt it when upstream touches retained but forked areas:
 
 | Area | Adaptation rule |
 | --- | --- |
@@ -145,6 +153,12 @@ Reject changes that restore app-level cloud online/offline state, offline cloud 
 
 Regenerate dependency state from retained manifests. Do not accept reintroduced GraphQL, Sentry, telemetry, managed-secret, onboarding, old-agent-SDK, voice-input, Linux host, or Windows host crates unless a retained macOS or SSH/remote-terminal feature explicitly needs them.
 
+### Upstream changes Rust edition, toolchain, resolver, formatter, or build profiles
+
+Treat the workspace migration as a first-class retained change, independently of feature or service triage. Apply the exact upstream migration to every retained manifest, configuration file, build path, and Rust source it affects. A mixed commit may be rejected for removed product paths while remaining required for retained crates.
+
+Do not rewrite retained upstream syntax into an older Rust dialect when the fork can adopt the upstream edition. Inventory every retained workspace crate, resolve compiler diagnostics with minimal source-faithful edits, and do not mark the commit fully reviewed until every retained path is migrated or a concrete blocker is recorded.
+
 ### Upstream changes Linux or Windows platform paths
 
 Reject Linux/Windows host application, packaging, single-instance, secure-storage, user-preferences, local PTY, WSL/MSYS2, and windowing changes. Do not reject SSH or remote terminal code merely because it can connect to Linux/Windows hosts; inspect whether the code runs on the macOS client or on a remote terminal path.
@@ -162,11 +176,15 @@ Allowed hits should be documentation, local logs, legacy local naming, or retain
 
 ## Verification
 
-Use focused checks for the touched area, then:
+Use focused checks for the touched area. Every independently ported feature must then pass the package build, followed immediately by `cargo clean`:
 
 ```bash
 cargo check -p warp --all-targets --message-format short
 cargo check --workspace --all-targets --message-format short
 cargo fmt -- --check
 cargo nextest run -p warp -E 'test(slash_command) | test(acp) | test(terminal_suggestions)'
+cargo build -p warp --all-targets --message-format short
+cargo clean
 ```
+
+For edition, toolchain, resolver, formatter, build-profile, or other workspace-wide migrations, use `cargo build --workspace --all-targets --message-format short` instead of the package build, then run `cargo clean`. Only clean after the corresponding build succeeds, and record both outcomes in the audit.
