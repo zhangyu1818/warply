@@ -159,6 +159,17 @@ fn renders_echo_prompt_chip_command_as_single_shell_argument() {
 pub fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
 
+    AISettings::handle(app).update(app, |settings, ctx| {
+        settings
+            .ai_autodetection_enabled_internal
+            .set_value(true, ctx)
+            .unwrap();
+        settings
+            .nld_in_terminal_enabled_internal
+            .set_value(true, ctx)
+            .unwrap();
+    });
+
     // Make sure we set up all necessary custom action bindings.
     app.update(init);
 

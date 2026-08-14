@@ -566,6 +566,22 @@ define_settings_group!(AISettings, settings: [
         toml_path: "ai.active.enabled",
         description: "Controls whether proactive AI features like suggestions are enabled.",
     },
+    ai_autodetection_enabled_internal: AIAutoDetectionEnabled {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "ai.input.auto_detection_enabled",
+        description: "Controls whether AI automatically detects natural language input.",
+    },
+    nld_in_terminal_enabled_internal: NLDInTerminalEnabled {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        private: false,
+        toml_path: "ai.input.nld_in_terminal_enabled",
+        description: "Controls whether natural language detection is enabled in terminal input.",
+    },
     autodetection_command_denylist: AICommandDenylist {
         type: String,
         default: String::new(),
@@ -873,11 +889,11 @@ impl AISettings {
     }
 
     pub fn is_ai_autodetection_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+        self.is_any_ai_enabled(app) && *self.ai_autodetection_enabled_internal
     }
 
     pub fn is_nld_in_terminal_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app)
+        self.is_any_ai_enabled(app) && *self.nld_in_terminal_enabled_internal
     }
 
     pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {
@@ -927,7 +943,7 @@ impl AISettings {
     pub fn add_cli_agent_footer_enabled_command(
         &mut self,
         command: &str,
-        _ctx: &mut ModelContext<Self>,
+        ctx: &mut ModelContext<Self>,
     ) {
         let command = command.trim();
         if command.is_empty() {
@@ -943,23 +959,33 @@ impl AISettings {
 
         let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
         map.insert(command.to_string(), String::new());
+        crate::settings::log_setting_result(
+            self.cli_agent_footer_enabled_commands
+                .set_value(ToolbarCommandMap::new(map), ctx),
+            "cli_agent_footer_enabled_commands",
+        );
     }
 
     pub fn remove_cli_agent_footer_enabled_command(
         &mut self,
         command: &str,
-        _ctx: &mut ModelContext<Self>,
+        ctx: &mut ModelContext<Self>,
     ) {
         let command = command.trim();
         let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
         map.shift_remove(command);
+        crate::settings::log_setting_result(
+            self.cli_agent_footer_enabled_commands
+                .set_value(ToolbarCommandMap::new(map), ctx),
+            "cli_agent_footer_enabled_commands",
+        );
     }
 
     pub fn set_cli_agent_for_command(
         &mut self,
         pattern: &str,
         agent: Option<CLIAgent>,
-        _ctx: &mut ModelContext<Self>,
+        ctx: &mut ModelContext<Self>,
     ) {
         let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
         if !map.contains_key(pattern) {
@@ -967,6 +993,11 @@ impl AISettings {
         }
         let value = agent.map(|a| a.to_serialized_name()).unwrap_or_default();
         map.insert(pattern.to_string(), value);
+        crate::settings::log_setting_result(
+            self.cli_agent_footer_enabled_commands
+                .set_value(ToolbarCommandMap::new(map), ctx),
+            "cli_agent_footer_enabled_commands",
+        );
     }
 }
 

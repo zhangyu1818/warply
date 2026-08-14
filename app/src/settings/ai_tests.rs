@@ -38,6 +38,36 @@ fn test_terminal_suggestions_getters_do_not_require_auth() {
 }
 
 #[test]
+fn test_natural_language_detection_settings_default_to_disabled_and_can_toggle() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        AISettings::handle(&app).read(&app, |settings, ctx| {
+            assert!(!*settings.ai_autodetection_enabled_internal);
+            assert!(!*settings.nld_in_terminal_enabled_internal);
+            assert!(!settings.is_ai_autodetection_enabled(ctx));
+            assert!(!settings.is_nld_in_terminal_enabled(ctx));
+        });
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings
+                .ai_autodetection_enabled_internal
+                .set_value(true, ctx)
+                .unwrap();
+            settings
+                .nld_in_terminal_enabled_internal
+                .set_value(true, ctx)
+                .unwrap();
+        });
+
+        AISettings::handle(&app).read(&app, |settings, ctx| {
+            assert!(settings.is_ai_autodetection_enabled(ctx));
+            assert!(settings.is_nld_in_terminal_enabled(ctx));
+        });
+    });
+}
+
+#[test]
 fn test_terminal_suggestions_config_trims_required_fields() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
@@ -67,6 +97,42 @@ fn test_terminal_suggestions_config_trims_required_fields() {
             assert_eq!(config.api_key, "token");
             assert_eq!(config.model, "gpt-local");
             assert_eq!(config.effort, TerminalSuggestionEffort::High);
+        });
+    });
+}
+
+#[test]
+fn test_cli_agent_toolbar_commands_update_settings() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings.add_cli_agent_footer_enabled_command("^claude", ctx);
+            settings.set_cli_agent_for_command("^claude", Some(CLIAgent::Claude), ctx);
+        });
+
+        AISettings::handle(&app).read(&app, |settings, _ctx| {
+            assert_eq!(
+                settings
+                    .cli_agent_footer_enabled_commands
+                    .value()
+                    .get("^claude")
+                    .map(String::as_str),
+                Some("Claude")
+            );
+        });
+
+        AISettings::handle(&app).update(&mut app, |settings, ctx| {
+            settings.remove_cli_agent_footer_enabled_command("^claude", ctx);
+        });
+
+        AISettings::handle(&app).read(&app, |settings, _ctx| {
+            assert!(
+                !settings
+                    .cli_agent_footer_enabled_commands
+                    .value()
+                    .contains_key("^claude")
+            );
         });
     });
 }

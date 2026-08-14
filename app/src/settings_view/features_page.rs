@@ -519,6 +519,9 @@ pub enum FeaturesPageAction {
     ToggleFormatOnSave,
     ToggleAutoSave,
     ToggleShowHiddenFiles,
+    ToggleAutoOpenCodeReviewPane,
+    ToggleCodeReviewPanel,
+    ToggleShowCodeReviewDiffStats,
     ToggleShowInputHintText,
     ToggleUseAudibleBell,
     ToggleShowTerminalZeroStateBlock,
@@ -691,6 +694,8 @@ pub struct FeaturesPageView {
     #[cfg(feature = "local_tty")]
     startup_shell_view: ViewHandle<features::StartupShellView>,
     undo_close_view: ViewHandle<features::UndoCloseView>,
+    #[cfg(feature = "local_fs")]
+    external_editor_view: ViewHandle<features::ExternalEditorView>,
 
     max_block_size_input_editor: ViewHandle<EditorView>,
     valid_max_block_size: bool,
@@ -795,6 +800,34 @@ impl TypedActionView for FeaturesPageView {
                         "show_hidden_files",
                     );
                     ctx.notify();
+                });
+            }
+            ToggleAutoOpenCodeReviewPane => {
+                GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .auto_open_code_review_pane_on_first_agent_change
+                            .toggle_and_save_value(ctx),
+                        "auto_open_code_review_pane_on_first_agent_change",
+                    );
+                });
+            }
+            ToggleCodeReviewPanel => {
+                TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings.show_code_review_button.toggle_and_save_value(ctx),
+                        "show_code_review_button",
+                    );
+                });
+            }
+            ToggleShowCodeReviewDiffStats => {
+                TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    log_setting_result(
+                        settings
+                            .show_code_review_diff_stats
+                            .toggle_and_save_value(ctx),
+                        "show_code_review_diff_stats",
+                    );
                 });
             }
             ToggleNotifications => {
@@ -1705,6 +1738,9 @@ impl FeaturesPageView {
 
         let undo_close_view = ctx.add_typed_action_view(features::UndoCloseView::new);
 
+        #[cfg(feature = "local_fs")]
+        let external_editor_view = ctx.add_typed_action_view(features::ExternalEditorView::new);
+
         let appearance_handle = Appearance::handle(ctx);
 
         let width_and_height_editor_options = SingleLineEditorOptions {
@@ -1887,6 +1923,8 @@ impl FeaturesPageView {
             #[cfg(feature = "local_tty")]
             startup_shell_view,
             undo_close_view,
+            #[cfg(feature = "local_fs")]
+            external_editor_view,
 
             max_block_size_input_editor: block_size_editor,
             valid_max_block_size: true,
@@ -2053,6 +2091,16 @@ impl FeaturesPageView {
             text_editing_widgets.push(Box::new(AutoSaveWidget::default()));
         }
 
+        let mut code_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
+            Box::new(CodeAsDefaultEditorWidget::default()),
+            Box::new(AutoOpenCodeReviewPaneWidget::default()),
+            Box::new(CodeReviewPanelWidget::default()),
+            Box::new(CodeReviewDiffStatsWidget::default()),
+        ];
+
+        #[cfg(feature = "local_fs")]
+        code_widgets.insert(0, Box::new(ExternalEditorWidget::default()));
+
         let mut editor_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![];
 
         let input_settings = InputSettings::as_ref(ctx);
@@ -2189,6 +2237,7 @@ impl FeaturesPageView {
             Category::new("Session", session_widgets),
             Category::new("Keys", keys_widgets),
             Category::new("Text Editing", text_editing_widgets),
+            Category::new("Code Editor and Review", code_widgets),
             Category::new("Terminal Input", editor_widgets),
             Category::new("Terminal", terminal_widgets),
             Category::new("Notifications", notifications_widgets),
@@ -4534,6 +4583,180 @@ impl SettingsWidget for AutoSaveWidget {
                 "Automatically saves changes in the Warp text editor as you type and when the editor loses focus."
                     .into(),
             ),
+        )
+    }
+}
+
+#[cfg(feature = "local_fs")]
+#[derive(Default)]
+struct ExternalEditorWidget;
+
+#[derive(Default)]
+struct CodeAsDefaultEditorWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for CodeAsDefaultEditorWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "code default editor warp open code files"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_body_item::<FeaturesPageAction>(
+            "Use Warp as the default code editor".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*CodeSettings::as_ref(app).code_as_default_editor)
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleCodeAsDefaultEditor);
+                })
+                .finish(),
+            Some("Use Warp when opening code files from the operating system.".into()),
+        )
+    }
+}
+
+#[cfg(feature = "local_fs")]
+impl SettingsWidget for ExternalEditorWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "code editor external editor open files markdown conversations layout pane tab"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        _appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        ChildView::new(&view.external_editor_view).finish()
+    }
+}
+
+#[derive(Default)]
+struct AutoOpenCodeReviewPaneWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for AutoOpenCodeReviewPaneWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "code review auto open panel first agent change accepted diff"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_body_item::<FeaturesPageAction>(
+            "Auto open code review panel".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(
+                    *GeneralSettings::as_ref(app).auto_open_code_review_pane_on_first_agent_change,
+                )
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleAutoOpenCodeReviewPane);
+                })
+                .finish(),
+            Some(
+                "Open the code review panel when an agent makes its first accepted change.".into(),
+            ),
+        )
+    }
+}
+
+#[derive(Default)]
+struct CodeReviewPanelWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for CodeReviewPanelWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "code review button panel toggle"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_body_item::<FeaturesPageAction>(
+            "Show code review button".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*TabSettings::as_ref(app).show_code_review_button)
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleCodeReviewPanel);
+                })
+                .finish(),
+            Some("Show a button for opening the code review panel.".into()),
+        )
+    }
+}
+
+#[derive(Default)]
+struct CodeReviewDiffStatsWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for CodeReviewDiffStatsWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "code review diff stats lines added removed"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_body_item::<FeaturesPageAction>(
+            "Show diff stats on code review button".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*TabSettings::as_ref(app).show_code_review_diff_stats)
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleShowCodeReviewDiffStats);
+                })
+                .finish(),
+            Some("Show added and removed line counts on the code review button.".into()),
         )
     }
 }

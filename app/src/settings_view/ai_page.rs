@@ -1,15 +1,24 @@
 use crate::ai::acp::config_options::{AcpConfigOption, probe_config_options};
 use crate::ai::acp::registry::AcpRegistryModel;
 use crate::appearance::{Appearance, AppearanceEvent};
-use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors};
+use crate::editor::{
+    EditorOptions, EditorView, Event as EditorEvent, InteractionState, SingleLineEditorOptions,
+    TextColors,
+};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, LongRunningCommandSubmissionMode, PromptSubmissionMode,
-    TerminalSuggestionEffort,
+    TerminalSuggestionEffort, ThinkingDisplayMode,
 };
+use crate::terminal::CLIAgent;
 use crate::terminal::local_shell::LocalShellState;
 use crate::util::bindings::BindingGroup;
-use crate::view_components::{Dropdown, DropdownItem};
+use crate::view_components::{
+    Dropdown, DropdownItem, SubmittableTextInput, SubmittableTextInputEvent,
+};
+use crate::workspace::WorkspaceAction;
 use agent_client_protocol::schema::SessionConfigOptionCategory;
+use enum_iterator::all;
+use regex::Regex;
 use settings::{Setting, ToggleableSetting};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -18,10 +27,12 @@ use strum::IntoEnumIterator;
 use warp_core::channel::{Channel, ChannelState};
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    Align, Container, CrossAxisAlignment, Fill, Flex, ParentElement, Shrinkable, Text,
+    Align, ChildView, Container, CrossAxisAlignment, Fill, Flex, MouseStateHandle, ParentElement,
+    Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::{
+    button::ButtonVariant,
     components::{Coords, UiComponent, UiComponentStyles},
     switch::SwitchStateHandle,
 };
@@ -32,7 +43,7 @@ use warpui::{
 
 use super::settings_page::{
     HEADER_PADDING, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
-    ToggleState, build_sub_header, build_toggle_element, render_body_item_label,
+    ToggleState, build_sub_header, build_toggle_element, render_body_item, render_body_item_label,
     render_dropdown_item, render_dropdown_item_label, render_separator,
 };
 use super::{SettingsAction, SettingsSection, flags};
@@ -107,6 +118,11 @@ pub struct AISettingsPageView {
     terminal_suggestions_effort_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
     default_prompt_submission_mode_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
     lrc_submission_mode_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
+    thinking_display_mode_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
+    autodetection_denylist_editor: ViewHandle<EditorView>,
+    cli_agent_footer_command_editor: ViewHandle<SubmittableTextInput>,
+    cli_agent_footer_command_mouse_state_handles: Vec<MouseStateHandle>,
+    cli_agent_footer_command_agent_dropdowns: Vec<ViewHandle<Dropdown<AISettingsPageAction>>>,
 }
 
 fn acp_config_option_selected_value(
@@ -279,11 +295,74 @@ impl AISettingsPageView {
         let default_prompt_submission_mode_dropdown =
             Self::create_default_prompt_submission_mode_dropdown(ctx);
         let lrc_submission_mode_dropdown = Self::create_lrc_submission_mode_dropdown(ctx);
+        let thinking_display_mode_dropdown = Self::create_thinking_display_mode_dropdown(ctx);
+
+        let autodetection_denylist_editor = ctx.add_typed_action_view(|ctx| {
+            let appearance = Appearance::as_ref(ctx);
+            let options = EditorOptions {
+                autogrow: true,
+                soft_wrap: true,
+                text: crate::editor::TextOptions {
+                    font_size_override: Some(appearance.ui_font_size()),
+                    font_family_override: Some(appearance.monospace_font_family()),
+                    text_colors_override: Some(TextColors {
+                        default_color: appearance.theme().active_ui_text_color(),
+                        disabled_color: appearance.theme().disabled_ui_text_color(),
+                        hint_color: appearance.theme().disabled_ui_text_color(),
+                    }),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let mut editor = EditorView::new(options, ctx);
+            editor.set_placeholder_text("Commands, comma separated", ctx);
+            let current_value = AISettings::as_ref(ctx)
+                .autodetection_command_denylist
+                .value()
+                .clone();
+            editor.set_buffer_text(&current_value, ctx);
+            editor
+        });
+        Self::update_editor_interaction_state(
+            autodetection_denylist_editor.clone(),
+            AISettings::as_ref(ctx).is_any_ai_enabled(ctx),
+            ctx,
+        );
+        ctx.subscribe_to_view(&autodetection_denylist_editor, |me, _, event, ctx| {
+            me.handle_detection_denylist_editor_event(event, ctx);
+        });
+
+        let cli_agent_footer_command_editor = ctx.add_typed_action_view(|ctx| {
+            let mut input =
+                SubmittableTextInput::new(ctx).validate_on_edit(|s| Regex::new(s).is_ok());
+            input.set_placeholder_text("command (supports regex)", ctx);
+            input
+        });
+        ctx.subscribe_to_view(
+            &cli_agent_footer_command_editor,
+            |_, _, event, ctx| match event {
+                SubmittableTextInputEvent::Submit(command) => {
+                    AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                        settings.add_cli_agent_footer_enabled_command(command, ctx);
+                    });
+                }
+                SubmittableTextInputEvent::Escape => ctx.emit(AISettingsPageEvent::FocusModal),
+            },
+        );
+
+        let cli_agent_footer_command_mouse_state_handles = AISettings::as_ref(ctx)
+            .cli_agent_footer_enabled_commands
+            .value()
+            .keys()
+            .map(|_| Default::default())
+            .collect();
+        let cli_agent_footer_command_agent_dropdowns = Self::create_cli_agent_dropdowns(ctx);
 
         let terminal_suggestions_editors = [
             terminal_suggestions_endpoint_editor.clone(),
             terminal_suggestions_api_key_editor.clone(),
             terminal_suggestions_model_editor.clone(),
+            autodetection_denylist_editor.clone(),
         ];
         ctx.subscribe_to_model(&Appearance::handle(ctx), move |_, _, event, ctx| {
             if matches!(event, AppearanceEvent::ThemeChanged) {
@@ -304,6 +383,22 @@ impl AISettingsPageView {
         });
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             match event {
+                AISettingsChangedEvent::AICommandDenylist { .. } => {
+                    me.autodetection_denylist_editor.update(ctx, |editor, ctx| {
+                        let current_value = AISettings::as_ref(ctx)
+                            .autodetection_command_denylist
+                            .value()
+                            .clone();
+                        editor.set_buffer_text(&current_value, ctx);
+                    });
+                }
+                AISettingsChangedEvent::IsAnyAIEnabled { .. } => {
+                    Self::update_editor_interaction_state(
+                        me.autodetection_denylist_editor.clone(),
+                        AISettings::as_ref(ctx).is_any_ai_enabled(ctx),
+                        ctx,
+                    );
+                }
                 AISettingsChangedEvent::PromptSubmissionMode { .. } => {
                     let current_mode = AISettings::as_ref(ctx).default_prompt_submission_mode;
                     me.default_prompt_submission_mode_dropdown
@@ -326,6 +421,26 @@ impl AISettingsPageView {
                             );
                         });
                 }
+                AISettingsChangedEvent::CLIAgentToolbarEnabledCommands { .. } => {
+                    me.cli_agent_footer_command_mouse_state_handles = AISettings::as_ref(ctx)
+                        .cli_agent_footer_enabled_commands
+                        .value()
+                        .keys()
+                        .map(|_| Default::default())
+                        .collect();
+                    me.cli_agent_footer_command_agent_dropdowns =
+                        Self::create_cli_agent_dropdowns(ctx);
+                }
+                AISettingsChangedEvent::ThinkingDisplayMode { .. } => {
+                    let current_mode = AISettings::as_ref(ctx).thinking_display_mode;
+                    me.thinking_display_mode_dropdown
+                        .update(ctx, |dropdown, ctx| {
+                            dropdown.set_selected_by_action(
+                                AISettingsPageAction::SetThinkingDisplayMode(current_mode),
+                                ctx,
+                            );
+                        });
+                }
                 _ => {}
             }
             ctx.notify();
@@ -343,6 +458,11 @@ impl AISettingsPageView {
             terminal_suggestions_effort_dropdown,
             default_prompt_submission_mode_dropdown,
             lrc_submission_mode_dropdown,
+            thinking_display_mode_dropdown,
+            autodetection_denylist_editor,
+            cli_agent_footer_command_editor,
+            cli_agent_footer_command_mouse_state_handles,
+            cli_agent_footer_command_agent_dropdowns,
         };
         view.refresh_acp_config_options(ctx);
         view
@@ -371,6 +491,49 @@ impl AISettingsPageView {
             editor.set_buffer_text(&initial_value, ctx);
             editor
         })
+    }
+
+    fn handle_detection_denylist_editor_event(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                let value = self
+                    .autodetection_denylist_editor
+                    .as_ref(ctx)
+                    .buffer_text(ctx);
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    crate::settings::log_setting_result(
+                        settings
+                            .autodetection_command_denylist
+                            .set_value(value, ctx),
+                        "autodetection_command_denylist",
+                    );
+                });
+            }
+            EditorEvent::Escape => ctx.emit(AISettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
+    fn update_editor_interaction_state(
+        editor: ViewHandle<EditorView>,
+        is_enabled: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        editor.update(ctx, |editor, ctx| {
+            editor.set_interaction_state(
+                if is_enabled {
+                    InteractionState::Editable
+                } else {
+                    InteractionState::Disabled
+                },
+                ctx,
+            );
+            ctx.notify();
+        });
     }
 
     fn create_acp_agent_backend_dropdown(
@@ -600,6 +763,85 @@ impl AISettingsPageView {
         })
     }
 
+    fn create_thinking_display_mode_dropdown(
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<Dropdown<AISettingsPageAction>> {
+        let current = AISettings::as_ref(ctx).thinking_display_mode;
+        ctx.add_typed_action_view(move |ctx| {
+            let mut dropdown = Dropdown::new(ctx);
+            dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
+            dropdown.set_menu_width(AI_SETTINGS_DROPDOWN_WIDTH, ctx);
+            dropdown.add_items(
+                ThinkingDisplayMode::iter()
+                    .map(|mode| {
+                        DropdownItem::new(
+                            mode.display_name(),
+                            AISettingsPageAction::SetThinkingDisplayMode(mode),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown
+                .set_selected_by_action(AISettingsPageAction::SetThinkingDisplayMode(current), ctx);
+            dropdown
+        })
+    }
+
+    fn create_cli_agent_dropdowns(
+        ctx: &mut ViewContext<Self>,
+    ) -> Vec<ViewHandle<Dropdown<AISettingsPageAction>>> {
+        let entries: Vec<_> = AISettings::as_ref(ctx)
+            .cli_agent_footer_enabled_commands
+            .value()
+            .iter()
+            .map(|(pattern, agent_name)| {
+                (pattern.clone(), CLIAgent::from_serialized_name(agent_name))
+            })
+            .collect();
+
+        entries
+            .into_iter()
+            .map(|(pattern, current_agent)| {
+                ctx.add_typed_action_view(move |ctx| {
+                    let mut dropdown = Dropdown::new(ctx);
+                    dropdown.set_top_bar_max_width(160.);
+                    dropdown.set_menu_width(180., ctx);
+
+                    let mut items: Vec<_> = all::<CLIAgent>()
+                        .filter(|agent| !matches!(agent, CLIAgent::Unknown))
+                        .map(|agent| {
+                            DropdownItem::new(
+                                agent.display_name(),
+                                AISettingsPageAction::SetCLIAgentForCommand {
+                                    pattern: pattern.clone(),
+                                    agent: Some(agent),
+                                },
+                            )
+                        })
+                        .collect();
+                    items.push(DropdownItem::new(
+                        "Other",
+                        AISettingsPageAction::SetCLIAgentForCommand {
+                            pattern: pattern.clone(),
+                            agent: None,
+                        },
+                    ));
+                    dropdown.set_items(items, ctx);
+                    dropdown.set_selected_by_name(
+                        if matches!(current_agent, CLIAgent::Unknown) {
+                            "Other"
+                        } else {
+                            current_agent.display_name()
+                        },
+                        ctx,
+                    );
+                    dropdown
+                })
+            })
+            .collect()
+    }
+
     fn build_page(_ctx: &mut ViewContext<Self>) -> PageType<Self> {
         PageType::new_uncategorized(vec![Box::new(AIWidget::default())], None)
     }
@@ -626,13 +868,32 @@ impl Entity for AISettingsPageView {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AISettingsPageAction {
     SetAcpAgentBackend(String),
-    SetAcpDefaultConfigOption { config_id: String, value_id: String },
+    SetAcpDefaultConfigOption {
+        config_id: String,
+        value_id: String,
+    },
     SetTerminalSuggestionsEffort(TerminalSuggestionEffort),
+    SetThinkingDisplayMode(ThinkingDisplayMode),
     SetPromptSubmissionMode(PromptSubmissionMode),
     SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
+    ToggleGlobalAI,
+    ToggleActiveAI,
+    ToggleCodeSuggestions,
+    ToggleAIInputAutoDetection,
+    ToggleNLDInTerminal,
     ToggleTerminalNextCommand,
     ToggleTerminalPromptSuggestions,
+    ToggleIncludeAgentCommandsInHistory,
+    ToggleCLIAgentToolbar,
+    ToggleAutoToggleRichInput,
+    ToggleAutoOpenRichInputOnCLIAgentStart,
+    ToggleAutoDismissRichInputAfterSubmit,
     ToggleSubmitRichInputOnCtrlEnter,
+    RemoveCLIAgentToolbarEnabledCommand(String),
+    SetCLIAgentForCommand {
+        pattern: String,
+        agent: Option<CLIAgent>,
+    },
 }
 
 impl TypedActionView for AISettingsPageView {
@@ -703,6 +964,66 @@ impl TypedActionView for AISettingsPageView {
                 });
                 ctx.notify();
             }
+            AISettingsPageAction::ToggleGlobalAI => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings.is_any_ai_enabled.toggle_and_save_value(ctx) {
+                        log::warn!("Failed to toggle Global AI setting: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleActiveAI => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .is_active_ai_enabled_internal
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle Active AI setting: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleCodeSuggestions => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .code_suggestions_enabled_internal
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle code suggestions: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleAIInputAutoDetection => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .ai_autodetection_enabled_internal
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle AI input autodetection: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleNLDInTerminal => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .nld_in_terminal_enabled_internal
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle NLD in terminal: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::SetThinkingDisplayMode(mode) => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings.thinking_display_mode.set_value(*mode, ctx) {
+                        log::warn!("Failed to set agent thinking display mode: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
             AISettingsPageAction::ToggleTerminalNextCommand => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     if let Err(err) = settings
@@ -725,11 +1046,75 @@ impl TypedActionView for AISettingsPageView {
                 });
                 ctx.notify();
             }
+            AISettingsPageAction::ToggleIncludeAgentCommandsInHistory => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .include_agent_commands_in_history
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle agent command history: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleCLIAgentToolbar => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .should_render_cli_agent_footer
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle CLI agent toolbar: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleAutoToggleRichInput => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings.auto_toggle_rich_input.toggle_and_save_value(ctx) {
+                        log::warn!("Failed to toggle CLI agent Rich Input auto show/hide: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleAutoOpenRichInputOnCLIAgentStart => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .auto_open_rich_input_on_cli_agent_start
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle CLI agent Rich Input auto open: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::ToggleAutoDismissRichInputAfterSubmit => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    if let Err(err) = settings
+                        .auto_dismiss_rich_input_after_submit
+                        .toggle_and_save_value(ctx)
+                    {
+                        log::warn!("Failed to toggle CLI agent Rich Input auto dismiss: {err:?}");
+                    }
+                });
+                ctx.notify();
+            }
             AISettingsPageAction::ToggleSubmitRichInputOnCtrlEnter => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     if let Err(err) = settings.submit_on_ctrl_enter.toggle_and_save_value(ctx) {
                         log::warn!("Failed to toggle Rich Input Ctrl+Enter submission: {err:?}");
                     }
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::RemoveCLIAgentToolbarEnabledCommand(command) => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    settings.remove_cli_agent_footer_enabled_command(command, ctx);
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::SetCLIAgentForCommand { pattern, agent } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    settings.set_cli_agent_for_command(pattern, *agent, ctx);
                 });
                 ctx.notify();
             }
@@ -798,9 +1183,20 @@ fn render_ai_setting_toggle(
 
 #[derive(Default)]
 struct AIWidget {
+    global_ai_toggle: SwitchStateHandle,
+    active_ai_toggle: SwitchStateHandle,
+    code_suggestions_toggle: SwitchStateHandle,
+    autodetection_toggle: SwitchStateHandle,
+    nld_in_terminal_toggle: SwitchStateHandle,
     next_command_toggle: SwitchStateHandle,
     prompt_suggestions_toggle: SwitchStateHandle,
+    cli_agent_toolbar_toggle: SwitchStateHandle,
+    auto_toggle_rich_input_toggle: SwitchStateHandle,
+    auto_open_rich_input_toggle: SwitchStateHandle,
+    auto_dismiss_rich_input_toggle: SwitchStateHandle,
+    include_agent_commands_toggle: SwitchStateHandle,
     submit_on_ctrl_enter_toggle: SwitchStateHandle,
+    toolbar_editor_button: MouseStateHandle,
 }
 
 impl AIWidget {
@@ -934,12 +1330,131 @@ impl AIWidget {
         toggle: SwitchStateHandle,
         app: &AppContext,
     ) -> Box<dyn Element> {
+        Self::render_toggle_with_toggleable(
+            label,
+            description,
+            action,
+            enabled,
+            AISettings::as_ref(app).is_any_ai_enabled(app),
+            toggle,
+            app,
+        )
+    }
+
+    fn render_toggle_with_toggleable(
+        label: &'static str,
+        description: &'static str,
+        action: AISettingsPageAction,
+        enabled: bool,
+        toggleable: bool,
+        toggle: SwitchStateHandle,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
         Flex::column()
             .with_child(render_ai_setting_toggle(
-                label, action, enabled, true, toggle, app,
+                label, action, enabled, toggleable, toggle, app,
             ))
-            .with_child(render_ai_setting_description(description, true, app))
+            .with_child(render_ai_setting_description(description, toggleable, app))
             .finish()
+    }
+
+    fn render_cli_commands(
+        view: &AISettingsPageView,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut list = Flex::column().with_spacing(4.);
+        list.add_child(
+            appearance
+                .ui_builder()
+                .span("Commands that enable the toolbar".to_string())
+                .with_style(UiComponentStyles {
+                    font_size: Some(CONTENT_FONT_SIZE),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        );
+        list.add_child(ChildView::new(&view.cli_agent_footer_command_editor).finish());
+
+        let patterns: Vec<String> = AISettings::as_ref(app)
+            .cli_agent_footer_enabled_commands
+            .value()
+            .keys()
+            .cloned()
+            .collect();
+        for (index, pattern) in patterns.iter().enumerate() {
+            let remove_action =
+                AISettingsPageAction::RemoveCLIAgentToolbarEnabledCommand(pattern.clone());
+            let mouse_state = view
+                .cli_agent_footer_command_mouse_state_handles
+                .get(index)
+                .cloned()
+                .unwrap_or_default();
+            let remove_button = appearance
+                .ui_builder()
+                .close_button(16., mouse_state)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(remove_action.clone());
+                })
+                .finish();
+            let label = appearance
+                .ui_builder()
+                .wrappable_text(pattern.clone(), true)
+                .with_style(UiComponentStyles {
+                    font_color: Some(appearance.theme().foreground().into_solid()),
+                    font_family_id: Some(appearance.monospace_font_family()),
+                    font_size: Some(appearance.ui_font_size()),
+                    ..Default::default()
+                })
+                .build()
+                .finish();
+
+            let mut row = Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(Shrinkable::new(1., label).finish());
+            if let Some(dropdown) = view.cli_agent_footer_command_agent_dropdowns.get(index) {
+                row.add_child(
+                    Container::new(ChildView::new(dropdown).finish())
+                        .with_margin_right(8.)
+                        .finish(),
+                );
+            }
+            row.add_child(remove_button);
+            list.add_child(row.finish());
+        }
+
+        Flex::column()
+            .with_child(list.finish())
+            .with_child(render_ai_setting_description(
+                "Add regex patterns to show the coding agent toolbar for matching commands.",
+                true,
+                app,
+            ))
+            .finish()
+    }
+
+    fn render_cli_toolbar_layout(&self, appearance: &Appearance) -> Box<dyn Element> {
+        render_body_item::<AISettingsPageAction>(
+            "Toolbar layout".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .button(ButtonVariant::Outlined, self.toolbar_editor_button.clone())
+                .with_text_label("Edit toolbar".to_string())
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(WorkspaceAction::OpenCLIAgentToolbarEditor);
+                })
+                .finish(),
+            Some(
+                "Rearrange or hide File Explorer, Rich Input, and other CLI agent toolbar items."
+                    .into(),
+            ),
+        )
     }
 }
 
@@ -947,7 +1462,7 @@ impl SettingsWidget for AIWidget {
     type View = AISettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning next command prompt suggestions terminal suggestions third party cli agent rich input ctrl enter submit newline queue interrupt submission auto-queue response long-running lrc"
+        "ai acp codex claude natural language input openai compatible endpoint api key model reasoning thinking display history commands next command prompt suggestions terminal suggestions third party cli agent rich input ctrl enter submit newline queue interrupt submission auto-queue response long-running lrc toolbar layout file explorer regex mapping"
     }
 
     fn render(
@@ -965,6 +1480,25 @@ impl SettingsWidget for AIWidget {
                     .with_padding_bottom(HEADER_PADDING)
                     .finish(),
             )
+            .with_child(Self::render_toggle_with_toggleable(
+                "Enable AI features",
+                "Enable ACP Agent, terminal suggestions, and other AI-powered terminal features.",
+                AISettingsPageAction::ToggleGlobalAI,
+                settings.is_any_ai_enabled(app),
+                true,
+                self.global_ai_toggle.clone(),
+                app,
+            ))
+            .with_child(Self::render_toggle_with_toggleable(
+                "Active AI",
+                "Enable proactive features such as code suggestions and intelligent command corrections.",
+                AISettingsPageAction::ToggleActiveAI,
+                *settings.is_active_ai_enabled_internal,
+                settings.is_any_ai_enabled(app),
+                self.active_ai_toggle.clone(),
+                app,
+            ))
+            .with_child(render_separator(appearance))
             .with_child(Self::render_section_header("ACP Agent", appearance, app))
             .with_child(Self::render_dropdown(
                 "Agent backend",
@@ -989,6 +1523,51 @@ impl SettingsWidget for AIWidget {
                     appearance,
                 )
             }))
+            .with_child(Self::render_dropdown(
+                "Agent thinking display",
+                "Choose whether agent reasoning is shown while streaming, kept expanded, or hidden.",
+                &view.thinking_display_mode_dropdown,
+                appearance,
+            ))
+            .with_child(Self::render_toggle(
+                "Include agent commands in history",
+                "Include commands executed by the agent in shell history, Ctrl-R search, and the inline history menu.",
+                AISettingsPageAction::ToggleIncludeAgentCommandsInHistory,
+                *settings.include_agent_commands_in_history,
+                self.include_agent_commands_toggle.clone(),
+                app,
+            ))
+            .with_child(render_separator(appearance))
+            .with_child(Self::render_section_header(
+                "Natural Language Detection",
+                appearance,
+                app,
+            ))
+            .with_child(Self::render_toggle_with_toggleable(
+                "Autodetect agent prompts in terminal input",
+                "Automatically recognize natural-language prompts in terminal input and enter ACP Agent mode.",
+                AISettingsPageAction::ToggleNLDInTerminal,
+                settings.is_nld_in_terminal_enabled(app),
+                settings.is_any_ai_enabled(app),
+                self.nld_in_terminal_toggle.clone(),
+                app,
+            ))
+            .with_child(Self::render_toggle_with_toggleable(
+                "Autodetect terminal commands in agent input",
+                "Automatically recognize terminal commands in AgentView input and return to terminal mode.",
+                AISettingsPageAction::ToggleAIInputAutoDetection,
+                settings.is_ai_autodetection_enabled(app),
+                settings.is_any_ai_enabled(app),
+                self.autodetection_toggle.clone(),
+                app,
+            ))
+            .with_child(Self::render_text_input(
+                "Natural language denylist",
+                "Commands listed here will never trigger natural language detection.",
+                view.autodetection_denylist_editor.clone(),
+                appearance,
+            ))
+            .with_child(render_separator(appearance))
             .with_child(render_separator(appearance))
             .with_child(Self::render_section_header(
                 "Terminal Suggestions",
@@ -1036,12 +1615,59 @@ impl SettingsWidget for AIWidget {
                 self.prompt_suggestions_toggle.clone(),
                 app,
             ))
+            .with_child(Self::render_toggle_with_toggleable(
+                "Suggested Code Banners",
+                "Suggests code diffs and queries as inline banners based on recent commands and their outputs.",
+                AISettingsPageAction::ToggleCodeSuggestions,
+                *settings.code_suggestions_enabled_internal,
+                settings.is_active_ai_enabled(app),
+                self.code_suggestions_toggle.clone(),
+                app,
+            ))
             .with_child(render_separator(appearance))
             .with_child(Self::render_section_header(
                 "Third-party CLI Agent",
                 appearance,
                 app,
             ))
+            .with_child(Self::render_toggle(
+                "Show coding agent toolbar",
+                "Show quick actions when running coding agents such as Claude Code, Codex, or Gemini CLI.",
+                AISettingsPageAction::ToggleCLIAgentToolbar,
+                *settings.should_render_cli_agent_footer,
+                self.cli_agent_toolbar_toggle.clone(),
+                app,
+            ))
+            .with_children((*settings.should_render_cli_agent_footer).then(|| {
+                Self::render_toggle(
+                    "Auto show/hide Rich Input based on agent status",
+                    "Requires the coding agent plugin; Rich Input follows the agent's blocked state.",
+                    AISettingsPageAction::ToggleAutoToggleRichInput,
+                    *settings.auto_toggle_rich_input,
+                    self.auto_toggle_rich_input_toggle.clone(),
+                    app,
+                )
+            }))
+            .with_children((*settings.should_render_cli_agent_footer).then(|| {
+                Self::render_toggle(
+                    "Auto open Rich Input when a coding agent session starts",
+                    "Open Rich Input once when a CLI agent session starts or its plugin listener connects.",
+                    AISettingsPageAction::ToggleAutoOpenRichInputOnCLIAgentStart,
+                    *settings.auto_open_rich_input_on_cli_agent_start,
+                    self.auto_open_rich_input_toggle.clone(),
+                    app,
+                )
+            }))
+            .with_children((*settings.should_render_cli_agent_footer).then(|| {
+                Self::render_toggle(
+                    "Auto dismiss Rich Input after prompt submission",
+                    "Close Rich Input after submitting when no coding agent plugin listener is available.",
+                    AISettingsPageAction::ToggleAutoDismissRichInputAfterSubmit,
+                    *settings.auto_dismiss_rich_input_after_submit,
+                    self.auto_dismiss_rich_input_toggle.clone(),
+                    app,
+                )
+            }))
             .with_child(Self::render_toggle(
                 "Submit Rich Input with Ctrl+Enter",
                 "When enabled, the Rich Input editor submits on Ctrl+Enter instead of Enter. Enter inserts a newline.",
@@ -1050,6 +1676,12 @@ impl SettingsWidget for AIWidget {
                 self.submit_on_ctrl_enter_toggle.clone(),
                 app,
             ))
+            .with_children((*settings.should_render_cli_agent_footer).then(|| {
+                Self::render_cli_commands(view, appearance, app)
+            }))
+            .with_children((*settings.should_render_cli_agent_footer).then(|| {
+                self.render_cli_toolbar_layout(appearance)
+            }))
             .finish()
     }
 }
