@@ -4188,7 +4188,7 @@ impl EditorView {
                 .last_non_hidden_ai_block_handle(ctx)
                 .is_some_and(|ai_block| {
                     let block = ai_block.as_ref(ctx);
-                    block.is_passive_conversation(ctx)
+                    block.is_passive_conversation()
                         && block.find_undismissed_code_diff(ctx).is_some()
                 })
         });

@@ -1,5 +1,6 @@
 use ai::diff_validation::DiffDelta;
 use std::collections::HashMap;
+use std::fmt::Write;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ai::{
@@ -80,10 +81,19 @@ impl EditDocumentsExecutor {
             if fuzzy_result.warrants_failure() {
                 let error_msg = if let Some(failures) = &fuzzy_result.failures {
                     if failures.fuzzy_match_failures > 0 {
-                        format!(
+                        let mut msg = format!(
                             "Could not apply diff to document {}: content mismatch",
                             diff.document_id
-                        )
+                        );
+                        if !failures.fuzzy_match_failure_details.is_empty() {
+                            msg.push_str(
+                                " The following search blocks did not match the current file contents:",
+                            );
+                            for failure in &failures.fuzzy_match_failure_details {
+                                let _ = write!(msg, "\nSearch block {}.", failure.block_number);
+                            }
+                        }
+                        msg
                     } else if failures.noop_deltas > 0 {
                         format!("Changes to document {} were already made", diff.document_id)
                     } else {
