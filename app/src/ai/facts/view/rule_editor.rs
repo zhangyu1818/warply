@@ -390,7 +390,7 @@ impl TypedActionView for RuleEditorView {
                         name,
                         content,
                         sync_id: ai_fact.sync_id(),
-                        revision_ts: ai_fact.metadata().revision.clone(),
+                        revision_ts: ai_fact.metadata().revision,
                     });
                 } else {
                     ctx.emit(RuleEditorViewEvent::Add { name, content });

@@ -805,6 +805,8 @@ pub enum Event {
         layout: external_editor::settings::EditorLayout,
     },
     OpenCodeReviewPane,
+    /// Toggle the file explorer side panel (from the agent input footer).
+    ToggleFileExplorer,
     /// Request to attach a diff set as context to the AI conversation
     AttachDiffSetContext {
         diff_mode: DiffMode,
@@ -1806,9 +1808,11 @@ impl Input {
             AgentInputFooterEvent::WriteToPty(_)
             | AgentInputFooterEvent::InsertIntoCLIRichInput(_)
             | AgentInputFooterEvent::ToggleCodeReviewPane(_)
-            | AgentInputFooterEvent::ToggleFileExplorer(_)
             | AgentInputFooterEvent::OpenRichInput
             | AgentInputFooterEvent::HideRichInput => {}
+            AgentInputFooterEvent::ToggleFileExplorer(_) => {
+                ctx.emit(Event::ToggleFileExplorer);
+            }
             AgentInputFooterEvent::ToggledChipMenu { open } => {
                 me.handle_prompt_event(&PromptDisplayEvent::ToggleMenu { open: *open }, ctx);
             }
