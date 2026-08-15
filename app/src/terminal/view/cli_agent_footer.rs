@@ -595,7 +595,7 @@ impl CLIAgentFooter {
                 ctx.emit(CLIAgentFooterEvent::ToggleCodeReviewPane(*agent));
             }
             AgentInputFooterEvent::ToggleFileExplorer(agent) => {
-                ctx.emit(CLIAgentFooterEvent::ToggleFileExplorer(*agent));
+                ctx.emit(CLIAgentFooterEvent::ToggleFileExplorer(agent.clone()));
             }
             AgentInputFooterEvent::OpenRichInput => {
                 ctx.emit(CLIAgentFooterEvent::OpenRichInput);
@@ -623,7 +623,9 @@ pub(super) enum CLIAgentFooterEvent {
     WriteToPty(String),
     InsertIntoRichInput(String),
     ToggleCodeReviewPane(CLIAgent),
-    ToggleFileExplorer(CLIAgent),
+    /// Toggle the file explorer. `None` when no CLI agent session is attached
+    /// to this pane.
+    ToggleFileExplorer(Option<CLIAgent>),
     OpenRichInput,
     HideRichInput,
 }

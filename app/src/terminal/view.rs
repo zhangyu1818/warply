@@ -15803,6 +15803,9 @@ impl TerminalView {
                     cli_agent: None,
                 }));
             }
+            InputEvent::ToggleFileExplorer => {
+                self.toggle_file_tree(ctx);
+            }
             InputEvent::AttachDiffSetContext {
                 #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
                 diff_mode,

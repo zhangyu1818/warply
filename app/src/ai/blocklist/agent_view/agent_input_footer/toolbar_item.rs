@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::context_chips::{ContextChipKind, agent_footer_available_chips, available_chips};
+use crate::settings::CodeSettings;
 use crate::ui_components::icons::Icon;
+use warpui::SingletonEntity as _;
 
 use super::editor::AgentToolbarEditorMode;
 
@@ -46,22 +48,27 @@ pub enum AgentToolbarItemKind {
     ContextChip(ContextChipKind),
 
     // CLI agent only
-    FileExplorer,
     RichInput,
 
     // Both
+    FileExplorer,
     FileAttach,
 }
 
 impl AgentToolbarItemKind {
     pub fn is_local_agent_view_control(&self) -> bool {
-        matches!(self, Self::ContextChip(_) | Self::FileAttach)
+        matches!(
+            self,
+            Self::ContextChip(_) | Self::FileAttach | Self::FileExplorer
+        )
     }
 
     pub fn available_in(&self) -> ToolbarAvailability {
         match self {
-            Self::ContextChip(_) | Self::FileAttach => ToolbarAvailability::Both,
-            Self::FileExplorer | Self::RichInput => ToolbarAvailability::CLIAgentOnly,
+            Self::ContextChip(_) | Self::FileAttach | Self::FileExplorer => {
+                ToolbarAvailability::Both
+            }
+            Self::RichInput => ToolbarAvailability::CLIAgentOnly,
         }
     }
 
@@ -80,6 +87,22 @@ impl AgentToolbarItemKind {
             Self::FileAttach => Some(Icon::Plus),
             Self::FileExplorer => Some(Icon::FileCopy),
             Self::RichInput => Some(Icon::TextInput),
+        }
+    }
+
+    /// Whether this item should be included in the toolbar given the current app state.
+    /// Feature-flag checks live in `all_available()` / `default_*()`. This method
+    /// handles runtime conditions that depend on user settings or workspace state.
+    pub fn is_available(&self, app: &warpui::AppContext) -> bool {
+        match self {
+            // Matches the gating on every other project explorer entry point, so the chip
+            // cannot open a tool view the rest of the app hides. See
+            // `Workspace::compute_left_panel_views` and the `SHOW_PROJECT_EXPLORER`
+            // keybinding predicate.
+            Self::FileExplorer => {
+                cfg!(feature = "local_fs") && *CodeSettings::as_ref(app).show_project_explorer
+            }
+            _ => true,
         }
     }
 
@@ -117,6 +140,8 @@ impl AgentToolbarItemKind {
             .map(Self::ContextChip)
             .collect();
         items.push(Self::FileAttach);
+        // Opt-in only: deliberately absent from `default_left`/`default_right`.
+        items.push(Self::FileExplorer);
         items
     }
 
@@ -171,3 +196,7 @@ impl From<ContextChipKind> for AgentToolbarItemKind {
         Self::ContextChip(kind)
     }
 }
+
+#[cfg(test)]
+#[path = "toolbar_item_tests.rs"]
+mod tests;

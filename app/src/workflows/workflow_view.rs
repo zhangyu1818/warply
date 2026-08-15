@@ -593,7 +593,7 @@ impl WorkflowView {
             mode => mode,
         };
 
-        self.revision_ts = workflow.metadata.revision.clone();
+        self.revision_ts = workflow.metadata.revision;
 
         let owner = workflow.permissions.owner;
         self.owner = Some(owner);
@@ -1397,7 +1397,7 @@ impl WorkflowView {
                     update_manager.update_workflow(
                         workflow.clone(),
                         self.workflow_id,
-                        self.revision_ts.clone(),
+                        self.revision_ts,
                         ctx,
                     );
                 });

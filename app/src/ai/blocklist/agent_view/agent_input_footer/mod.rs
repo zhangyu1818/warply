@@ -16,6 +16,7 @@ use crate::{
         },
         prompt_type::PromptType,
     },
+    settings::{CodeSettings, CodeSettingsChangedEvent},
     terminal::{
         CLIAgent, TerminalModel,
         cli_agent_sessions::{
@@ -76,8 +77,11 @@ pub struct AgentInputFooter {
 
     terminal_model: Arc<FairMutex<TerminalModel>>,
 
-    // CLI agent-specific buttons (rendered when a CLI agent session is active).
+    /// Opens the file explorer side panel. Available in both footers, but only
+    /// present in the CLI agent toolbar by default.
     file_explorer_button: ViewHandle<ActionButton>,
+
+    // CLI agent-specific buttons (rendered when a CLI agent session is active).
     rich_input_button: ViewHandle<ActionButton>,
 }
 
@@ -103,7 +107,6 @@ impl AgentInputFooter {
                 })
         });
 
-        // CLI agent-specific buttons (only rendered when a CLI agent session is active).
         let cli_button_size = ButtonSize::AgentInputButton;
         let file_explorer_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("File explorer", AgentInputButtonTheme)
@@ -120,6 +123,7 @@ impl AgentInputFooter {
                     ctx.dispatch_typed_action(AgentInputFooterAction::ToggleFileExplorer);
                 })
         });
+        // CLI agent-specific buttons (only rendered when a CLI agent session is active).
         let rich_input_button = ctx.add_typed_action_view(|ctx| {
             ActionButton::new("Rich Input", AgentInputButtonTheme)
                 .with_icon(Icon::TextInput)
@@ -177,6 +181,14 @@ impl AgentInputFooter {
         );
 
         ctx.subscribe_to_model(&AcpAgentModel::handle(ctx), |_, _, _, ctx| ctx.notify());
+
+        // The File explorer item's availability follows this setting, so the footer has to
+        // repaint when it is toggled rather than waiting for an unrelated re-render.
+        ctx.subscribe_to_model(&CodeSettings::handle(ctx), |_, _, event, ctx| {
+            if matches!(event, CodeSettingsChangedEvent::ShowProjectExplorer { .. }) {
+                ctx.notify()
+            }
+        });
 
         let prompt_for_session_settings = prompt.clone();
         ctx.subscribe_to_model(
@@ -345,9 +357,9 @@ impl AgentInputFooter {
             AgentToolbarItemKind::ContextChip(chip_kind) => {
                 self.cli_display_chip(chip_kind.clone(), app)
             }
-            AgentToolbarItemKind::FileExplorer => {
-                Some(ChildView::new(&self.file_explorer_button).finish())
-            }
+            AgentToolbarItemKind::FileExplorer => item
+                .is_available(app)
+                .then(|| ChildView::new(&self.file_explorer_button).finish()),
             AgentToolbarItemKind::RichInput => {
                 Some(ChildView::new(&self.rich_input_button).finish())
             }
@@ -500,7 +512,11 @@ impl AgentInputFooter {
                     .map(|chip| ChildView::new(chip).finish())
             }
             AgentToolbarItemKind::FileAttach => Some(ChildView::new(&self.file_button).finish()),
-            AgentToolbarItemKind::FileExplorer | AgentToolbarItemKind::RichInput => None,
+            AgentToolbarItemKind::FileExplorer => item
+                .is_available(app)
+                .then(|| ChildView::new(&self.file_explorer_button).finish()),
+            // Handled by the available_in() guard above; included for exhaustiveness.
+            AgentToolbarItemKind::RichInput => None,
         }
     }
 
@@ -681,9 +697,9 @@ impl TypedActionView for AgentInputFooter {
                 }
             }
             AgentInputFooterAction::ToggleFileExplorer => {
-                if let Some(agent) = self.cli_agent(ctx) {
-                    ctx.emit(AgentInputFooterEvent::ToggleFileExplorer(agent));
-                }
+                ctx.emit(AgentInputFooterEvent::ToggleFileExplorer(
+                    self.cli_agent(ctx),
+                ));
             }
             AgentInputFooterAction::ToggleRichInput => {
                 if self.has_active_cli_agent_input_session(ctx) {
@@ -707,7 +723,9 @@ pub enum AgentInputFooterEvent {
     /// Insert text into the CLI agent rich input.
     InsertIntoCLIRichInput(String),
     ToggleCodeReviewPane(CLIAgent),
-    ToggleFileExplorer(CLIAgent),
+    /// Toggle the file explorer side panel. `None` when no CLI agent session is
+    /// attached to this pane.
+    ToggleFileExplorer(Option<CLIAgent>),
     OpenRichInput,
     HideRichInput,
     ToggledChipMenu {

@@ -206,9 +206,13 @@ pub trait CloudObject: Debug {
                 if ancestors.contains(&hashed_parent_id) {
                     return true;
                 }
-                ancestors.insert(hashed_parent_id.clone());
 
-                match cloud_model.get_by_uid(&hashed_parent_id) {
+                let parent = cloud_model.get_by_uid(&hashed_parent_id);
+
+                // Insert before checking parent to avoid infinite recursion in case of cycles.
+                ancestors.insert(hashed_parent_id);
+
+                match parent {
                     Some(parent) => parent.is_trashed_internal(cloud_model, ancestors),
                     None => true,
                 }
@@ -608,7 +612,6 @@ pub trait CloudObjectMetadataExt {
 impl CloudObjectMetadataExt for CloudObjectMetadata {
     fn semantic_editing_history(&self, _app: &AppContext) -> Option<String> {
         self.revision
-            .clone()
             .map(|r| format!("Edited {}", format_approx_duration_from_now_utc(r.utc())))
     }
 }
