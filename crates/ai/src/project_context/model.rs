@@ -14,6 +14,7 @@ cfg_if::cfg_if! {
         use repo_metadata::{Repository, DirectoryWatcher, RepositoryUpdate};
         use ignore::gitignore::Gitignore;
         use async_channel::Sender;
+        use std::sync::Arc;
 
         const RULES_FILE_PATTERN: [&str; 2] = ["WARP.md", "AGENTS.md"];
         const MAX_SCAN_DEPTH: usize = 3;
@@ -614,7 +615,7 @@ impl ProjectContextModel {
 
         // Use build_tree to collect all files, then filter for rule files
         let mut files = Vec::<FileMetadata>::new();
-        let mut gitignores = Vec::<Gitignore>::new();
+        let mut gitignores = Vec::<Arc<Gitignore>>::new();
 
         // Collect patterns that should not be ignored
         let override_ignore_patterns: Vec<String> =

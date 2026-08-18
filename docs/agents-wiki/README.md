@@ -122,6 +122,7 @@ The fork removes:
 - `upstream-master-audit-2026-08-15.md`: Incremental audit for `c9e562294..upstream/master` (15 commits), including retained command-signatures bumps, upstream fixes, and the agent-view file explorer chip, plus rejected cloud/agent-SDK changes.
 - `upstream-master-audit-2026-08-16.md`: Incremental zero-port audit for `d15645c77..upstream/master` (2 commits): the upstream ProjectContextModel rule-refresh coalescing fix triaged as not applicable (fork's pre-rework model already enforces the invariant via its `pending_updates` queue), and cloud-agent `oz agent run-cloud` spawn flags rejected.
 - `upstream-master-audit-2026-08-17.md`: Incremental zero-port audit for `e72fd7aacb..upstream/master` (3 commits), all rejected: bundled Factory files skill (second bundled-skill attempt), billing credits copy, and Teams invite-link GraphQL migration.
+- `upstream-master-audit-2026-08-18.md`: Incremental audit for `5071a868ce..upstream/master` (11 commits), including the retained repo_metadata shared gitignore-matcher cache (APP-4828, adapted around the fork's watcher and standing-queries deletions) and the warp-command-signatures bump to `ac69f9b0` (mpv/ruff/deno), plus rejected Factory-skill/MCP-flag/docker/Sentry-action/Teams changes.
 
 ## Quick Merge Principle
 
