@@ -960,7 +960,7 @@ impl LocalRepoMetadataModel {
     /// be applied to the tree on the main thread without cloning it.
     async fn compute_file_tree_mutations(
         update: &RepoUpdate,
-        gitignores: &[Gitignore],
+        gitignores: &[Arc<Gitignore>],
     ) -> Vec<FileTreeMutation> {
         let mut mutations = Vec::new();
 
@@ -1191,7 +1191,7 @@ impl LocalRepoMetadataModel {
     }
 
     /// Checks if a path matches any of the gitignore patterns
-    fn path_is_ignored(path: &Path, gitignores: &[Gitignore]) -> bool {
+    fn path_is_ignored(path: &Path, gitignores: &[Arc<Gitignore>]) -> bool {
         // Check if any component of the path is .git
         if path
             .components()

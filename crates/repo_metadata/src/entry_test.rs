@@ -2,6 +2,7 @@ use super::{is_within_symlink, path_passes_filters};
 use ignore::gitignore::Gitignore;
 use std::fs;
 use std::future::Future;
+use std::sync::Arc;
 use virtual_fs::{Stub, VirtualFS};
 
 fn run<T>(future: impl Future<Output = T>) -> T {
@@ -32,7 +33,7 @@ fn test_path_passes_filters() {
         sandbox.with_files(vec![Stub::FileWithContent("my_repo/.gitignore", "target")]);
 
         let test_gitignore_entry = dirs.tests().join("my_repo/.gitignore");
-        let gitignores = vec![Gitignore::new(test_gitignore_entry).0];
+        let gitignores = vec![Arc::new(Gitignore::new(test_gitignore_entry).0)];
 
         // Do NOT ignore a file that does not exist (for deletions)
         assert!(path_passes_filters(
