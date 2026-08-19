@@ -331,6 +331,7 @@ pub fn render_grid<'a>(
                 start_row,
                 end_row,
                 visible_rows,
+                true,
                 colors,
                 override_colors,
                 theme,
@@ -363,6 +364,7 @@ pub fn render_grid<'a>(
                 start_row,
                 end_row,
                 start_row..end_row,
+                false,
                 colors,
                 override_colors,
                 theme,
@@ -396,6 +398,7 @@ pub fn render_grid<'a>(
                 start_row,
                 end_row,
                 visible_rows,
+                true,
                 colors,
                 override_colors,
                 theme,
@@ -429,6 +432,7 @@ pub fn render_grid<'a>(
                 start_row,
                 end_row,
                 start_row..end_row,
+                false,
                 colors,
                 override_colors,
                 theme,
@@ -466,6 +470,7 @@ fn render_grid_without_ligatures<'a>(
     start_row: usize,
     end_row: usize,
     visible_rows: impl Iterator<Item = usize>,
+    used_displayed_output_rows: bool,
     colors: &color::List,
     override_colors: &color::OverrideList,
     theme: &WarpTheme,
@@ -622,8 +627,17 @@ fn render_grid_without_ligatures<'a>(
         let offset_row = start_row + offset;
 
         let Some(row) = grid.row(row_idx) else {
-            #[cfg(debug_assertions)]
-            log::error!("grid_renderer should not try to render an out-of-bounds row");
+            static REPORTED_OUT_OF_BOUNDS_ROW: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !REPORTED_OUT_OF_BOUNDS_ROW.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                let total_rows = grid.total_rows();
+                log::error!(
+                    "grid_renderer should not try to render an out-of-bounds row (row_idx: \
+                     {row_idx}, total_rows: {total_rows}, start_row: {start_row}, end_row: \
+                     {end_row}, used_displayed_output_rows: {used_displayed_output_rows}, \
+                     use_ligature_rendering: false)"
+                );
+            }
             continue;
         };
 
@@ -970,6 +984,7 @@ fn render_grid_with_ligatures<'a>(
     start_row: usize,
     end_row: usize,
     visible_rows: impl Iterator<Item = usize>,
+    used_displayed_output_rows: bool,
     colors: &color::List,
     override_colors: &color::OverrideList,
     theme: &WarpTheme,
@@ -1123,7 +1138,17 @@ fn render_grid_with_ligatures<'a>(
             AttributedStringBuilder::new(font_family, font_family, grid.columns());
 
         let Some(row) = grid.row(row_idx) else {
-            log::error!("grid_renderer should not try to render an out-of-bounds row");
+            static REPORTED_OUT_OF_BOUNDS_ROW: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !REPORTED_OUT_OF_BOUNDS_ROW.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                let total_rows = grid.total_rows();
+                log::error!(
+                    "grid_renderer should not try to render an out-of-bounds row (row_idx: \
+                     {row_idx}, total_rows: {total_rows}, start_row: {start_row}, end_row: \
+                     {end_row}, used_displayed_output_rows: {used_displayed_output_rows}, \
+                     use_ligature_rendering: true)"
+                );
+            }
             continue;
         };
 
