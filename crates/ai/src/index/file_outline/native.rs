@@ -80,8 +80,8 @@ pub async fn build_outline(
                 .collect::<HashMap<_, _>>()
         });
 
-        if let Err(e) = sender.send(result) {
-            log::error!("Could not send result of outline generation to background thread. {e:?}")
+        if sender.send(result).is_err() {
+            log::error!("Could not send result of outline generation to background thread");
         }
     });
 
