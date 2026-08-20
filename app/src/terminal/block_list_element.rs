@@ -65,9 +65,10 @@ use super::grid_renderer::CellGlyphCache;
 use super::TerminalModel;
 use super::meta_shortcuts::handle_keystroke_despite_composing;
 use super::model::SecretHandle;
+use super::model::ansi::CursorShape;
 use super::model::block::BlockId;
 use super::model::blocks::{RichContentItem, SelectionRange};
-use super::model::grid::grid_handler::{Link, TermMode};
+use super::model::grid::grid_handler::Link;
 use super::model::image_map::StoredImageMetadata;
 use super::model::mouse::{MouseAction, MouseButton, MouseState};
 use super::model::terminal_model::{SelectedBlocks, WithinBlock, WithinModel};
@@ -2092,7 +2093,6 @@ impl BlockListElement {
                 vec2f(grid_origin.x(), y)
             });
 
-        let cursor_visible = block.is_mode_set(TermMode::SHOW_CURSOR);
         // Draw prompt
         if let Some(label_element) = label_element {
             label_element.paint(prompt_origin, ctx, app);
@@ -2165,7 +2165,7 @@ impl BlockListElement {
             command_focused_range.as_ref(),
             command_grid_properties,
             block_grid_params,
-            cursor_visible.then(|| block.prompt_and_command_grid().cursor_style().shape),
+            command_grid_visible_cursor_shape(block),
             image_metadata,
             ctx,
             app,
@@ -2174,11 +2174,7 @@ impl BlockListElement {
         // Only render the cursor in the command grid if the command grid is active and if it's
         // long running. This is to avoid jitter where a cursor just flickers while the pty is
         // initializing.
-        if block.is_active_and_long_running()
-            && block.is_command_grid_active()
-            // Check if the "hide cursor" escape sequence is present.
-            && block.is_mode_set(TermMode::SHOW_CURSOR)
-        {
+        if block.is_command_cursor_visible() {
             block.prompt_and_command_grid().draw_cursor(
                 command_origin,
                 &block_grid_params.grid_render_params,
@@ -2263,15 +2259,13 @@ impl BlockListElement {
                 output_focused_range.as_ref(),
                 output_grid_properties,
                 block_grid_params,
-                cursor_visible.then(|| block.output_grid().cursor_style().shape),
+                output_grid_visible_cursor_shape(block),
                 image_metadata,
                 ctx,
                 app,
             );
 
-            if block.is_active_and_long_running()
-            // Check if the "hide cursor" escape sequence is present.
-            && block.is_mode_set(TermMode::SHOW_CURSOR)
+            if block.is_output_cursor_visible()
             // Don't draw the Warp cursor when rich input is hiding
             // the CLI agent's cursor cell — agents like OpenCode and Codex
             // rely on Warp's cursor, so we suppress it here too.
@@ -2623,6 +2617,18 @@ impl BlockListElement {
 
         result
     }
+}
+
+fn command_grid_visible_cursor_shape(block: &Block) -> Option<CursorShape> {
+    block
+        .is_command_cursor_visible()
+        .then(|| block.prompt_and_command_grid().cursor_style().shape)
+}
+
+fn output_grid_visible_cursor_shape(block: &Block) -> Option<CursorShape> {
+    block
+        .is_output_cursor_visible()
+        .then(|| block.output_grid().cursor_style().shape)
 }
 
 /// With a `WithinBlock<IndexPoint>`, the point will count rows with 0 starting with the beginning
