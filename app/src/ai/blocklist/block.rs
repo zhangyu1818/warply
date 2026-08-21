@@ -24,6 +24,7 @@ use crate::ai::blocklist::BlocklistAIContextModel;
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::blocklist::context_model::AttachmentType;
 use repo_metadata::repositories::DetectedRepositories;
+use rustc_hash::FxHashSet;
 
 use crate::AIAgentTodoList;
 use crate::code::buffer_location::LocalOrRemotePath;
@@ -730,7 +731,7 @@ pub struct AIBlock {
     context_model: ModelHandle<BlocklistAIContextModel>,
 
     /// The IDs of requested blocking actions rendered in this block.
-    requested_action_ids: HashSet<AIAgentActionId>,
+    requested_action_ids: FxHashSet<AIAgentActionId>,
 
     /// Map from a requested command action ID to its view handle and status.
     requested_commands: HashMap<AIAgentActionId, RequestedCommand>,
@@ -1477,9 +1478,10 @@ impl AIBlock {
             }
         }
 
+        let new_action_ids: FxHashSet<AIAgentActionId> =
+            output.actions().map(|action| action.id.clone()).collect();
         for action in output.actions() {
-            let new_action_ids: HashSet<AIAgentActionId> =
-                output.actions().map(|action| action.id.clone()).collect();
+            let new_action_ids = new_action_ids.clone();
 
             #[cfg(feature = "integration_tests")]
             {

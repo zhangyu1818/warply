@@ -195,6 +195,8 @@ warp_editor.workspace = true
 warp_js = { workspace = true, optional = true }
 local_object_model.workspace = true
 warp_util.workspace = true
+hashbrown.workspace = true
+rustc-hash.workspace = true
 warpui = { workspace = true, features = ["schema_gen", "settings_value"] }
 warpui_extras = { workspace = true, features = ["default", "user_preferences-toml"] }
 syntax_tree.workspace = true

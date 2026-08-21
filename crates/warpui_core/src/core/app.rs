@@ -590,8 +590,8 @@ pub struct AppContext {
     /// is the fastest commonly-used hasher for this type.
     singleton_models: FxHashMap<TypeId, AnyModelHandle>,
     last_frame_position_cache: HashMap<WindowId, crate::presenter::PositionCache>,
-    last_observed_active_cursor_positions: HashMap<WindowId, Option<CursorInfo>>,
-    pub(super) windows: HashMap<WindowId, Window>,
+    last_observed_active_cursor_positions: FxHashMap<WindowId, Option<CursorInfo>>,
+    pub(super) windows: FxHashMap<WindowId, Window>,
     pub(super) ref_counts: Arc<Mutex<RefCounts>>,
     pub(super) platform_delegate: Box<dyn platform::Delegate>,
 
