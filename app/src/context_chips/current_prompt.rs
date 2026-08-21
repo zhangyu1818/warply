@@ -1,6 +1,7 @@
 use crate::settings::{InputSettings, WarpPromptSeparator};
-use crate::terminal::event::{BlockType, UserBlockCompleted};
+use crate::terminal::event::BlockType;
 use crate::terminal::model::session::{Session, SessionsEvent};
+use crate::terminal::model::terminal_model::TerminalModel;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::{
     debounce::debounce,
@@ -20,6 +21,7 @@ use crate::{
 };
 use futures::{FutureExt as _, pin_mut};
 use itertools::Itertools;
+use parking_lot::FairMutex;
 use settings::Setting as _;
 use warp_completer::completer::{CommandExitStatus, CommandOutput};
 use warp_core::{SessionId, user_preferences::GetUserPreferences};
@@ -41,7 +43,7 @@ use crate::code_review::git_status_update::{GitRepoStatusEvent, GitRepoStatusMod
 use crate::context_chips::display_chip::GitLineChanges;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 #[cfg(feature = "local_fs")]
 use warpui::WeakModelHandle;
@@ -181,6 +183,12 @@ pub struct CurrentPrompt {
     /// `GitRepoStatusModel` instead of the 30s periodic timer.
     #[cfg(feature = "local_fs")]
     git_repo_status: Option<WeakModelHandle<GitRepoStatusModel>>,
+    /// Used to resolve lazily-computed `UserBlockCompleted` fields in `handle_model_event`.
+    /// Only set (together with the `handle_model_event` subscription) when constructed via
+    /// `new_with_model_events` with a live terminal session. See that constructor's `live_session`
+    /// parameter, which bundles this with the model events subscription so the two can't
+    /// disagree.
+    terminal_model: Option<Weak<FairMutex<TerminalModel>>>,
 }
 
 /// Context about the current terminal session, needed to update the prompt.
@@ -204,9 +212,16 @@ impl CurrentPrompt {
         Self::new_with_model_events(sessions, None, ctx)
     }
 
+    /// `live_session` is `Some` iff this prompt is backed by a live terminal session: its model
+    /// event dispatcher (used to subscribe to block-completion events) and terminal model (used
+    /// to resolve those events' lazily-computed fields) always go together, so they're bundled
+    /// into one `Option` rather than two independently-nullable parameters.
     pub fn new_with_model_events(
         sessions: ModelHandle<Sessions>,
-        model_events: Option<&ModelHandle<ModelEventDispatcher>>,
+        live_session: Option<(
+            &ModelHandle<ModelEventDispatcher>,
+            Arc<FairMutex<TerminalModel>>,
+        )>,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         let prompt = Prompt::handle(ctx);
@@ -223,9 +238,13 @@ impl CurrentPrompt {
             }
         });
 
-        if let Some(model_events) = model_events {
+        if let Some((model_events, _)) = &live_session {
             ctx.subscribe_to_model(model_events, Self::handle_model_event);
         }
+
+        // we cannot simply capture the strong references in subscriptions, or we risk having a reference cycle.
+        let terminal_model =
+            live_session.map(|(_, terminal_model)| Arc::downgrade(&terminal_model));
 
         let (update_tx, update_rx) = async_channel::unbounded();
         let debounce_period = ctx
@@ -244,6 +263,7 @@ impl CurrentPrompt {
             |_, _| {},
         );
         Self {
+            terminal_model,
             states: Default::default(),
             renderable_chips: Default::default(),
             sessions,
@@ -1283,10 +1303,26 @@ impl CurrentPrompt {
 
     fn handle_model_event(&mut self, event: &ModelEvent, ctx: &mut ModelContext<Self>) {
         if let ModelEvent::AfterBlockCompleted(after_block_completed) = event {
-            if let BlockType::User(UserBlockCompleted { command, .. }) =
-                &after_block_completed.block_type
+            let user_block_completed = match &after_block_completed.block_type {
+                BlockType::User(block) => Some(block),
+                _ => None,
+            };
+            let terminal_model = self
+                .terminal_model
+                .as_mut()
+                .and_then(|model| model.upgrade());
+            if let (Some(user_block_completed), Some(terminal_model)) =
+                (user_block_completed, terminal_model)
             {
-                if let Some(cmd) = command.split_whitespace().next() {
+                let cmd = user_block_completed
+                    .command
+                    .get_with(|compute| {
+                        let model = terminal_model.lock();
+                        compute(model.block_list())
+                    })
+                    .split_whitespace()
+                    .next();
+                if let Some(cmd) = cmd {
                     // Resolve aliases so that e.g. `alias g=git` followed by `g push`
                     // still triggers invalidation for chips watching "git".
                     let resolved = self
