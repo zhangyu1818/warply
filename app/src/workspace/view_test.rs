@@ -93,6 +93,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|_| SystemStats::new());
+    app.add_singleton_model(|_| crate::tab::TabShortcutModifierState::new());
     app.add_singleton_model(CloudModel::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(WarplyUpdater::new_for_test);

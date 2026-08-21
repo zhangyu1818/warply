@@ -51,10 +51,12 @@ use crate::terminal::model::grid::grid_handler::TermMode;
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::session_settings::AgentToolbarChipSelection;
 
+use crate::settings::RightClickBehavior;
+use crate::settings::SelectionSettings;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::warpify::trigger_state::SshBlockState;
-use crate::terminal::{MockTerminalManager, TerminalModel};
+use crate::terminal::{MockTerminalManager, TerminalModel, should_right_click_paste};
 use crate::test_util::terminal::add_window_with_id_and_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 use crate::test_util::{add_window_with_terminal, assert_eventually};
@@ -5636,5 +5638,432 @@ fn close_find_bar_preserves_options_on_async_find_path() {
             Some(needle_options().query),
             "closing the find bar must preserve the saved query on the async path"
         );
+    })
+}
+
+#[test]
+fn should_right_click_paste_true_only_without_shift_when_setting_enabled() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        SelectionSettings::handle(&app).update(&mut app, |settings, ctx| {
+            let _ = settings
+                .right_click_behavior
+                .set_value(RightClickBehavior::Paste, ctx);
+        });
+
+        terminal.update(&mut app, |_view, ctx| {
+            assert!(
+                should_right_click_paste(false, ctx),
+                "a bare right-click should paste once the setting is enabled"
+            );
+            assert!(
+                !should_right_click_paste(true, ctx),
+                "Shift+right-click should always reveal the context menu, even with the setting enabled"
+            );
+        });
+    })
+}
+
+/// Right-clicking a long-running block that owns the mouse (SGR mouse reporting on) must forward
+/// the raw click to the PTY as a mouse report, under both `right_click_behavior` values -- it must
+/// never fall through to Paste or the block list's own context menu.
+#[test]
+fn block_list_right_click_forwards_to_pty_when_long_running_block_owns_mouse() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        let mut updated = HashSet::new();
+        updated.insert(app.root_view_id(window_id).unwrap());
+        let invalidation = WindowInvalidation {
+            updated,
+            ..Default::default()
+        };
+        let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+        let size_info = terminal.update(&mut app, |view, ctx| {
+            let mut model = view.model.lock();
+            model.simulate_long_running_block("cmd", "output");
+            model.set_mode(ansi::Mode::SgrMouse);
+            model.set_mode(ansi::Mode::ReportMouseClicks);
+            assert!(!model.is_alt_screen_active());
+            assert!(
+                !should_intercept_mouse(&model, false, ctx),
+                "the running command should own the mouse with SGR reporting enabled"
+            );
+            *view.size_info
+        });
+
+        macro_rules! rerender {
+            () => {
+                app.update(enclose!((presenter, invalidation) move |ctx| {
+                    presenter
+                        .borrow_mut()
+                        .invalidate(invalidation, ctx);
+                    presenter.borrow_mut().build_scene(
+                        vec2f(size_info.pane_width_px, size_info.pane_height_px),
+                        1.,
+                        None,
+                        ctx,
+                    );
+                }));
+            };
+        }
+
+        // The block list is pinned to the bottom of the pane by default, so a lone, short block
+        // sits just above the input box rather than at the top of the viewport.
+        let position = vec2f(
+            2. * size_info.cell_width_px.as_f32(),
+            size_info.pane_height_px - 3. * size_info.cell_height_px.as_f32(),
+        );
+
+        for right_click_behavior in [RightClickBehavior::ContextMenu, RightClickBehavior::Paste] {
+            SelectionSettings::handle(&app).update(&mut app, |settings, ctx| {
+                let _ = settings
+                    .right_click_behavior
+                    .set_value(right_click_behavior, ctx);
+            });
+            pty_writes.borrow_mut().clear();
+
+            rerender!();
+            app.update(enclose!((presenter) move |ctx| {
+                ctx.simulate_window_event(
+                    warpui::Event::RightMouseDown {
+                        position,
+                        cmd: false,
+                        shift: false,
+                        click_count: 1,
+                    },
+                    window_id,
+                    presenter.clone(),
+                );
+            }));
+
+            let writes = pty_writes.borrow();
+            assert_eq!(
+                writes.len(),
+                1,
+                "exactly one raw mouse report should reach the PTY under {right_click_behavior:?}, got {writes:?}"
+            );
+            assert!(
+                writes[0].starts_with(b"\x1b[<2;"),
+                "expected an SGR right-button-press mouse report under {right_click_behavior:?}, got {:?}",
+                writes[0]
+            );
+        }
+
+        // The input box must never have received a paste from either right-click.
+        let input = terminal.read(&app, |terminal, _ctx| terminal.input().clone());
+        input.read(&app, |input, ctx| {
+            assert_eq!(
+                input.buffer_text(ctx),
+                "",
+                "a long-running block's right-click must never be treated as Paste"
+            );
+        });
+    })
+}
+
+#[test]
+fn block_list_shift_right_click_opens_context_menu_when_right_click_pastes() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        let mut updated = HashSet::new();
+        updated.insert(app.root_view_id(window_id).unwrap());
+        let invalidation = WindowInvalidation {
+            updated,
+            ..Default::default()
+        };
+        let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+        let size_info = terminal.update(&mut app, |view, ctx| {
+            let mut model = view.model.lock();
+            model.simulate_long_running_block("cmd", "output");
+            assert!(!model.is_alt_screen_active());
+            // No mouse reporting is enabled, so Warp -- not the running command -- owns this
+            // right-click regardless of Shift.
+            assert!(should_intercept_mouse(&model, false, ctx));
+            *view.size_info
+        });
+
+        SelectionSettings::handle(&app).update(&mut app, |settings, ctx| {
+            let _ = settings
+                .right_click_behavior
+                .set_value(RightClickBehavior::Paste, ctx);
+        });
+
+        macro_rules! rerender {
+            () => {
+                app.update(enclose!((presenter, invalidation) move |ctx| {
+                    presenter
+                        .borrow_mut()
+                        .invalidate(invalidation, ctx);
+                    presenter.borrow_mut().build_scene(
+                        vec2f(size_info.pane_width_px, size_info.pane_height_px),
+                        1.,
+                        None,
+                        ctx,
+                    );
+                }));
+            };
+        }
+
+        // Same position as the long-running block above: a lone, short block sitting just
+        // above the input box.
+        let position = vec2f(
+            2. * size_info.cell_width_px.as_f32(),
+            size_info.pane_height_px - 3. * size_info.cell_height_px.as_f32(),
+        );
+
+        let input = terminal.read(&app, |terminal, _ctx| terminal.input().clone());
+        let input_text_before = input.read(&app, |input, ctx| input.buffer_text(ctx));
+        assert!(!terminal.read(&app, |view, _ctx| view.is_context_menu_open()));
+
+        rerender!();
+        app.update(enclose!((presenter) move |ctx| {
+            ctx.simulate_window_event(
+                warpui::Event::RightMouseDown {
+                    position,
+                    cmd: false,
+                    shift: true,
+                    click_count: 1,
+                },
+                window_id,
+                presenter.clone(),
+            );
+        }));
+
+        assert!(
+            terminal.read(&app, |view, _ctx| view.is_context_menu_open()),
+            "Shift+right-click must open the block's context menu, even when right-click-pastes is enabled"
+        );
+        assert!(
+            pty_writes.borrow().is_empty(),
+            "Shift+right-click must never paste to the PTY, got {:?}",
+            pty_writes.borrow()
+        );
+        input.read(&app, |input, ctx| {
+            assert_eq!(
+                input.buffer_text(ctx),
+                input_text_before,
+                "Shift+right-click must never paste into the input box"
+            );
+        });
+    })
+}
+
+#[test]
+fn alt_screen_shift_right_click_opens_context_menu_when_right_click_pastes() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        let mut updated = HashSet::new();
+        updated.insert(app.root_view_id(window_id).unwrap());
+        let invalidation = WindowInvalidation {
+            updated,
+            ..Default::default()
+        };
+        let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+        let size_info = terminal.update(&mut app, |view, ctx| {
+            let mut model = view.model.lock();
+            model.set_mode(ansi::Mode::SwapScreen {
+                save_cursor_and_clear_screen: true,
+            });
+            assert!(model.is_alt_screen_active());
+            // No mouse reporting is enabled, so Warp -- not the alt-screen application -- owns
+            // this right-click, with or without Shift.
+            assert!(should_intercept_mouse(&model, false, ctx));
+            assert!(should_intercept_mouse(&model, true, ctx));
+            *view.size_info
+        });
+
+        SelectionSettings::handle(&app).update(&mut app, |settings, ctx| {
+            let _ = settings
+                .right_click_behavior
+                .set_value(RightClickBehavior::Paste, ctx);
+        });
+
+        macro_rules! rerender {
+            () => {
+                app.update(enclose!((presenter, invalidation) move |ctx| {
+                    presenter
+                        .borrow_mut()
+                        .invalidate(invalidation, ctx);
+                    presenter.borrow_mut().build_scene(
+                        vec2f(size_info.pane_width_px, size_info.pane_height_px),
+                        1.,
+                        None,
+                        ctx,
+                    );
+                }));
+            };
+        }
+
+        let position = vec2f(
+            2. * size_info.cell_width_px.as_f32(),
+            2. * size_info.cell_height_px.as_f32() - 1.,
+        );
+
+        let input = terminal.read(&app, |terminal, _ctx| terminal.input().clone());
+        let input_text_before = input.read(&app, |input, ctx| input.buffer_text(ctx));
+        assert!(!terminal.read(&app, |view, _ctx| view.is_context_menu_open()));
+
+        rerender!();
+        app.update(enclose!((presenter) move |ctx| {
+            ctx.simulate_window_event(
+                warpui::Event::RightMouseDown {
+                    position,
+                    cmd: false,
+                    shift: true,
+                    click_count: 1,
+                },
+                window_id,
+                presenter.clone(),
+            );
+        }));
+
+        assert!(
+            terminal.read(&app, |view, _ctx| view.is_context_menu_open()),
+            "Shift+right-click must open the alt-screen context menu, even when right-click-pastes is enabled"
+        );
+        assert!(
+            pty_writes.borrow().is_empty(),
+            "Shift+right-click must never paste to the PTY, got {:?}",
+            pty_writes.borrow()
+        );
+        input.read(&app, |input, ctx| {
+            assert_eq!(
+                input.buffer_text(ctx),
+                input_text_before,
+                "Shift+right-click must never paste into the input box"
+            );
+        });
+    })
+}
+
+#[test]
+fn input_shift_right_click_opens_context_menu_when_right_click_pastes() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        let pty_writes: Rc<RefCell<Vec<Vec<u8>>>> = Rc::new(RefCell::new(Vec::new()));
+        let writes = pty_writes.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_view(&terminal, move |_, event, _| {
+                if let Event::WriteBytesToPty { bytes } = event {
+                    writes.borrow_mut().push(bytes.to_vec());
+                }
+            });
+        });
+
+        let mut updated = HashSet::new();
+        updated.insert(app.root_view_id(window_id).unwrap());
+        let invalidation = WindowInvalidation {
+            updated,
+            ..Default::default()
+        };
+        let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+        let size_info = terminal.read(&app, |view, _ctx| *view.size_info);
+
+        SelectionSettings::handle(&app).update(&mut app, |settings, ctx| {
+            let _ = settings
+                .right_click_behavior
+                .set_value(RightClickBehavior::Paste, ctx);
+        });
+
+        macro_rules! rerender {
+            () => {
+                app.update(enclose!((presenter, invalidation) move |ctx| {
+                    presenter
+                        .borrow_mut()
+                        .invalidate(invalidation, ctx);
+                    presenter.borrow_mut().build_scene(
+                        vec2f(size_info.pane_width_px, size_info.pane_height_px),
+                        1.,
+                        None,
+                        ctx,
+                    );
+                }));
+            };
+        }
+
+        // The input box is docked to the very bottom of the pane, below the block list.
+        let position = vec2f(
+            2. * size_info.cell_width_px.as_f32(),
+            size_info.pane_height_px - 0.5 * size_info.cell_height_px.as_f32(),
+        );
+
+        let input = terminal.read(&app, |terminal, _ctx| terminal.input().clone());
+        let input_text_before = input.read(&app, |input, ctx| input.buffer_text(ctx));
+        assert!(!terminal.read(&app, |view, _ctx| view.is_context_menu_open()));
+
+        rerender!();
+        app.update(enclose!((presenter) move |ctx| {
+            ctx.simulate_window_event(
+                warpui::Event::RightMouseDown {
+                    position,
+                    cmd: false,
+                    shift: true,
+                    click_count: 1,
+                },
+                window_id,
+                presenter.clone(),
+            );
+        }));
+
+        assert!(
+            terminal.read(&app, |view, _ctx| view.is_context_menu_open()),
+            "Shift+right-click on the input box must open its context menu, even when right-click-pastes is enabled"
+        );
+        assert!(
+            pty_writes.borrow().is_empty(),
+            "Shift+right-click must never paste to the PTY, got {:?}",
+            pty_writes.borrow()
+        );
+        input.read(&app, |input, ctx| {
+            assert_eq!(
+                input.buffer_text(ctx),
+                input_text_before,
+                "Shift+right-click must never paste into the input box"
+            );
+        });
     })
 }

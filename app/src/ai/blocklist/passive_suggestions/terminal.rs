@@ -108,7 +108,7 @@ impl PassiveSuggestionsModel {
 
         self.abort_pending_requests();
 
-        if should_generate_prompt_suggestions(block_completed, ctx) {
+        if should_generate_prompt_suggestions(block_completed, &self.terminal_model, ctx) {
             self.generate_prompt_suggestions(block_completed.clone(), ctx);
         }
     }
@@ -118,8 +118,21 @@ impl PassiveSuggestionsModel {
         block_completed: UserBlockCompleted,
         ctx: &mut ModelContext<Self>,
     ) {
-        let block_id = block_completed.serialized_block.id.clone();
-        let command = block_completed.command.clone();
+        let block_id = block_completed
+            .serialized_block
+            .get_with(|compute| {
+                let model = self.terminal_model.lock();
+                compute(model.block_list())
+            })
+            .id
+            .clone();
+        let command = block_completed
+            .command
+            .get_with(|compute| {
+                let model = self.terminal_model.lock();
+                compute(model.block_list())
+            })
+            .to_owned();
         let start_ts_ms = Utc::now().timestamp_millis();
 
         let Some(execution_context) = self
@@ -194,9 +207,14 @@ impl Entity for PassiveSuggestionsModel {
 
 fn should_generate_prompt_suggestions(
     block_completed: &UserBlockCompleted,
+    terminal_model: &FairMutex<TerminalModel>,
     ctx: &ModelContext<PassiveSuggestionsModel>,
 ) -> bool {
-    should_generate_terminal_prompt_suggestions(&block_completed.command, AISettings::as_ref(ctx))
+    let command = block_completed.command.get_with(|compute| {
+        let model = terminal_model.lock();
+        compute(model.block_list())
+    });
+    should_generate_terminal_prompt_suggestions(command, AISettings::as_ref(ctx))
 }
 
 fn should_generate_terminal_prompt_suggestions(command: &str, settings: &AISettings) -> bool {
@@ -208,16 +226,19 @@ fn build_prompt_suggestions_request(
     execution_context: AiExecutionContext,
     terminal_model: &Arc<FairMutex<TerminalModel>>,
 ) -> Option<TerminalPromptSuggestionsRequest> {
-    let exit_code = block.serialized_block.exit_code;
-    let working_dir = block.serialized_block.pwd.as_ref();
+    let serialized_block = block.serialized_block.get_with(|compute| {
+        let model = terminal_model.lock();
+        compute(model.block_list())
+    });
+    let exit_code = serialized_block.exit_code;
+    let working_dir = serialized_block.pwd.as_ref();
     let (processed_input, processed_output) = {
         let model = terminal_model.lock();
         let terminal_width = model.block_list().size().columns();
-        let Some(current_block) = model.block_list().block_with_id(&block.serialized_block.id)
-        else {
+        let Some(current_block) = model.block_list().block_with_id(&serialized_block.id) else {
             log::error!(
                 "Failed to fetch prompt suggestions, could not find block with ID: {:?}",
-                block.serialized_block.id
+                serialized_block.id
             );
             return None;
         };

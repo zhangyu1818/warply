@@ -19,8 +19,9 @@ use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::view::{
     ActiveSessionState, TerminalAction, TerminalEditor, TerminalViewRenderContext,
 };
-use crate::terminal::{SizeInfo, grid_renderer};
-use crate::terminal::{TerminalModel, heights_approx_eq};
+use crate::terminal::{
+    SizeInfo, TerminalModel, grid_renderer, heights_approx_eq, should_right_click_paste,
+};
 use num_traits::Float as _;
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::vec2f;
@@ -273,11 +274,16 @@ impl AltScreenElement {
         }
 
         let point = self.coord_to_point(local_position);
+        let shift = mouse_state.modifiers().shift;
 
-        if should_intercept_mouse(&self.model.lock(), mouse_state.modifiers().shift, app) {
-            ctx.dispatch_typed_action(TerminalAction::AltScreenContextMenu {
-                position: local_position,
-            });
+        if should_intercept_mouse(&self.model.lock(), shift, app) {
+            if should_right_click_paste(shift, app) {
+                ctx.dispatch_typed_action(TerminalAction::Paste);
+            } else {
+                ctx.dispatch_typed_action(TerminalAction::AltScreenContextMenu {
+                    position: local_position,
+                });
+            }
         } else {
             ctx.dispatch_typed_action(TerminalAction::AltMouseAction(mouse_state.set_point(point)));
         }

@@ -233,7 +233,11 @@ impl TerminalManager {
             init_remote_server_controller(&pty_controller, &model_events, ctx);
 
         let current_prompt = ctx.add_model(|ctx| {
-            CurrentPrompt::new_with_model_events(sessions.clone(), Some(&model_events), ctx)
+            CurrentPrompt::new_with_model_events(
+                sessions.clone(),
+                Some((&model_events, model.clone())),
+                ctx,
+            )
         });
         let prompt_type = ctx.add_model(|ctx| PromptType::new_dynamic(current_prompt.clone(), ctx));
         let has_restored_command_blocks = all_restored_blocks

@@ -19,8 +19,8 @@ pub mod suggestions_mode_model;
 mod terminal;
 mod terminal_message_bar;
 pub mod user_query;
-
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentExchangeId, CancellationReason};
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
@@ -270,6 +270,7 @@ use super::{
     session_settings::{SessionSettings, SessionSettingsChangedEvent},
     settings::{SpacingMode, TerminalSettings, TerminalSettingsChangedEvent},
     shell::ShellType,
+    should_right_click_paste,
     universal_developer_input::{
         UniversalDeveloperInputButtonBar, UniversalDeveloperInputButtonBarEvent,
     },
@@ -4215,6 +4216,10 @@ impl Input {
                 self.check_and_update_ai_context_menu_disabled_state(ctx);
                 ctx.notify();
             }
+            InputSettingsChangedEvent::EnableAiCommandSearchHashTrigger { .. } => {
+                self.set_zero_state_hint_text(ctx);
+                ctx.notify();
+            }
             InputSettingsChangedEvent::CompletionsMenuWidth { .. } => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_width.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_width.lock() {
@@ -4440,7 +4445,15 @@ impl Input {
 
         // If the last block was empty, don't create any suggestions.
         // Also don't create suggestions for requested commands part of an agent mode conversation.
-        if block_completed.command.is_empty() || block_completed.was_part_of_agent_interaction {
+        if block_completed
+            .command
+            .get_with(|compute| {
+                let model = self.model.lock();
+                compute(model.block_list())
+            })
+            .is_empty()
+            || block_completed.was_part_of_agent_interaction
+        {
             return;
         }
 
@@ -4460,7 +4473,10 @@ impl Input {
         };
         let context = AiExecutionContext::new(&session);
         let completer_data = self.completer_data();
-        let block_context = Some(BlockContext::from_completed_block(&block_completed));
+        let block_context = Some(BlockContext::from_completed_block(
+            &block_completed,
+            &self.model,
+        ));
         let previous_result = self.last_intelligent_autosuggestion_result.take();
         self.next_command_model.update(ctx, |model, ctx| {
             model.generate_next_command_suggestion(
@@ -6546,6 +6562,31 @@ impl Input {
             .get_ignored_suggestions_for_type(SuggestionType::ShellCommand);
         #[cfg(feature = "local_fs")]
         let conn = self.conn.clone();
+        // Resolve the last completed block's lazily-computed fields now, synchronously, since the
+        // spawned future below doesn't have access to the terminal model to resolve them later.
+        #[cfg(feature = "local_fs")]
+        let last_user_block_completed_data =
+            completer_data
+                .last_user_block_completed
+                .as_ref()
+                .map(|block| {
+                    (
+                        block
+                            .command
+                            .get_with(|compute| {
+                                let model = self.model.lock();
+                                compute(model.block_list())
+                            })
+                            .to_owned(),
+                        block
+                            .serialized_block
+                            .get_with(|compute| {
+                                let model = self.model.lock();
+                                compute(model.block_list())
+                            })
+                            .clone(),
+                    )
+                });
         let abort_handle = ctx
             .spawn_abortable(
                 async move {
@@ -6553,14 +6594,17 @@ impl Input {
                     // First, use rich history to find commands with a matching prefix that were run
                     // in a similar context, taking into account the most recent block run.
                     if let Some(conn) = conn {
-                        if let Some(last_user_block_completed) =
-                            &completer_data.last_user_block_completed
+                        if let Some((last_command, last_serialized_block)) =
+                            &last_user_block_completed_data
                         {
                             let similar_history_contexts = {
                                 let mut conn = conn.lock();
                                 NextCommandModel::get_similar_history_context(
                                     &mut conn,
-                                    last_user_block_completed,
+                                    last_command,
+                                    &last_serialized_block.pwd,
+                                    last_serialized_block.exit_code,
+                                    last_serialized_block.shell_host.as_ref(),
                                     0,
                                 )
                             };
@@ -7194,6 +7238,7 @@ impl Input {
                 }
 
                 if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                    && *InputSettings::as_ref(ctx).enable_ai_command_search_hash_trigger
                     && self.editor_starts_with_command_search_trigger(ctx)
                     && *edit_origin == EditOrigin::UserTyped
                     && !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
@@ -11029,7 +11074,14 @@ impl Input {
         let input_editor_save_position_id = self.editor_save_position_id();
         SavePosition::new(
             EventHandler::new(input_box)
-                .on_right_mouse_down(move |ctx, _, position| {
+                .on_right_mouse_down(move |ctx, app, position, modifiers| {
+                    if should_right_click_paste(modifiers.shift, app) {
+                        // Same path as the `terminal:paste` keybinding, so escaped-path
+                        // processing and CLI-agent image handling behave identically.
+                        ctx.dispatch_typed_action(TerminalAction::Paste);
+                        return DispatchEventResult::StopPropagation;
+                    }
+
                     let input_rect = ctx
                         .element_position_by_id(input_editor_save_position_id.clone())
                         .expect("input editor position id should be saved");

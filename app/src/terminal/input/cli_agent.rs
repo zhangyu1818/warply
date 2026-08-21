@@ -4,6 +4,7 @@ use super::{
     TERMINAL_VIEW_PADDING_LEFT,
     common::{add_input_suggestions_overlays, wrap_input_with_terminal_padding_and_focus_handler},
 };
+use crate::terminal::should_right_click_paste;
 use crate::{
     appearance::Appearance,
     context_chips::spacing,
@@ -44,7 +45,11 @@ impl Input {
         let input_editor_save_position_id = self.editor_save_position_id();
         let editor_element = SavePosition::new(
             EventHandler::new(input_box)
-                .on_right_mouse_down(move |ctx, _, position| {
+                .on_right_mouse_down(move |ctx, app, position, modifiers| {
+                    if should_right_click_paste(modifiers.shift, app) {
+                        ctx.dispatch_typed_action(TerminalAction::Paste);
+                        return DispatchEventResult::StopPropagation;
+                    }
                     let input_rect = ctx
                         .element_position_by_id(input_editor_save_position_id.clone())
                         .expect("input editor position id should be saved");
