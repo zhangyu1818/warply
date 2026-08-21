@@ -576,6 +576,7 @@ pub enum FeaturesPageAction {
     ToggleAutosuggestionKeybindingHint,
     ToggleShowAutosuggestionIgnoreButton,
     ToggleAtContextMenuInTerminalMode,
+    ToggleAiCommandSearchHashTrigger,
     ToggleSlashCommandsInTerminalMode,
     ToggleOutlineCodebaseSymbolsForAtContextMenu,
     ToggleShowTerminalInputMessageLine,
@@ -1421,6 +1422,16 @@ impl TypedActionView for FeaturesPageView {
                     );
                 });
             }
+            ToggleAiCommandSearchHashTrigger => {
+                InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
+                    log_setting_result(
+                        input_settings
+                            .enable_ai_command_search_hash_trigger
+                            .toggle_and_save_value(ctx),
+                        "enable_ai_command_search_hash_trigger",
+                    );
+                });
+            }
             ToggleSlashCommandsInTerminalMode => {
                 InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
                     log_setting_result(
@@ -2154,6 +2165,7 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             editor_widgets.push(Box::new(AtContextMenuInTerminalModeWidget::default()));
+            editor_widgets.push(Box::new(AiCommandSearchHashTriggerWidget::default()));
         }
 
         if input_settings
@@ -5143,6 +5155,47 @@ impl SettingsWidget for AtContextMenuInTerminalModeWidget {
                     ctx.dispatch_typed_action(
                         FeaturesPageAction::ToggleAtContextMenuInTerminalMode,
                     );
+                })
+                .finish(),
+            None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct AiCommandSearchHashTriggerWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for AiCommandSearchHashTriggerWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "# hash pound trigger ai command search shorthand shell comment"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            "Enable '#' trigger for AI Command Search".into(),
+            None,
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(
+                    *InputSettings::as_ref(app)
+                        .enable_ai_command_search_hash_trigger
+                        .value(),
+                )
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleAiCommandSearchHashTrigger);
                 })
                 .finish(),
             None,

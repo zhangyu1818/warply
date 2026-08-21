@@ -4215,6 +4215,10 @@ impl Input {
                 self.check_and_update_ai_context_menu_disabled_state(ctx);
                 ctx.notify();
             }
+            InputSettingsChangedEvent::EnableAiCommandSearchHashTrigger { .. } => {
+                self.set_zero_state_hint_text(ctx);
+                ctx.notify();
+            }
             InputSettingsChangedEvent::CompletionsMenuWidth { .. } => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_width.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_width.lock() {
@@ -7233,6 +7237,7 @@ impl Input {
                 }
 
                 if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                    && *InputSettings::as_ref(ctx).enable_ai_command_search_hash_trigger
                     && self.editor_starts_with_command_search_trigger(ctx)
                     && *edit_origin == EditOrigin::UserTyped
                     && !self.ai_input_model.as_ref(ctx).is_ai_input_enabled()
