@@ -27,8 +27,8 @@ use crate::settings::{
     AliasExpansionSettings, AppEditorSettings, CodeEditorLineNumberMode, CodeSettings,
     CtrlTabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, DefaultSessionMode, ExtraMetaKeys,
     GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
-    QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings, ScrollSettings, SelectionSettings,
-    TabBehavior, log_setting_result,
+    QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings, RightClickBehavior, ScrollSettings,
+    SelectionSettings, SelectionSettingsChangedEvent, TabBehavior, log_setting_result,
 };
 use crate::terminal::BlockListSettings;
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
@@ -567,6 +567,7 @@ pub enum FeaturesPageAction {
     SetGlobalHotkeyMode(GlobalHotkeyMode),
     SetTabBehavior(TabBehavior),
     SetCtrlTabBehavior(CtrlTabBehavior),
+    SetRightClickBehavior(RightClickBehavior),
     SetNewTabPlacement(NewTabPlacement),
     SetOsc52ClipboardAccess(Osc52ClipboardAccess),
     SetDefaultSessionMode(DefaultSessionMode),
@@ -676,6 +677,7 @@ pub struct FeaturesPageView {
 
     button_mouse_states: MouseStateHandles,
     ctrl_tab_behavior_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+    right_click_behavior_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     code_editor_line_number_mode_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
 
     global_hotkey_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
@@ -740,6 +742,16 @@ impl TypedActionView for FeaturesPageView {
                             .ctrl_tab_behavior
                             .set_value(*ctrl_tab_behavior, ctx),
                         "ctrl_tab_behavior",
+                    );
+                });
+            }
+            SetRightClickBehavior(right_click_behavior) => {
+                SelectionSettings::handle(ctx).update(ctx, |selection_settings, ctx| {
+                    log_setting_result(
+                        selection_settings
+                            .right_click_behavior
+                            .set_value(*right_click_behavior, ctx),
+                        "right_click_behavior",
                     );
                 });
             }
@@ -1741,6 +1753,19 @@ impl FeaturesPageView {
             ctx.notify();
         });
 
+        let right_click_behavior_dropdown = ctx.add_typed_action_view(Dropdown::new);
+        Self::update_right_click_behavior_dropdown(right_click_behavior_dropdown.clone(), ctx);
+
+        ctx.subscribe_to_model(&SelectionSettings::handle(ctx), |me, _, event, ctx| {
+            if let SelectionSettingsChangedEvent::RightClickBehaviorSetting { .. } = event {
+                Self::update_right_click_behavior_dropdown(
+                    me.right_click_behavior_dropdown.clone(),
+                    ctx,
+                );
+            }
+            ctx.notify();
+        });
+
         #[cfg(feature = "local_tty")]
         let working_directory_view = ctx.add_typed_action_view(features::WorkingDirectoryView::new);
 
@@ -1945,6 +1970,7 @@ impl FeaturesPageView {
 
             tab_behavior_dropdown,
             ctrl_tab_behavior_dropdown,
+            right_click_behavior_dropdown,
             code_editor_line_number_mode_dropdown,
             new_tab_placement_dropdown,
             osc52_clipboard_access_dropdown,
@@ -2154,6 +2180,12 @@ impl FeaturesPageView {
             .is_supported_on_current_platform()
         {
             editor_widgets.push(Box::new(MiddleClickPasteWidget::default()));
+            if selection_settings
+                .right_click_behavior
+                .is_supported_on_current_platform()
+            {
+                editor_widgets.push(Box::new(RightClickBehaviorWidget::default()));
+            }
         }
 
         editor_widgets.push(Box::new(AutosuggestionKeybindingHintWidget::default()));
@@ -2328,6 +2360,41 @@ impl FeaturesPageView {
                         DropdownItem::new(
                             val.as_dropdown_label(),
                             FeaturesPageAction::SetCtrlTabBehavior(val),
+                        )
+                    })
+                    .collect(),
+                ctx,
+            );
+            dropdown.set_selected_by_index(selected_index, ctx);
+        });
+    }
+
+    fn update_right_click_behavior_dropdown(
+        dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        dropdown.update(ctx, |dropdown, ctx| {
+            let values = vec![RightClickBehavior::ContextMenu, RightClickBehavior::Paste];
+
+            let current_value = *SelectionSettings::as_ref(ctx).right_click_behavior;
+
+            let selected_index = values
+                .iter()
+                .position(|val| *val == current_value)
+                .unwrap_or_else(|| {
+                    log::error!(
+                        "Could not find current right-click behavior value in dropdown option list"
+                    );
+                    0
+                });
+
+            dropdown.set_items(
+                values
+                    .into_iter()
+                    .map(|val| {
+                        DropdownItem::new(
+                            val.as_dropdown_label(),
+                            FeaturesPageAction::SetRightClickBehavior(val),
                         )
                     })
                     .collect(),
@@ -4994,6 +5061,41 @@ impl SettingsWidget for AliasExpansionWidget {
                 .finish(),
             None,
         )
+    }
+}
+
+#[derive(Default)]
+struct RightClickBehaviorWidget {}
+
+impl SettingsWidget for RightClickBehaviorWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "right click behavior paste context menu shift"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut column = Flex::column();
+        add_setting(
+            &mut column,
+            &SelectionSettings::as_ref(app).right_click_behavior,
+            || {
+                render_dropdown_item(
+                    appearance,
+                    "Right-click:",
+                    None,
+                    None,
+                    None,
+                    &view.right_click_behavior_dropdown,
+                )
+            },
+        );
+        column.finish()
     }
 }
 

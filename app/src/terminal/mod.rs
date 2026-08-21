@@ -13,6 +13,7 @@ pub use view::Event;
 pub use view::TerminalView;
 pub use warp_terminal::shell::{self, ShellLaunchData};
 use warpui::AppContext;
+use warpui::SingletonEntity;
 use warpui::WindowId;
 use warpui::geometry::vector::Vector2F;
 use warpui::units::{IntoPixels, Lines, Pixels};
@@ -91,6 +92,8 @@ pub use view::{
 
 pub use shell_launch_state::ShellLaunchState;
 
+use crate::settings::SelectionSettings;
+
 /// Minimum number of visible lines.
 const MIN_ROWS: usize = 1;
 
@@ -111,6 +114,10 @@ pub const PTY_READS_BROADCAST_CHANNEL_SIZE: usize = 1024;
 
 pub fn init(app: &mut AppContext) {
     view::init(app);
+}
+
+pub fn should_right_click_paste(shift: bool, ctx: &AppContext) -> bool {
+    !shift && SelectionSettings::as_ref(ctx).right_click_pastes()
 }
 
 /// Treat rounding errors for heights within this amount as equal.

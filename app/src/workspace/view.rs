@@ -14218,7 +14218,7 @@ impl Workspace {
                     .with_padding_right(TAB_BAR_PADDING_RIGHT)
                     .finish(),
             )
-            .on_right_mouse_down(|ctx, _, position| {
+            .on_right_mouse_down(|ctx, _, position, _| {
                 ctx.dispatch_typed_action(WorkspaceAction::ShowHeaderToolbarContextMenu {
                     position,
                 });
@@ -14352,7 +14352,7 @@ impl Workspace {
                 .with_padding_right(TAB_BAR_PADDING_RIGHT)
                 .finish(),
         )
-        .on_right_mouse_down(|ctx, _, position| {
+        .on_right_mouse_down(|ctx, _, position, _| {
             ctx.dispatch_typed_action(WorkspaceAction::ShowHeaderToolbarContextMenu { position });
             DispatchEventResult::StopPropagation
         })
@@ -14394,7 +14394,7 @@ impl Workspace {
         Some(
             Container::new(
                 EventHandler::new(inner)
-                    .on_right_mouse_down(|ctx, _, position| {
+                    .on_right_mouse_down(|ctx, _, position, _| {
                         ctx.dispatch_typed_action(WorkspaceAction::ShowHeaderToolbarContextMenu {
                             position,
                         });
