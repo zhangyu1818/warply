@@ -11306,7 +11306,7 @@ impl TerminalView {
                 Some(highlighted_link),
                 _,
             ) => {
-                match highlighted_link {
+                let mut items = match highlighted_link {
                     GridHighlightedLink::Url(url) => {
                         let url_content =
                             Some(model.link_at_range(url, RespectObfuscatedSecrets::Yes));
@@ -11382,7 +11382,14 @@ impl TerminalView {
                                 .into_item(),
                         ]
                     }
+                };
+
+                if !items.is_empty() {
+                    items.push(MenuItem::Separator);
                 }
+                items.push(self.paste_menu_item(ctx));
+
+                items
             }
             (
                 BlockListMenuSource::RegularTextRightClick { .. }
@@ -11474,6 +11481,14 @@ impl TerminalView {
                 let is_copy_both_disabled =
                     is_copy_commands_disabled && tail_block.output_to_string().trim().is_empty();
 
+                // Only right-click sources offer general terminal actions like "Paste";
+                // the overflow-button and keybinding menus are scoped to the selected block(s).
+                let is_right_click_source = matches!(
+                    menu_source,
+                    BlockListMenuSource::RegularBlockRightClick { .. }
+                        | BlockListMenuSource::RichContentBlockRightClick { .. }
+                        | BlockListMenuSource::OutsideBlockRightClick { .. }
+                );
                 let mut items = vec![
                     MenuItemFields::new(copy_str)
                         .with_on_select_action(TerminalAction::ContextMenu(
@@ -11496,23 +11511,6 @@ impl TerminalView {
                         .with_disabled(is_copy_commands_disabled)
                         .into_item(),
                 ];
-
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-                    && self.is_input_box_visible(&model, ctx)
-                {
-                    items.extend([
-                        MenuItem::Separator,
-                        MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
-                            .with_on_select_action(TerminalAction::ContextMenu(
-                                ContextMenuAction::AskAI(AskAISource::SelectedBlocks),
-                            ))
-                            .with_key_shortcut_label(keybinding_name_to_display_string(
-                                "terminal:attach_selection_as_agent_context",
-                                ctx,
-                            ))
-                            .into_item(),
-                    ]);
-                }
 
                 if is_single_selection {
                     let mut copy_output_menu_item = MenuItemFields::new("Copy output")
@@ -11549,8 +11547,30 @@ impl TerminalView {
                         self.is_rprompt_shown(&model),
                         PromptPosition::Block(tail_block_index),
                     );
-                    items.push(MenuItem::Separator);
                     items.append(&mut prompt_items);
+                }
+
+                // "Paste" closes out the copy-related section so clipboard actions for
+                // the block sit together, ending with the general clipboard paste.
+                if is_right_click_source {
+                    items.push(self.paste_menu_item(ctx));
+                }
+
+                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
+                    && self.is_input_box_visible(&model, ctx)
+                {
+                    items.extend([
+                        MenuItem::Separator,
+                        MenuItemFields::new(*ATTACH_AS_AGENT_MODE_CONTEXT_TEXT)
+                            .with_on_select_action(TerminalAction::ContextMenu(
+                                ContextMenuAction::AskAI(AskAISource::SelectedBlocks),
+                            ))
+                            .with_key_shortcut_label(keybinding_name_to_display_string(
+                                "terminal:attach_selection_as_agent_context",
+                                ctx,
+                            ))
+                            .into_item(),
+                    ]);
                 }
 
                 items.append(&mut vec![
@@ -11720,6 +11740,15 @@ impl TerminalView {
         }
 
         items
+    }
+
+    fn paste_menu_item(&self, ctx: &mut ViewContext<Self>) -> MenuItem<TerminalAction> {
+        let is_clipboard_empty = ctx.clipboard().read().is_empty();
+        MenuItemFields::new("Paste")
+            .with_on_select_action(TerminalAction::Paste)
+            .with_key_shortcut_label(keybinding_name_to_display_string("terminal:paste", ctx))
+            .with_disabled(is_clipboard_empty)
+            .into_item()
     }
 
     fn clear_buffer_menu_item(
