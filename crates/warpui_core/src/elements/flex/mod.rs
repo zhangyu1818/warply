@@ -2,6 +2,9 @@ mod wrap;
 
 pub use wrap::*;
 
+static INFINITE_FLEX_CONSTRAINT_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 use crate::{
     event::DispatchedEvent,
     text::{IsRect, SelectionDirection, SelectionType, word_boundaries::WordBoundariesPolicy},
@@ -275,7 +278,10 @@ See https://www.notion.so/warpdev/Debugging-Flex-acc03383be5644a8af29d9c52b1142b
                 "flex contains flexible children but has an infinite constraint along the flex axis{location_info}
 See https://www.notion.so/warpdev/Debugging-Flex-acc03383be5644a8af29d9c52b1142bd?pvs=4#057b1e4ba7b844f7ad2e69433b295363 for troubleshooting steps"
             );
-            if constraint.max_along(self.axis).is_infinite() {
+            if constraint.max_along(self.axis).is_infinite()
+                && !INFINITE_FLEX_CONSTRAINT_REPORTED
+                    .swap(true, std::sync::atomic::Ordering::Relaxed)
+            {
                 log::error!(
                     "flex contains flexible children but has an infinite constraint along the flex axis{location_info}"
                 );
