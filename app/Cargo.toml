@@ -348,6 +348,7 @@ default = [
     "vertical_tabs",
     "tab_configs",
     "directory_tab_colors",
+    "ime_marked_text",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
