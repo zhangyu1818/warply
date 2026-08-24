@@ -166,6 +166,12 @@ pub enum Command {
     #[clap(flatten)]
     Worker(WorkerCommand),
 
+    /// Print the JSON schema for the current Warp channel's settings and exit.
+    DumpSettingsSchema {
+        /// Write the schema to this path instead of standard output.
+        output_path: Option<std::path::PathBuf>,
+    },
+
     /// Generate shell completions for your shell to stdout.
     ///
     ///
@@ -195,6 +201,7 @@ impl Command {
     pub fn prints_to_stdout(&self) -> bool {
         match self {
             Command::Worker(_) => false,
+            Command::DumpSettingsSchema { output_path } => output_path.is_none(),
             Command::Completions { .. } => true,
         }
     }

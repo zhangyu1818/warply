@@ -83,6 +83,8 @@ ditto "$SPARKLE_DIR/Sparkle.framework" "$WARPLY_APP_PATH/Contents/Frameworks/Spa
 echo "Preparing bundled resources..."
 if [ "${GENERATE_SCHEMA:-false}" != "true" ]; then
   export SKIP_SETTINGS_SCHEMA=1
+else
+  export SETTINGS_SCHEMA_EXECUTABLE="$WARPLY_APP_PATH/Contents/MacOS/$WARPLY_BIN_NAME"
 fi
 NO_LICENSES=1 "${REPO_ROOT}/script/prepare_bundled_resources" "$WARPLY_APP_PATH/Contents/Resources" "$WARPLY_CHANNEL"
 

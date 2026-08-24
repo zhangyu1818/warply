@@ -18,11 +18,6 @@ name = "warply"
 path = "src/bin/oss.rs"
 test = false
 
-[[bin]]
-name = "generate_settings_schema"
-path = "src/bin/generate_settings_schema.rs"
-test = false
-
 [dependencies]
 addr = "0.15.6"
 agent-client-protocol.workspace = true
