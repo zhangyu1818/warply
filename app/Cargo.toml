@@ -18,16 +18,12 @@ name = "warply"
 path = "src/bin/oss.rs"
 test = false
 
-[[bin]]
-name = "generate_settings_schema"
-path = "src/bin/generate_settings_schema.rs"
-test = false
-
 [dependencies]
 addr = "0.15.6"
 agent-client-protocol.workspace = true
 agent-client-protocol-tokio.workspace = true
 ai.workspace = true
+ai_types.workspace = true
 alphanumeric-sort = "1.5.7"
 anyhow.workspace = true
 arrayvec.workspace = true

@@ -12,34 +12,7 @@ use super::{
     conversation::context_in_exchanges,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TaskId(String);
-
-impl TaskId {
-    pub fn new(id: String) -> Self {
-        TaskId(id)
-    }
-}
-
-impl From<TaskId> for String {
-    fn from(id: TaskId) -> Self {
-        id.0
-    }
-}
-
-impl Deref for TaskId {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Display for TaskId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
+pub use ai_types::TaskId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum UpdateTaskError {

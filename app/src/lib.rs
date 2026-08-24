@@ -462,6 +462,9 @@ pub fn run() -> Result<()> {
                 // warp_cli::WorkerCommand, as we still need to check Command::Worker.
                 panic!("Worker process not supported: {worker:?}")
             }
+            warp_cli::Command::DumpSettingsSchema { output_path } => {
+                return settings::schema_generation::dump_settings_schema(output_path.as_deref());
+            }
             warp_cli::Command::Completions { shell } => {
                 return warp_cli::completions::generate_to_stdout(*shell);
             }

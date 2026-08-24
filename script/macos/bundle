@@ -477,7 +477,15 @@ plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARPL
 
 BUNDLED_RESOURCES_DIR="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/Resources"
 echo "Preparing bundled resources..."
-"$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL" "$CARGO_PROFILE"
+if [[ "${SKIP_SETTINGS_SCHEMA:-}" != "1" && -z "${SETTINGS_SCHEMA_EXECUTABLE:-}" && -z "${SETTINGS_SCHEMA_SOURCE:-}" ]]; then
+  if [[ $BUILD_BINARY != true ]]; then
+    echo "Error: --skip-build requires SETTINGS_SCHEMA_SOURCE or SETTINGS_SCHEMA_EXECUTABLE." >&2
+    exit 1
+  else
+    export SETTINGS_SCHEMA_EXECUTABLE="$BUNDLE_DIR/$WARPLY_APP_NAME.app/Contents/MacOS/$WARPLY_BIN"
+  fi
+fi
+"$WORKSPACE_ROOT_DIR/script/prepare_bundled_resources" "$BUNDLED_RESOURCES_DIR" "$RELEASE_CHANNEL"
 
 "$WORKSPACE_ROOT_DIR/script/compile_icon" "$RELEASE_CHANNEL" "$BUNDLE_DIR/$WARPLY_APP_NAME.app"
 

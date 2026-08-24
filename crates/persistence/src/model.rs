@@ -774,6 +774,18 @@ pub struct AgentConversationData {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AIAgentActionId(pub String);
 
+impl From<AIAgentActionId> for ai_types::AIAgentActionId {
+    fn from(value: AIAgentActionId) -> Self {
+        Self::from(value.0)
+    }
+}
+
+impl From<ai_types::AIAgentActionId> for AIAgentActionId {
+    fn from(value: ai_types::AIAgentActionId) -> Self {
+        AIAgentActionId(String::from(value))
+    }
+}
+
 #[derive(Debug, Insertable)]
 #[diesel(table_name = ignored_suggestions)]
 pub struct NewIgnoredSuggestion {
