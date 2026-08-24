@@ -9,8 +9,9 @@ pub(crate) mod task;
 mod task_store;
 pub(crate) mod util;
 
-// Re-export types that were moved to the ai crate.
+// Re-export types that were moved to the ai and ai_types crates.
 pub use ai::agent::{AIAgentCitation, FileLocations, action::*, action_result::*};
+pub use ai_types::AIAgentActionId;
 
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::block::view_impl::output::are_all_text_sections_empty;
@@ -619,43 +620,6 @@ impl From<String> for ProgrammingLanguage {
 pub enum AgentOutputImageLayout {
     Block,
     Inline,
-}
-
-/// A ID for an AI action generated as part of an [`AIAgentOutput`].
-///
-/// The internal ID itself should be opaque to all callers. This ID may be relayed back to the AI with
-/// the `AIAgentActionResult` from the action.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct AIAgentActionId(String);
-
-impl From<String> for AIAgentActionId {
-    fn from(value: String) -> Self {
-        AIAgentActionId(value)
-    }
-}
-
-impl From<AIAgentActionId> for String {
-    fn from(value: AIAgentActionId) -> Self {
-        value.0
-    }
-}
-
-impl Display for AIAgentActionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl From<crate::persistence::model::AIAgentActionId> for AIAgentActionId {
-    fn from(value: crate::persistence::model::AIAgentActionId) -> Self {
-        Self(value.0)
-    }
-}
-
-impl From<AIAgentActionId> for crate::persistence::model::AIAgentActionId {
-    fn from(value: AIAgentActionId) -> Self {
-        crate::persistence::model::AIAgentActionId(value.0)
-    }
 }
 
 /// An "action" included in an AI output.

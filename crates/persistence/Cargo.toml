@@ -16,6 +16,7 @@ diesel = { workspace = true, features = [
     "32-column-tables",
 ] }
 diesel_migrations = "2.2.0"
+ai_types.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
