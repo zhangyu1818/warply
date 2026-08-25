@@ -1578,7 +1578,13 @@ impl AIAgentOutputMessage {
 }
 
 /// Contains context that may be attached to a user query.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// Serialization derives the externally tagged form for the named variants,
+/// with `Block` serialized untagged as a bare [`BlockContext`] object.
+/// Deserialization is hand-written below and must accept exactly those
+/// forms; it avoids the generic buffering machinery that serde generates for
+/// enums that mix tagged and untagged variants.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum AIAgentContext {
     Directory {
         pwd: Option<String>,
@@ -1626,6 +1632,94 @@ pub enum AIAgentContext {
     Block(Box<BlockContext>),
 }
 
+/// The tagged variants of [`AIAgentContext`], used by its hand-written
+/// `Deserialize` implementation. The variant and field shapes must stay
+/// identical to [`AIAgentContext`] so the serialized forms match.
+#[derive(Deserialize)]
+enum AIAgentContextTagged {
+    Directory {
+        pwd: Option<String>,
+        home_dir: Option<String>,
+        are_file_symbols_indexed: bool,
+    },
+    SelectedText(String),
+    ExecutionEnvironment(AiExecutionContext),
+    CurrentTime {
+        current_time: DateTime<Local>,
+    },
+    Image(ImageContext),
+    Codebase {
+        path: String,
+        name: String,
+    },
+    ProjectRules {
+        root_path: String,
+        active_rules: Vec<FileContext>,
+        additional_rule_paths: Vec<String>,
+    },
+    File(FileContext),
+    Git {
+        head: String,
+        branch: Option<String>,
+    },
+}
+
+impl From<AIAgentContextTagged> for AIAgentContext {
+    fn from(tagged: AIAgentContextTagged) -> Self {
+        match tagged {
+            AIAgentContextTagged::Directory {
+                pwd,
+                home_dir,
+                are_file_symbols_indexed,
+            } => AIAgentContext::Directory {
+                pwd,
+                home_dir,
+                are_file_symbols_indexed,
+            },
+            AIAgentContextTagged::SelectedText(text) => AIAgentContext::SelectedText(text),
+            AIAgentContextTagged::ExecutionEnvironment(context) => {
+                AIAgentContext::ExecutionEnvironment(context)
+            }
+            AIAgentContextTagged::CurrentTime { current_time } => {
+                AIAgentContext::CurrentTime { current_time }
+            }
+            AIAgentContextTagged::Image(image) => AIAgentContext::Image(image),
+            AIAgentContextTagged::Codebase { path, name } => {
+                AIAgentContext::Codebase { path, name }
+            }
+            AIAgentContextTagged::ProjectRules {
+                root_path,
+                active_rules,
+                additional_rule_paths,
+            } => AIAgentContext::ProjectRules {
+                root_path,
+                active_rules,
+                additional_rule_paths,
+            },
+            AIAgentContextTagged::File(file) => AIAgentContext::File(file),
+            AIAgentContextTagged::Git { head, branch } => AIAgentContext::Git { head, branch },
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for AIAgentContext {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Buffer the input into one JSON value, then try the tagged variants
+        // and fall back to the untagged Block variant. This matches the
+        // behavior of serde's derive for mixed tagged and untagged enums.
+        let value = serde_json::Value::deserialize(deserializer)?;
+        match AIAgentContextTagged::deserialize(&value) {
+            Ok(tagged) => Ok(tagged.into()),
+            Err(tagged_error) => BlockContext::deserialize(&value)
+                .map(|block| AIAgentContext::Block(Box::new(block)))
+                .map_err(|_| serde::de::Error::custom(tagged_error)),
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ImageContext {
     /// Base64-encoded image data.
@@ -1662,7 +1756,12 @@ pub enum DocumentContentAttachmentSource {
     PlanEdited,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Serialization derives the externally tagged form for the named variants,
+/// with `Block` serialized untagged as a bare [`BlockContext`] object.
+/// Deserialization is hand-written below and must accept exactly those
+/// forms; it avoids the generic buffering machinery that serde generates for
+/// enums that mix tagged and untagged variants.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum AIAgentAttachment {
     PlainText(String),
     DocumentContent {
@@ -1697,6 +1796,111 @@ pub enum AIAgentAttachment {
     },
     #[serde(untagged)]
     Block(BlockContext),
+}
+
+/// The tagged variants of [`AIAgentAttachment`], used by its hand-written
+/// `Deserialize` implementation. The variant and field shapes must stay
+/// identical to [`AIAgentAttachment`] so the serialized forms match.
+#[derive(Deserialize)]
+enum AIAgentAttachmentTagged {
+    PlainText(String),
+    DocumentContent {
+        document_id: String,
+        content: String,
+        source: DocumentContentAttachmentSource,
+        line_range: Option<Range<LineCount>>,
+    },
+    DiffHunk {
+        file_path: String,
+        line_range: Range<LineCount>,
+        diff_content: String,
+        lines_added: u32,
+        lines_removed: u32,
+        current: Option<CurrentHead>,
+        base: DiffBase,
+    },
+    DiffSet {
+        file_diffs: HashMap<String, Vec<DiffSetHunk>>,
+        current: Option<CurrentHead>,
+        base: DiffBase,
+    },
+    FilePathReference {
+        file_id: String,
+        file_name: String,
+        file_path: String,
+    },
+}
+
+impl From<AIAgentAttachmentTagged> for AIAgentAttachment {
+    fn from(tagged: AIAgentAttachmentTagged) -> Self {
+        match tagged {
+            AIAgentAttachmentTagged::PlainText(text) => AIAgentAttachment::PlainText(text),
+            AIAgentAttachmentTagged::DocumentContent {
+                document_id,
+                content,
+                source,
+                line_range,
+            } => AIAgentAttachment::DocumentContent {
+                document_id,
+                content,
+                source,
+                line_range,
+            },
+            AIAgentAttachmentTagged::DiffHunk {
+                file_path,
+                line_range,
+                diff_content,
+                lines_added,
+                lines_removed,
+                current,
+                base,
+            } => AIAgentAttachment::DiffHunk {
+                file_path,
+                line_range,
+                diff_content,
+                lines_added,
+                lines_removed,
+                current,
+                base,
+            },
+            AIAgentAttachmentTagged::DiffSet {
+                file_diffs,
+                current,
+                base,
+            } => AIAgentAttachment::DiffSet {
+                file_diffs,
+                current,
+                base,
+            },
+            AIAgentAttachmentTagged::FilePathReference {
+                file_id,
+                file_name,
+                file_path,
+            } => AIAgentAttachment::FilePathReference {
+                file_id,
+                file_name,
+                file_path,
+            },
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for AIAgentAttachment {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Buffer the input into one JSON value, then try the tagged variants
+        // and fall back to the untagged Block variant. This matches the
+        // behavior of serde's derive for mixed tagged and untagged enums.
+        let value = serde_json::Value::deserialize(deserializer)?;
+        match AIAgentAttachmentTagged::deserialize(&value) {
+            Ok(tagged) => Ok(tagged.into()),
+            Err(tagged_error) => BlockContext::deserialize(&value)
+                .map(AIAgentAttachment::Block)
+                .map_err(|_| serde::de::Error::custom(tagged_error)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2203,3 +2407,7 @@ impl AIAgentExchange {
             .map(|finish_time| finish_time.signed_duration_since(self.start_time))
     }
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;
