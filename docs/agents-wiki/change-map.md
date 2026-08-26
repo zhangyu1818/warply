@@ -670,6 +670,14 @@ Resolve that debt only from the exact upstream source history. Existing local fe
 
 The reported 22-row omission list is now **22/22 resolved**: 19 source-faithful ports, two behaviors already present in the fork, and `JsonTreeView` retained as a conditional prerequisite until an ACP structured tool-call consumer requires it. The source commits and focused verification for the final Markdown-image and toast ports are recorded in `upstream-master-full-reaudit-2026-08-12.md`.
 
+## 2026-08-26 Upstream Terminal-Grid Crate-Split Divergence
+
+Upstream `21f413b79` (2026-08-26 audit) moved the terminal grid/ANSI/local-PTY layer from `app/src/terminal/**` into `crates/warp_terminal/src/**` (grid model, ANSI/DCS handlers, `local_tty`, `bootstrap`, event/listener split, `runtime.rs`, `warp_util` path/executable helpers). This fork keeps the pre-split layout and defers the port; the blocker and revisit trigger are recorded in `upstream-master-audit-2026-08-26.md`:
+
+- The moved file set and seam cannot be applied here: the fork deleted WSL, Windows `local_tty`, `focus_env.rs`, ambient/shared-session/telemetry code inside that subtree and adapted ~260 retained files, while the upstream seam needs `warp_isolation_platform`, `session-sharing-protocol`, optional `sentry`, wasm gating, and `warp_errors/crash_reporting` — all removed.
+- The fork's `warp_terminal` remains the small pre-split crate; its `model/ansi` (`control_sequence_parameters`) collides with the incoming moved ANSI module.
+- Merge consequence: upstream terminal fixes now land under `crates/warp_terminal/src/**`; map them back to `app/src/terminal/**` (and `warp_util` helpers to `app/src/util/**`) during future audits, the same way `warp_tui`, singular test filenames, and `Box<dyn AnyView>` divergences are handled. Revisit the port when the upstream crate-split stack settles.
+
 ## Required Audit Queries
 
 Before finishing a major upstream merge, run:
