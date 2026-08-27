@@ -108,6 +108,9 @@ const IMAGE_SOURCE_LINK_LINE_INDEX: usize = 1;
 
 const ERROR_APOLOGY_TEXT: &str = "I'm sorry, I couldn't complete that request.";
 
+/// The trailing ellipsis every in-progress status message ends with.
+pub const STATUS_MESSAGE_ELLIPSIS: &str = "...";
+
 pub const LOAD_OUTPUT_MESSAGE_FOR_ADJUSTING: &str = "Adjusting tasks...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN: &str = "Generating fix...";
 pub const LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF: &str = "Creating diff...";
@@ -161,6 +164,10 @@ pub struct WarpingProps<'a, V> {
     pub action_model: &'a BlocklistAIActionModel,
     pub terminal_model: &'a TerminalModel,
     pub default_warping_text: String,
+    /// Display name of the model the current exchange reported, when the row is
+    /// allowed to name it. Messages for phases that are a model working are
+    /// rendered with it; phases that are not, such as running a command, are not.
+    pub model_in_use_name: Option<String>,
     pub secondary_element: Option<Box<dyn Element>>,
     /// When an LRC subagent has sent at least one snapshot, the timestamp of the most recent snapshot.
     pub last_snapshot_at: Option<instant::Instant>,
@@ -170,6 +177,15 @@ pub struct ButtonProps<'a> {
     pub button_handle: &'a MouseStateHandle,
     pub keystroke: Option<&'a Keystroke>,
     pub is_active: bool,
+}
+
+/// Names the model in a status message, keeping the trailing ellipsis at the end:
+/// `"Generating plan..."` becomes `"Generating plan with Claude Sonnet 4.5..."`.
+pub fn status_message_naming_model(message: &str, model_display_name: &str) -> String {
+    match message.strip_suffix(STATUS_MESSAGE_ELLIPSIS) {
+        Some(stem) => format!("{stem} with {model_display_name}{STATUS_MESSAGE_ELLIPSIS}"),
+        None => format!("{message} with {model_display_name}"),
+    }
 }
 
 pub fn render_warping_indicator<V: View>(
@@ -247,6 +263,15 @@ pub fn render_warping_indicator<V: View>(
 
     let mut should_render_waiting_icon = false;
     let mut non_shimmering_text = None;
+    // Only phases where a model is producing the output name one. Summarization is
+    // excluded even though it is an LLM call: it runs on a separately resolved
+    // model whose name is not reported for the exchange, so naming the exchange's
+    // model there would attribute work to a model that is not doing it.
+    let model_in_use_name = props.model_in_use_name.clone();
+    let naming_model = |message: &str| match model_in_use_name.as_deref() {
+        Some(model_display_name) => status_message_naming_model(message, model_display_name),
+        None => message.to_owned(),
+    };
     let message = if let Some(summarization_type) = summarization_type {
         // Choose the appropriate message based on summarization type
         let base_message = match summarization_type {
@@ -275,15 +300,15 @@ pub fn render_warping_indicator<V: View>(
             base_message.to_string()
         }
     } else if props.model.contains_update_document_action(app) {
-        LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN.to_string()
+        naming_model(LOAD_OUTPUT_MESSAGE_FOR_UPDATING_PLAN)
     } else if props.model.contains_create_document_action(app) {
-        LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN.to_string()
+        naming_model(LOAD_OUTPUT_MESSAGE_FOR_GENERATING_PLAN)
     } else if props.model.request_type(app).is_passive_code_diff() {
-        LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN.to_string()
+        naming_model(LOAD_OUTPUT_MESSAGE_FOR_PASSIVE_CODE_GEN)
     } else if is_last_message_requesting_file_edits {
-        LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF.to_string()
+        naming_model(LOAD_OUTPUT_MESSAGE_FOR_CREATING_DIFF)
     } else if is_last_message_asking_user_question {
-        LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION.to_string()
+        naming_model(LOAD_OUTPUT_MESSAGE_FOR_PREPARING_QUESTION)
     } else if is_fetching_review_comments {
         LOAD_OUTPUT_MESSAGE_FOR_FETCHING_REVIEW_COMMENTS.to_string()
     } else if is_interrupt_query_for_same_conversation
