@@ -3,7 +3,9 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use super::{
     cli_controller::{CLISubagentController, CLISubagentEvent},
     model::{AIBlockModel, AIBlockModelImpl, AIBlockOutputStatus},
-    view_impl::common::{ButtonProps, WarpingProps, render_warping_indicator},
+    view_impl::common::{
+        ButtonProps, WarpingProps, render_warping_indicator, status_message_naming_model,
+    },
 };
 use crate::terminal::input::buffer_model::InputBufferUpdateEvent;
 use crate::{
@@ -22,7 +24,7 @@ use crate::{
         acp::model::AcpAgentModel,
         agent::{
             AIAgentExchangeId, AIAgentOutput, AIAgentOutputMessageType, CancellationReason,
-            SummarizationType, conversation::AIConversationId,
+            OutputModelInfo, SummarizationType, conversation::AIConversationId,
         },
         blocklist::{
             BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIContextEvent,
@@ -652,7 +654,18 @@ impl BlocklistAIStatusBar {
             .as_ref(app)
             .last_snapshot_at(active_block.id());
 
-        let default_warping_text = "Working...".to_owned();
+        let current_model_in_use = model.status(app).output_to_render().and_then(|output| {
+            let output = output.get();
+            output.model_info.as_ref().map(ModelInUse::from)
+        });
+        let model_warping_message = warping_model_message(current_model_in_use);
+        let default_warping_text = model_warping_message.as_ref().map_or_else(
+            || DEFAULT_WARPING_TEXT.to_owned(),
+            |message| message.text.clone(),
+        );
+        let model_in_use_name = model_warping_message
+            .as_ref()
+            .and_then(|message| message.model_display_name.clone());
 
         Some(render_warping_indicator(
             WarpingProps {
@@ -676,12 +689,54 @@ impl BlocklistAIStatusBar {
                     is_active: false,
                 }),
                 default_warping_text,
+                model_in_use_name,
                 secondary_element: None,
                 last_snapshot_at,
             },
             app,
         ))
     }
+}
+
+/// The fork's generic warping row copy, shown while the exchange has not reported
+/// the model it is running on.
+const DEFAULT_WARPING_TEXT: &str = "Working...";
+
+/// The model an exchange's output is running on, as last reported during streaming.
+#[derive(Debug, PartialEq)]
+struct ModelInUse {
+    /// `None` when the model was reported without a display name.
+    display_name: Option<String>,
+}
+
+impl From<&OutputModelInfo> for ModelInUse {
+    fn from(model_info: &OutputModelInfo) -> Self {
+        Self {
+            display_name: Some(model_info.display_name.clone())
+                .filter(|display_name| !display_name.is_empty()),
+        }
+    }
+}
+
+/// Warping text naming the model in use, plus the name itself so the row's other
+/// status messages can name it too.
+#[derive(Debug, PartialEq)]
+struct WarpingModelMessage {
+    text: String,
+    model_display_name: Option<String>,
+}
+
+/// Warping text for the model a response is running on, e.g. "Working with Claude
+/// Sonnet 4.5...". `None` keeps the row on its generic copy, which is what
+/// exchanges that have not reported a model name get until one arrives. Only the
+/// exchange's own reported model names the row: naming one the response may not be
+/// using is worse than naming none.
+fn warping_model_message(current: Option<ModelInUse>) -> Option<WarpingModelMessage> {
+    let display_name = current?.display_name?;
+    Some(WarpingModelMessage {
+        text: status_message_naming_model(DEFAULT_WARPING_TEXT, &display_name),
+        model_display_name: Some(display_name),
+    })
 }
 
 impl View for BlocklistAIStatusBar {
