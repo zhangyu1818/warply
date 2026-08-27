@@ -230,6 +230,7 @@ use crate::workspace::toast_stack::{
     ToastStack as WorkspaceToastStack, ToastStackEvent as WorkspaceToastStackEvent,
 };
 
+use instant::Instant;
 use itertools::Itertools;
 use parking_lot::FairMutex;
 use pathfinder_geometry::rect::RectF;
@@ -735,6 +736,7 @@ pub struct Workspace {
     settings_pane: ViewHandle<SettingsView>,
     theme_chooser_view: ViewHandle<ThemeChooser>,
     previous_theme: Option<ThemeKind>,
+    background_image_animation_start_time: Instant,
     pub(crate) current_workspace_state: WorkspaceState,
     previous_workspace_state: Option<WorkspaceState>,
     welcome_tips_view_state: WelcomeTipsViewState,
@@ -2134,6 +2136,7 @@ impl Workspace {
             ctrl_tab_palette,
             mouse_states: Default::default(),
             previous_theme: None,
+            background_image_animation_start_time: Instant::now(),
             settings_pane,
             theme_chooser_view,
             current_workspace_state: Default::default(),
@@ -18121,6 +18124,9 @@ impl View for Workspace {
                         .cover()
                         .with_opacity(opacity_ratio)
                         .with_corner_radius(window_corner_radius)
+                        .enable_animation_with_start_time(
+                            self.background_image_animation_start_time,
+                        )
                         .finish(),
                 )
                 .finish(),
