@@ -1,8 +1,5 @@
 pub mod transaction;
 
-use std::{fmt::Display, ops::Deref};
-
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::terminal::model::block::BlockId;

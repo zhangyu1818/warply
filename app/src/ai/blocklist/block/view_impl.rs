@@ -869,6 +869,10 @@ impl View for AIBlock {
             }
             if let Some(rendered_query) = query::maybe_render(
                 query::Props {
+                    query_sent_at: self.query_sent_at(app),
+                    query_timestamp_tooltip_handle: &self
+                        .state_handles
+                        .query_timestamp_tooltip_handle,
                     query_and_index: Some((&query_for_display, input_index)),
                     query_prefix_highlight_len,
                     detected_links_state: &self.detected_links_state,

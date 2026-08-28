@@ -33,6 +33,10 @@ pub enum FeatureFlag {
     /// Force enable classic completions.
     ForceClassicCompletions,
 
+    /// Enables support for using native shell completions to supplement our
+    /// completion specs.
+    NativeShellCompletions,
+
     /// Feature flag for cursor reflow fix (fixes part of the Alacritty resizing logic).
     ResizeFix,
 

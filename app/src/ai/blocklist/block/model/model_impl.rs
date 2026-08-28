@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use anyhow::{Result, anyhow};
+use chrono::{DateTime, Local};
 use history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 use warpui::{AppContext, SingletonEntity, View, ViewContext};
 
@@ -17,6 +18,7 @@ use crate::ai::{
 };
 
 use super::{AIBlockModel, AIBlockOutputStatus, OutputStatusUpdateCallback};
+use crate::util::time_format::is_trustworthy_message_timestamp;
 
 /// Standard [`AIBlock`] impl for live outputs corresponding to an `OutputStream`.
 pub struct AIBlockModelImpl<V> {
@@ -135,6 +137,13 @@ where
                 },
             },
         }
+    }
+
+    fn query_sent_at(&self, app: &AppContext) -> Option<DateTime<Local>> {
+        self.exchange(app)
+            .ok()
+            .map(|exchange| exchange.start_time)
+            .filter(is_trustworthy_message_timestamp)
     }
 
     fn base_model<'a>(&'a self, app: &'a AppContext) -> Option<&'a LLMId> {

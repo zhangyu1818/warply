@@ -678,6 +678,26 @@ Upstream `21f413b79` (2026-08-26 audit) moved the terminal grid/ANSI/local-PTY l
 - The fork's `warp_terminal` remains the small pre-split crate; its `model/ansi` (`control_sequence_parameters`) collides with the incoming moved ANSI module.
 - Merge consequence: upstream terminal fixes now land under `crates/warp_terminal/src/**`; map them back to `app/src/terminal/**` (and `warp_util` helpers to `app/src/util/**`) during future audits, the same way `warp_tui`, singular test filenames, and `Box<dyn AnyView>` divergences are handled. Revisit the port when the upstream crate-split stack settles.
 
+## 2026-08-28 secret_redaction/regex_dfas Crate Split Applied
+
+Upstream `2a183d552` (2026-08-28 audit) extracted the secret-detection core into `crates/secret_redaction` and the DFA regex-search core into `crates/regex_dfas`, renaming `SecretRange` → `StringRange` (moved from `warpui_core` elements into `string-offset`). This fork took the split against its pre-split layout:
+
+- `crates/regex_dfas` and `crates/secret_redaction` exist as upstream-authored crates (`report_error!` adapted to `log::error!`).
+- `app/src/terminal/model/find.rs` keeps only the `impl GridHandler` grid-search loop plus `pub use regex_dfas::{CachePoolFn, FindConfig, RegexDFAs}` and `pub type Match`; the delegating wrappers that used to live in `grid_handler.rs` are gone.
+- `app/src/terminal/model/secrets.rs` keeps the grid-obfuscation state (`SecretHandle`, `Secret`, `SecretMap`, `IsObfuscated`, `ObfuscateSecrets`, `RespectObfuscatedSecrets`, `RangeMapPoint`, fork-only `RichContentSecretTooltipInfo`) and re-exports the crate core, so existing `crate::terminal::model::secrets::*` call sites are unchanged.
+- `app/src/ai/blocklist/block/secret_redaction.rs` no longer carries local `find_secrets_in_text*`/`merge_sorted_ranges_with_levels` copies (crate re-exports instead); `app/src/ai/agent/redaction.rs` is a one-line re-export of the crate's `redact_secrets`.
+- `warpui_core::elements::SecretRange` no longer exists; use `string_offset::StringRange`.
+
+The crate carries upstream's newer default-pattern catalog (`WARP_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `DefaultRegex` names) and the ASCII word-boundary rewrite for secret patterns (`RegexDFAs::new_many(..., false, ...)`), replacing the fork's previous `enable_unicode_word_boundary=true` call.
+
+## 2026-08-28 Native Shell Completions (Retained Feature)
+
+`fc4d563b8` drives zsh/bash/fish/PowerShell native completions through in-band generator commands over OSC 9280 (see `upstream-master-audit-2026-08-28.md` for the port details). Fork-relevant map:
+
+- `FeatureFlag::NativeShellCompletions` is enabled via the `native_shell_completions` cargo feature in `app/Cargo.toml` `default` (fork's retained-feature pattern; upstream uses DOGFOOD_FLAGS + a non-default cargo feature).
+- Two new Terminal Input settings (`warp_completions_enabled`, `native_shell_completions_enabled`) resolve to the `CompletionSources` dispatch in `app/src/terminal/input.rs`; both default on (specs first, shell asked when specs are empty).
+- The old `ForceNativeShellCompletions` private user pref and `supports_native_shell_completions`/`ShellData::Raw`/`SendCompletionsPrompt` (9280;P) machinery are gone end to end.
+
 ## Required Audit Queries
 
 Before finishing a major upstream merge, run:

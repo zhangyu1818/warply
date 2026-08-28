@@ -9,13 +9,12 @@ use crate::terminal::model::block::BlockId;
 use chrono::{DateTime, Local};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::{collections::HashMap, fmt::Display};
 
 use super::task_store::TaskStore;
 use agent_client_protocol::schema::ToolCallUpdate;
-use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
 use warp_core::execution_mode::AppExecutionMode;
 use warp_core::ui::appearance::Appearance;

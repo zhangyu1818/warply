@@ -1,6 +1,6 @@
 use super::{
     FormattedTextElement, FrameMouseHandlers, HeadingFontSizeMultipliers, HighlightedHyperlink,
-    HyperlinkSupport, LaidOutTextFrame, SecretRange, apply_secret_replacements,
+    HyperlinkSupport, LaidOutTextFrame, StringRange, apply_secret_replacements,
 };
 use crate::elements::{Element, PartialClickableElement, Point, SelectableElement, ZIndex};
 use crate::event::DispatchedEvent;
@@ -99,8 +99,8 @@ fn test_custom_heading_font_size_multipliers() {
     );
 }
 
-fn sr(char_start: usize, char_end: usize, byte_start: usize, byte_end: usize) -> SecretRange {
-    SecretRange {
+fn sr(char_start: usize, char_end: usize, byte_start: usize, byte_end: usize) -> StringRange {
+    StringRange {
         char_range: char_start..char_end,
         byte_range: byte_start..byte_end,
     }
