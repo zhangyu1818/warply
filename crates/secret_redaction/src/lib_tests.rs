@@ -3,6 +3,15 @@ use regex::Regex;
 use super::*;
 
 #[test]
+fn test_firebase_domain() {
+    let firebase_domain = "warp-server-staging.firebaseapp.com";
+    assert_regex_match_found(regexes::FIREBASE_AUTH_DOMAIN, firebase_domain);
+
+    let bad_firebase_domain = "warp-server-staging_.firebaseapp.com";
+    assert_regex_match_not_found(regexes::FIREBASE_AUTH_DOMAIN, bad_firebase_domain);
+}
+
+#[test]
 fn test_stripe_api_key() {
     let stripe_api_key = "sk_live_4eC39HqLyjWDarjtT1zdp7dc";
     let stripe_restricted_api_key = "rk_live_4eC39HqLyjWDarjtT1zdp7dc";

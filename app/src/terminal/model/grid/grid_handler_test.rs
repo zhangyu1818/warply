@@ -564,17 +564,17 @@ fn test_secrets_serialization() {
     let mut blockgrid = mock_blockgrid("foo zach@warply.local bar");
     blockgrid.maybe_enable_secret_obfuscation(ObfuscateSecrets::Yes);
     blockgrid.grid_handler_mut().mark_secret_range(
-        Point::new(0, 4)..=Point::new(0, 16),
+        Point::new(0, 4)..=Point::new(0, 20),
         IsObfuscated::Yes,
         "zach@warply.local".to_string(),
         SecretLevel::User,
     );
 
     assert_eq!(
-        "foo ************* bar",
+        "foo ***************** bar",
         blockgrid.grid_handler.bounds_to_string(
             Point::new(0, 0),
-            Point::new(0, 21),
+            Point::new(0, 24),
             false,
             RespectObfuscatedSecrets::Yes,
             false, /* force_secrets_obfuscated */
@@ -596,7 +596,7 @@ fn test_secrets_serialization() {
         "foo zach@warply.local bar",
         blockgrid.grid_handler.bounds_to_string(
             Point::new(0, 0),
-            Point::new(0, 21),
+            Point::new(0, 24),
             false,
             RespectObfuscatedSecrets::Yes,
             false, /* force_secrets_obfuscated */
@@ -784,16 +784,16 @@ fn test_find_url_omits_trailing_periods() {
             .grid_handler
             .url_at_point(Point { row: 0, col: 10 }),
         Some(Link {
-            range: Point { row: 0, col: 6 }..=Point { row: 0, col: 44 },
+            range: Point { row: 0, col: 6 }..=Point { row: 0, col: 46 },
             is_empty: false
         })
     );
     assert_eq!(
         blockgrid
             .grid_handler
-            .url_at_point(Point { row: 0, col: 33 }),
+            .url_at_point(Point { row: 0, col: 40 }),
         Some(Link {
-            range: Point { row: 0, col: 6 }..=Point { row: 0, col: 44 },
+            range: Point { row: 0, col: 6 }..=Point { row: 0, col: 46 },
             is_empty: false
         })
     );

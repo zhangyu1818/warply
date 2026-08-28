@@ -1,8 +1,8 @@
 use super::{
     AfterLayoutContext, AppContext, Axis, ClickableCharRange, Element, EventContext, Fill,
     HoverableCharRange, LayoutContext, MouseStateHandle, PaintContext, PartialClickableElement,
-    Point, RectF, SELECTED_HIGHLIGHT_COLOR, SecretRange, SelectableElement, Selection,
-    SelectionFragment, SizeConstraint,
+    Point, RectF, SELECTED_HIGHLIGHT_COLOR, SelectableElement, Selection, SelectionFragment,
+    SizeConstraint, StringRange,
 };
 
 use crate::Event;
@@ -1432,7 +1432,7 @@ impl PartialClickableElement for Text {
         self
     }
 
-    fn replace_text_range(&mut self, range: SecretRange, replacement: Cow<'static, str>) {
+    fn replace_text_range(&mut self, range: StringRange, replacement: Cow<'static, str>) {
         self.replace_byte_range(range.byte_range, &replacement);
     }
 }
