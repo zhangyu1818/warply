@@ -2,14 +2,15 @@
 //!
 //! Queries are not rendered in blocks corresponding to requested command or requested action responses.
 
+use chrono::{DateTime, Local};
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::Opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
     AppContext, Element, SingletonEntity,
     elements::{
-        Border, Container, CornerRadius, DropShadow, Flex, MainAxisAlignment, MainAxisSize,
-        ParentElement, Radius, Shrinkable, Wrap,
+        Border, ChildAnchor, Container, CornerRadius, DropShadow, Flex, MainAxisAlignment,
+        MainAxisSize, MouseStateHandle, ParentAnchor, ParentElement, Radius, Shrinkable, Wrap,
     },
     fonts::{Properties, Style, Weight},
     ui_components::{
@@ -22,6 +23,7 @@ use super::common::{FindContext, render_query_text};
 use crate::ai::blocklist::AttachmentType;
 use crate::ai::blocklist::block::view_impl::common::UserQueryProps;
 use crate::appearance::Appearance;
+use crate::util::time_format::format_message_timestamp;
 use crate::{
     ai::blocklist::block::{DetectedLinksState, SecretRedactionState},
     ui_components::{blended_colors, icons::Icon},
@@ -40,6 +42,8 @@ const NAVIGATION_HALO_OPACITY: Opacity = 60;
 /// Data required to render the AI block query component.
 #[derive(Copy, Clone, Debug)]
 pub(super) struct Props<'a> {
+    pub(super) query_sent_at: Option<DateTime<Local>>,
+    pub(super) query_timestamp_tooltip_handle: &'a MouseStateHandle,
     pub(super) query_and_index: Option<(&'a str, usize)>,
     pub(super) query_prefix_highlight_len: Option<usize>,
     pub(super) detected_links_state: &'a DetectedLinksState,
@@ -55,6 +59,8 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
     props.query_and_index.map(|(query, input_index)| {
         render_query(
             query,
+            props.query_sent_at,
+            props.query_timestamp_tooltip_handle.clone(),
             props.detected_links_state,
             props.secret_redaction_state,
             input_index,
@@ -72,6 +78,8 @@ pub(super) fn maybe_render(props: Props, app: &AppContext) -> Option<Box<dyn Ele
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_query(
     query: &str,
+    query_sent_at: Option<DateTime<Local>>,
+    query_timestamp_tooltip_handle: MouseStateHandle,
     detected_links_state: &DetectedLinksState,
     secret_redaction_state: &SecretRedactionState,
     input_index: usize,
@@ -103,9 +111,9 @@ pub(crate) fn render_query(
         app,
     );
 
-    let appearance = Appearance::as_ref(app);
     let mut query = Flex::column().with_child(text_element.finish());
 
+    let appearance = Appearance::as_ref(app);
     query = query.with_child(render_attachments(attachments, appearance));
 
     let mut query_container = Container::new(query.finish());
@@ -124,9 +132,22 @@ pub(crate) fn render_query(
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(5.)));
     }
 
+    let query_element = if let Some(timestamp) = query_sent_at {
+        appearance.ui_builder().overlay_tool_tip_on_element(
+            format!("Message sent {}", format_message_timestamp(&timestamp)),
+            query_timestamp_tooltip_handle,
+            query_container.finish(),
+            ParentAnchor::TopLeft,
+            ChildAnchor::BottomLeft,
+            vec2f(0., -8.),
+        )
+    } else {
+        query_container.finish()
+    };
+
     Flex::row()
         .with_cross_axis_alignment(warpui::elements::CrossAxisAlignment::Start)
-        .with_child(Shrinkable::new(1., query_container.finish()).finish())
+        .with_child(Shrinkable::new(1., query_element).finish())
         .finish()
 }
 

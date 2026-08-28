@@ -1,6 +1,7 @@
 mod helper;
 mod model_impl;
 
+use chrono::{DateTime, Local};
 pub use helper::AIBlockModelHelper;
 pub use model_impl::*;
 
@@ -139,6 +140,10 @@ pub trait AIBlockModel {
     /// Return `true` if the block was created in the process of forking a conversation.
     fn is_forked(&self) -> bool {
         false
+    }
+
+    fn query_sent_at(&self, _app: &AppContext) -> Option<DateTime<Local>> {
+        None
     }
 
     /// Returns the [`LLMId`] for the base model used to generate output in this block.

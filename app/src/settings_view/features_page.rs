@@ -27,9 +27,8 @@ use crate::settings::{
     AliasExpansionSettings, AppEditorSettings, CodeEditorLineNumberMode, CodeSettings,
     CtrlTabBehavior, DEFAULT_QUAKE_MODE_SIZE_PERCENTAGES, DefaultSessionMode, ExtraMetaKeys,
     GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
-    NativeShellCompletionsEnabled, QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings,
-    RightClickBehavior, ScrollSettings, SelectionSettings, SelectionSettingsChangedEvent,
-    TabBehavior, WarpCompletionsEnabled, log_setting_result,
+    QUAKE_WINDOW_AUTOHIDE_SUPPORTED, QuakeModeSettings, RightClickBehavior, ScrollSettings,
+    SelectionSettings, SelectionSettingsChangedEvent, TabBehavior, log_setting_result,
 };
 use crate::terminal::BlockListSettings;
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
