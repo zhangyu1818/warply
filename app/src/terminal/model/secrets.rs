@@ -1,51 +1,23 @@
 #![allow(dead_code)]
 
-use crate::ai::blocklist::TextLocation;
-use crate::terminal::model::index::Point;
 use anyhow::anyhow;
-use itertools::Itertools;
-use lazy_static::lazy_static;
-use parking_lot::Mutex;
 use rangemap::{RangeInclusiveMap, StepLite};
+pub use secret_redaction::{
+    RegexDisplayInfo, RegexLevelMetadata, SECRETS_REGEX, SecretLevel, SecretsRegex,
+    find_secrets_in_text_with_levels_using_regex, merge_sorted_ranges_with_levels, regexes,
+    set_user_and_enterprise_secret_regexes,
+};
 use std::collections::HashMap;
 use std::ops::{Not, RangeInclusive};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use string_offset::StringRange;
 use warpui::EntityId;
-use warpui::elements::SecretRange;
 
 use super::grid::grid_handler::GridHandler;
 use super::grid::{Dimensions as _, RespectDisplayedOutput};
 use super::terminal_model::RangeInModel;
-use crate::terminal::model::find::RegexDFAs;
-
-pub struct SecretsRegex {
-    pub regex: regex_automata::meta::Regex,
-    pub dfas: RegexDFAs,
-    pub level_metadata: RegexLevelMetadata,
-}
-
-/// Tracks counts to infer which regex patterns correspond to which secret levels
-#[derive(Debug, Clone)]
-pub struct RegexLevelMetadata {
-    /// Number of enterprise regex patterns (they are added first)
-    pub enterprise_count: usize,
-    /// Number of user regex patterns (they are added after enterprise patterns)
-    pub user_count: usize,
-}
-
-lazy_static! {
-    pub static ref SECRETS_REGEX: Mutex<Arc<SecretsRegex>> = Mutex::new(Arc::new(SecretsRegex {
-        regex: regex_automata::meta::Regex::new_many(&[] as &[&str])
-            .expect("should be able to construct empty regex"),
-        dfas: RegexDFAs::new_many(&[], true, true)
-            .expect("should be able to construct empty regex DFA"),
-        level_metadata: RegexLevelMetadata {
-            enterprise_count: 0,
-            user_count: 0,
-        },
-    }));
-}
+use crate::ai::blocklist::TextLocation;
+use crate::terminal::model::index::Point;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 /// A handle to a [`Secret`].
@@ -66,7 +38,7 @@ impl SecretHandle {
 #[derive(Clone, Debug)]
 pub struct RichContentSecretTooltipInfo {
     pub secret: String,
-    pub secret_range: SecretRange,
+    pub secret_range: StringRange,
     pub location: TextLocation,
     pub is_obfuscated: bool,
     pub position_id: String,
@@ -78,35 +50,6 @@ pub struct RichContentSecretTooltipInfo {
 pub enum IsObfuscated {
     Yes,
     No,
-}
-
-/// Represents the level/source of a secret redaction rule
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SecretLevel {
-    /// User-defined custom secret patterns
-    User,
-    /// Enterprise/organization-defined secret patterns
-    Enterprise,
-}
-
-impl SecretLevel {
-    /// Returns true if this is an enterprise level secret
-    pub fn is_enterprise(self) -> bool {
-        matches!(self, SecretLevel::Enterprise)
-    }
-
-    /// Returns true if this is a user level secret
-    pub fn is_user(self) -> bool {
-        matches!(self, SecretLevel::User)
-    }
-
-    /// Returns the priority of the secret level. Enterprise has highest priority.
-    pub fn priority(self) -> u8 {
-        match self {
-            SecretLevel::User => 0,
-            SecretLevel::Enterprise => 1,
-        }
-    }
 }
 
 /// Whether or not to respect obfuscated secrets when retrieving grid contents.
@@ -324,55 +267,6 @@ impl SecretMap {
     }
 }
 
-pub fn set_user_and_enterprise_secret_regexes<'a>(
-    user_secrets: impl IntoIterator<Item = &'a regex::Regex>,
-    enterprise_secrets: impl IntoIterator<Item = &'a regex::Regex>,
-) {
-    // Collect enterprise and user secrets into vectors to count them
-    let enterprise_secrets_vec: Vec<&'a regex::Regex> = enterprise_secrets.into_iter().collect();
-    let user_secrets_vec: Vec<&'a regex::Regex> = user_secrets.into_iter().collect();
-
-    // Dedup user regex entries against enterprise regexes to improve performance
-    let mut seen_patterns: std::collections::HashSet<&str> =
-        enterprise_secrets_vec.iter().map(|r| r.as_str()).collect();
-
-    let filtered_user_secrets_vec: Vec<&'a regex::Regex> = user_secrets_vec
-        .into_iter()
-        .filter(|r| seen_patterns.insert(r.as_str()))
-        .collect();
-
-    // Combine all secrets additively: enterprise first (highest priority), then filtered user
-    let all_secrets = enterprise_secrets_vec
-        .iter()
-        .map(|regex| regex.as_str())
-        .chain(filtered_user_secrets_vec.iter().map(|regex| regex.as_str()))
-        .collect_vec();
-
-    let dfas = match RegexDFAs::new_many(&all_secrets, true, true) {
-        Ok(dfas) => dfas,
-        Err(err) => {
-            log::error!("Failed to construct new RegexDFA with combined secrets: {err:?}");
-            return;
-        }
-    };
-    let secrets_regex = match regex_automata::meta::Regex::new_many(&all_secrets) {
-        Ok(regex) => SecretsRegex {
-            regex,
-            dfas,
-            level_metadata: RegexLevelMetadata {
-                enterprise_count: enterprise_secrets_vec.len(),
-                user_count: filtered_user_secrets_vec.len(),
-            },
-        },
-        Err(err) => {
-            log::error!("Failed to construct new Regex with combined secrets: {err:?}");
-            return;
-        }
-    };
-
-    *SECRETS_REGEX.lock() = Arc::new(secrets_regex);
-}
-
 /// A wrapper around a [`Point`] that implements [`StepLite`], allowing us to store it in a
 /// `RangeMap`. Used for secret redaction so we efficiently map from a given range to an underlying
 /// secret stored at that range.
@@ -425,87 +319,3 @@ impl StepLite for RangeMapPoint {
         }
     }
 }
-
-pub mod regexes {
-    /// Identifies an IPv4 address. Source: <https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp>.
-    pub const IPV4_ADDRESS: &str = r"\b((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}\b";
-
-    /// Identifies an IPv6 address. Source: <https://regex101.com/library/aL7tV3?orderBy=RELEVANCE&search=ip>
-    pub const IPV6_ADDRESS: &str =
-        r"\b((([0-9A-Fa-f]{1,4}:){1,6}:)|(([0-9A-Fa-f]{1,4}:){7}))([0-9A-Fa-f]{1,4})\b";
-
-    /// Identifies a phone number. Source: <https://stackoverflow.com/questions/16699007/regular-expression-to-match-standard-10-digit-phone-number>.
-    /// NOTE: This does not match 10 digit unformatted numbers (e.g. 1234567890) because it would trigger many false positive matches.
-    pub const PHONE_NUMBER: &str = r"\b(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b";
-
-    /// Identifies a MAC Address. Source: <https://stackoverflow.com/questions/4260467/what-is-a-regular-expression-for-a-mac-address>.
-    pub const MAC_ADDRESS: &str =
-        r"\b((([a-zA-z0-9]{2}[-:]){5}([a-zA-z0-9]{2}))|(([a-zA-z0-9]{2}:){5}([a-zA-z0-9]{2})))\b";
-
-    /// Identifies a Google API Key. Source: <https://github.com/odomojuli/RegExAPI>.
-    pub const GOOGLE_API_KEY: &str = r"\bAIza[0-9A-Za-z-_]{35}\b";
-
-    /// Identifies an OpenAI API Key.
-    /// Source: <https://platform.openai.com/account/api-keys>
-    pub const OPENAI_API_KEY: &str = r"\bsk-[a-zA-Z0-9]{48}\b";
-
-    /// Identifies an Anthropic API Key. Supports current and possible future formats,
-    /// such as sk-ant-api03-... with variable-length body including alphanumerics and hyphens.
-    /// Based on current observed format lengths (~96 chars), but allows 80–120 as buffer.
-    pub const ANTHROPIC_API_KEY: &str = r"\bsk-ant-api\d{0,2}-[a-zA-Z0-9\-]{80,120}\b";
-
-    /// Identifies a general `sk-` style API key (e.g., OpenAI, Anthropic).
-    /// Accepts a wide range of formats with alphanumeric and hyphen characters,
-    /// with a length buffer between 10–100 characters.
-    ///
-    /// Used in case providers update their API key format.
-    pub const GENERIC_SK_API_KEY: &str = r"\bsk-[a-zA-Z0-9\-]{10,100}\b";
-
-    /// Identifies a Fireworks API Key. Format: fw_ followed by 24 alphanumeric characters.
-    pub const FIREWORKS_API_KEY: &str = r"\bfw_[a-zA-Z0-9]{24}\b";
-
-    /// Identifies an AWS Access ID.
-    pub const AWS_ACCESS_ID: &str =
-        r"\b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{12,}\b";
-
-    /// The following identify github tokens. Source: <https://github.com/odomojuli/RegExAPI>
-    /// and source of `[A-Za-z0-9_]` character set is <https://github.blog/changelog/2021-03-31-authentication-token-format-updates-are-generally-available/>
-    pub const GITHUB_CLASSIC_PERSONAL_ACCESS_TOKEN: &str = r"\bghp_[A-Za-z0-9_]{36}\b";
-    pub const GITHUB_FINE_GRAINED_PERSONAL_ACCESS_TOKEN: &str = r"\bgithub_pat_[A-Za-z0-9_]{82}\b";
-    pub const GITHUB_OAUTH_ACCESS_TOKEN: &str = r"\bgho_[A-Za-z0-9_]{36}\b";
-    pub const GITHUB_USER_TO_SERVER_TOKEN: &str = r"\bghu_[A-Za-z0-9_]{36}\b";
-    pub const GITHUB_SERVER_TO_SERVER_TOKEN: &str = r"\bghs_[A-Za-z0-9_]{36}\b";
-
-    /// Identifies Stripe API Keys. Source: <https://github.com/l4yton/RegHex#stripe-api-key>
-    pub const STRIPE_KEY: &str = r"\b(?:r|s)k_(test|live)_[0-9a-zA-Z]{24}\b";
-
-    /// Identifies a JSON web token (JWT). Source: <https://en.wikipedia.org/wiki/JSON_Web_Token>
-    /// "ey" is the beginning of the patterns for the header and claims b/c that is:
-    /// echo -n '{"' | base64
-    /// We know those sections are JSON and should begin with '{"'.
-    pub const JWT: &str = r"\b(ey[a-zA-z0-9_\-=]{10,}\.){2}[a-zA-z0-9_\-=]{10,}\b";
-
-    pub const DEFAULT_REGEXES: &[&str] = &[
-        IPV4_ADDRESS,
-        IPV6_ADDRESS,
-        PHONE_NUMBER,
-        MAC_ADDRESS,
-        GOOGLE_API_KEY,
-        AWS_ACCESS_ID,
-        GITHUB_CLASSIC_PERSONAL_ACCESS_TOKEN,
-        GITHUB_FINE_GRAINED_PERSONAL_ACCESS_TOKEN,
-        GITHUB_OAUTH_ACCESS_TOKEN,
-        GITHUB_USER_TO_SERVER_TOKEN,
-        GITHUB_SERVER_TO_SERVER_TOKEN,
-        STRIPE_KEY,
-        JWT,
-        OPENAI_API_KEY,
-        ANTHROPIC_API_KEY,
-        GENERIC_SK_API_KEY,
-        FIREWORKS_API_KEY,
-    ];
-}
-
-#[cfg(test)]
-#[path = "secrets_test.rs"]
-mod tests;

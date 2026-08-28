@@ -132,6 +132,8 @@ rand.workspace = true
 rangemap.workspace = true
 rayon.workspace = true
 regex-automata = "0.4.6"
+regex_dfas.workspace = true
+secret_redaction.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 rust-embed.workspace = true
@@ -329,6 +331,7 @@ default = [
     "async_find",
     "classic_completions",
     "force_classic_completions",
+    "native_shell_completions",
     "pluggable_notifications",
     "global_search",
     "inline_slash_commands",
@@ -457,6 +460,7 @@ ui_zoom = []
 global_search = []
 classic_completions = []
 force_classic_completions = []
+native_shell_completions = []
 inline_history_menu = []
 new_tab_styling = []
 incremental_auto_reload = []

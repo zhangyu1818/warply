@@ -2,8 +2,8 @@ use super::{Highlight, ListNumbering, Selection};
 use crate::Event;
 use crate::elements::{
     ClickableCharRange, CornerRadius, Fill, HighlightedRange, HoverableCharRange, MouseStateHandle,
-    PartialClickableElement, Radius, SELECTED_HIGHLIGHT_COLOR, SecretRange, SelectableElement,
-    SelectionFragment, SmartSelectFn, ZIndex,
+    PartialClickableElement, Radius, SELECTED_HIGHLIGHT_COLOR, SelectableElement,
+    SelectionFragment, SmartSelectFn, StringRange, ZIndex,
 };
 use crate::event::ModifiersState;
 use crate::fonts::Weight;
@@ -1456,7 +1456,7 @@ pub struct FrameMouseHandlers {
     hover_handlers: Vec<HoverableCharRange>,
     glyph_offset: CharOffset,
     byte_offset: ByteOffset,
-    secret_replacement: Vec<(SecretRange, Cow<'static, str>)>,
+    secret_replacement: Vec<(StringRange, Cow<'static, str>)>,
     styles: Vec<HighlightedRange>,
 }
 
@@ -1523,7 +1523,7 @@ impl PartialClickableElement for FrameMouseHandlers {
         self
     }
 
-    fn replace_text_range(&mut self, range: SecretRange, replacement: Cow<'static, str>) {
+    fn replace_text_range(&mut self, range: StringRange, replacement: Cow<'static, str>) {
         self.secret_replacement.push((range, replacement));
     }
 }
@@ -1533,7 +1533,7 @@ impl PartialClickableElement for FrameMouseHandlers {
 fn apply_secret_replacements(
     text: &mut String,
     glyph_offset: usize,
-    secret_replacements: &[(SecretRange, Cow<'static, str>)],
+    secret_replacements: &[(StringRange, Cow<'static, str>)],
 ) {
     let mut replacements = secret_replacements.to_vec();
     replacements.sort_by_key(|(range, _)| Reverse(range.char_range.start));
