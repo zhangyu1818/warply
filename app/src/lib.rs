@@ -1486,6 +1486,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ClassicCompletions,
         #[cfg(feature = "force_classic_completions")]
         FeatureFlag::ForceClassicCompletions,
+        #[cfg(feature = "native_shell_completions")]
+        FeatureFlag::NativeShellCompletions,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]
