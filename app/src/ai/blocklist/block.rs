@@ -87,9 +87,9 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use string_offset::StringRange;
 use warp_util::path::ShellFamily;
 use warp_util::standardized_path::StandardizedPath;
-use warpui::elements::SecretRange;
 
 use crate::util::link_detection::*;
 use chrono::{DateTime, Local};
@@ -3587,7 +3587,7 @@ impl AIBlock {
     fn show_secret_tooltip(
         &mut self,
         location: &TextLocation,
-        secret_range: &SecretRange,
+        secret_range: &StringRange,
         ctx: &mut ViewContext<Self>,
     ) {
         if let Some(hoverable_secret) = self
@@ -3611,7 +3611,7 @@ impl AIBlock {
     pub fn set_secret_redaction_state(
         &mut self,
         location: &TextLocation,
-        secret_range: &SecretRange,
+        secret_range: &StringRange,
         is_obfuscated: bool,
     ) {
         self.secret_redaction_state
@@ -4417,7 +4417,7 @@ pub enum AIBlockAction {
         location: TextLocation,
     },
     ChangedHoverOnSecret {
-        secret_range: SecretRange,
+        secret_range: StringRange,
         location: TextLocation,
         is_hovering: bool,
     },
@@ -4426,7 +4426,7 @@ pub enum AIBlockAction {
         location: TextLocation,
     },
     OpenSecretTooltip {
-        secret_range: SecretRange,
+        secret_range: StringRange,
         location: TextLocation,
     },
     OpenCitation(AIAgentCitation),
