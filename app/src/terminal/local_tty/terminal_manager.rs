@@ -1,7 +1,7 @@
 use crate::identity::LocalIdentityProvider;
 use crate::identity::local_identity::LocalIdentity;
 use crate::terminal::TerminalManager as _;
-use crate::terminal::model::terminal_model::ExitReason;
+use crate::terminal::model::terminal_model::{ExitReason, ShellProcessInfo};
 use crate::terminal::shell::ShellName;
 use crate::terminal::warpify::settings::WarpifySettings;
 use anyhow::Context as _;
@@ -36,7 +36,6 @@ use crate::persistence::ModelEvent;
 
 use crate::settings::DebugSettings;
 use crate::terminal::model::session::Sessions;
-
 use crate::terminal::model_events::ModelEventDispatcher;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::Event as TerminalViewEvent;
@@ -482,9 +481,13 @@ impl TerminalManager {
             }
         };
 
-        #[cfg(feature = "integration_tests")]
         let pid = pty.get_pid();
         let fd = pty.get_fd();
+
+        model.lock().set_shell_process_info(ShellProcessInfo {
+            pid,
+            pty_leader_fd: Some(fd),
+        });
 
         // Create the channel above and pass the receving side to the event loop.
         let event_loop_handle = Self::start_pty_event_loop(
