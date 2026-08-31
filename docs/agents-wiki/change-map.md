@@ -698,6 +698,17 @@ The crate carries upstream's newer default-pattern catalog (`WARP_API_KEY`, `FIR
 - Two new Terminal Input settings (`warp_completions_enabled`, `native_shell_completions_enabled`) resolve to the `CompletionSources` dispatch in `app/src/terminal/input.rs`; both default on (specs first, shell asked when specs are empty).
 - The old `ForceNativeShellCompletions` private user pref and `supports_native_shell_completions`/`ShellData::Raw`/`SendCompletionsPrompt` (9280;P) machinery are gone end to end.
 
+## 2026-08-31 LRC Liveness Signals (Retained Feature)
+
+`76cfd2c17` attaches local process-tree liveness evidence to long-running command snapshots (see `upstream-master-audit-2026-08-31.md` for the port details). Fork-relevant map:
+
+- `app/src/ai/blocklist/action_model/execute/lrc_activity.rs` (+ `sampler.rs`, tests) is the upstream monitor: 5-second sampling of CPU delta, I/O write delta, live-process count, and aggregate state for the command's process tree, narrowed by the pty foreground process group. `ShellProcessInfo` on `TerminalModel` carries the shell pid and pty leader fd; the fork dropped the wasm `cfg_if` sampler branch, the `#[cfg(not(unix))]` fallbacks, and the `#[cfg(unix)]` attributes per the macOS-only host policy.
+- The `activity: Option<LrcActivity>` field lives on the four snapshot variants of the local serde result types in `crates/ai/src/agent/action_result/mod.rs`; persisted old conversations deserialize it as `None` (serde `Option` default).
+- `FeatureFlag::LrcActivitySignal` is enabled via the `lrc_activity_signal` cargo feature in `app/Cargo.toml` `default` (fork's retained-feature pattern; upstream uses DOGFOOD_FLAGS).
+- Provider boundary: upstream serializes activity to the Warp server over proto (`action_result/convert.rs`, absent here). The fork renders it through the four snapshot `Display` arms plus `impl Display for LrcActivity`, which is the text that flows into the ACP follow-up prompt (`send_follow_up_for_conversation` → `acp_prompt_from_request`) — the local judging agent's channel. Do not remove the `Display` rendering when touching these result types, or the sampler data has no live reader.
+- Remote (`WarpifiedRemote`) sessions report no activity: `begin_monitoring` gates on `SessionType::Local`.
+- Upstream's proto re-pin, server-API conversion files, and the `uint32`→`uint64` token-counter widening were not ported — all anchors are fork-absent (removed server streaming path; the fork's persisted/displayed counters are already `u32` with no proto boundary).
+
 ## Required Audit Queries
 
 Before finishing a major upstream merge, run:
