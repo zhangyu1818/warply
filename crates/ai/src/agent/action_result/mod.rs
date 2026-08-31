@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Range, time::SystemTime};
+use std::{fmt::Display, ops::Range, time::Duration, time::SystemTime};
 
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
@@ -114,6 +114,90 @@ impl Display for AIAgentActionResultType {
     }
 }
 
+/// Evidence, collected by the client while an agent monitors a long-running
+/// command, that the command is still doing work.
+///
+/// A command that redirects its output to a file, suppresses it entirely, or
+/// computes silently is indistinguishable from a hung one when judged from the
+/// terminal grid alone. Process-tree activity gives the agent something to look
+/// at besides the grid before deciding to cancel.
+///
+/// Best-effort: built only when the sampler actually took a reading, so every
+/// value carried here is a real measurement, including zeros. When nothing was
+/// collected, no `LrcActivity` exists at all — there is no in-band "signals
+/// unavailable" marker.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Eq, PartialEq)]
+pub struct LrcActivity {
+    /// Time since the process tree last showed activity — CPU accrual, I/O
+    /// writes, or a change in the set of live processes.
+    ///
+    /// This is derived from a fixed-rate sampler rather than from the interval
+    /// between agent polls, so it stays accurate no matter how far apart the
+    /// agent's reads are.
+    pub since_last_activity: Option<Duration>,
+
+    /// Present whenever the process tree was actually inspected, including when
+    /// every reading in it is zero: an exited tree is a real answer. Optional
+    /// only for restoring conversations recorded by other client versions;
+    /// reports built by this client always populate it.
+    pub process: Option<LrcProcessActivity>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Eq, PartialEq)]
+pub struct LrcProcessActivity {
+    /// CPU time consumed across the command's process tree since the previous
+    /// snapshot.
+    pub cpu_time_delta: Duration,
+
+    /// Coarse aggregate state of the process tree.
+    pub state: LrcProcessState,
+
+    pub live_process_count: u32,
+
+    /// Bytes written by the process tree since the previous snapshot, where the
+    /// OS reports it.
+    pub io_write_bytes_delta: u64,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Eq, PartialEq)]
+pub enum LrcProcessState {
+    Running,
+    Sleeping,
+    /// Blocked in uninterruptible I/O, which is real progress rather than a hang.
+    DiskWait,
+    Stopped,
+    Zombie,
+    #[default]
+    Unknown,
+}
+
+impl Display for LrcActivity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(since_last_activity) = self.since_last_activity {
+            write!(f, "last activity {since_last_activity:.1?} ago")?;
+            if self.process.is_some() {
+                write!(f, ", ")?;
+            }
+        }
+        if let Some(process) = &self.process {
+            write!(
+                f,
+                "{} live process{} ({:?}), {:.1?} CPU time and {} bytes written since the previous report",
+                process.live_process_count,
+                if process.live_process_count == 1 {
+                    ""
+                } else {
+                    "es"
+                },
+                process.state,
+                process.cpu_time_delta,
+                process.io_write_bytes_delta
+            )?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RequestCommandOutputResult {
     Completed {
@@ -128,6 +212,7 @@ pub enum RequestCommandOutputResult {
         grid_contents: String,
         cursor: String,
         is_alt_screen_active: bool,
+        activity: Option<LrcActivity>,
     },
     /// A running command canceled via ctrl-c
     /// would have Completed result with exit code 130.
@@ -171,8 +256,14 @@ impl Display for RequestCommandOutputResult {
                     output
                 )
             }
-            RequestCommandOutputResult::LongRunningCommandSnapshot { command, .. } => {
-                write!(f, "Command '{command}' is long-running")
+            RequestCommandOutputResult::LongRunningCommandSnapshot {
+                command, activity, ..
+            } => {
+                write!(f, "Command '{command}' is long-running")?;
+                if let Some(activity) = activity {
+                    write!(f, " ({activity})")?;
+                }
+                Ok(())
             }
             RequestCommandOutputResult::CancelledBeforeExecution => {
                 write!(f, "Command output cancelled")
@@ -197,6 +288,7 @@ pub enum WriteToLongRunningShellCommandResult {
         cursor: String,
         is_alt_screen_active: bool,
         is_preempted: bool,
+        activity: Option<LrcActivity>,
     },
     CommandFinished {
         block_id: BlockId,
@@ -210,8 +302,12 @@ pub enum WriteToLongRunningShellCommandResult {
 impl Display for WriteToLongRunningShellCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Snapshot { .. } => {
-                write!(f, "Sent snapshot of long-running shell command to agent")
+            Self::Snapshot { activity, .. } => {
+                write!(f, "Sent snapshot of long-running shell command to agent")?;
+                if let Some(activity) = activity {
+                    write!(f, " ({activity})")?;
+                }
+                Ok(())
             }
             Self::CommandFinished {
                 output, exit_code, ..
@@ -445,6 +541,7 @@ pub enum ReadShellCommandOutputResult {
         cursor: String,
         is_alt_screen_active: bool,
         is_preempted: bool,
+        activity: Option<LrcActivity>,
     },
     Cancelled,
     Error(ShellCommandError),
@@ -462,8 +559,12 @@ impl Display for ReadShellCommandOutputResult {
                     exit_code.value()
                 )
             }
-            ReadShellCommandOutputResult::LongRunningCommandSnapshot { .. } => {
-                write!(f, "Sent snapshot of long-running shell command to agent")
+            ReadShellCommandOutputResult::LongRunningCommandSnapshot { activity, .. } => {
+                write!(f, "Sent snapshot of long-running shell command to agent")?;
+                if let Some(activity) = activity {
+                    write!(f, " ({activity})")?;
+                }
+                Ok(())
             }
             ReadShellCommandOutputResult::Cancelled => {
                 write!(f, "Read shell command output cancelled")
@@ -890,6 +991,7 @@ pub enum TransferShellCommandControlToUserResult {
         cursor: String,
         is_alt_screen_active: bool,
         is_preempted: bool,
+        activity: Option<LrcActivity>,
     },
     CommandFinished {
         block_id: BlockId,
@@ -903,8 +1005,12 @@ pub enum TransferShellCommandControlToUserResult {
 impl Display for TransferShellCommandControlToUserResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Snapshot { .. } => {
-                write!(f, "Transferred control to user, sent snapshot")
+            Self::Snapshot { activity, .. } => {
+                write!(f, "Transferred control to user, sent snapshot")?;
+                if let Some(activity) = activity {
+                    write!(f, " ({activity})")?;
+                }
+                Ok(())
             }
             Self::CommandFinished {
                 output, exit_code, ..

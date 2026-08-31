@@ -332,6 +332,7 @@ default = [
     "classic_completions",
     "force_classic_completions",
     "native_shell_completions",
+    "lrc_activity_signal",
     "pluggable_notifications",
     "global_search",
     "inline_slash_commands",
@@ -461,6 +462,7 @@ global_search = []
 classic_completions = []
 force_classic_completions = []
 native_shell_completions = []
+lrc_activity_signal = []
 inline_history_menu = []
 new_tab_styling = []
 incremental_auto_reload = []
