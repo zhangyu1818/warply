@@ -35,7 +35,7 @@ use crate::{
     notebooks::{
         editor::{model::NotebooksEditorModel, rich_text_styles},
         link::{NotebookLinks, SessionSource},
-        post_process_notebook, styles,
+        styles,
     },
     pane_group::{
         BackingView, PaneConfiguration, PaneEvent,
@@ -408,8 +408,7 @@ impl FileNotebookView {
                     }
                     match event {
                         FileModelEvent::FileLoaded { content, .. } => {
-                            let cleaned = post_process_notebook(content);
-                            me.set_content(&cleaned, ctx);
+                            me.set_content(content, ctx);
 
                             if let Some(canonical_path) = file_model.as_ref(ctx).file_path(file_id)
                             {
@@ -437,8 +436,7 @@ impl FileNotebookView {
                             ctx.notify();
                         }
                         FileModelEvent::FileUpdated { content, .. } => {
-                            let cleaned = post_process_notebook(content);
-                            me.set_content(&cleaned, ctx);
+                            me.set_content(content, ctx);
                         }
                         FileModelEvent::FileSaved { .. } | FileModelEvent::FailedToSave { .. } => {}
                     }
