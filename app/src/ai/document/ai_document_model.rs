@@ -23,12 +23,9 @@ use crate::{
         execution_profiles::profiles::AIExecutionProfilesModel,
     },
     appearance::Appearance,
-    notebooks::{
-        editor::{
-            model::{FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent},
-            rich_text_styles,
-        },
-        post_process_notebook,
+    notebooks::editor::{
+        model::{FileLinkResolutionContext, NotebooksEditorModel, RichTextEditorModelEvent},
+        rich_text_styles,
     },
     settings::FontSettings,
     terminal::{
@@ -123,6 +120,15 @@ pub enum AIDocumentUpdateSource {
     Restoration,
 }
 
+/// Whether a document's editor lays its content out up front or on first render.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayoutTiming {
+    /// Lay out whenever the content changes.
+    Eager,
+    /// Defer layout to the first render, so content that is never opened is never font-shaped.
+    Lazy,
+}
+
 #[derive(Debug, Clone)]
 pub struct AIDocumentModel {
     documents: HashMap<AIDocumentId, AIDocument>,
@@ -189,6 +195,7 @@ impl AIDocumentModel {
             conversation_id,
             file_link_resolution_context,
             Local::now(),
+            LayoutTiming::Eager,
             ctx,
         );
         id
@@ -203,9 +210,11 @@ impl AIDocumentModel {
         conversation_id: AIConversationId,
         file_link_resolution_context: Option<FileLinkResolutionContext>,
         created_at: DateTime<Local>,
+        layout_timing: LayoutTiming,
         ctx: &mut ModelContext<Self>,
     ) {
-        let editor = Self::create_editor_model(content, file_link_resolution_context, ctx);
+        let editor =
+            Self::create_editor_model(content, file_link_resolution_context, layout_timing, ctx);
 
         // Subscribe to editor content changes
         ctx.subscribe_to_model(&editor, move |me, event, ctx| {
@@ -243,6 +252,8 @@ impl AIDocumentModel {
     ///
     /// This is keyed by (conversation_id, action_id, document_index) so that streaming updates
     /// for the same tool call map to the same document.
+    ///
+    /// `will_auto_open` is true when the caller is about to open this document's pane.
     pub fn get_or_create_streaming_document_for_create_documents(
         &mut self,
         conversation_id: AIConversationId,
@@ -251,6 +262,7 @@ impl AIDocumentModel {
         title: impl Into<String>,
         initial_content: impl Into<String>,
         file_link_resolution_context: Option<FileLinkResolutionContext>,
+        will_auto_open: bool,
         ctx: &mut ModelContext<Self>,
     ) -> (AIDocumentId, bool) {
         let key = (conversation_id, action_id.clone(), document_index);
@@ -267,6 +279,12 @@ impl AIDocumentModel {
             conversation_id,
             file_link_resolution_context,
             Local::now(),
+            // The caller auto-opens only the first newly created streaming document.
+            if will_auto_open {
+                LayoutTiming::Eager
+            } else {
+                LayoutTiming::Lazy
+            },
             ctx,
         );
         self.streaming_create_documents.insert(key, id);
@@ -291,7 +309,7 @@ impl AIDocumentModel {
         doc.title = new_title.to_owned();
         let editor_handle = doc.editor.clone();
         editor_handle.update(ctx, |editor, editor_ctx| {
-            editor.update_to_new_markdown(&post_process_notebook(new_content), editor_ctx);
+            editor.update_to_new_markdown(new_content, editor_ctx);
         });
 
         ctx.emit(AIDocumentModelEvent::DocumentUpdated {
@@ -516,6 +534,8 @@ impl AIDocumentModel {
                 AIConversationId::new(),
                 None,
                 Local::now(),
+                // Restored plans are often never opened; skip font shaping until first display.
+                LayoutTiming::Lazy,
                 ctx,
             );
             return;
@@ -533,8 +553,7 @@ impl AIDocumentModel {
             "Applying persisted SQLite content for document {id} (content differs from conversation restoration)"
         );
         doc.editor.update(ctx, |editor, editor_ctx| {
-            let processed = post_process_notebook(persisted_content);
-            editor.reset_with_markdown(&processed, editor_ctx);
+            editor.reset_with_markdown(persisted_content, editor_ctx);
         });
 
         // Mark as dirty so the updated plan is attached to the next agent query
@@ -573,6 +592,7 @@ impl AIDocumentModel {
     fn create_editor_model(
         content: impl Into<String>,
         file_link_resolution_context: Option<FileLinkResolutionContext>,
+        layout_timing: LayoutTiming,
         ctx: &mut ModelContext<Self>,
     ) -> ModelHandle<NotebooksEditorModel> {
         ctx.add_model(|ctx| {
@@ -582,14 +602,15 @@ impl AIDocumentModel {
             // Use the same rich text styles as notebooks for consistency
             let styles = rich_text_styles(appearance, font_settings);
 
-            let mut model = NotebooksEditorModel::new_unbound(styles, ctx);
+            let mut model = match layout_timing {
+                LayoutTiming::Eager => NotebooksEditorModel::new_unbound(styles, ctx),
+                LayoutTiming::Lazy => NotebooksEditorModel::new_unbound_lazy(styles, ctx),
+            };
             model.set_file_link_resolution_context(file_link_resolution_context);
 
             let content = content.into();
             if !content.is_empty() {
-                // Post-process the content to remove extra newlines
-                let processed_content = post_process_notebook(&content);
-                model.reset_with_markdown(&processed_content, ctx);
+                model.reset_with_markdown(&content, ctx);
             }
             model
         })
@@ -611,9 +632,11 @@ impl AIDocumentModel {
             .as_ref(ctx)
             .file_link_resolution_context()
             .cloned();
+        // Archived revisions are reachable only through version history, and are rarely opened.
         let editor = Self::create_editor_model(
             doc.editor.as_ref(ctx).markdown_unescaped(ctx),
             file_link_resolution_context,
+            LayoutTiming::Lazy,
             ctx,
         );
 
@@ -680,6 +703,8 @@ impl AIDocumentModel {
             conversation_id,
             None,
             created_at,
+            // Conversation restore replays every revision, including ones never opened.
+            LayoutTiming::Lazy,
             ctx,
         );
     }
@@ -697,8 +722,7 @@ impl AIDocumentModel {
         if let Some(doc) = self.create_new_document_version(id, ctx) {
             let content = new_content.into();
             doc.editor.update(ctx, |editor, editor_ctx| {
-                let processed_content = post_process_notebook(&content);
-                editor.reset_with_markdown(&processed_content, editor_ctx);
+                editor.reset_with_markdown(&content, editor_ctx);
             });
             doc.created_at = created_at;
             ctx.emit(AIDocumentModelEvent::DocumentUpdated {
