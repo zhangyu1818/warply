@@ -6,6 +6,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
+use thiserror::Error;
 
 use crate::{AppContext, EntityId, WindowId, core::RefCounts};
 
@@ -89,6 +90,18 @@ impl<T: View> ViewHandle<T> {
         F: FnOnce(&mut T, &mut ViewContext<T>) -> S,
     {
         app.update_view(self, update)
+    }
+
+    /// A [`ViewHandle`] keeps the view's ref count alive but does not keep its window open, so any
+    /// update that can outlive its window — typically one driven by a spawned task that resolves
+    /// after the user closed the window — would otherwise panic. Only the checkout is fallible; the
+    /// `update` closure is free to panic on its own terms.
+    pub fn try_update<A, F, S>(&self, app: &mut A, update: F) -> Result<S, ViewUpdateError>
+    where
+        A: UpdateView,
+        F: FnOnce(&mut T, &mut ViewContext<T>) -> S,
+    {
+        app.try_update_view(self, update)
     }
 
     pub fn is_focused(&self, app: &AppContext) -> bool {
@@ -310,8 +323,34 @@ pub trait ReadView: ViewAsRef {
         F: FnOnce(&T, &AppContext) -> S;
 }
 
+/// Why a view could not be checked out for an update.
+///
+/// [`UpdateView::update_view`] panics in both of these cases. [`ViewHandle::try_update`] reports
+/// them instead, so callers can tell an expected teardown race apart from a genuine reentrancy
+/// bug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum ViewUpdateError {
+    /// The view's window has been closed, so the view is no longer registered. Expected whenever
+    /// queued work outlives the window it targets.
+    #[error("the view's window no longer exists")]
+    WindowClosed,
+    /// The view is already checked out by an update further up the stack, so updating it again
+    /// would be a circular update.
+    #[error("the view is already being updated")]
+    CircularUpdate,
+}
+
 pub trait UpdateView: ReadView {
     fn update_view<T, F, S>(&mut self, handle: &ViewHandle<T>, update: F) -> S
+    where
+        T: View,
+        F: FnOnce(&mut T, &mut ViewContext<T>) -> S;
+
+    fn try_update_view<T, F, S>(
+        &mut self,
+        handle: &ViewHandle<T>,
+        update: F,
+    ) -> Result<S, ViewUpdateError>
     where
         T: View,
         F: FnOnce(&mut T, &mut ViewContext<T>) -> S;
