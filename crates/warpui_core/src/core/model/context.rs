@@ -1,7 +1,8 @@
 use std::{any::Any, future::Future, marker::PhantomData, sync::Arc};
 
 use crate::{
-    ReadModel, ReadView, UpdateView, View, ViewAsRef, ViewContext, ViewHandle, WeakModelHandle,
+    ReadModel, ReadView, UpdateView, View, ViewAsRef, ViewContext, ViewHandle, ViewUpdateError,
+    WeakModelHandle,
     r#async::{BoxFuture, SpawnableOutput, Timer},
     windowing::WindowManager,
 };
@@ -600,6 +601,18 @@ impl<M> UpdateView for ModelContext<'_, M> {
         F: FnOnce(&mut T, &mut ViewContext<T>) -> S,
     {
         self.app.update_view(handle, update)
+    }
+
+    fn try_update_view<T, F, S>(
+        &mut self,
+        handle: &ViewHandle<T>,
+        update: F,
+    ) -> Result<S, ViewUpdateError>
+    where
+        T: View,
+        F: FnOnce(&mut T, &mut ViewContext<T>) -> S,
+    {
+        self.app.try_update_view(handle, update)
     }
 }
 
