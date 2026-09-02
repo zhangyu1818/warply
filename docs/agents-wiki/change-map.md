@@ -709,6 +709,18 @@ The crate carries upstream's newer default-pattern catalog (`WARP_API_KEY`, `FIR
 - Remote (`WarpifiedRemote`) sessions report no activity: `begin_monitoring` gates on `SessionType::Local`.
 - Upstream's proto re-pin, server-API conversion files, and the `uint32`→`uint64` token-counter widening were not ported — all anchors are fork-absent (removed server streaming path; the fork's persisted/displayed counters are already `u32` with no proto boundary).
 
+## 2026-09-02 Upstream Sync Batch
+
+- Ported `92a98662f` (empty streamed Agent document update crash) verbatim into `crates/editor`: `Buffer::ensure_plain_text` inserts the plain-text marker for empty buffers, with the markdown round-trip regression test.
+- Ported `83e270f1d` (em_width panic when a glyph has no bounding box): `Cache::em_width` falls back to glyph advance then `font_size.max(1.0)`; test mock adapted by dropping wasm-cfg attributes.
+- Ported `97037ec83` (`ViewHandle::try_update`): warpui_core now reports `ViewUpdateError::{WindowClosed, CircularUpdate}` instead of panicking on failed view checkout. Fork shape: `Box<dyn AnyView>` checkout, `T: View` bounds, no warp_errors/Sentry plumbing, `simulate_window_closed` test-util helper. Upstream's agent_sdk shared-session usage site is not taken.
+- Ported `712baa4cf` (Thought dropdowns selectable/copyable): collapsible reasoning sections pass `selectable: true`, and `EventHandler` forwards the `SelectableElement` interface to its child. The `SelectableArea` z-index gate hunks from upstream #10433 (`da3b560654`) were never ported and remain absent; do not port the `child_max_z_index` fix without first deciding on #10433's gate.
+- Ported `e47c7ae9c` (assert_eventually) into `pane_group/mod_tests.rs`, `async_find_tests.rs`, and `input_test.rs`; upstream's cloud-sync test files have no fork equivalents.
+- Removed the four remaining orphaned cargo features (`quake_mode`, `rich_history`, `system_theme`, `toggle_bootstrap_block`) per `ccf683193`; runtime quake-mode/system-theme code is unchanged.
+- `script/macos/bootstrap` installs protobuf via Homebrew (`2e645f916`): the retained `app`/`remote_server` prost-build protos need `protoc`.
+- Fixed the baseline-broken `test_focused_pane_is_synchronized_with_application_focus`: focus changes flow through the terminal pane event subscription (one queue tick after the focus effect), so the test polls with effect-flushing updates instead of upstream's synchronous `PaneGroupAction::HandleFocusChange` dispatch timing. Do not "fix" this by restoring the typed-action dispatch from child focus paths (no `PaneGroup` responder guarantee).
+- Rejected `09127d8be` (REMOTE-2661 setup-failure debug agent; GraphQL/ambient/shared-session), `db6ab7305` (app-managed MCP 401s), and `83387d2ed` (winit X11 pin; no winit dependency); `09f0c2bf7` (Windows LRC) is subsumed by the fork's platform-gate-free adaptation.
+
 ## Required Audit Queries
 
 Before finishing a major upstream merge, run:

@@ -56,6 +56,7 @@ use warpui::text::SelectionType;
 
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::Event as TerminalViewEvent;
+use crate::test_util::assert_eventually;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::{ActiveSession, ToastStack, WorkspaceRegistry};
@@ -2278,22 +2279,6 @@ fn native_completions_after_empty_specs_bails_when_stale() {
     });
 }
 
-/// Yields until `condition` holds, then returns; panics if it never holds. The bound is an attempt
-/// count rather than a wall-clock deadline, so the wait cannot hang and does not depend on the test
-/// clock advancing with `Instant::now()`.
-async fn poll_until(app: &mut App, awaited: &str, mut condition: impl FnMut(&mut App) -> bool) {
-    const POLL_ATTEMPTS: usize = 600;
-    const POLL_INTERVAL: Duration = Duration::from_millis(5);
-
-    for _ in 0..POLL_ATTEMPTS {
-        if condition(app) {
-            return;
-        }
-        warpui::r#async::Timer::after(POLL_INTERVAL).await;
-    }
-    panic!("gave up after {POLL_ATTEMPTS} attempts waiting for {awaited}");
-}
-
 fn count_native_shell_completions_dispatches(
     app: &mut App,
     terminal: &ViewHandle<TerminalView>,
@@ -2334,16 +2319,12 @@ fn input_tab_does_not_ask_the_shell_when_bundled_specs_are_non_empty() {
             input.input_tab(ctx);
         });
 
-        poll_until(
-            &mut app,
-            "the bundled-spec completions menu to open",
-            |app| {
-                input.read(app, |input, ctx| {
-                    input.suggestions_mode_model.as_ref(ctx).is_visible()
-                })
-            },
-        )
-        .await;
+        assert_eventually!(
+            600 => input.read(&app, |input, ctx| {
+                input.suggestions_mode_model.as_ref(ctx).is_visible()
+            }),
+            "gave up after 600 attempts waiting for the bundled-spec completions menu to open"
+        );
 
         assert_eq!(
             *dispatch_count.borrow(),
@@ -2377,11 +2358,10 @@ fn input_tab_asks_the_shell_once_when_bundled_specs_are_empty() {
             input.input_tab(ctx);
         });
 
-        let dispatched = dispatch_count.clone();
-        poll_until(&mut app, "the shell to be asked", move |_| {
-            *dispatched.borrow() == 1
-        })
-        .await;
+        assert_eventually!(
+            600 => *dispatch_count.borrow() == 1,
+            "gave up after 600 attempts waiting for the shell to be asked"
+        );
 
         assert_eq!(
             *dispatch_count.borrow(),

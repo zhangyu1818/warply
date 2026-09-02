@@ -40,6 +40,7 @@ use watcher::HomeDirectoryWatcher;
 
 use super::*;
 use crate::terminal::resizable_data::ResizableData;
+use crate::test_util::assert_eventually;
 use ai::project_context::model::ProjectContextModel;
 use pathfinder_geometry::rect::RectF;
 use warpui::windowing::{WindowManager, state::ApplicationStage};
@@ -903,25 +904,23 @@ fn test_pane_focus_does_not_have_an_infinite_event_loop() {
         // An active and long-running block causes focus to move to the
         // terminal instead of the input, so we need to wait until we've
         // finished bootstrapping to ensure no such block will exist.
-        loop {
-            let mut all_terminals_bootstrapped = true;
-            pane_group.update(&mut app, |pane_group, ctx| {
-                pane_group.for_all_terminal_panes(|terminal_view, _ctx| {
-                    let model = terminal_view.model.lock();
-                    let active_block = model.block_list().active_block();
-                    if active_block.bootstrap_stage() != crate::terminal::model::bootstrap::BootstrapStage::PostBootstrapPrecmd ||
-                        active_block.is_active_and_long_running() {
-                        all_terminals_bootstrapped = false;
-                    }
-                }, ctx);
-            });
-            if all_terminals_bootstrapped {
-                break;
-            }
-            // Return control back to the executor briefly so we can make
-            // progress.
-            futures_lite::future::yield_now().await;
-        }
+        assert_eventually!(
+            2000 => {
+                let mut all_terminals_bootstrapped = true;
+                pane_group.update(&mut app, |pane_group, ctx| {
+                    pane_group.for_all_terminal_panes(|terminal_view, _ctx| {
+                        let model = terminal_view.model.lock();
+                        let active_block = model.block_list().active_block();
+                        if active_block.bootstrap_stage() != crate::terminal::model::bootstrap::BootstrapStage::PostBootstrapPrecmd ||
+                            active_block.is_active_and_long_running() {
+                            all_terminals_bootstrapped = false;
+                        }
+                    }, ctx);
+                });
+                all_terminals_bootstrapped
+            },
+            "timed out after ~10s waiting for terminals to finish bootstrapping"
+        );
 
         pane_group.update(&mut app, |pane_group, ctx| {
             // Switch panes twice in quick succession.  We want to make
@@ -933,68 +932,18 @@ fn test_pane_focus_does_not_have_an_infinite_event_loop() {
     });
 }
 
-/// A view to help us react to focus changes and know that they were processed
-/// synchronously, not asynchronously (via an Effect::Event).
-struct FocusDetectionView {
-    pane_group: ViewHandle<PaneGroup>,
-    new_focused_pane_id: Option<PaneId>,
-}
-
-impl FocusDetectionView {
-    fn new(pane_group: ViewHandle<PaneGroup>, ctx: &mut ViewContext<Self>) -> Self {
-        ctx.subscribe_to_view(&pane_group, |me, pane_group, event, ctx| {
-            let Event::OpenPromptEditor = event else {
-                return;
-            };
-            // This event is enqueued by us after the `Focus` effect, and so
-            // by the time we receive it, application focus will have been
-            // moved to the second pane, and (crucially) the pane group should
-            // have updated its internal state accordingly (which is what we're
-            // asserting here).
-
-            let new_focused_pane_id = me
-                .new_focused_pane_id
-                .expect("should have set this already");
-            pane_group.read(ctx, |pane_group, ctx| {
-                assert_eq!(pane_group.focused_pane_id(ctx), new_focused_pane_id);
-                assert_eq!(
-                    pane_group.active_session_id(ctx),
-                    new_focused_pane_id.as_terminal_pane_id()
-                );
-            });
-        });
-        Self {
-            pane_group,
-            new_focused_pane_id: None,
-        }
-    }
-}
-
-impl Entity for FocusDetectionView {
-    type Event = ();
-}
-
-impl View for FocusDetectionView {
-    fn ui_name() -> &'static str {
-        "FocusDetectionView"
-    }
-
-    fn render(&self, _app: &AppContext) -> Box<dyn Element> {
-        ChildView::new(&self.pane_group).finish()
-    }
-}
-
-impl TypedActionView for FocusDetectionView {
-    type Action = ();
-}
-
 /// This test ensures that a change in application focus causes the pane group
-/// focused pane to update synchronously, without needing to wait for effect
-/// flushing to occur.
+/// focused pane to update, preventing situations where a delayed response to
+/// application focus changes leads to an infinite loop of focusing and
+/// re-focusing two different panes.
 ///
-/// The goal is to avoid situations where a delayed response to application
-/// focus changes leads to an infinite loop of focusing and re-focusing two
-/// different panes.
+/// Unlike upstream, which dispatches `PaneGroupAction::HandleFocusChange`
+/// synchronously from `TerminalView::on_focus`, this fork routes focus changes
+/// through the owning terminal pane event subscription (see the 2026-05
+/// runtime warning cleanup: child focus paths may not have a `PaneGroup`
+/// responder). The pane group therefore updates once the queued
+/// `TerminalView::Event::FocusChanged` is delivered, so the assertion polls
+/// with effect-flushing updates instead of observing the queue mid-delivery.
 #[test]
 fn test_focused_pane_is_synchronized_with_application_focus() {
     App::test((), |mut app| async move {
@@ -1022,27 +971,13 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
             ],
         });
 
-        let tips_model = app.add_model(|_| TipsCompleted::default());
-        let (_, root_view) =
-            app.add_window_with_bounds(WindowStyle::NotStealFocus, WindowBounds::Default, |ctx| {
-                let user_default_shell_changed_banner_dismissal_model_handle =
-                    ctx.add_model(|_| BannerState::default());
-                let block_lists = Arc::new(HashMap::new());
-                let pane_group = ctx.add_typed_action_view(|ctx| {
-                    PaneGroup::new_with_panes_layout(
-                        tips_model,
-                        user_default_shell_changed_banner_dismissal_model_handle,
-                        HttpApiProvider::as_ref(ctx).get(),
-                        panes_layout,
-                        block_lists,
-                        None,
-                        ctx,
-                    )
-                });
-
-                FocusDetectionView::new(pane_group, ctx)
-            });
-        let pane_group = root_view.read(&app, |root_view, _ctx| root_view.pane_group.clone());
+        let pane_group = mock_pane_group(
+            &mut app,
+            MockOptions {
+                layout: panes_layout,
+                ..Default::default()
+            },
+        );
 
         let (focused_pane_id, active_session_id) = pane_group.read(&app, |pane_group, ctx| {
             (
@@ -1062,35 +997,35 @@ fn test_focused_pane_is_synchronized_with_application_focus() {
         assert_ne!(focused_pane_id, second_pane_id);
         assert_ne!(active_session_id, second_pane_id.as_terminal_pane_id());
 
-        root_view.update(&mut app, |root_view, _ctx| {
-            root_view.new_focused_pane_id = Some(second_pane_id);
-        });
-
         pane_group.update(&mut app, |pane_group, ctx| {
-            // First, request a change of application focus to the second
-            // pane's terminal view.
+            // Request a change of application focus to the second pane's
+            // terminal view.
             pane_group
                 .terminal_view_from_pane_id(second_pane_id, ctx)
                 .expect("second pane is a terminal pane")
                 .update(ctx, |_terminal_view, ctx| {
                     ctx.focus_self();
                 });
+        });
 
-            // Second, emit an event on the pane group to trigger assertion
-            // logic in the FocusDetectionView.  This event effect is enqueued after
-            // the focus effect but before the focus effect is processed, meaning
-            // it will observe any changes that occurred synchronously as part
-            // of the focus effect but will _not_ observe any changes that result
-            // from events dispatched during focus handling.
-            //
-            // We use `OpenPromptEditor` because we can be confident that
-            // nothing else above may have emitted this event.
-            //
-            // IMPORTANT: This MUST be emitted in the same pane group update
-            // during which we focus the terminal view, to ensure that the
-            // effect queue doesn't get processed or further modified before we
-            // enqueue this event on the effect queue.
-            ctx.emit(Event::OpenPromptEditor);
+        // The pane group picks the newly focused pane up from the terminal
+        // pane's FocusChanged subscription once the queued events are
+        // delivered; each update flushes pending effects.
+        assert_eventually!(
+            200 => {
+                pane_group.update(&mut app, |_, _| {});
+                pane_group.read(&app, |pane_group, ctx| {
+                    pane_group.focused_pane_id(ctx) == second_pane_id
+                })
+            },
+            "application focus change should synchronize the focused pane"
+        );
+
+        pane_group.read(&app, |pane_group, ctx| {
+            assert_eq!(
+                pane_group.active_session_id(ctx),
+                second_pane_id.as_terminal_pane_id()
+            );
         });
     });
 }
