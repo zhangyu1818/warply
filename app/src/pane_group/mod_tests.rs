@@ -40,6 +40,7 @@ use watcher::HomeDirectoryWatcher;
 
 use super::*;
 use crate::terminal::resizable_data::ResizableData;
+use crate::test_util::assert_eventually;
 use ai::project_context::model::ProjectContextModel;
 use pathfinder_geometry::rect::RectF;
 use warpui::windowing::{WindowManager, state::ApplicationStage};
@@ -47,7 +48,6 @@ use warpui::{
     App, ModelHandle,
     platform::{WindowBounds, WindowStyle},
 };
-use crate::test_util::assert_eventually;
 
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
