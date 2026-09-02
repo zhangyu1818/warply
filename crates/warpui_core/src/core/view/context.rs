@@ -28,7 +28,9 @@ use crate::{GetSingletonModelHandle, ReadModel};
 
 use super::{
     TypedActionView, View,
-    handle::{AnyViewHandle, ReadView, UpdateView, ViewAsRef, ViewHandle, ViewUpdateError, WeakViewHandle},
+    handle::{
+        AnyViewHandle, ReadView, UpdateView, ViewAsRef, ViewHandle, ViewUpdateError, WeakViewHandle,
+    },
 };
 
 /// Callback that receives the output of a resolved future spawned from a [`ViewContext`].
