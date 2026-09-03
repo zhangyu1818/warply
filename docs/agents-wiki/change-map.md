@@ -746,3 +746,10 @@ rg -n "target_os = \"linux\"|target_os = \"windows\"|cfg\\(windows\\)|WSL|MSYS2|
 Allowed hits should be terminal protocol/remote-path data that a macOS client still needs, documentation, or tests that intentionally exercise cross-platform parsing. Native Linux/Windows host code should be removed.
 
 Anything else should be removed or adapted to the fork contract.
+
+## 2026-09-03 Upstream Sync Batch
+
+- Ported `4fa1a3c66` (Ctrl+R / Command Search history ranking, APP-5650) as a retained local feature: `rank.rs` priors + whitespace AND tokenization behind `FeatureFlag::HistorySearchRankingV2`, wired default-on through the fork's cargo-feature pipeline. The upstream `terminal/history.rs` `CommandHistorySummary` removal was intentionally not applied: the fork-retained projects data source still consumes `History::command_summaries()` counts, and the ranking does not read that map. Command Search notebook-source hunks had no anchors here (never present).
+- Ported `bf2364bc9` (shell widget handoff) as a retained local shell-integration feature: bootstrap helpers detect fzf/atuin ctrl-r and fzf ctrl-t bindings on bash/zsh/fish and report them via `shell_plugins`; the new `ExternalShellWidgetSelection` DCS hook lands the selection in the input editor. `FeatureFlag::ShellWidgetHandoff` is default-on. Bash detection dropped the `WARP_IN_MSYS2` gate (MSYS2 removed); fish's Bootstrapped payload gained `shell_plugins` without `wsl_name`; shared-session executor paths and the readonly-session guard were omitted with the removed surface; upstream's unrelated doc-comment removals in `workspace/action.rs` (a rebase artifact deleting #9712/#12229 comments) were not applied.
+- Ported only the lightbox `CurrentImageState` (Loading/Loaded/Failed) rendering improvement from `b9c21aa01`; the stored-screenshot core (Warp object storage, `warp_multi_agent_api`, server AIClient, agent-sdk task updates) is rejected cloud behavior.
+- Rejected `f349ffe8b` (Warp Factories README marketing) as cloud-product marketing the fork README must not track.
