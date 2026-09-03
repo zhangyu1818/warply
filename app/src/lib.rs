@@ -1490,6 +1490,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::NativeShellCompletions,
         #[cfg(feature = "lrc_activity_signal")]
         FeatureFlag::LrcActivitySignal,
+        #[cfg(feature = "history_search_ranking_v2")]
+        FeatureFlag::HistorySearchRankingV2,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]
