@@ -1488,6 +1488,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ForceClassicCompletions,
         #[cfg(feature = "native_shell_completions")]
         FeatureFlag::NativeShellCompletions,
+        #[cfg(feature = "shell_widget_handoff")]
+        FeatureFlag::ShellWidgetHandoff,
         #[cfg(feature = "lrc_activity_signal")]
         FeatureFlag::LrcActivitySignal,
         #[cfg(feature = "history_search_ranking_v2")]

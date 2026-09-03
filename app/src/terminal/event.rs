@@ -19,7 +19,7 @@ use crate::ui_events::ImageProtocol;
 use crate::util::AsciiDebug;
 
 use super::history::HistoryEntry;
-use super::model::ansi::WarpificationUnavailableReason;
+use super::model::ansi::{ExternalShellWidgetSelectionValue, WarpificationUnavailableReason};
 use super::model::block::BlockId;
 use super::model::session::SessionInfo;
 use super::model::terminal_model::{BlockIndex, ExitReason, TmuxInstallationState};
@@ -131,6 +131,7 @@ pub enum Event {
         session_id: SessionId,
         error: String,
     },
+    ExternalShellWidgetSelection(ExternalShellWidgetSelectionValue),
     TextSelectionChanged,
     ShellSpawned(ShellType),
     ImageReceived {
@@ -550,6 +551,13 @@ impl Debug for Event {
                 write!(
                     f,
                     "RemoteServerFailed(session: {session_id:?}, error: {error})"
+                )
+            }
+            Event::ExternalShellWidgetSelection(data) => {
+                write!(
+                    f,
+                    "ExternalShellWidgetSelection(buffer_len: {})",
+                    data.buffer.len()
                 )
             }
             Event::TextSelectionChanged => write!(f, "TextSelectionChanged"),
