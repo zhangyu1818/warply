@@ -175,6 +175,12 @@ pub enum FeatureFlag {
     /// snapshots, giving the agent evidence that a silent command is still
     /// doing work before it decides to cancel.
     LrcActivitySignal,
+
+    /// Gates Ctrl+R / Command Search history ranking on match quality and usage priors (recency,
+    /// session, exit status) plus whitespace space-AND tokenization, instead of Skim's raw
+    /// fuzzy-match score against the whole query as a single pattern. Disabling this is a full
+    /// return to the pre-APP-5650 history search behavior, not an approximation of it.
+    HistorySearchRankingV2,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
