@@ -274,8 +274,6 @@ impl TypedActionView for CommandSearchZeroStateView {
     }
 }
 
-/// Returns list of valid query filters that may be applied. This does not include notebooks if the
-/// notebooks feature flag is disabled.
 fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
     let mut filters = vec![QueryFilter::History];
 
