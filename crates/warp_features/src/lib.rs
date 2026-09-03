@@ -171,10 +171,19 @@ pub enum FeatureFlag {
     /// eliminating seams between adjacent box-drawing cells in the terminal.
     BoxDrawingGlyphs,
 
+    /// Uses fzf or atuin for history search instead of Warp's command search.
+    ShellWidgetHandoff,
+
     /// Attaches process-tree liveness signals to long-running command
     /// snapshots, giving the agent evidence that a silent command is still
     /// doing work before it decides to cancel.
     LrcActivitySignal,
+
+    /// Gates Ctrl+R / Command Search history ranking on match quality and usage priors (recency,
+    /// session, exit status) plus whitespace space-AND tokenization, instead of Skim's raw
+    /// fuzzy-match score against the whole query as a single pattern. Disabling this is a full
+    /// return to the pre-APP-5650 history search behavior, not an approximation of it.
+    HistorySearchRankingV2,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =

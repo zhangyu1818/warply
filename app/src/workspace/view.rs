@@ -175,6 +175,7 @@ use crate::terminal::input::{Input, MenuPositioning};
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 use crate::terminal::model::blockgrid::BlockGrid;
+use crate::terminal::model::escape_sequences::C0;
 #[cfg(feature = "local_fs")]
 use crate::terminal::model::session::Session;
 use crate::terminal::resizable_data::{
@@ -11784,6 +11785,15 @@ impl Workspace {
         init_content: &InitContent,
         ctx: &mut ViewContext<Self>,
     ) {
+        if query_filter.is_none()
+            && let Some(terminal_view_handle) = self.active_session_view(ctx)
+            && terminal_view_handle.update(ctx, |terminal_view, ctx| {
+                terminal_view.maybe_trigger_external_ctrl_r_history_search(ctx)
+            })
+        {
+            return;
+        }
+
         // Close all overlays including chip menus before opening command search
         self.close_all_overlays(ctx);
 
@@ -11849,6 +11859,18 @@ impl Workspace {
             ctx.focus(&self.command_search_view);
         } else {
             log::error!("Command search keybinding triggered but no session is active!");
+        }
+    }
+
+    /// If the active session's shell has rebound ctrl-t to an external file-search widget
+    /// (e.g. fzf), hands the keypress off to it.
+    fn trigger_external_ctrl_t_file_search(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(terminal_view_handle) = self.active_session_view(ctx) {
+            terminal_view_handle.update(ctx, |terminal_view, ctx| {
+                if !terminal_view.maybe_trigger_external_ctrl_t_file_search(ctx) {
+                    terminal_view.write_user_bytes_to_pty(vec![C0::DC4], ctx);
+                }
+            });
         }
     }
 
@@ -16356,6 +16378,7 @@ impl TypedActionView for Workspace {
                 filter,
                 init_content,
             }) => self.show_command_search(*filter, init_content, ctx),
+            TriggerExternalCtrlTFileSearch => self.trigger_external_ctrl_t_file_search(ctx),
             CreateEnvVarCollection => {
                 self.open_env_var_collection(
                     &EnvVarCollectionSource::New {
