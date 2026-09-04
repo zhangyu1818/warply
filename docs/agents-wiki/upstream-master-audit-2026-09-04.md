@@ -80,6 +80,42 @@ inline) or an active CLI agent session. No Warp service dependency.
   predecessor since `OpenAttachmentLightbox` and `WriteCodebaseIndex` do not
   exist in this fork.
 
+## Addendum: late-arriving commit `a7326f8fe`
+
+After the `v2026.09.04` tag was pushed, upstream master advanced by one
+commit: `a7326f8fe` "Fix crash when promoting an end-of-line cell to a wide
+char" (#15763, fixes #15753). It was reviewed and ported as an addendum
+commit on `main` (after the tag; it ships in the next release tag).
+
+**Accept (ported).** Purely local terminal-grid fix: a variation selector that
+promotes an end-of-row grapheme from one to two cells wide could create
+inconsistent wide-char metadata that later crashed `FlatStorage` row
+reconstruction. `push_zerowidth` now reports whether the append was accepted
+and gains a reversible `pop_zerowidth`; the zero-width path applies wide-char
+layout only when the grapheme width actually changes; normal wide writes and
+width promotions share one `write_wide_char` helper (wrapping, spacer
+creation, hyperlink propagation, cursor advancement); an end-of-row promoted
+grapheme moves to the next row when line wrapping is enabled and the selector
+is rolled back when it is disabled. All upstream regression tests ported
+(cell accepted/rejected/rollback appends; end-of-row promotion, disabled line
+wrapping, already-wide graphemes, hyperlink propagation in
+`grid_handler_test.rs`).
+
+Path remaps: `crates/warp_terminal/src/model/grid/ansi_handler.rs` →
+`app/src/terminal/model/grid/ansi_handler.rs` and
+`grid_handler_tests.rs` → `app/src/terminal/model/grid/grid_handler_test.rs`
+(the fork moved the handler layer into the app at creation);
+`cell_tests.rs` → `cell_test.rs` (fork singular test filename; matches the
+existing `#[path = "cell_test.rs"]` module attribute). Every hunk applied
+cleanly; remaining whole-file differences vs upstream are pre-existing fork
+divergences (edition 2024 let-chains, import ordering).
+
+Verified: `cargo check -p warp_terminal -p warp --all-targets` and
+`cargo check --workspace --all-targets` pass; upstream-specified suites pass
+(cell zerowidth 3, warp grid/ref 174 incl. 19 grid-handler wide-char tests,
+156 slash_command/acp/terminal_suggestions); `cargo fmt -- --check` clean;
+`cargo build -p warp --all-targets` pass.
+
 ## Verification
 
 - `cargo fmt -- --check`: clean.
