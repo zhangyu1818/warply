@@ -73,6 +73,7 @@ use crate::terminal::package_installers::command_at_cursor_has_common_package_in
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::CodeDiffAction;
+use crate::terminal::view::init::{CAN_ATTACH_FILE_KEY, CLI_AGENT_SESSION_ACTIVE_KEY};
 use crate::terminal::view::queued_prompts_panel::{
     QueuedPromptsPanelEvent, QueuedPromptsPanelView,
 };
@@ -4413,6 +4414,12 @@ impl Input {
                 });
             }
         }
+    }
+
+    pub(crate) fn attach_file(&mut self, ctx: &mut ViewContext<Self>) {
+        self.agent_input_footer.update(ctx, |footer, ctx| {
+            footer.select_file(ctx);
+        });
     }
 
     fn select_image(&mut self, ctx: &mut ViewContext<Self>) {
@@ -11815,6 +11822,13 @@ impl View for Input {
             ctx.set.insert(flags::ACTIVE_INLINE_AGENT_VIEW);
         }
 
+        if CLIAgentSessionsModel::as_ref(app)
+            .session(self.terminal_view_id)
+            .is_some()
+        {
+            ctx.set.insert(CLI_AGENT_SESSION_ACTIVE_KEY);
+        }
+
         if self.buffer_text(app).is_empty() {
             ctx.set.insert(flags::EMPTY_INPUT_BUFFER);
         }
@@ -11883,6 +11897,7 @@ impl View for Input {
         }
 
         let model_lock = self.model.lock();
+        ctx.set.insert(CAN_ATTACH_FILE_KEY);
 
         if model_lock
             .block_list()
