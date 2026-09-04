@@ -288,7 +288,7 @@ dirs = "6.0.0"
 rayon = "1.10.0"
 sha2 = "0.10"
 shellexpand = "3.1.1"
-warp-command-signatures = { git = "https://github.com/warpdotdev/command-signatures.git", rev = "d3725aa42375cc229699c87be2b38f9d9f07080f", default-features = false }
+warp-command-signatures = { git = "https://github.com/warpdotdev/command-signatures.git", rev = "6a39d62048abbf3885be54a7887f1916ebcf7445", default-features = false }
 mockito = "1.7.0"
 sysinfo = { version = "0.37.0", default-features = false, features = [
   "system",

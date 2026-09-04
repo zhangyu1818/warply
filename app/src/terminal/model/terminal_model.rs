@@ -2716,7 +2716,7 @@ impl ansi::Handler for TerminalModel {
         };
     }
 
-    fn end_in_band_command_output(&mut self, _from_osc_sequence: bool) {
+    fn end_in_band_command_output(&mut self, from_osc_sequence: bool) {
         match &mut self.is_receiving_in_band_command_output {
             IsReceivingInBandCommandOutput::Yes { output } => {
                 match validate_and_decode_in_band_command_output_to_bytes(output.as_str()) {
@@ -2741,11 +2741,12 @@ impl ansi::Handler for TerminalModel {
                 };
                 self.is_receiving_in_band_command_output = IsReceivingInBandCommandOutput::No;
             }
-            IsReceivingInBandCommandOutput::No => {
+            IsReceivingInBandCommandOutput::No if from_osc_sequence => {
                 log::warn!(
-                    "Received 'end_in_band_command_output' while not expecting to read in-band command output."
+                    "Received an in-band command output end OSC while not expecting in-band command output."
                 );
             }
+            IsReceivingInBandCommandOutput::No => {}
         }
     }
 
