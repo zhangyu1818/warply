@@ -5687,6 +5687,19 @@ impl TerminalView {
             .active_conversation_id()
     }
 
+    fn is_in_agent_or_cli_attach_context(&self, app: &AppContext) -> bool {
+        let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
+        agent_view_state.is_fullscreen()
+            || agent_view_state.is_inline()
+            || CLIAgentSessionsModel::as_ref(app)
+                .session(self.view_id)
+                .is_some()
+    }
+
+    fn can_attach_file(&self, app: &AppContext) -> bool {
+        self.is_in_agent_or_cli_attach_context(app)
+    }
+
     /// Whether the conversation details side panel should be available in the
     /// pane header / pane layout for this terminal view.
     fn can_show_conversation_details_ui_from_model(
@@ -20079,6 +20092,7 @@ impl TypedActionView for TerminalView {
             | StopFileDropTarget
             | RunNativeShellCompletions { .. }
             | DeleteAttachment { .. }
+            | AttachFile
             | ToggleAutoexecuteMode
             | ToggleQueueNextPrompt
             | ToggleTodoPopup
@@ -20534,6 +20548,14 @@ impl TypedActionView for TerminalView {
             DeleteAttachment { index } => {
                 self.ai_context_model.update(ctx, |context_model, ctx| {
                     context_model.remove_pending_attachment(*index, ctx);
+                });
+            }
+            AttachFile => {
+                if !self.can_attach_file(ctx) {
+                    return;
+                }
+                self.input.update(ctx, |input, ctx| {
+                    input.attach_file(ctx);
                 });
             }
             ToggleAutoexecuteMode => {
@@ -21287,6 +21309,10 @@ impl View for TerminalView {
                     context.set.insert(flags::CLI_AGENT_RICH_INPUT_CHIP_ENABLED);
                 }
             }
+        }
+
+        if self.can_attach_file(app) {
+            context.set.insert(init::CAN_ATTACH_FILE_KEY);
         }
 
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();

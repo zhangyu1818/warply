@@ -40,6 +40,7 @@ pub const TOGGLE_AUTOEXECUTE_MODE_KEYBINDING: &str = "terminal:toggle_autoexecut
 pub const TOGGLE_QUEUE_NEXT_PROMPT_KEYBINDING: &str = "terminal:toggle_queue_next_prompt";
 pub const TOGGLE_HIDE_CLI_RESPONSES_KEYBINDING: &str = "terminal:toggle_hide_cli_responses";
 pub const OPEN_CLI_AGENT_RICH_INPUT_KEYBINDING: &str = "terminal:open_cli_agent_rich_input";
+pub const ATTACH_FILE_KEYBINDING: &str = "terminal:attach_file";
 
 const SELECT_NEXT_BLOCK_ACTION_NAME: &str = "terminal:select_next_block";
 pub const SELECT_PREVIOUS_BLOCK_ACTION_NAME: &str = "terminal:select_previous_block";
@@ -50,6 +51,7 @@ pub const CAN_FORK_FROM_LAST_KNOWN_GOOD_STATE_KEY: &str = "CanForkFromLastKnownG
 pub const INPUT_BOX_VISIBLE_KEY: &str = "InputVisible";
 pub const KEYBOARD_PROTOCOL_ENABLED_KEY: &str = "KeyboardProtocolEnabled";
 pub const CLI_AGENT_SESSION_ACTIVE_KEY: &str = "CLIAgentSessionActive";
+pub const CAN_ATTACH_FILE_KEY: &str = "CanAttachFile";
 pub const CAN_SHOW_CONVERSATION_DETAILS_KEY: &str = "CanShowConversationDetails";
 
 /// Some keybindings will do different things in different contexts. We break
@@ -763,6 +765,19 @@ pub fn init(app: &mut AppContext) {
     .with_context_predicate(id!("Terminal"))]);
 
     app.register_editable_bindings([
+        EditableBinding::new(
+            ATTACH_FILE_KEYBINDING,
+            "Attach file to agent conversation",
+            TerminalAction::AttachFile,
+        )
+        .with_group(bindings::BindingGroup::Ai.as_str())
+        .with_context_predicate(
+            (id!("Input") | id!("Terminal"))
+                & (id!(flags::ACTIVE_AGENT_VIEW)
+                    | id!(flags::ACTIVE_INLINE_AGENT_VIEW)
+                    | id!(CLI_AGENT_SESSION_ACTIVE_KEY))
+                & id!(CAN_ATTACH_FILE_KEY),
+        ),
         EditableBinding::new(
             TOGGLE_AUTOEXECUTE_MODE_KEYBINDING,
             "Toggle Auto-execute Mode",
