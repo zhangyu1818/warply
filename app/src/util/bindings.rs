@@ -299,8 +299,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
             Keystroke::parse("alt-cmdorctrl-i").ok()
         }
         CustomAction::ReopenClosedSession => Keystroke::parse("cmd-shift-T").ok(),
-
-        // This is one of the app's hardcoded keybindings.
         CustomAction::AddWindow => Keystroke::parse(cmd_or_ctrl_shift("n")).ok(),
         CustomAction::CloseWindow => parse_keystroke("cmd-shift-W"),
         CustomAction::CloseCurrentSession => Keystroke::parse(cmd_or_ctrl_shift("w")).ok(),
