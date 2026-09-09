@@ -257,6 +257,7 @@ fn test_detect_known_agents() {
                 ("agent", CLIAgent::CursorCli),
                 ("goose", CLIAgent::Goose),
                 ("vibe", CLIAgent::Vibe),
+                ("grok", CLIAgent::Grok),
             ] {
                 assert_eq!(
                     CLIAgent::detect(command, None, None, ctx),
@@ -282,6 +283,17 @@ fn test_detect_with_arguments() {
             );
         });
     });
+}
+
+#[test]
+fn test_grok_public_configuration() {
+    assert_eq!(CLIAgent::Grok.command_prefix(), "grok");
+    assert_eq!(CLIAgent::Grok.display_name(), "Grok Build");
+    assert!(CLIAgent::Grok.supports_bash_mode());
+    assert_eq!(
+        CLIAgent::Grok.icon(),
+        Some(crate::ui_components::icons::Icon::GrokLogo)
+    );
 }
 
 #[test]

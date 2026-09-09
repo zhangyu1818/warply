@@ -111,7 +111,15 @@ const MISTRAL_ORANGE: ColorU = ColorU {
     a: 255,
 };
 
-/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Mistral Vibe)
+/// Grok / SpaceXAI brand color (near-black, monochrome logomark on circular tile)
+const GROK_COLOR: ColorU = ColorU {
+    r: 16,
+    g: 16,
+    b: 16,
+    a: 255,
+};
+
+/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Mistral Vibe, Grok Build)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, Serialize, Deserialize)]
 pub enum CLIAgent {
     Claude,
@@ -126,6 +134,7 @@ pub enum CLIAgent {
     CursorCli,
     Goose,
     Vibe,
+    Grok,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -146,6 +155,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "agent",
             CLIAgent::Goose => "goose",
             CLIAgent::Vibe => "vibe",
+            CLIAgent::Grok => "grok",
             CLIAgent::Unknown => "",
         }
     }
@@ -176,6 +186,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "Cursor",
             CLIAgent::Goose => "Goose",
             CLIAgent::Vibe => "Mistral Vibe",
+            CLIAgent::Grok => "Grok Build",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -198,6 +209,7 @@ impl CLIAgent {
             // still drives the toolbar tile; an `Icon::MistralLogo` can be wired
             // up in a follow-up once an officially licensed SVG is available.
             CLIAgent::Vibe => None,
+            CLIAgent::Grok => Some(Icon::GrokLogo),
             CLIAgent::Unknown => None,
         }
     }
@@ -211,7 +223,7 @@ impl CLIAgent {
     pub fn supports_bash_mode(&self) -> bool {
         matches!(
             self,
-            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode
+            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode | CLIAgent::Grok
         )
     }
 
@@ -230,6 +242,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => Some(CURSOR_COLOR),
             CLIAgent::Goose => Some(GOOSE_COLOR),
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
+            CLIAgent::Grok => Some(GROK_COLOR),
             CLIAgent::Unknown => None,
         }
     }
