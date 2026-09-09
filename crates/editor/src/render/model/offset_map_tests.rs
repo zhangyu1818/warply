@@ -71,9 +71,7 @@ fn test_offset_map_placeholders() {
 ///
 #[test]
 fn test_end_to_end() {
-    use warpui::{
-        App, color::ColorU, elements::Fill, fonts::Cache as FontCache, text_layout::LayoutCache,
-    };
+    use warpui::{App, color::ColorU, elements::Fill, fonts::Cache as FontCache};
 
     use crate::{
         content::{
@@ -93,7 +91,6 @@ fn test_end_to_end() {
 
     App::test((), |mut app| async move {
         let mut font_cache = FontCache::new(Box::new(warpui::platform::current::FontDB::new()));
-        let layout_cache = LayoutCache::new();
         let paragraph_styles = ParagraphStyles {
             font_family: font_cache
                 .load_system_font("Arial")
@@ -200,12 +197,7 @@ fn test_end_to_end() {
         // Now, lay out the buffer, which should produce a single `Paragraph` block.
         let layout = app.read(|ctx| {
             let delta = buffer_handle.as_ref(ctx).invalidate_layout();
-            let text_layout = TextLayout::new(
-                &layout_cache,
-                font_cache.text_layout_system(),
-                &styles,
-                1000.,
-            );
+            let text_layout = TextLayout::new(font_cache.text_layout_system(), &styles, 1000.);
             delta.layout_delta(
                 &text_layout,
                 None,
