@@ -121,7 +121,8 @@ use crate::code_review::git_status_update::{
 use crate::projects::ProjectManagementModel;
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::terminal::cli_agent_sessions::event::{
-    CLI_AGENT_NOTIFICATION_SENTINEL, CLIAgentEvent, CLIAgentEventType, parse_event,
+    CLI_AGENT_NOTIFICATION_SENTINEL, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventType,
+    parse_event,
 };
 use crate::terminal::cli_agent_sessions::listener::{CLIAgentSessionListener, is_agent_supported};
 use crate::terminal::cli_agent_sessions::{
@@ -8588,6 +8589,15 @@ impl TerminalView {
                                         me.detect_cli_agent_from_model(&model, ctx)
                                     };
                                     let view_id = me.view_id;
+                                    // Codex and Grok use OSC 9 (and optional rich OSC 777)
+                                    // without requiring a SessionStart sentinel first, so
+                                    // create the listener proactively on command detection.
+                                    let proactive_listener_agent = detection
+                                        .as_ref()
+                                        .map(|(agent, _)| *agent)
+                                        .filter(|agent| {
+                                            matches!(agent, CLIAgent::Codex | CLIAgent::Grok)
+                                        });
                                     CLIAgentSessionsModel::handle(ctx).update(
                                         ctx,
                                         |sessions_model, ctx| match detection {
@@ -8620,6 +8630,11 @@ impl TerminalView {
                                             _ => {}
                                         },
                                     );
+                                    if let Some(agent) = proactive_listener_agent {
+                                        me.register_cli_agent_listener_without_session_start_event(
+                                            agent, ctx,
+                                        );
+                                    }
 
                                     me.maybe_show_warpify_footer_in_blocklist(ctx);
                                     me.maybe_show_cli_agent_footer_in_blocklist(ctx);
@@ -9240,7 +9255,7 @@ impl TerminalView {
                 }
 
                 // Suppress OSC 9 notifications when a Codex listener is active.
-                // The listener's subscription handles these via CodexSessionHandler.
+                // The listener's subscription handles these via Osc9FallbackSessionHandler.
                 if title.is_none() {
                     let has_codex_listener = CLIAgentSessionsModel::as_ref(ctx)
                         .session(self.view_id)
@@ -9590,6 +9605,26 @@ impl TerminalView {
             );
         });
         true
+    }
+
+    /// Creates and registers a listener for flows without a `SessionStart` event.
+    fn register_cli_agent_listener_without_session_start_event(
+        &mut self,
+        agent: CLIAgent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let notification = CLIAgentEvent {
+            v: 1,
+            agent,
+            event: CLIAgentEventType::SessionStart,
+            session_id: None,
+            cwd: None,
+            project: None,
+            payload: CLIAgentEventPayload::default(),
+        };
+        if self.register_cli_agent_listener_from_event(&notification, ctx) {
+            self.maybe_auto_open_cli_agent_rich_input(ctx);
+        }
     }
 
     /// If the startup auto-open setting is enabled, auto-opens rich input for a
