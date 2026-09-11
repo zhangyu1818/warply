@@ -53,6 +53,7 @@ use crate::terminal::session_settings::AgentToolbarChipSelection;
 
 use crate::settings::RightClickBehavior;
 use crate::settings::SelectionSettings;
+use crate::tab::NewSessionMenuItem;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::terminal::warpify::trigger_state::SshBlockState;
@@ -61,6 +62,7 @@ use crate::test_util::terminal::add_window_with_id_and_terminal;
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 use crate::test_util::{add_window_with_terminal, assert_eventually};
 use crate::view_components::find::FindWithinBlockState;
+use crate::workspace::view::tests::{initialize_app as initialize_workspace_app, mock_workspace};
 use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
 use super::*;
@@ -6066,4 +6068,73 @@ fn input_shift_right_click_opens_context_menu_when_right_click_pastes() {
             );
         });
     })
+}
+
+#[test]
+fn visible_bootstrap_block_leaves_focus_on_tab_rename_editor() {
+    App::test((), |mut app| async move {
+        initialize_workspace_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let (window, terminal) = workspace.update(&mut app, |workspace, ctx| {
+            workspace.rename_tab(0, ctx);
+            let terminal = workspace
+                .active_tab_pane_group()
+                .as_ref(ctx)
+                .active_session_view(ctx)
+                .expect("tab should contain a terminal");
+            (ctx.window_id(), terminal)
+        });
+        assert!(workspace.read(&app, |workspace, ctx| {
+            workspace.is_inline_rename_editor_focused(ctx)
+        }));
+        let focused_before = app.focused_view_id(window);
+
+        terminal.update(&mut app, |view, ctx| {
+            view.handle_terminal_event(&ModelEvent::VisibleBootstrapBlock, ctx);
+        });
+
+        assert_eq!(app.focused_view_id(window), focused_before);
+        assert!(workspace.read(&app, |workspace, ctx| {
+            workspace.is_inline_rename_editor_focused(ctx)
+        }));
+    });
+}
+
+#[test]
+fn visible_bootstrap_block_leaves_focus_on_tab_group_rename_editor() {
+    App::test((), |mut app| async move {
+        initialize_workspace_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let (window, terminal, group_id) = workspace.update(&mut app, |workspace, ctx| {
+            workspace.handle_action(
+                &WorkspaceAction::SelectNewSessionMenuItem(NewSessionMenuItem::CreateNewTabGroup),
+                ctx,
+            );
+            let group_id = workspace.tabs[0]
+                .group_id
+                .expect("active tab should be assigned to the new group");
+            let terminal = workspace
+                .active_tab_pane_group()
+                .as_ref(ctx)
+                .active_session_view(ctx)
+                .expect("new tab group should contain a terminal");
+            (ctx.window_id(), terminal, group_id)
+        });
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.rename_tab_group(group_id, ctx);
+        });
+        assert!(workspace.read(&app, |workspace, ctx| {
+            workspace.is_inline_rename_editor_focused(ctx)
+        }));
+        let focused_before = app.focused_view_id(window);
+
+        terminal.update(&mut app, |view, ctx| {
+            view.handle_terminal_event(&ModelEvent::VisibleBootstrapBlock, ctx);
+        });
+
+        assert_eq!(app.focused_view_id(window), focused_before);
+        assert!(workspace.read(&app, |workspace, ctx| {
+            workspace.is_inline_rename_editor_focused(ctx)
+        }));
+    });
 }
