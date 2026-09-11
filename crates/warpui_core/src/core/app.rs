@@ -2329,7 +2329,7 @@ impl AppContext {
             title,
             fullscreen_state,
             background_blur_radius_pixels,
-            background_blur_texture,
+            background_backdrop,
             anchor_new_windows_from_closed_position,
             on_gpu_driver_selected: on_gpu_driver_reported,
         } = add_window_options;
@@ -2356,7 +2356,7 @@ impl AppContext {
             title,
             style: window_style,
             background_blur_radius_pixels,
-            background_blur_texture,
+            background_backdrop,
             gpu_power_preference: self.rendering_config.gpu_power_preference,
             backend_preference: self.rendering_config.backend_preference,
             on_gpu_device_info_reported: on_gpu_driver_reported.unwrap_or(Box::new(|_| {})),
@@ -2639,7 +2639,12 @@ impl AppContext {
         result
     }
 
-    pub fn reopen_closed_window(&mut self, data: ClosedWindowData) {
+    pub fn reopen_closed_window(
+        &mut self,
+        data: ClosedWindowData,
+        background_blur_radius_pixels: Option<u8>,
+        background_backdrop: platform::WindowBackdrop,
+    ) {
         let ClosedWindowData {
             window_id,
             window,
@@ -2666,9 +2671,8 @@ impl AppContext {
         }
 
         let add_window_options = AddWindowOptions {
-            // TODO(vorporeal): what's the right value here?
-            background_blur_radius_pixels: None,
-            background_blur_texture: false,
+            background_blur_radius_pixels,
+            background_backdrop,
             window_bounds: WindowBounds::ExactPosition(bounds),
             // TODO(alokedesai): Determine if, and how, we want to pass the on_gpu_driver_reported
             // callback from the original window back to this window.

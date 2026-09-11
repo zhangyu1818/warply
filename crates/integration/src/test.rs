@@ -98,7 +98,7 @@ use warp::integration_testing::{
     settings::assert_theme_chooser_contains,
     tab::{assert_pane_title, assert_tab_title},
 };
-use warp::settings::CtrlTabBehavior;
+use warp::settings::{CtrlTabBehavior, NativeShellCompletionsEnabled};
 use warp::terminal::keys_settings::KeysSettings;
 use warp::terminal::{
     model::{blocks::BlockHeightSummary, terminal_model::BlockIndex},
@@ -5198,6 +5198,10 @@ pub fn test_alias_expansion_has_limit() -> Builder {
     new_builder()
         // TODO(CORE-2732): Flakey on Powershell (Linux)
         .set_should_run_test(skip_if_powershell_core_2303)
+        .with_user_defaults(HashMap::from([(
+            NativeShellCompletionsEnabled::storage_key().to_string(),
+            false.to_string(),
+        )]))
         .with_setup(|utils| {
             let dir = utils.test_dir();
             write_rc_files_for_test(
