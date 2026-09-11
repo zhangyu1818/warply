@@ -4,6 +4,7 @@ use repo_metadata::repositories::DetectedRepositories;
 use warp_core::ui::appearance::Appearance;
 
 use crate::ai::acp::model::AcpAgentModel;
+use crate::ai::acp::registry::AcpRegistryModel;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::document::ai_document_model::AIDocumentModel;
@@ -60,6 +61,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(QueuedQueryModel::new);
     app.add_singleton_model(AcpAgentModel::new_for_test);
+    app.add_singleton_model(AcpRegistryModel::new_for_test);
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(|_| ActiveAgentViewsModel::new());
     app.add_singleton_model(BlocklistAIPermissions::new);
