@@ -811,7 +811,7 @@ impl SettingsView {
             me.handle_features_page_event(event, ctx);
         });
 
-        let about_page_handle = ctx.add_view(AboutPageView::new);
+        let about_page_handle = ctx.add_typed_action_view(AboutPageView::new);
 
         let ai_page_handle = ctx.add_typed_action_view(AISettingsPageView::new);
         ctx.subscribe_to_view(&ai_page_handle, |me, _, event, ctx| {

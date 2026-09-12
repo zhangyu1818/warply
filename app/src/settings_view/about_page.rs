@@ -10,7 +10,7 @@ use crate::{
     workspace::WorkspaceAction,
 };
 use warpui::{
-    AppContext, Entity, View, ViewContext, ViewHandle,
+    AppContext, Entity, TypedActionView, View, ViewContext, ViewHandle,
     assets::asset_cache::AssetSource,
     elements::{
         Align, CacheOption, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, Image,
@@ -33,6 +33,9 @@ impl AboutPageView {
 
 impl Entity for AboutPageView {
     type Event = SettingsPageEvent;
+}
+impl TypedActionView for AboutPageView {
+    type Action = ();
 }
 
 impl View for AboutPageView {
