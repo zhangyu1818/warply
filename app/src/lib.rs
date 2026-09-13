@@ -37,8 +37,6 @@ mod notification;
 mod object_ids;
 mod palette;
 mod persistence;
-#[cfg(feature = "plugin_host")]
-mod plugin;
 mod prefix;
 mod profiling;
 mod projects;
@@ -139,9 +137,6 @@ pub mod workspace;
 pub use persistence::testing as sqlite_testing;
 
 use ::settings::{Setting, ToggleableSetting};
-
-#[cfg(feature = "plugin_host")]
-pub use plugin::{PLUGIN_HOST_FLAG, run_plugin_host};
 use warpui::platform::app::{ApproveTerminateResult, TerminationRequestSource};
 use window_settings::WindowSettings;
 use workflows::manager::WorkflowManager;
@@ -420,10 +415,6 @@ pub fn run() -> Result<()> {
                 crate::terminal::local_tty::server::run_terminal_server(args);
                 return Ok(());
             }
-            #[cfg(feature = "plugin_host")]
-            warp_cli::Command::Worker(warp_cli::WorkerCommand::PluginHost { .. }) => {
-                return crate::run_plugin_host();
-            }
             warp_cli::Command::Worker(warp_cli::WorkerCommand::RemoteServerProxy(args)) => {
                 // Proxy is a thin byte bridge (stdin/stdout ↔ Unix socket).
                 // It only needs logging to stderr since stdout is the protocol
@@ -456,7 +447,7 @@ pub fn run() -> Result<()> {
                 .map_err(|err| anyhow!(err.to_string()))?;
                 return Ok(());
             }
-            #[cfg(not(any(feature = "local_tty", feature = "plugin_host")))]
+            #[cfg(not(feature = "local_tty"))]
             warp_cli::Command::Worker(worker) => {
                 // Need this case to handle platforms where there are no enum variants in
                 // warp_cli::WorkerCommand, as we still need to check Command::Worker.
@@ -620,10 +611,6 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         ctx.add_singleton_model(move |_ctx| private_preferences);
         let startup_toml_parse_error = startup_toml_parse_error;
 
-        #[cfg(feature = "plugin_host")]
-        ctx.add_singleton_model(move |ctx| {
-            plugin::PluginHost::new(ctx).expect("Could not instantiate PluginHost")
-        });
         let app_state = initialize_app(
             &launch_mode,
             timer,
