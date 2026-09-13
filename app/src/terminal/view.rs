@@ -4371,6 +4371,105 @@ impl TerminalView {
         }
     }
 
+    fn ai_block_targets_for_history_event(
+        &self,
+        event: &BlocklistAIHistoryEvent,
+        ctx: &AppContext,
+    ) -> Vec<ViewHandle<AIBlock>> {
+        match event {
+            BlocklistAIHistoryEvent::AppendedExchange {
+                conversation_id, ..
+            } => {
+                // The pane's latest block and the conversation's latest block may each lose
+                // latest-only controls when a new exchange starts.
+                let mut targets = Vec::with_capacity(2);
+                if let Some(handle) =
+                    self.rich_content_views
+                        .iter()
+                        .rev()
+                        .find_map(|rich_content| {
+                            rich_content
+                                .ai_block_metadata()
+                                .map(|metadata| metadata.ai_block_handle.clone())
+                        })
+                {
+                    targets.push(handle);
+                }
+                if let Some(handle) =
+                    self.rich_content_views
+                        .iter()
+                        .rev()
+                        .find_map(|rich_content| {
+                            let metadata = rich_content.ai_block_metadata()?;
+                            (metadata.conversation_id == *conversation_id)
+                                .then(|| metadata.ai_block_handle.clone())
+                        })
+                    && targets.iter().all(|target| target.id() != handle.id())
+                {
+                    targets.push(handle);
+                }
+                targets
+            }
+            BlocklistAIHistoryEvent::UpdatedStreamingExchange { exchange_id, .. } => {
+                // Only the matching block that began live can consume output updates; completed
+                // restored blocks receive replay-only events.
+                self.ai_block_for_exchange(exchange_id)
+                    .filter(|handle| handle.as_ref(ctx).receives_live_output_updates())
+                    .cloned()
+                    .into_iter()
+                    .collect()
+            }
+            BlocklistAIHistoryEvent::UpdatedTodoList {
+                conversation_id, ..
+            } => {
+                // Todo state can appear in earlier exchanges, so every todo-bearing block in the
+                // conversation must refresh.
+                self.rich_content_views
+                    .iter()
+                    .filter_map(|rich_content| {
+                        let metadata = rich_content.ai_block_metadata()?;
+                        (metadata.conversation_id == *conversation_id
+                            && metadata.ai_block_handle.as_ref(ctx).contains_todo_list())
+                        .then(|| metadata.ai_block_handle.clone())
+                    })
+                    .collect()
+            }
+            BlocklistAIHistoryEvent::StartedNewConversation { .. }
+            | BlocklistAIHistoryEvent::CreatedSubtask { .. }
+            | BlocklistAIHistoryEvent::ReassignedExchange { .. }
+            | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
+            | BlocklistAIHistoryEvent::SetActiveConversation { .. }
+            | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
+            | BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. }
+            | BlocklistAIHistoryEvent::UpdatedAutoexecuteOverride { .. }
+            | BlocklistAIHistoryEvent::SplitConversation { .. }
+            | BlocklistAIHistoryEvent::RemoveConversation { .. }
+            | BlocklistAIHistoryEvent::DeletedConversation { .. }
+            | BlocklistAIHistoryEvent::RestoredConversations { .. }
+            | BlocklistAIHistoryEvent::UpdatedConversationMetadata { .. }
+            | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
+            | BlocklistAIHistoryEvent::ConversationOwnershipTransferred { .. } => Vec::new(),
+        }
+    }
+
+    fn route_ai_block_history_event(
+        &self,
+        event: &BlocklistAIHistoryEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        for ai_block in self.ai_block_targets_for_history_event(event, ctx) {
+            ai_block.update(ctx, |block, ctx| {
+                if matches!(
+                    event,
+                    BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. }
+                ) {
+                    block.handle_history_output_update(ctx);
+                } else {
+                    ctx.notify();
+                }
+            });
+        }
+    }
     fn handle_ai_history_model_event(
         &mut self,
         history_model: ModelHandle<BlocklistAIHistoryModel>,
@@ -4383,6 +4482,7 @@ impl TerminalView {
         {
             return;
         }
+        self.route_ai_block_history_event(event, ctx);
         // If the conversation details panel is open and showing an active local
         // AI conversation in this terminal view, refresh its data when status,
         // artifacts, exchanges, or metadata change.
@@ -15486,6 +15586,19 @@ impl TerminalView {
             .find(|rc| rc.agent_view_conversation_id() == visible_conversation_id);
 
         last_visible_block.is_some_and(|rc| rc.is_init_step())
+    }
+
+    fn ai_block_for_exchange(
+        &self,
+        exchange_id: &AIAgentExchangeId,
+    ) -> Option<&ViewHandle<AIBlock>> {
+        self.rich_content_views.iter().find_map(|rich_content| {
+            let ai_metadata = rich_content.ai_block_metadata()?;
+            if ai_metadata.exchange_id == *exchange_id {
+                return Some(&ai_metadata.ai_block_handle);
+            }
+            None
+        })
     }
 
     fn ai_block_handle_by_view_id(&self, view_id: EntityId) -> Option<&ViewHandle<AIBlock>> {
