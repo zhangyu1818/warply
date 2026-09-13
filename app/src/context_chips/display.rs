@@ -102,7 +102,10 @@ impl PromptDisplay {
         ctx.subscribe_to_model(
             &BlocklistAIHistoryModel::handle(ctx),
             |me, _, event, ctx| {
-                if let BlocklistAIHistoryEvent::UpdatedTodoList { terminal_view_id } = event {
+                if let BlocklistAIHistoryEvent::UpdatedTodoList {
+                    terminal_view_id, ..
+                } = event
+                {
                     if *terminal_view_id != me.terminal_view_id {
                         return;
                     }
