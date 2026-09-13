@@ -2054,15 +2054,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "command-signatures-v2"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "command",
- "rust-embed 8.7.2",
-]
-
-[[package]]
 name = "compact_str"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7998,33 +7989,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rquickjs"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db7788c2818f4546daabe9ae2d1ee2f4db61ab1998d4b483494c4193cc38dab"
-dependencies = [
- "rquickjs-core",
-]
-
-[[package]]
-name = "rquickjs-core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b12cf8646fe0af5bcff2822ccd162990f0679a1f9287c7257f4f4193a9d31ea9"
-dependencies = [
- "rquickjs-sys",
-]
-
-[[package]]
-name = "rquickjs-sys"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b747058afd4d988d056e4972ec8516a5a86fdfc103c1c1485bfee8966a0743ae"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "rstar"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10585,7 +10549,6 @@ dependencies = [
  "comfy-table",
  "command",
  "command-corrections",
- "command-signatures-v2",
  "computer_use",
  "concat-idents",
  "content_inspector",
@@ -10695,7 +10658,6 @@ dependencies = [
  "repo_metadata",
  "reqwest",
  "reqwest-eventsource",
- "rquickjs",
  "rust-embed 8.7.2",
  "rustc-hash 2.1.1",
  "rustls",
@@ -10768,7 +10730,6 @@ dependencies = [
  "warp_core",
  "warp_editor",
  "warp_files",
- "warp_js",
  "warp_logging",
  "warp_ripgrep",
  "warp_terminal",
@@ -10857,8 +10818,6 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
- "bincode",
- "cfg-if",
  "clap",
  "command",
  "derive-new",
@@ -10872,7 +10831,6 @@ dependencies = [
  "log",
  "memo-map",
  "regex",
- "rquickjs",
  "serde",
  "shellexpand",
  "smol_str",
@@ -10883,7 +10841,6 @@ dependencies = [
  "warp_cli",
  "warp_completer",
  "warp_core",
- "warp_js",
  "warp_util",
  "warpui",
 ]
@@ -11012,17 +10969,6 @@ dependencies = [
  "warp_util",
  "warpui",
  "watcher",
-]
-
-[[package]]
-name = "warp_js"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "rquickjs",
- "serde",
- "thiserror 2.0.17",
- "uuid",
 ]
 
 [[package]]

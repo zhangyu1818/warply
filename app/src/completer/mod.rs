@@ -1,6 +1,3 @@
-#[cfg(feature = "completions_v2")]
-mod js;
-
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::path::Path;
@@ -42,9 +39,8 @@ pub struct SessionContext {
     command_registry: Arc<CommandRegistry>,
     pub current_working_directory: TypedPathBuf,
 
-    #[cfg(feature = "completions_v2")]
-    js_ctx: Option<js::SessionJsExecutionContext>,
-
+    /// Directory listings keyed by absolute path. Callers that must reflect a directory's
+    /// current contents should use `refresh_directory_entries` to re-read from disk.
     cached_directory_entries: Arc<dashmap::DashMap<TypedPathBuf, Arc<Vec<EngineDirEntry>>>>,
 
     /// Snapshot of all Warp workflow aliases.
@@ -285,13 +281,6 @@ impl CompletionContext for SessionContext {
         Some(self.session.shell().supports_autocd())
     }
 
-    #[cfg(feature = "completions_v2")]
-    fn js_context(&self) -> Option<&dyn warp_completer::completer::JsExecutionContext> {
-        self.js_ctx
-            .as_ref()
-            .map(|ctx| -> &dyn warp_completer::completer::JsExecutionContext { ctx })
-    }
-
     fn shell_family(&self) -> Option<ShellFamily> {
         Some(self.session.shell_family())
     }
@@ -302,7 +291,7 @@ impl SessionContext {
         session: impl Into<Arc<Session>>,
         command_registry: Arc<CommandRegistry>,
         current_working_directory: TypedPathBuf,
-        #[allow(unused_variables)] ctx: &AppContext,
+        ctx: &AppContext,
     ) -> Self {
         let workflow_aliases = if FeatureFlag::WorkflowAliases.is_enabled() {
             WorkflowAliases::as_ref(ctx).autocomplete_data(ctx)
@@ -310,30 +299,12 @@ impl SessionContext {
             Default::default()
         };
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "completions_v2")] {
-                use crate::plugin::{PluginHost, service::CallJsFunctionService};
-
-                let js_function_caller = PluginHost::handle(ctx)
-                    .as_ref(ctx)
-                    .plugin_service_caller::<CallJsFunctionService>();
-                Self {
-                    session: session.into(),
-                    command_registry,
-                    current_working_directory,
-                    js_ctx: js_function_caller.map(js::SessionJsExecutionContext::new),
-                    cached_directory_entries: Arc::new(Default::default()),
-                    workflow_aliases,
-                }
-            } else {
-                Self {
-                    session: session.into(),
-                    command_registry,
-                    current_working_directory,
-                    cached_directory_entries: Arc::new(Default::default()),
-                    workflow_aliases,
-                }
-            }
+        Self {
+            session: session.into(),
+            command_registry,
+            current_working_directory,
+            cached_directory_entries: Arc::new(Default::default()),
+            workflow_aliases,
         }
     }
 }

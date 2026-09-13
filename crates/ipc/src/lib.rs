@@ -4,9 +4,9 @@
 //! corresponding typed "clients" ([`ServiceCaller`]s) which provide a typed interface to call the
 //! services across process boundaries.
 //!
-//! This is intended to support communication between the Warp app and third-party plugins running
-//! in a separate "plugin host" process, but is designed generically to be extended to other native
-//! process-boundary use cases, such as the terminal server.
+//! This is used for communication between Warp processes, such as the terminal server. Where
+//! possible, transport-specific details are abstracted out to eventually support the same protocol
+//! on top of the WebWorkers `MessagePort` API in the browser for Warp on Web.
 //!
 //! This is implemented on top of the `interprocess` crate for local socket transport.
 //!
