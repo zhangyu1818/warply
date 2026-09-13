@@ -51,7 +51,6 @@ chrono.workspace = true
 clap.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
-command-signatures-v2 = { workspace = true, optional = true }
 computer_use.workspace = true
 crc.workspace = true
 content_inspector = "0.2.4"
@@ -190,7 +189,6 @@ warp-workflows.workspace = true
 warp_completer.workspace = true
 warp_core.workspace = true
 warp_editor.workspace = true
-warp_js = { workspace = true, optional = true }
 local_object_model.workspace = true
 warp_util.workspace = true
 hashbrown.workspace = true
@@ -255,7 +253,6 @@ tokio.workspace = true
 tokio-util.workspace = true
 
 notify-debouncer-full.workspace = true
-rquickjs = { workspace = true, optional = true }
 rustls.workspace = true
 syntect = "5.0"
 sysinfo.workspace = true
@@ -303,11 +300,6 @@ warp_util.workspace = true
 [features]
 async_find = []
 changelog = []
-completions_v2 = [
-    "plugin_host",
-    "warp_completer/v2",
-    "dep:command-signatures-v2",
-]
 default = [
     "render_continuous_block_selections_with_single_border",
     "shell_selector",
@@ -408,10 +400,6 @@ markdown_mermaid = []
 # Fix for cursor reflow bug during window resize, from Alacritty resizing logic.
 resize_fix = []
 pluggable_notifications = []
-# This feature enables plugin support in Warply. Note that its typically checked
-# directly, rather than via the `FeatureFlag` enum, because its value is
-# required early in the app lifecycle prior to `FeatureFlag` initialization.
-plugin_host = ["dep:rquickjs", "dep:warp_js", "warp_cli/plugin_host"]
 # Enable this feature to automatically perform CPU profiling via pprof.  The
 # generated profile will be written to profile.pb in the current directory.
 # NOTE: This may slow down program execution.
