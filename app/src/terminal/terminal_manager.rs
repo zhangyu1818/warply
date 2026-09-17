@@ -50,11 +50,7 @@ pub(super) fn compute_block_size(initial_size: Vector2F, ctx: &mut AppContext) -
     let appearance = Appearance::as_ref(ctx);
     let terminal_spacing =
         TerminalSettings::as_ref(ctx).terminal_spacing(appearance.line_height_ratio(), ctx);
-    let size_info = if ctx.is_headless() {
-        // In headless mode, we don't actually have a font since we aren't rendering anything.
-        // We skip the font-based size computation and hardcode a standard 80x24 terminal.
-        SizeInfo::new_without_font_metrics(24, 80)
-    } else {
+    let size_info = if ctx.is_gui() {
         let font_cache = ctx.font_cache();
         create_size_info_for_blocklist(
             initial_size,
@@ -63,6 +59,10 @@ pub(super) fn compute_block_size(initial_size: Vector2F, ctx: &mut AppContext) -
             appearance.monospace_font_size(),
             appearance.ui_builder().line_height_ratio(),
         )
+    } else {
+        // A windowless backend has no font since it doesn't render with one. We skip the
+        // font-based size computation and hardcode a standard 80x24 terminal.
+        SizeInfo::new_without_font_metrics(24, 80)
     };
     let maximum_grid_size = *TerminalSettings::as_ref(ctx).maximum_grid_size.value();
     BlockSize {
