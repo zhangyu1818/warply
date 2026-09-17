@@ -309,21 +309,21 @@ impl LaunchMode {
         }
     }
 
-    /// Returns `true` if Warp should run headlessly, without a visible UI.
-    fn is_headless(&self) -> bool {
+    /// Returns `true` if Warp renders to native GUI windows on the platform app backend.
+    fn is_gui(&self) -> bool {
         match self {
-            LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => true,
-            LaunchMode::App { .. } | LaunchMode::Test { .. } => false,
+            LaunchMode::App { .. } | LaunchMode::Test { .. } => true,
+            LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon { .. } => false,
         }
     }
 
     /// Whether this launch mode should start the local loopback HTTP server
-    /// (`crates/http_server`), which serves profiling on a fixed port. Only
-    /// non-headless GUI instances start it, since co-located headless processes
-    /// (daemon, proxy) would otherwise contend for the fixed port.
+    /// (`crates/http_server`), which serves profiling on a fixed port. Only GUI
+    /// instances start it, since co-located windowless processes (daemon, proxy)
+    /// would otherwise contend for the fixed port.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     fn should_start_local_http_server(&self) -> bool {
-        !self.is_headless()
+        self.is_gui()
     }
 
     /// Whether profiling and tracing should be initialized.
@@ -558,21 +558,23 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let pty_spawner =
         terminal::local_tty::spawner::PtySpawner::new().context("Failed to create pty spawner")?;
 
-    let mut app_builder = if launch_mode.is_headless() {
-        warpui::platform::AppBuilder::new_headless(
+    let mut app_builder = if launch_mode.is_gui() {
+        warpui::platform::AppBuilder::new(
             app_callbacks(launch_mode.is_integration_test()),
             Box::new(ASSETS),
             launch_mode.take_test_driver(),
         )
     } else {
-        warpui::platform::AppBuilder::new(
+        warpui::platform::AppBuilder::new_windowless(
             app_callbacks(launch_mode.is_integration_test()),
             Box::new(ASSETS),
             launch_mode.take_test_driver(),
         )
     };
 
-    {
+    // A windowless invocation has no Dock presence, so it performs no Dock-visible
+    // setup at all (Dock icon, Dock menu, menu bar). See APP-2946.
+    if launch_mode.is_gui() {
         use warpui::platform::mac::AppExt;
 
         let activate_on_launch = !launch_mode.is_integration_test()
@@ -749,7 +751,7 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(WarplyUpdater::new);
     ctx.add_singleton_model(|_| AIFactManager::new());
     ctx.add_singleton_model(|_| ExecutionProfileEditorManager::default());
-    if !launch_mode.is_headless() {
+    if launch_mode.is_gui() {
         AppearanceManager::as_ref(ctx).set_app_icon(ctx);
     }
 
