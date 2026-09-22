@@ -1,107 +1,83 @@
-<a href="https://www.warp.dev">
-    <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
-</a>
-<br />
-<p align="center">
-  <a href="https://www.warp.dev"><img height="20" alt="Built with Warp" src="./images/Built-With-Warp-Export@2x.png" /></a>
-  <a href="https://oz.warp.dev"><img height="20" alt="Powered by Oz" src="./images/Powered-By-Oz-Export@2x.png" /></a>
-</p>
+<h1 align="center">Warply</h1>
+
+<p align="center">A native macOS terminal with your choice of AI agent.</p>
 
 <p align="center">
-  <a href="https://www.warp.dev">Website</a>
-  ·
-  <a href="https://www.warp.dev/code">Code</a>
-  ·
-  <a href="https://www.warp.dev/agents">Agents</a>
-  ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
-  ·
-  <a href="https://www.warp.dev/drive">Drive</a>
-  ·
-  <a href="https://docs.warp.dev">Docs</a>
-  ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
+  <a href="https://github.com/zhangyu1818/warply/releases/latest">Download</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="https://github.com/zhangyu1818/warply/issues">Issues</a>
 </p>
 
-> [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+![Warply running a local terminal session on macOS](images/warply-terminal.jpg)
 
-<h1></h1>
+Warply is an independent fork of [Warp](https://github.com/warpdotdev/warp), focused on a local-first terminal experience for macOS. It keeps Warp’s terminal and native interface, connects agent conversations through the Agent Client Protocol (ACP), and removes dependencies on Warp accounts, hosted AI, cloud services, and telemetry.
 
-## About
+## Features
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+- **A terminal built for everyday work.** Command blocks, an editable command input, completions, searchable history, tabs, and split panes.
+- **Bring your own agent.** Use ACP-compatible agents in the integrated conversation UI, with streamed responses, plans, permission requests, tool activity, and diffs.
+- **Choose your suggestion provider.** Configure an OpenAI-compatible endpoint for Next Command and Prompt Suggestions, independently of your ACP agent.
+- **Keep your work local.** Local conversation history, saved workflows, prompts, and terminal sessions.
+- **Work across machines over SSH.** Remote terminals, remote file browsing, and Warpify shell integration remain part of the terminal experience.
+- **Made for macOS.** Native windowing, themes, keyboard shortcuts, and Sparkle updates from Warply’s GitHub releases.
 
-## Installation
+Warply does not require a Warp account. AI providers and agents may require their own credentials and network access. MCP servers and skills are configured in your chosen agent, which owns their execution.
 
-You can [download Warp](https://www.warp.dev/download) and [read our docs](https://docs.warp.dev/) for platform-specific instructions.
+## Getting started
 
-## Warp Contributions Overview Dashboard
+### Install
 
-Explore [build.warp.dev](https://build.warp.dev) to:
-- Watch thousands of Oz agents triage issues, write specs, implement changes, and review PRs
-- View top contributors and in-flight features
-- Track your own issues with GitHub sign-in
-- Click into active agent sessions in a web-compiled Warp terminal
+Download `Warply.dmg` from the [latest release](https://github.com/zhangyu1818/warply/releases/latest), open it, and drag **Warply** into **Applications**.
 
-## Licensing
+The release workflow currently produces **macOS Apple Silicon (arm64)** builds. Linux and Windows desktop clients are outside this fork’s scope.
 
-Warp's UI framework (the `warpui_core` and `warpui` crates) are licensed under the [MIT license](LICENSE-MIT).
+### Connect an AI agent
 
-The rest of the code in this repository is licensed under the [AGPL v3](LICENSE-AGPL).
+1. Open **Settings → AI → ACP Agent**.
+2. Choose an **Agent backend** from the ACP registry.
+3. Make sure its required launcher is available: Node.js / `npx`, `uvx`, or the agent’s installed binary, depending on the backend. Follow the selected agent’s setup and authentication instructions.
+4. Configure the options exposed by that agent and start a new agent conversation.
 
-## Open Source & Contributing
+Available models and session options depend on the selected agent. Warply renders ACP events and permission requests; the agent provides the model connection, tools, MCP servers, and skills.
 
-Warp's client codebase is open source and lives in this repository. We welcome community contributions and have designed a lightweight workflow to help new contributors get started. For the full contribution flow, read our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
+### Configure terminal suggestions
 
-> [!TIP]
-> **Chat with contributors and the Warp team** in the [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB) Slack channel — a good place for ad-hoc questions, design discussion, and pairing with maintainers. New here? [Join the Warp Slack community](https://go.warp.dev/join-preview) first, then jump into `#oss-contributors`.
+In **Settings → AI → Terminal Suggestions**, set your provider’s **Endpoint**, **API key**, and **Model**. These settings power Next Command and Prompt Suggestions separately from agent conversations.
 
-Maintaining a popular open-source project? [Apply for Oz credits](https://tally.so/r/LZWxqG) to bring [agentic workflows](https://github.com/warpdotdev/oz-for-oss) like issue triage, PR review, and community management to your repo.
+## Build from source
 
-### Issue to PR
+You will need macOS, the full **Xcode** application, **Homebrew**, **Rust via rustup**, and **Git LFS**. The Rust version is pinned in [`rust-toolchain.toml`](rust-toolchain.toml).
 
-Before filing, [search existing issues](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc) for your bug or feature request. If nothing exists, [file an issue](https://github.com/warpdotdev/warp/issues/new/choose) using our templates. Security vulnerabilities should be reported privately as described in [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
-
-Once filed, a Warp maintainer reviews the issue and may apply a readiness label: [`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) signals the design is open for contributors to spec out, and [`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) signals the design is settled and code PRs are welcome. Anyone can pick up a labeled issue — mention **@oss-maintainers** on an issue if you'd like it considered for a readiness label.
-
-### Building the Repo Locally
-
-To build and run Warp from source:
-
-```bash
-./script/bootstrap   # platform-specific setup
-./script/run         # build and run Warp
-./script/presubmit   # fmt, clippy, and tests
+```sh
+brew install git-lfs
+git clone https://github.com/zhangyu1818/warply.git
+cd warply
+./script/bootstrap
+./script/run
 ```
 
-See [WARP.md](WARP.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
+Bootstrap fetches Git LFS assets, prepares Xcode, and installs build and test dependencies. It may request administrator access for Xcode setup. `./script/run` builds, bundles, and launches `Warply.app`; use `./script/run --release` for a release build.
 
-## Joining the Team
+The application binary is named `warply`. The Cargo package retains the upstream name `warp`, so targeted checks use `-p warp`:
 
-Interested in joining the team? See our [open roles](https://www.warp.dev/careers).
+```sh
+cargo fmt -- --check
+cargo check -p warp --all-targets --locked --message-format short
+cargo check --workspace --all-targets --locked --message-format short
+cargo nextest run -p warp -E 'test(slash_command) | test(acp) | test(terminal_suggestions)'
+```
 
-## Support and Questions
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution and validation guidance, and [`docs/agents-wiki/`](docs/agents-wiki/README.md) for the fork’s architecture and upstream merge records.
 
-1. See our [docs](https://docs.warp.dev/) for a comprehensive guide to Warp's features.
-2. Join our [Slack Community](https://go.warp.dev/join-preview) to connect with other users and get help from the Warp team — contributors hang out in [`#oss-contributors`](https://warpcommunity.slack.com/archives/C0B0LM8N4DB).
-3. Try our [Preview build](https://www.warp.dev/download-preview) to test the latest experimental features.
-4. Mention **@oss-maintainers** on any issue to escalate to the team — for example, if you encounter problems with the automated agents.
+## Contributing
 
-## Code of Conduct
+Bug reports and focused pull requests are welcome in the [Warply repository](https://github.com/zhangyu1818/warply). Include reproduction steps, your macOS version, and the Warply version when reporting a problem.
 
-We ask everyone to be respectful and empathetic. Warp follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report violations, email warp-coc at warp.dev.
+Compatible upstream terminal and local UI improvements are reviewed and selectively ported. Changes must preserve the macOS-only, ACP-backed architecture. Read [`AGENTS.md`](AGENTS.md) and the [fork contract](docs/agents-wiki/fork-contract.md) before contributing.
 
-## Open Source Dependencies
+## Credits and license
 
-We'd like to call out a few of the [open source dependencies](https://docs.warp.dev/help/licenses) that have helped Warp to get off the ground:
+Warply builds on the work of the Warp authors and contributors. It is an independent project and is not affiliated with or endorsed by Warp / Denver Technologies, Inc.
 
-* [Tokio](https://github.com/tokio-rs/tokio)
-* [NuShell](https://github.com/nushell/nushell)
-* [Fig Completion Specs](https://github.com/withfig/autocomplete)
-* [Warp Server Framework](https://github.com/seanmonstar/warp)
-* [Alacritty](https://github.com/alacritty/alacritty)
-* [Hyper HTTP library](https://github.com/hyperium/hyper)
-* [FontKit](https://github.com/servo/font-kit)
-* [Core-foundation](https://github.com/servo/core-foundation-rs)
-* [Smol](https://github.com/smol-rs/smol)
+The `warpui_core` and `warpui` crates are licensed under [MIT](LICENSE-MIT). The rest of the repository is licensed under [AGPL-3.0](LICENSE-AGPL). Upstream copyright notices and third-party license notices are retained.
