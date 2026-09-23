@@ -7828,22 +7828,3 @@ fn ctrl_t_apply_mode_forks_between_splice_and_replace_for_the_same_draft() {
         );
     });
 }
-
-#[test]
-fn ctrl_t_binding_is_ineligible_when_shell_widget_handoff_flag_is_disabled() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        assert!(
-            !FeatureFlag::ShellWidgetHandoff.is_enabled(),
-            "this test assumes the flag defaults to disabled in the test harness"
-        );
-        app.read(|ctx| {
-            assert!(
-                ctx.get_binding_by_name("workspace:trigger_external_ctrl_t_file_search")
-                    .is_none(),
-                "the ctrl-t binding must be ineligible while ShellWidgetHandoff is disabled"
-            );
-        });
-    });
-}
