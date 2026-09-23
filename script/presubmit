@@ -31,6 +31,9 @@ echo "Running wgslfmt..."
 # However, the default bash version in MacOS is too old to support that, so we use `find` instead.
 find . -name "*.wgsl" -exec wgslfmt --check {} +
 echo "wgslfmt succeeded..."
+echo "Running ShellCheck..."
+./script/lint_shellcheck
+echo "ShellCheck check completed..."
 
 echo "Running tests via nextest..."
 cargo nextest run --no-fail-fast --workspace
