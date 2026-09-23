@@ -321,6 +321,7 @@ pub enum WorkspaceAction {
     ToggleKeybindingsPage,
     ShowCommandSearch(CommandSearchOptions),
     TriggerExternalCtrlTFileSearch,
+    TriggerExternalAltCDirectorySearch,
     CreateEnvVarCollection,
     ToggleMouseReporting,
     ToggleScrollReporting,
@@ -743,6 +744,7 @@ impl WorkspaceAction {
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
             | TriggerExternalCtrlTFileSearch
+            | TriggerExternalAltCDirectorySearch
             | ToggleMouseReporting
             | ToggleScrollReporting
             | ToggleFocusReporting
