@@ -2197,3 +2197,7 @@ fn git_error_response(message: String) -> HandlerOutcome {
         message,
     }))
 }
+
+#[cfg(test)]
+#[path = "server_model_tests.rs"]
+mod tests;

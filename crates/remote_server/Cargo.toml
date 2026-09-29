@@ -26,7 +26,7 @@ async-io.workspace = true
 async-process.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [build-dependencies]
