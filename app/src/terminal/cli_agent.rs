@@ -119,7 +119,13 @@ const GROK_COLOR: ColorU = ColorU {
     a: 255,
 };
 
-/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Mistral Vibe, Grok Build)
+const KIRO_PURPLE: ColorU = ColorU {
+    r: 144,
+    g: 70,
+    b: 255,
+    a: 255,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, Serialize, Deserialize)]
 pub enum CLIAgent {
     Claude,
@@ -135,6 +141,7 @@ pub enum CLIAgent {
     Goose,
     Vibe,
     Grok,
+    Kiro,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -156,6 +163,7 @@ impl CLIAgent {
             CLIAgent::Goose => "goose",
             CLIAgent::Vibe => "vibe",
             CLIAgent::Grok => "grok",
+            CLIAgent::Kiro => "kiro-cli",
             CLIAgent::Unknown => "",
         }
     }
@@ -187,6 +195,7 @@ impl CLIAgent {
             CLIAgent::Goose => "Goose",
             CLIAgent::Vibe => "Mistral Vibe",
             CLIAgent::Grok => "Grok Build",
+            CLIAgent::Kiro => "Kiro CLI",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -210,6 +219,7 @@ impl CLIAgent {
             // up in a follow-up once an officially licensed SVG is available.
             CLIAgent::Vibe => None,
             CLIAgent::Grok => Some(Icon::GrokLogo),
+            CLIAgent::Kiro => Some(Icon::KiroLogo),
             CLIAgent::Unknown => None,
         }
     }
@@ -223,7 +233,11 @@ impl CLIAgent {
     pub fn supports_bash_mode(&self) -> bool {
         matches!(
             self,
-            CLIAgent::Claude | CLIAgent::Codex | CLIAgent::OpenCode | CLIAgent::Grok
+            CLIAgent::Claude
+                | CLIAgent::Codex
+                | CLIAgent::OpenCode
+                | CLIAgent::Grok
+                | CLIAgent::Kiro
         )
     }
 
@@ -243,6 +257,7 @@ impl CLIAgent {
             CLIAgent::Goose => Some(GOOSE_COLOR),
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
             CLIAgent::Grok => Some(GROK_COLOR),
+            CLIAgent::Kiro => Some(KIRO_PURPLE),
             CLIAgent::Unknown => None,
         }
     }
@@ -308,6 +323,7 @@ impl CLIAgent {
             .find(|agent| {
                 resolved_first_word == agent.command_prefix()
                     || (matches!(agent, CLIAgent::Vibe) && resolved_first_word == "vibe-acp")
+                    || (matches!(agent, CLIAgent::Kiro) && resolved_first_word == "kiro")
             })
     }
 }
