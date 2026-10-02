@@ -61,6 +61,7 @@ fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
         CLIAgent::Amp
         | CLIAgent::Droid
         | CLIAgent::Pi
+        | CLIAgent::Kiro
         | CLIAgent::Goose
         | CLIAgent::Vibe
         | CLIAgent::Unknown => RichInputSubmitStrategy::Inline,
