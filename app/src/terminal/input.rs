@@ -858,6 +858,10 @@ pub enum InputAction {
     CtrlR,
     CtrlD,
     Up,
+    /// Deferred so Up does not update InlineHistoryMenuView while it is already checked out.
+    SelectPreviousInlineHistoryItem,
+    /// Deferred so Down does not update InlineHistoryMenuView while it is already checked out.
+    SelectNextInlineHistoryItem,
     PageUp,
     PageDown,
     ClearScreen,
@@ -2111,7 +2115,9 @@ impl Input {
                     render_decorator_elements: Some(Box::new(
                         move |app| -> EditorDecoratorElements {
                             let terminal_model = model_clone.lock();
-                            let active_block = terminal_model.block_list().active_block();
+                            let prompt_block = terminal_model
+                                .prompt_block()
+                                .unwrap_or_else(|| terminal_model.block_list().active_block());
 
                             let mut editor_decorator_elements = EditorDecoratorElements::default();
 
@@ -2139,7 +2145,7 @@ impl Input {
                                 editor_decorator_elements.left_notch = lprompt_bottom;
                                 editor_decorator_elements.right_notch = rprompt;
                                 editor_decorator_elements.right_notch_offset_px = Some(
-                                    active_block.rprompt_render_offset(
+                                    prompt_block.rprompt_render_offset(
                                         &input_render_state_model_handle_clone
                                             .as_ref(app)
                                             .size_info,
@@ -6359,6 +6365,32 @@ impl Input {
         ctx.notify();
     }
 
+    fn select_previous_inline_history_item(&mut self, ctx: &mut ViewContext<Self>) {
+        if !self
+            .suggestions_mode_model
+            .as_ref(ctx)
+            .is_inline_history_menu()
+        {
+            return;
+        }
+
+        self.inline_history_menu_view
+            .update(ctx, |view, ctx| view.select_up(ctx));
+    }
+
+    fn select_next_inline_history_item(&mut self, ctx: &mut ViewContext<Self>) {
+        if !self
+            .suggestions_mode_model
+            .as_ref(ctx)
+            .is_inline_history_menu()
+        {
+            return;
+        }
+
+        self.inline_history_menu_view
+            .update(ctx, |view, ctx| view.select_down(ctx));
+    }
+
     fn editor_up(&mut self, ctx: &mut ViewContext<Self>) {
         if self.is_editing_queued_prompt(ctx) {
             return;
@@ -6413,9 +6445,7 @@ impl Input {
                 true
             }
             InputSuggestionsMode::InlineHistoryMenu { .. } => {
-                self.inline_history_menu_view.update(ctx, |view, ctx| {
-                    view.select_up(ctx);
-                });
+                ctx.dispatch_typed_action_deferred(InputAction::SelectPreviousInlineHistoryItem);
                 true
             }
             InputSuggestionsMode::IndexedReposMenu => {
@@ -6678,9 +6708,7 @@ impl Input {
             .as_ref(ctx)
             .is_inline_history_menu()
         {
-            self.inline_history_menu_view.update(ctx, |view, ctx| {
-                view.select_down(ctx);
-            });
+            ctx.dispatch_typed_action_deferred(InputAction::SelectNextInlineHistoryItem);
             return;
         }
 
@@ -11698,6 +11726,10 @@ impl TypedActionView for Input {
         match action {
             InputAction::FocusInputBox => self.focus_input_box(ctx),
             InputAction::Up => self.editor_up(ctx),
+            InputAction::SelectPreviousInlineHistoryItem => {
+                self.select_previous_inline_history_item(ctx)
+            }
+            InputAction::SelectNextInlineHistoryItem => self.select_next_inline_history_item(ctx),
             InputAction::PageUp => self.editor_page_up(ctx),
             InputAction::PageDown => self.editor_page_down(ctx),
             InputAction::CtrlD => self.ctrl_d(ctx),
