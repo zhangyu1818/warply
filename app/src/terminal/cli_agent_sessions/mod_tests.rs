@@ -106,6 +106,15 @@ fn parse_idle_prompt_notification() {
 }
 
 #[test]
+fn parse_agent_needs_input_notification() {
+    let body = r#"{"v":1,"agent":"claude","event":"agent_needs_input","session_id":"abc","cwd":"/tmp","project":"tmp","summary":"Some dialog text"}"#;
+    let notif = parse_event(Some("warp://cli-agent"), body).unwrap();
+
+    assert_eq!(notif.event, CLIAgentEventType::NeedsInput);
+    assert_eq!(notif.payload.summary.as_deref(), Some("Some dialog text"));
+}
+
+#[test]
 fn parse_session_start_notification() {
     let body = r#"{"v":1,"agent":"claude","event":"session_start","session_id":"abc","cwd":"/tmp","project":"tmp","plugin_version":"1.1.0"}"#;
     let notif = parse_event(Some("warp://cli-agent"), body).unwrap();

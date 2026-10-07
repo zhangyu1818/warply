@@ -173,6 +173,9 @@ impl CLIAgentSession {
                     .clone()
                     .or_else(|| Some("Waiting for your answer".to_owned())),
             },
+            // Interactive clients keep ignoring this event: only an unattended run has
+            // no one to answer the prompt, and this fork has no unattended run modes.
+            CLIAgentEventType::NeedsInput => return None,
             CLIAgentEventType::PermissionReplied => {
                 if !matches!(self.status, CLIAgentSessionStatus::Blocked { .. }) {
                     return None;

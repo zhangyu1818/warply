@@ -21,6 +21,7 @@ pub enum CLIAgentEventType {
     PermissionRequest,
     PermissionReplied,
     QuestionAsked,
+    NeedsInput,
     IdlePrompt,
     Unknown(String),
 }

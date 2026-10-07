@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use async_channel::unbounded;
@@ -5,14 +7,108 @@ use futures::channel::oneshot;
 use parking_lot::FairMutex;
 use warpui::{App, EntityId};
 
+use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::agent::task::TaskId;
+use crate::ai::agent::{
+    AIAgentAction, AIAgentActionResultType, AIAgentActionType, RequestCommandOutputResult,
+};
 use crate::terminal::event::{BlockMetadataReceivedEvent, BlockWorkingDirectoryUpdatedEvent};
 use crate::terminal::model::block::{BlockId, BlockMetadata};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::{BlockIndex, TerminalModel};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
+use crate::test_util::terminal::initialize_app_for_terminal_view;
 
-use super::{BlockSelector, ShellCommandExecutor};
+use super::super::{AnyActionExecution, ExecuteActionInput};
+use super::{BlockSelector, ShellCommandExecutor, ShellCommandExecutorEvent};
+
+#[test]
+fn terminal_busy_does_not_write_or_cancel_the_running_command() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let sessions = app.add_model(|_| Sessions::new_for_test());
+        let (_tx, rx) = unbounded();
+        let dispatcher = app.add_model(|ctx| ModelEventDispatcher::new(rx, sessions.clone(), ctx));
+        let active_session =
+            app.add_model(|ctx| ActiveSession::new(sessions, dispatcher.clone(), ctx));
+        let model = Arc::new(FairMutex::new(TerminalModel::mock(None, None)));
+        model.lock().simulate_long_running_block("lint", "working");
+        let block_id = model.lock().active_block_id().clone();
+        let executor = app.add_model(|ctx| {
+            ShellCommandExecutor::new(
+                active_session,
+                model.clone(),
+                &dispatcher,
+                EntityId::new(),
+                ctx,
+            )
+        });
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let observed = events.clone();
+        app.update(|ctx| {
+            ctx.subscribe_to_model(&executor, move |_, event: &ShellCommandExecutorEvent, _| {
+                observed.borrow_mut().push(event.clone());
+            });
+        });
+        let action = AIAgentAction {
+            id: "new-command".to_owned().into(),
+            task_id: TaskId::new("root".into()),
+            requires_result: true,
+            action: AIAgentActionType::RequestCommandOutput {
+                command: "ls".into(),
+                is_read_only: Some(true),
+                is_risky: Some(false),
+                wait_until_completion: true,
+                uses_pager: None,
+                rationale: None,
+                citations: vec![],
+            },
+        };
+        let execution: AnyActionExecution = executor.update(&mut app, |executor, ctx| {
+            executor
+                .execute(
+                    ExecuteActionInput {
+                        action: &action,
+                        conversation_id: AIConversationId::new(),
+                    },
+                    ctx,
+                )
+                .into()
+        });
+        let AnyActionExecution::Sync(result) = execution else {
+            panic!("busy terminal must synchronously return an error");
+        };
+        assert!(
+            matches!(&result, AIAgentActionResultType::RequestCommandOutput(
+            RequestCommandOutputResult::TerminalBusy { block_id: active, command }
+        ) if active == &block_id && command == "ls")
+        );
+        assert!(result.should_trigger_request_upon_completion());
+        assert!(!result.is_cancelled());
+        assert!(events.borrow().is_empty());
+        {
+            let model = model.lock();
+            assert_eq!(model.active_block_id(), &block_id);
+            assert!(model.block_list().active_block().is_executing());
+        }
+        model.lock().finish_block();
+        let execution: AnyActionExecution = executor.update(&mut app, |executor, ctx| {
+            executor
+                .execute(
+                    ExecuteActionInput {
+                        action: &action,
+                        conversation_id: AIConversationId::new(),
+                    },
+                    ctx,
+                )
+                .into()
+        });
+        assert!(matches!(execution, AnyActionExecution::Async { .. }));
+        assert!(matches!(events.borrow().as_slice(),
+            [ShellCommandExecutorEvent::ExecuteCommand { command, .. }] if command == "ls"));
+    });
+}
 
 /// Locks in the contract that `ShellCommandExecutor`'s requested-command finish
 /// detector reacts only to `BlockMetadataReceived` (precmd) and not to
