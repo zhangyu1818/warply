@@ -260,7 +260,10 @@ impl ShellCommandExecutor {
                 {
                     // If there is an active block, we can't execute another command.
                     return ActionExecution::Sync(AIAgentActionResultType::RequestCommandOutput(
-                        RequestCommandOutputResult::CancelledBeforeExecution,
+                        RequestCommandOutputResult::TerminalBusy {
+                            command: command.clone(),
+                            block_id: model.block_list().active_block().id().clone(),
+                        },
                     ));
                 }
                 // If the command might use pager and can't be interacted with,
