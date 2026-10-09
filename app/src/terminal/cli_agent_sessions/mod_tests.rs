@@ -293,3 +293,50 @@ fn apply_event_preserves_input_session() {
 
     assert_eq!(session.input_state, input_state);
 }
+
+#[test]
+fn stop_with_pending_background_work_keeps_session_in_progress() {
+    let body = r#"{"v":1,"agent":"claude","event":"stop","query":"build it","response":"Build started in the background.","background_task_count":1,"session_cron_count":2}"#;
+    let event = parse_event(Some("warp://cli-agent"), body).unwrap();
+    assert_eq!(event.payload.pending_background_work_count, Some(3));
+    assert!(event.payload.has_pending_background_work());
+    let mut session = CLIAgentSession {
+        agent: CLIAgent::Claude,
+        status: CLIAgentSessionStatus::InProgress,
+        session_context: CLIAgentSessionContext::default(),
+        input_state: CLIAgentInputState::Closed,
+        should_auto_toggle_input: false,
+        listener: None,
+        remote_host: None,
+        draft_text: None,
+    };
+
+    assert_eq!(session.apply_event(&event), None);
+
+    assert_eq!(session.status, CLIAgentSessionStatus::InProgress);
+    assert_eq!(
+        session.session_context.response.as_deref(),
+        Some("Build started in the background.")
+    );
+}
+
+#[test]
+fn stop_without_pending_background_work_succeeds() {
+    let body = r#"{"v":1,"agent":"claude","event":"stop","background_task_count":0,"session_cron_count":0}"#;
+    let event = parse_event(Some("warp://cli-agent"), body).unwrap();
+    let mut session = CLIAgentSession {
+        agent: CLIAgent::Claude,
+        status: CLIAgentSessionStatus::InProgress,
+        session_context: CLIAgentSessionContext::default(),
+        input_state: CLIAgentInputState::Closed,
+        should_auto_toggle_input: false,
+        listener: None,
+        remote_host: None,
+        draft_text: None,
+    };
+
+    assert_eq!(
+        session.apply_event(&event),
+        Some(CLIAgentSessionStatus::Success)
+    );
+}
