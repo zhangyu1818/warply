@@ -40,6 +40,11 @@ pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {
         .and_then(resolve_agent)
         .unwrap_or(CLIAgent::Unknown);
 
+    let pending_background_work_count = match (raw.background_task_count, raw.session_cron_count) {
+        (None, None) => None,
+        (tasks, crons) => Some(tasks.unwrap_or(0).saturating_add(crons.unwrap_or(0))),
+    };
+
     Some(CLIAgentEvent {
         v: raw.v.unwrap_or(1),
         agent,
@@ -54,6 +59,7 @@ pub(super) fn parse(body: &str) -> Option<CLIAgentEvent> {
             summary: raw.summary,
             tool_name: raw.tool_name,
             tool_input_preview,
+            pending_background_work_count,
         },
     })
 }
@@ -72,4 +78,6 @@ struct RawEvent {
     summary: Option<String>,
     tool_name: Option<String>,
     tool_input: Option<serde_json::Value>,
+    background_task_count: Option<u32>,
+    session_cron_count: Option<u32>,
 }
