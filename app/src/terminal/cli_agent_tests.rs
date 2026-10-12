@@ -258,6 +258,7 @@ fn test_detect_known_agents() {
                 ("goose", CLIAgent::Goose),
                 ("vibe", CLIAgent::Vibe),
                 ("grok", CLIAgent::Grok),
+                ("muse", CLIAgent::Muse),
             ] {
                 assert_eq!(
                     CLIAgent::detect(command, None, None, ctx),
@@ -281,6 +282,11 @@ fn test_detect_with_arguments() {
                 CLIAgent::detect("gemini chat", None, None, ctx),
                 Some(CLIAgent::Gemini),
             );
+            assert_eq!(
+                CLIAgent::detect(r#"muse exec "ping""#, None, None, ctx),
+                Some(CLIAgent::Muse),
+            );
+            assert_eq!(CLIAgent::detect("npx muse", None, None, ctx), None);
         });
     });
 }
@@ -293,6 +299,17 @@ fn test_grok_public_configuration() {
     assert_eq!(
         CLIAgent::Grok.icon(),
         Some(crate::ui_components::icons::Icon::GrokLogo)
+    );
+}
+
+#[test]
+fn test_muse_public_configuration() {
+    assert_eq!(CLIAgent::Muse.command_prefix(), "muse");
+    assert_eq!(CLIAgent::Muse.display_name(), "Muse Code");
+    assert!(CLIAgent::Muse.supports_bash_mode());
+    assert_eq!(
+        CLIAgent::Muse.icon(),
+        Some(crate::ui_components::icons::Icon::MuseLogo)
     );
 }
 

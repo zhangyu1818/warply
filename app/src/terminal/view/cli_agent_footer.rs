@@ -50,7 +50,7 @@ enum RichInputSubmitStrategy {
 
 fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
     match agent {
-        CLIAgent::Codex => RichInputSubmitStrategy::BracketedPaste,
+        CLIAgent::Codex | CLIAgent::Muse => RichInputSubmitStrategy::BracketedPaste,
         CLIAgent::Copilot => RichInputSubmitStrategy::BracketedPasteDelayedEnter,
         CLIAgent::Claude
         | CLIAgent::OpenCode

@@ -49,6 +49,7 @@ pub fn is_agent_supported(agent: &CLIAgent) -> bool {
             | CLIAgent::Droid
             | CLIAgent::Pi
             | CLIAgent::Grok
+            | CLIAgent::Muse
     )
 }
 
@@ -65,7 +66,8 @@ fn create_handler(agent: &CLIAgent) -> Option<Box<dyn CLIAgentSessionHandler>> {
         | CLIAgent::Gemini
         | CLIAgent::Auggie
         | CLIAgent::Droid
-        | CLIAgent::Pi => Some(Box::new(DefaultSessionListener)),
+        | CLIAgent::Pi
+        | CLIAgent::Muse => Some(Box::new(DefaultSessionListener)),
         CLIAgent::Codex | CLIAgent::Grok => {
             Some(Box::new(Osc9FallbackSessionHandler { agent: *agent }))
         }
@@ -459,5 +461,30 @@ mod tests {
             payload: CLIAgentEventPayload::default(),
         };
         assert!(handler.handle_event(event).is_some());
+    }
+
+    #[test]
+    fn muse_is_supported_via_default_listener() {
+        assert!(is_agent_supported(&CLIAgent::Muse));
+        let mut handler = create_handler(&CLIAgent::Muse).expect("Muse should support OSC 777");
+
+        let stop_body = r#"{"v":1,"agent":"muse","event":"stop"}"#;
+        let parsed_stop = handler
+            .try_parse(Some(CLI_AGENT_NOTIFICATION_SENTINEL), stop_body)
+            .expect("should parse muse stop");
+        assert_eq!(parsed_stop.agent, CLIAgent::Muse);
+        assert_eq!(parsed_stop.event, CLIAgentEventType::Stop);
+        assert!(handler.handle_event(parsed_stop).is_some());
+
+        let claude_body = r#"{"v":1,"agent":"claude","event":"stop"}"#;
+        let parsed_claude = handler
+            .try_parse(Some(CLI_AGENT_NOTIFICATION_SENTINEL), claude_body)
+            .expect("structured events still parse");
+        assert_eq!(parsed_claude.agent, CLIAgent::Claude);
+
+        assert!(
+            handler.try_parse(None, "Turn complete").is_none(),
+            "Muse must not treat OSC 9 text as a stop event"
+        );
     }
 }

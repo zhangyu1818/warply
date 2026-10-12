@@ -1,7 +1,7 @@
 //! CLI agent detection and configuration.
 //!
 //! This module provides types for detecting and working with CLI-based AI agents
-//! like Claude Code, Gemini CLI, Codex, Amp, and Droid.
+//! like Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Grok Build, and Muse Code.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -126,6 +126,15 @@ const KIRO_PURPLE: ColorU = ColorU {
     a: 255,
 };
 
+/// Muse Code / Meta brand blue (#0081FB)
+const MUSE_COLOR: ColorU = ColorU {
+    r: 0,
+    g: 129,
+    b: 251,
+    a: 255,
+};
+
+/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Mistral Vibe, Grok Build, Kiro CLI, Muse Code)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, Serialize, Deserialize)]
 pub enum CLIAgent {
     Claude,
@@ -142,6 +151,7 @@ pub enum CLIAgent {
     Vibe,
     Grok,
     Kiro,
+    Muse,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -164,6 +174,7 @@ impl CLIAgent {
             CLIAgent::Vibe => "vibe",
             CLIAgent::Grok => "grok",
             CLIAgent::Kiro => "kiro-cli",
+            CLIAgent::Muse => "muse",
             CLIAgent::Unknown => "",
         }
     }
@@ -196,6 +207,7 @@ impl CLIAgent {
             CLIAgent::Vibe => "Mistral Vibe",
             CLIAgent::Grok => "Grok Build",
             CLIAgent::Kiro => "Kiro CLI",
+            CLIAgent::Muse => "Muse Code",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -220,6 +232,7 @@ impl CLIAgent {
             CLIAgent::Vibe => None,
             CLIAgent::Grok => Some(Icon::GrokLogo),
             CLIAgent::Kiro => Some(Icon::KiroLogo),
+            CLIAgent::Muse => Some(Icon::MuseLogo),
             CLIAgent::Unknown => None,
         }
     }
@@ -238,6 +251,7 @@ impl CLIAgent {
                 | CLIAgent::OpenCode
                 | CLIAgent::Grok
                 | CLIAgent::Kiro
+                | CLIAgent::Muse
         )
     }
 
@@ -258,6 +272,7 @@ impl CLIAgent {
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
             CLIAgent::Grok => Some(GROK_COLOR),
             CLIAgent::Kiro => Some(KIRO_PURPLE),
+            CLIAgent::Muse => Some(MUSE_COLOR),
             CLIAgent::Unknown => None,
         }
     }
