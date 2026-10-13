@@ -2087,6 +2087,7 @@ dependencies = [
  "objc2-core-graphics",
  "pathfinder_geometry",
  "serde",
+ "serde_json",
  "serde_with 2.3.3",
  "tempfile",
  "tokio",

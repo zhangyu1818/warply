@@ -35,3 +35,4 @@ warpui.workspace = true
 
 [dev-dependencies]
 computer_use = { path = ".", features = ["test-util"] }
+serde_json.workspace = true
