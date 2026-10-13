@@ -104,7 +104,7 @@ async fn main() {
                 vec![
                     Action::MouseDown {
                         button: button.clone(),
-                        at: pos,
+                        at: Some(pos),
                     },
                     Action::MouseUp { button },
                 ],
