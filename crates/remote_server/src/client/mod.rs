@@ -16,9 +16,9 @@ use crate::proto::{
     GitCreatePrRequest, GitGenerateCommitMessageRequest, GitGetCommittedBranchFilesRequest,
     GitGetPrInfoRequest, GitPushRequest, Initialize, InitializeResponse,
     LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, OpenBuffer,
-    OpenBufferResponse, ReadFileContextRequest, ReadFileContextResponse, RunCommandRequest,
-    RunCommandResponse, SaveBuffer, ServerMessage, SessionBootstrapped, TextEdit,
-    UnsubscribeDiffState, WriteFile, client_message, server_message,
+    OpenBufferResponse, ReadFileContextRequest, ReadFileContextResponse, RenameFile,
+    RunCommandRequest, RunCommandResponse, SaveBuffer, ServerMessage, SessionBootstrapped,
+    TextEdit, UnsubscribeDiffState, WriteFile, client_message, server_message,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -334,6 +334,41 @@ impl RemoteServerClient {
                 safe_error!(
                     safe: ("Remote server unexpected response for LoadRepoMetadataDirectory"),
                     full: ("Remote server unexpected response for LoadRepoMetadataDirectory: response={other:?}")
+                );
+                Err(ClientError::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Renames a file on the remote host and saves its content using the
+    /// host's native filesystem semantics.
+    pub async fn rename_file(
+        &self,
+        path: String,
+        new_path: String,
+        content: String,
+    ) -> Result<(), ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::RenameFile(RenameFile {
+                path,
+                new_path,
+                content,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::RenameFileResponse(resp)) => match resp.result {
+                Some(crate::proto::rename_file_response::Result::Success(_)) | None => Ok(()),
+                Some(crate::proto::rename_file_response::Result::Error(e)) => {
+                    Err(ClientError::FileOperationFailed(e.message))
+                }
+            },
+            other => {
+                safe_error!(
+                    safe: ("Remote server unexpected response for RenameFile"),
+                    full: ("Remote server unexpected response for RenameFile: response={other:?}")
                 );
                 Err(ClientError::UnexpectedResponse)
             }

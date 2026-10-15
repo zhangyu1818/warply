@@ -461,6 +461,9 @@ pub struct CodeDiffView {
     session_platform: Option<SessionPlatform>,
     /// Whether diffs target local disk or a remote host.
     diff_session_type: DiffSessionType,
+    /// Set once a revert dispatches. Reverts only run after accept saves have
+    /// settled, so any later save failure originates from a restore.
+    revert_attempted: bool,
 }
 
 impl CodeDiffView {
@@ -583,6 +586,19 @@ impl CodeDiffView {
                 me.handle_save_completed(idx, None, ctx);
             }
             InlineDiffViewEvent::FailedToSave { error } => {
+                if me.revert_attempted {
+                    log::error!("Failed to revert file edits: {error}");
+                    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!(
+                                "Failed to revert changes to {file_path_clone}"
+                            )),
+                            window_id,
+                            ctx,
+                        );
+                    });
+                    return;
+                }
                 safe_error!(
                     safe: ("Failed to save file for accepted AgentMode diffs"),
                     full: ("Failed to save file for accepted AgentMode diffs for {}: {}", file_path_clone, error)
@@ -861,6 +877,7 @@ impl CodeDiffView {
             should_show_speedbump,
             session_platform,
             diff_session_type: DiffSessionType::Local,
+            revert_attempted: false,
         }
     }
 
@@ -1019,41 +1036,45 @@ impl CodeDiffView {
         self.minimize(ctx);
     }
 
-    /// Revert all changes by replacing file contents with the base version.
-    /// For newly created files, this deletes them instead.
+    /// Revert all changes by restoring the base version of every file
+    /// operation. Failed dispatches leave the action accepted and retryable.
     fn revert_changes(&mut self, ctx: &mut ViewContext<Self>) {
         if !matches!(self.state, CodeDiffState::Accepted(None)) {
             log::warn!(
-                "Attempted to revert changes when not in Accepted(None) state - actual state: {:?}",
+                "Attempted to revert changes when not in a settled Accepted state - actual state: {:?}",
                 self.state
             );
             return;
         }
 
         let window_id = ctx.window_id();
+        self.revert_attempted = true;
+        let mut result = Ok(());
         for diff in &self.pending_diffs {
-            if let Err(err) = diff
+            let file_name = diff
                 .diff_view
-                .update(ctx, |v, ctx| v.restore_diff_base(ctx))
+                .as_ref(ctx)
+                .file_name()
+                .unwrap_or_else(|| "file".to_owned());
+            if let Err(error) = diff
+                .diff_view
+                .update(ctx, |view, ctx| view.restore_and_save_diff(ctx))
             {
-                log::error!("Failed to restore diff base: {err:?}");
-                let file_name = diff
-                    .diff_view
-                    .as_ref(ctx)
-                    .file_name()
-                    .unwrap_or_else(|| "file".to_string());
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
+                log::error!("Failed to revert file edits: {error}");
+                ToastStack::handle(ctx).update(ctx, |stack, ctx| {
+                    stack.add_ephemeral_toast(
                         DismissibleToast::error(format!("Failed to revert changes to {file_name}")),
                         window_id,
                         ctx,
                     );
                 });
+                result = Err(error);
             }
         }
-
-        self.state = CodeDiffState::Reverted;
-        self.mark_action_as_reverted(ctx);
+        if result.is_ok() {
+            self.state = CodeDiffState::Reverted;
+            self.mark_action_as_reverted(ctx);
+        }
         ctx.notify();
     }
 

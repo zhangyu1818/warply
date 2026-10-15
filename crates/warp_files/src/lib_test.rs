@@ -248,3 +248,29 @@ fn test_save_missing_directory() {
 }
 
 static TEST_FILE_CONTENT: &[u8] = include_bytes!("../test_data/test_file.rs");
+
+#[test]
+fn remote_move_reports_disconnected_host_error() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(RemoteServerManager::new);
+        let files = app.add_singleton_model(FileModel::new);
+        let file_id = files.update(&mut app, |model, _| {
+            model.register_remote_file(
+                HostId::new("disconnected-host".to_owned()),
+                StandardizedPath::try_new("/repo/source.txt").unwrap(),
+            )
+        });
+        let error = files
+            .update(&mut app, |model, ctx| {
+                model.rename_and_save(
+                    file_id,
+                    PathBuf::from("/repo/target.txt"),
+                    "updated\n".to_owned(),
+                    ContentVersion::new(),
+                    ctx,
+                )
+            })
+            .expect_err("remote move must report the disconnected host");
+        assert!(matches!(error, FileSaveError::RemoteError(_)));
+    });
+}
