@@ -31,3 +31,6 @@ fn test_model_handle(app: &mut App) -> ModelHandle<ServerModel> {
 #[cfg(unix)]
 #[path = "server_model_unix_tests.rs"]
 mod unix;
+
+#[path = "file_operation_tests.rs"]
+mod file_operations;

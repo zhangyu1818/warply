@@ -131,6 +131,9 @@ impl FileBackend {
 #[derive(Default)]
 struct LocalFile {
     path: Option<PathBuf>,
+    /// Original registration path, kept separately from the canonical open/save path so deletes and
+    /// renames act on the requested directory entry rather than a symlink referent.
+    entry_path: Option<PathBuf>,
     version: Option<ContentVersion>,
     /// How this file is being watched for changes.
     watcher_type: WatcherType,
@@ -151,6 +154,7 @@ struct RepositorySubscription {
 
 impl LocalFile {
     fn new(path: PathBuf, watcher_type: WatcherType) -> Self {
+        let entry_path = path.clone();
         // If we cannot canonicalize the path, it could be because the file does not exist on disk yet.
         // In this case, keep its original input path.
         let canonicalized_path = CanonicalizedPath::try_from(&path)
@@ -158,6 +162,7 @@ impl LocalFile {
             .unwrap_or(path);
         Self {
             path: Some(canonicalized_path),
+            entry_path: Some(entry_path),
             version: None,
             watcher_type,
         }
@@ -340,6 +345,12 @@ impl FileModel {
         self.file_state
             .get_local(file_id)
             .and_then(|x| x.path.clone())
+    }
+
+    fn entry_path(&self, file_id: FileId) -> Option<PathBuf> {
+        self.file_state
+            .get_local(file_id)
+            .and_then(|file| file.entry_path.clone())
     }
 
     /// Register a remote file path and return a `FileId`.
@@ -770,7 +781,8 @@ impl FileModel {
         Ok(())
     }
 
-    /// Renames a file and also saves its content.
+    /// Saves content before a native rename; a rename failure leaves the saved content at the source.
+    /// A same-path target is an ordinary save.
     // TODO: refactor this against [`FileModel::save`].
     pub fn rename_and_save(
         &mut self,
@@ -780,60 +792,115 @@ impl FileModel {
         version: ContentVersion,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), FileSaveError> {
-        let file_path = self
-            .file_path(file_id)
+        let backend = self
+            .file_state
+            .get(file_id)
             .ok_or(FileSaveError::NoFilePath(file_id))?;
-
-        ctx.spawn(
-            async move {
-                // Make sure the file we're renaming exists.
-                if let Err(err) = async_fs::metadata(&file_path).await {
-                    return Err(FileSaveError::IOError {
-                        error: err,
-                        path: file_path,
-                    });
-                }
-
-                // Make sure the components of the path we're moving to exists.
-                if let Err(err) = Self::ensure_parent_directories(&new_path).await {
-                    return Err(FileSaveError::IOError {
-                        error: err,
-                        path: new_path,
-                    });
-                }
-
-                // Write the updated contents to the old path first.
-                async_fs::write(&file_path, content).await.map_err(|err| {
-                    FileSaveError::IOError {
-                        error: err,
-                        path: file_path.clone(),
-                    }
-                })?;
-
-                // Now rename.
-                async_fs::rename(&file_path, &new_path)
+        if let FileBackend::Remote { host_id, path } = backend {
+            let new_path = new_path.to_str().ok_or_else(|| {
+                FileSaveError::RemoteError("Invalid UTF-8 move target".to_owned())
+            })?;
+            let new_path = StandardizedPath::try_new(new_path)
+                .map_err(|error| FileSaveError::RemoteError(error.to_string()))?;
+            if &new_path == path {
+                return self.save(file_id, content, version, ctx);
+            }
+            let client = Self::resolve_remote_client(host_id, ctx)?;
+            let path = path.as_str().to_string();
+            let new_path = new_path.as_str().to_string();
+            let future = async move {
+                client
+                    .rename_file(path, new_path, content)
                     .await
-                    .map_err(|err| FileSaveError::IOError {
-                        error: err,
-                        path: file_path.clone(),
-                    })
-            },
-            move |me, write_result: Result<(), FileSaveError>, ctx| {
-                match write_result {
-                    Ok(_) => {
+                    .map_err(|e| e.to_string())
+            };
+            ctx.spawn(
+                future,
+                move |me, result: Result<(), String>, ctx| match result {
+                    Ok(()) => {
                         me.set_version(file_id, version);
                         ctx.emit(FileModelEvent::FileSaved {
                             id: file_id,
                             version,
-                        })
+                        });
                     }
-                    Err(err) => ctx.emit(FileModelEvent::FailedToSave {
-                        id: file_id,
-                        error: Rc::new(err),
-                    }),
-                };
-            },
-        );
+                    Err(err) => {
+                        ctx.emit(FileModelEvent::FailedToSave {
+                            id: file_id,
+                            error: Rc::new(FileSaveError::RemoteError(err)),
+                        });
+                    }
+                },
+            );
+        } else {
+            let file_path = self
+                .entry_path(file_id)
+                .ok_or(FileSaveError::NoFilePath(file_id))?;
+            if new_path == file_path {
+                return self.save(file_id, content, version, ctx);
+            }
+
+            ctx.spawn(
+                async move {
+                    // Make sure the file we're renaming exists.
+                    if let Err(err) = async_fs::metadata(&file_path).await {
+                        return Err(FileSaveError::IOError {
+                            error: err,
+                            path: file_path,
+                        });
+                    }
+
+                    match same_file::is_same_file(&file_path, &new_path) {
+                        Ok(true) => {
+                            return Err(FileSaveError::Other(format!(
+                                "Cannot move {file_path:?} to {new_path:?}: both entries refer to the same file"
+                            )));
+                        }
+                        Ok(false) => {}
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(FileSaveError::IOError { error, path: new_path }),
+                    }
+
+                    // Make sure the components of the path we're moving to exists.
+                    if let Err(err) = Self::ensure_parent_directories(&new_path).await {
+                        return Err(FileSaveError::IOError {
+                            error: err,
+                            path: new_path,
+                        });
+                    }
+
+                    // Write the updated contents to the old path first.
+                    async_fs::write(&file_path, content).await.map_err(|err| {
+                        FileSaveError::IOError {
+                            error: err,
+                            path: file_path.clone(),
+                        }
+                    })?;
+
+                    // Now rename.
+                    async_fs::rename(&file_path, &new_path)
+                        .await
+                        .map_err(|error| FileSaveError::Other(format!(
+                            "Saved content at {file_path:?}, but failed to rename to {new_path:?}: {error}"
+                        )))
+                },
+                move |me, write_result: Result<(), FileSaveError>, ctx| {
+                    match write_result {
+                        Ok(_) => {
+                            me.set_version(file_id, version);
+                            ctx.emit(FileModelEvent::FileSaved {
+                                id: file_id,
+                                version,
+                            })
+                        }
+                        Err(err) => ctx.emit(FileModelEvent::FailedToSave {
+                            id: file_id,
+                            error: Rc::new(err),
+                        }),
+                    };
+                },
+            );
+        }
 
         Ok(())
     }
@@ -853,17 +920,11 @@ impl FileModel {
         match backend {
             FileBackend::Local(_) => {
                 let file_path = self
-                    .file_path(file_id)
+                    .entry_path(file_id)
                     .ok_or(FileSaveError::NoFilePath(file_id))?;
 
                 ctx.spawn(
                     async move {
-                        if let Err(err) = Self::ensure_parent_directories(&file_path).await {
-                            return Err(FileSaveError::IOError {
-                                error: err,
-                                path: file_path,
-                            });
-                        }
                         async_fs::remove_file(&file_path).await.map_err(|err| {
                             FileSaveError::IOError {
                                 error: err,
