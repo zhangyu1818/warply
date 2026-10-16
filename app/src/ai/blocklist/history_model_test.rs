@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
 use itertools::Itertools;
 use warpui::{App, EntityId};
 
+use crate::terminal::model::block::BlockId;
 use crate::{
     GlobalResourceHandles, GlobalResourceHandlesProvider,
     ai::{
@@ -143,7 +144,7 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: std::collections::HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -187,7 +188,7 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: std::collections::HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -245,7 +246,7 @@ fn test_ai_queries_for_terminal_view_up_arrow_history() {
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: std::collections::HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -296,7 +297,7 @@ fn test_transcript_viewer_terminal_view_is_not_marked_historical() {
 
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: std::collections::HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -349,7 +350,7 @@ fn test_all_cleared_conversations_includes_terminal_view_id() {
 
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: std::collections::HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -411,7 +412,7 @@ fn test_toggle_autoexecute_override_persists_updated_conversation_state() {
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -501,7 +502,7 @@ fn completed_acp_conversation_is_available_for_navigation() {
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -597,7 +598,7 @@ fn acp_output_messages_are_available_after_conversation_persistence_roundtrip() 
                 .clone();
             let request_input = RequestInput {
                 conversation_id,
-                input_messages: HashMap::from([(task_id, exchange.input)]),
+                input_messages: Vec::from([(task_id, exchange.input)]),
                 working_directory: exchange.working_directory,
                 model_id: exchange.model_id,
                 coding_model_id: exchange.coding_model_id,
@@ -730,5 +731,99 @@ fn acp_output_messages_are_available_after_conversation_persistence_roundtrip() 
             output.messages[4].message,
             AIAgentOutputMessageType::AcpPermission(_)
         ));
+    });
+}
+
+#[test]
+fn multi_task_request_inputs_preserve_order_and_retain_every_exchange() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        let (sender, _receiver) = std::sync::mpsc::sync_channel(1);
+        let mut global_resource_handles = GlobalResourceHandles::mock(&mut app);
+        global_resource_handles.model_event_sender = Some(sender);
+        app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
+
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let terminal_view_id = EntityId::new();
+        let now = Local::now();
+
+        let conversation_id = history_model.update(&mut app, |history_model, ctx| {
+            history_model.start_new_conversation(terminal_view_id, false, ctx)
+        });
+
+        let stream_id = ResponseStreamId::new_for_test();
+        history_model.update(&mut app, |history_model, ctx| {
+            let exchange = create_exchange_with_query("query", now, None);
+            let conversation = history_model
+                .conversation_mut(&conversation_id)
+                .expect("conversation should exist");
+            let task_id = conversation.get_root_task_id().clone();
+            let subtask_id = conversation.create_optimistic_cli_subagent_task(
+                &BlockId::from("stream-init-block".to_string()),
+                terminal_view_id,
+                ctx,
+            );
+            let request_input = RequestInput {
+                conversation_id,
+                input_messages: vec![
+                    (task_id.clone(), exchange.input),
+                    (
+                        subtask_id.clone(),
+                        vec![AIAgentInput::ResumeConversation {
+                            context: Default::default(),
+                        }],
+                    ),
+                    (
+                        task_id.clone(),
+                        vec![AIAgentInput::ResumeConversation {
+                            context: Default::default(),
+                        }],
+                    ),
+                ],
+                working_directory: exchange.working_directory,
+                model_id: exchange.model_id,
+                coding_model_id: exchange.coding_model_id,
+                cli_agent_model_id: exchange.cli_agent_model_id,
+                computer_use_model_id: exchange.computer_use_model_id,
+                request_start_ts: exchange.start_time,
+            };
+            assert!(matches!(
+                request_input.all_inputs().collect::<Vec<_>>().as_slice(),
+                [
+                    AIAgentInput::UserQuery { .. },
+                    AIAgentInput::ResumeConversation { .. },
+                    AIAgentInput::ResumeConversation { .. },
+                ]
+            ));
+            history_model
+                .update_conversation_for_new_request_input(
+                    request_input,
+                    stream_id.clone(),
+                    terminal_view_id,
+                    ctx,
+                )
+                .unwrap();
+            let conversation = history_model.conversation(&conversation_id).unwrap();
+            let root_exchanges = conversation
+                .get_task(&task_id)
+                .unwrap()
+                .exchanges()
+                .collect_vec();
+            let subtask_exchanges = conversation
+                .get_task(&subtask_id)
+                .unwrap()
+                .exchanges()
+                .collect_vec();
+            assert_eq!(root_exchanges.len(), 1);
+            assert_eq!(subtask_exchanges.len(), 1);
+            assert!(matches!(
+                root_exchanges[0].input.as_slice(),
+                [
+                    AIAgentInput::UserQuery { .. },
+                    AIAgentInput::ResumeConversation { .. }
+                ]
+            ));
+        });
     });
 }

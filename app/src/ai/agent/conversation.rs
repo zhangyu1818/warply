@@ -7,6 +7,7 @@ use crate::ai::llms::LLMId;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::model::block::BlockId;
 use chrono::{DateTime, Local};
+use indexmap::IndexMap;
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1064,7 +1065,11 @@ impl AIConversation {
             ..
         } = request_input;
 
-        for (task_id, inputs) in input_messages.into_iter() {
+        let mut inputs_by_task: IndexMap<TaskId, Vec<AIAgentInput>> = IndexMap::new();
+        for (task_id, inputs) in input_messages {
+            inputs_by_task.entry(task_id).or_default().extend(inputs);
+        }
+        for (task_id, inputs) in inputs_by_task {
             let should_hide = false;
             let new_exchange = AIAgentExchange {
                 id: AIAgentExchangeId::new(),
@@ -1084,13 +1089,16 @@ impl AIConversation {
             let new_exchange_id = new_exchange.id;
             self.append_exchange_to_task(&task_id, new_exchange)?;
 
-            self.added_exchanges_by_response.insert(
-                stream_id.clone(),
-                Vec1::new(AddedExchange {
-                    task_id: task_id.clone(),
-                    exchange_id: new_exchange_id,
-                }),
-            );
+            let added_exchange = AddedExchange {
+                task_id: task_id.clone(),
+                exchange_id: new_exchange_id,
+            };
+            if let Some(added_exchanges) = self.added_exchanges_by_response.get_mut(&stream_id) {
+                added_exchanges.push(added_exchange);
+            } else {
+                self.added_exchanges_by_response
+                    .insert(stream_id.clone(), Vec1::new(added_exchange));
+            }
 
             if should_hide {
                 self.hidden_exchanges.insert(new_exchange_id);

@@ -57,7 +57,8 @@ fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
         | CLIAgent::Gemini
         | CLIAgent::Auggie
         | CLIAgent::Grok
-        | CLIAgent::CursorCli => RichInputSubmitStrategy::DelayedEnter,
+        | CLIAgent::CursorCli
+        | CLIAgent::Antigravity => RichInputSubmitStrategy::DelayedEnter,
         CLIAgent::Amp
         | CLIAgent::Droid
         | CLIAgent::Pi
@@ -659,5 +660,18 @@ impl View for CLIAgentFooter {
         }
 
         container.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rich_input_submit_strategy_for_antigravity() {
+        assert_eq!(
+            rich_input_submit_strategy(CLIAgent::Antigravity),
+            RichInputSubmitStrategy::DelayedEnter
+        );
     }
 }
