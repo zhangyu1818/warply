@@ -86,7 +86,9 @@ pub enum BlocklistAIControllerEvent {
 #[derive(Debug)]
 pub struct RequestInput {
     pub conversation_id: AIConversationId,
-    pub input_messages: HashMap<TaskId, Vec<AIAgentInput>>,
+    /// Ordered input batches; a task may appear more than once. Empty batches preserve history
+    /// exchanges for shared-session viewers without adding a wire input.
+    pub input_messages: Vec<(TaskId, Vec<AIAgentInput>)>,
     pub working_directory: Option<String>,
     pub model_id: LLMId,
     pub coding_model_id: LLMId,
@@ -109,7 +111,7 @@ impl RequestInput {
         app: &AppContext,
     ) -> Self {
         let mut me = Self::new_with_common_fields(conversation_id, active_session, app);
-        me.input_messages.insert(task_id, inputs);
+        me.input_messages.push((task_id, inputs));
         me
     }
 
@@ -122,19 +124,19 @@ impl RequestInput {
     ) -> Self {
         let mut me = Self::new_with_common_fields(conversation_id, active_session, app);
         for result in action_results.into_iter() {
-            me.input_messages
-                .entry(result.task_id.clone())
-                .or_default()
-                .push(AIAgentInput::ActionResult {
+            me.input_messages.push((
+                result.task_id.clone(),
+                vec![AIAgentInput::ActionResult {
                     result,
                     context: context.clone(),
-                });
+                }],
+            ));
         }
         me
     }
 
     pub fn all_inputs(&self) -> impl Iterator<Item = &AIAgentInput> {
-        self.input_messages.values().flatten()
+        self.input_messages.iter().flat_map(|(_, inputs)| inputs)
     }
 
     fn new_with_common_fields(
@@ -1764,7 +1766,7 @@ mod tests {
         ];
         let request_input = RequestInput {
             conversation_id: AIConversationId::new(),
-            input_messages: HashMap::from([(
+            input_messages: Vec::from([(
                 task_id,
                 vec![AIAgentInput::UserQuery {
                     query: "Fix the failing test".to_string(),
@@ -1813,7 +1815,7 @@ mod tests {
         };
         let request_input = RequestInput {
             conversation_id: AIConversationId::new(),
-            input_messages: HashMap::from([(
+            input_messages: Vec::from([(
                 task_id,
                 vec![AIAgentInput::UserQuery {
                     query: "Use the attachments".to_string(),
