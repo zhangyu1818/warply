@@ -79,6 +79,14 @@ const PI_COLOR: ColorU = ColorU {
     a: 255,
 };
 
+/// Antigravity brand color (white, monochrome logo)
+const ANTIGRAVITY_COLOR: ColorU = ColorU {
+    r: 255,
+    g: 255,
+    b: 255,
+    a: 255,
+};
+
 /// Auggie brand color (white, monochrome logo)
 const AUGGIE_COLOR: ColorU = ColorU {
     r: 255,
@@ -149,6 +157,7 @@ pub enum CLIAgent {
     CursorCli,
     Goose,
     Vibe,
+    Antigravity,
     Grok,
     Kiro,
     Muse,
@@ -172,6 +181,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "agent",
             CLIAgent::Goose => "goose",
             CLIAgent::Vibe => "vibe",
+            CLIAgent::Antigravity => "agy",
             CLIAgent::Grok => "grok",
             CLIAgent::Kiro => "kiro-cli",
             CLIAgent::Muse => "muse",
@@ -205,6 +215,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "Cursor",
             CLIAgent::Goose => "Goose",
             CLIAgent::Vibe => "Mistral Vibe",
+            CLIAgent::Antigravity => "Antigravity",
             CLIAgent::Grok => "Grok Build",
             CLIAgent::Kiro => "Kiro CLI",
             CLIAgent::Muse => "Muse Code",
@@ -230,6 +241,7 @@ impl CLIAgent {
             // still drives the toolbar tile; an `Icon::MistralLogo` can be wired
             // up in a follow-up once an officially licensed SVG is available.
             CLIAgent::Vibe => None,
+            CLIAgent::Antigravity => Some(Icon::AntigravityLogo),
             CLIAgent::Grok => Some(Icon::GrokLogo),
             CLIAgent::Kiro => Some(Icon::KiroLogo),
             CLIAgent::Muse => Some(Icon::MuseLogo),
@@ -270,6 +282,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => Some(CURSOR_COLOR),
             CLIAgent::Goose => Some(GOOSE_COLOR),
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
+            CLIAgent::Antigravity => Some(ANTIGRAVITY_COLOR),
             CLIAgent::Grok => Some(GROK_COLOR),
             CLIAgent::Kiro => Some(KIRO_PURPLE),
             CLIAgent::Muse => Some(MUSE_COLOR),
@@ -281,7 +294,9 @@ impl CLIAgent {
     /// Agents with light brand colors use a dark icon for contrast.
     pub fn brand_icon_color(&self) -> ColorU {
         match self {
-            CLIAgent::Pi | CLIAgent::Auggie | CLIAgent::Droid => ColorU::new(0, 0, 0, 255),
+            CLIAgent::Pi | CLIAgent::Auggie | CLIAgent::Droid | CLIAgent::Antigravity => {
+                ColorU::new(0, 0, 0, 255)
+            }
             _ => ColorU::white(),
         }
     }
@@ -339,6 +354,8 @@ impl CLIAgent {
                 resolved_first_word == agent.command_prefix()
                     || (matches!(agent, CLIAgent::Vibe) && resolved_first_word == "vibe-acp")
                     || (matches!(agent, CLIAgent::Kiro) && resolved_first_word == "kiro")
+                    || (matches!(agent, CLIAgent::Antigravity)
+                        && resolved_first_word == "antigravity")
             })
     }
 }
