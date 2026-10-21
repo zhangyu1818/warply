@@ -5781,6 +5781,10 @@ impl TerminalView {
         &self.ai_input_model
     }
 
+    pub fn ai_action_model(&self) -> &ModelHandle<BlocklistAIActionModel> {
+        &self.ai_action_model
+    }
+
     pub fn agent_view_controller(&self) -> &ModelHandle<AgentViewController> {
         &self.agent_view_controller
     }

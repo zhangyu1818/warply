@@ -1,0 +1,47 @@
+# Upstream Master Audit — 2026-10-21
+
+Incremental audit for `7082729a1..upstream/master` (`9b499e029`), 4 commits. The previous audit is `upstream-master-audit-2026-10-20.md`.
+
+## Summary
+
+One adapted port: the late CLI-subtask activation guard (`cd4b970e6`) for the retained local `CLISubagentController`, so a subtask that is created after its command block already finished no longer reopens the completed block. Three commits are not applicable or rejected: the pre-warmed sandbox shell-replacement stack (`c67ff199d`) extends the never-ported cloud shell-recovery machinery whose only consumer is the removed Agent SDK; the null agent-run list tolerance (`831f4fa9f`) lives in the removed `app/src/server/server_api`; and the MCP preflight version negotiation (`9b499e029`) lives in the removed `crates/mcp`.
+
+## Commit-by-Commit
+
+### `c67ff199d` feat(agent-sdk): run assigned tasks in pre-warmed sandboxes (#16539) — not applicable
+
+Final part of the pre-warmed standby sandbox stack (REMOTE-3488/3568; parts 1–6 rejected as N.A. on 2026-10-16..20). A standby sandbox now receives an `assignment` over the server control socket, installs the run's credential, replaces its idle shell with the run's working directory and environment, restarts templatable MCP servers with that environment, and reuses the workspace prepared in standby. Of 39 touched paths, 33 are fork-absent (`app/src/ai/agent_sdk/**`, `app/src/ai/mcp/templatable_manager*`, `app/src/server/server_api/**`, `app/src/workspaces/user_workspaces/`, `app/src/terminal/shell_recovery.rs`, `app/src/terminal/local_tty/terminal_view_adaptor.rs`, `app/src/terminal/remote_tty/`, `app/src/terminal/writeable_pty/terminal_surface.rs`, `crates/warp_terminal/**`, and the four new test files).
+
+The six fork-present files (`app/src/pane_group/pane/terminal_pane.rs`, `app/src/terminal/local_tty/mod.rs`, `app/src/terminal/local_tty/terminal_manager.rs`, `app/src/terminal/model/terminal_model.rs`, `app/src/terminal/terminal_manager.rs`, `app/src/terminal/view.rs`) carry only the `replace_shell` / `Message::ShutdownForReplacement` plumbing, and every hunk is an extension of the cloud shell-recovery stack the fork never ported (rejected 2026-10-10 as Oz ambient-session shell recovery): `terminal_manager.rs` imports `ShellReplacementRequest` from the absent `shell_recovery` module and adds the trait default next to the absent `recover_cloud_shell`; `local_tty/terminal_manager.rs` builds on `ShellRecoveryResources`, `PendingShellRecovery`, `CloudAgentShellRecoveryFailureClass`, `fail_pending_shell_recovery`, `on_cloud_shell_recovered`, `ShellStarter::replacement()`, and a `JoinHandle<mio_channel::Receiver<Message>>` event-loop handle (the fork's handle is `JoinHandle<()>` and never hands the channel back); `terminal_model.rs` routes the replacement exit through `ExitReason::ShellProcessExited { status }`, `Event::ShellExitObserved`, and `plan_lifecycle_transition`/`commit_lifecycle_transition`, none of which exist here (the fork's `ShellProcessExited` carries no payload); `terminal_pane.rs` extracts `terminal_manager_for_view` from the absent `Event::RecoverCloudShell` arm and adds an `Event::ReplaceShell` arm beside it. `rg "shell_recovery|ShellRecoveryResources|PendingShellRecovery|CloudAgentShellRecoveryFailureClass|RecoverCloudShell|ShellExitObserved|plan_lifecycle_transition|ShutdownForReplacement|on_shell_replaced"` over `app crates` returns zero anchors (the `shell_replacement_span` hits in `app/src/terminal/input.rs` are the 2026-08-28 native-completions replacement span, unrelated). The feature's sole upstream consumer is the removed `agent_sdk/driver/prewarmed.rs`, and upstream itself scopes it to Linux sandbox hosts. Nothing separable.
+
+### `cd4b970e6` Fix completed agent commands reopening after late CLI activation (#16564) — adapted, ported
+
+Retained local AgentView/terminal behavior (APP-6150). `CLISubagentController::handle_history_model_event` reacts to `BlocklistAIHistoryEvent::CreatedSubtask` by switching the command block to agent-monitored mode and emitting `SpawnedSubagent`. Shell completion and subtask creation arrive independently; when completion wins, the late activation expanded a finished block with no later completion event to collapse it. The fix returns early when `block.finished()` before mutating the interaction mode or emitting subagent events. In the fork the subtask is produced by the ACP conversation model (`AIConversation::create_optimistic_cli_subagent_task` and `BlocklistAIHistoryModel::create_cli_subagent_task_for_conversation`), which is just as asynchronous relative to the PTY, so the race surface is live here.
+
+Applied via `git cherry-pick --no-commit cd4b970e6` (clean auto-merge; the fork's `CreatedSubtask` arm is structurally identical to upstream's apart from the known `report_error!` → `log::error!` adaptation). Fork adaptations, recorded against the upstream patch:
+
+- `cli_controller.rs`: the guard and its comment are verbatim upstream except the leading word "Server" is dropped from "Server subtask creation can arrive after command completion" — the fork has no server producing subtasks and wiki rules forbid new comments that imply server ownership.
+- `cli_controller_tests.rs`: both upstream tests (`completed_command_stays_hidden_when_cli_subtask_arrives_late`, `running_command_cli_subtask_finishes_when_command_completes`) and the shared `running_requested_command` fixture ported verbatim, with two signature adaptations. `start_new_conversation(terminal_surface_id, false, false, false, ctx)` becomes the fork's three-argument `start_new_conversation(terminal_surface_id, false, ctx)` (the dropped `is_viewing_shared_session`/`is_cli_agent_transcript` flags belong to removed shared-session and CLI-transcript surfaces). The second test's `controller.active_target().is_some()` assertion becomes a block read asserting `block.cli_subagent_task_id().is_some()` — `CLISubagentTarget`/`active_target` come from the LRC commit `230a9f379` and were never ported; upstream's `target_for_block_in_model` returns `Some` precisely when the block carries a `cli_subagent_task_id`, so this is the same observable and mirrors the first test's `is_none()` negative assertion.
+- `app/src/terminal/view.rs`: the tests call `view.ai_action_model()`, a getter upstream added in `e5d60c240` (REMOTE-2111 checkpoint coordinator) that the fork never received because its only consumer was the removed `agent_sdk`. The three-line accessor is copied from upstream between `ai_input_model()` and `agent_view_controller()` (identical neighborhood in both trees), omitting upstream's doc comment that intra-links the removed `crate::ai::agent_sdk::driver::checkpoint_coordinator`.
+
+### `831f4fa9f` [REMOTE-3585] Tolerate null agent-run lists from older servers (#16568) — rejected (removed surface)
+
+Adds `#[serde_as(deserialize_as = "serde_with::DefaultOnNull")]` to the `runs` field of `ListRunsResponse`'s raw decoder in `app/src/server/server_api/ai.rs` plus three regression tests, so an explicit `runs: null` from older servers decodes as an empty list. Agent-run management fetches are a removed Warp server-API surface: the fork has no `app/src/server`, and `rg "ListRunsResponse|list_runs|deserialize_list_runs"` over `app crates` returns zero anchors.
+
+### `9b499e029` Negotiate MCP preflight versions and configure the matching SDK lifecycle (#16574) — rejected (removed surface)
+
+Rewrites `crates/mcp/src/runtime.rs` (+tests) so Warp's HTTP MCP preflight negotiates a protocol revision via typed `server/discover`, retries SDK-known revisions on supported-version errors, falls back to `initialize` for legacy servers, and passes the selected revision and lifecycle into the official Rust SDK connection. App-managed MCP server startup and capability probing are removed surfaces (MCP belongs to the ACP agent process); the fork has no `crates/mcp` and no `rmcp` dependency. The `spawn_server` hits in `crates/http_server/src/lib.rs` and `app/src/terminal/view/init_project/mod.rs` are the retained local HTTP server and SSH remote-server installer, unrelated to MCP.
+
+## Verification
+
+- `cargo fmt -- --check` — passed.
+- `cargo check -p warp --all-targets --message-format short` — passed (SDKROOT pointed at the Xcode MacOSX SDK per the CLT tapi prerequisite). All reported warnings are pre-existing dead-code lints unrelated to this port.
+- `cargo check --workspace --all-targets --message-format short` — passed.
+- `cargo nextest run -p warp -E 'test(slash_command) | test(acp) | test(terminal_suggestions)'` — 156 tests passed, 0 failed.
+- Focused new tests (`cargo nextest run -p warp -E 'test(cli_controller)'`) — 4 passed, including the ported `completed_command_stays_hidden_when_cli_subtask_arrives_late` and `running_command_cli_subtask_finishes_when_command_completes`. With the `block.finished()` guard temporarily disabled, the first test fails on `assertion failed: block.interaction_mode().should_hide_block()` exactly as upstream reported, confirming the race is live in the fork; the guard was restored before commit.
+- `cargo build -p warp --all-targets --message-format short` — passed; `cargo clean` run after the push.
+- Restored-surface scans — zero hits for all three scan patterns over the 146 lines added against `main` (`app crates script Cargo.toml`).
+
+## Tag
+
+`v2026.10.21` on `main` (merge commit of `merge/upstream-2026-10-21`).
