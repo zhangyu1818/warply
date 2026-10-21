@@ -511,6 +511,11 @@ impl CLISubagentController {
                 else {
                     return;
                 };
+                // Subtask creation can arrive after command completion, when there will be no
+                // further completion event to undo the monitored state and expansion.
+                if block.finished() {
+                    return;
+                }
                 let block_id = block.id().clone();
                 if let Err(e) = block.set_agent_interaction_mode_for_agent_monitored_command(
                     task_id,
