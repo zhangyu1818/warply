@@ -44,13 +44,14 @@ use crate::terminal::model::block::SerializedBlock;
 
 use crate::terminal::block_list_viewport::ScrollPosition;
 use crate::terminal::local_tty::shell::ShellStarter;
-use crate::terminal::model::ansi::{Handler, PrecmdValue};
+use crate::terminal::model::ansi::{CommandFinishedValue, Handler, PrecmdValue};
 use crate::terminal::model::blocks::{BlockListPoint, insert_block};
 use crate::terminal::model::grid::Dimensions as _;
 use crate::terminal::model::index::Side;
 use crate::terminal::model::session::command_executor::CommandExecutor;
 use crate::terminal::model::session::{BootstrapSessionType, SessionInfo};
 use crate::terminal::model::terminal_model::BlockIndex;
+use crate::terminal::model_events::ModelEvent;
 use chrono::Local;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -111,6 +112,62 @@ fn pending_ctrl_t_handoff() -> PendingShellWidgetHandoff {
         apply_mode: ShellWidgetApplyMode::Splice,
         cursor_offset: Some(ByteOffset::from(5)),
     }
+}
+
+fn subscribe_to_execute_command_events(
+    app: &mut App,
+    terminal: &ViewHandle<TerminalView>,
+) -> Rc<RefCell<Vec<(String, CommandExecutionSource)>>> {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let events_for_subscription = events.clone();
+    app.update(|ctx| {
+        ctx.subscribe_to_view(terminal, move |_, event: &TerminalViewEvent, _| {
+            let TerminalViewEvent::ExecuteCommand(event) = event else {
+                return;
+            };
+            events_for_subscription
+                .borrow_mut()
+                .push((event.command.clone(), event.source.clone()));
+        });
+    });
+    events
+}
+
+#[test]
+fn pending_command_waits_for_final_bootstrap_precmd() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let terminal = add_window_with_bootstrapped_terminal(&mut app, None, None).await;
+        let events = subscribe_to_execute_command_events(&mut app, &terminal);
+        let input = terminal.read(&app, |terminal, _| terminal.input().clone());
+        terminal.update(&mut app, |terminal, ctx| {
+            terminal.execute_command_or_set_pending("echo ready", ctx);
+        });
+        assert!(input.read(&app, |input, _| input.has_pending_command()));
+        assert!(events.borrow().is_empty());
+
+        terminal.update(&mut app, |terminal, ctx| {
+            {
+                let mut model = terminal.model.lock();
+                let session_id = model.block_list().active_block().session_id().unwrap();
+                model.command_finished(CommandFinishedValue {
+                    session_id: Some(session_id.as_u64()),
+                    ..Default::default()
+                });
+                model.precmd(PrecmdValue {
+                    session_id: Some(session_id.as_u64()),
+                    ..Default::default()
+                });
+            }
+            terminal.model_event_dispatcher().update(ctx, |_, ctx| {
+                ctx.emit(ModelEvent::BootstrapPrecmdDone);
+            });
+        });
+
+        assert!(!input.read(&app, |input, _| input.has_pending_command()));
+        assert_eq!(events.borrow().len(), 1);
+        assert_eq!(events.borrow()[0].0, "echo ready");
+    });
 }
 
 #[test]
