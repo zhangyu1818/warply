@@ -20,7 +20,7 @@ use crate::ai::blocklist::CLAUDE_ORANGE;
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::AttachedReviewCommentTarget;
 use crate::ui_components::icons::Icon;
-use warp_completer::parsers::simple::top_level_command;
+use warp_completer::parsers::simple::{all_parsed_commands, top_level_command};
 use warp_util::path::EscapeChar;
 
 /// Gemini brand blue color
@@ -166,27 +166,32 @@ pub enum CLIAgent {
 }
 
 impl CLIAgent {
+    /// Command prefixes that identify this CLI agent.
+    pub(crate) fn command_prefixes(&self) -> &'static [&'static str] {
+        match self {
+            CLIAgent::Claude => &["claude"],
+            CLIAgent::Gemini => &["gemini"],
+            CLIAgent::Codex => &["codex"],
+            CLIAgent::Amp => &["amp"],
+            CLIAgent::Droid => &["droid"],
+            CLIAgent::OpenCode => &["opencode"],
+            CLIAgent::Copilot => &["copilot"],
+            CLIAgent::Pi => &["pi"],
+            CLIAgent::Auggie => &["auggie"],
+            CLIAgent::CursorCli => &["agent"],
+            CLIAgent::Goose => &["goose"],
+            CLIAgent::Vibe => &["vibe", "vibe-acp"],
+            CLIAgent::Antigravity => &["agy", "antigravity"],
+            CLIAgent::Grok => &["grok"],
+            CLIAgent::Kiro => &["kiro-cli", "kiro"],
+            CLIAgent::Muse => &["muse"],
+            CLIAgent::Unknown => &[],
+        }
+    }
+
     /// The command prefix used to invoke this CLI agent.
     pub fn command_prefix(&self) -> &'static str {
-        match self {
-            CLIAgent::Claude => "claude",
-            CLIAgent::Gemini => "gemini",
-            CLIAgent::Codex => "codex",
-            CLIAgent::Amp => "amp",
-            CLIAgent::Droid => "droid",
-            CLIAgent::OpenCode => "opencode",
-            CLIAgent::Copilot => "copilot",
-            CLIAgent::Pi => "pi",
-            CLIAgent::Auggie => "auggie",
-            CLIAgent::CursorCli => "agent",
-            CLIAgent::Goose => "goose",
-            CLIAgent::Vibe => "vibe",
-            CLIAgent::Antigravity => "agy",
-            CLIAgent::Grok => "grok",
-            CLIAgent::Kiro => "kiro-cli",
-            CLIAgent::Muse => "muse",
-            CLIAgent::Unknown => "",
-        }
+        self.command_prefixes().first().copied().unwrap_or_default()
     }
 
     /// Serialized version of the CLIAgent name (e.g. "Claude", "Gemini").
@@ -313,6 +318,38 @@ impl CLIAgent {
         }
     }
 
+    /// Returns whether the command's executable name identifies this CLI agent.
+    pub(super) fn matches_command(&self, command: &str, escape_char: Option<EscapeChar>) -> bool {
+        let Some(first_word) = Self::extract_first_command(command.trim_start(), escape_char)
+        else {
+            return false;
+        };
+        let basename = first_word.rsplit(['/', '\\']).next().unwrap_or(&first_word);
+        if !self.command_prefixes().contains(&basename) {
+            return false;
+        }
+        let non_session_subcommands: &[&str] = match self {
+            CLIAgent::Claude => &["auth"],
+            CLIAgent::Codex => &["login", "logout"],
+            _ => return true,
+        };
+        let is_non_session_command = match escape_char {
+            Some(esc) => all_parsed_commands(command, esc)
+                .next()
+                .is_some_and(|command| {
+                    command
+                        .parts
+                        .get(1)
+                        .is_some_and(|part| non_session_subcommands.contains(&part.item.as_str()))
+                }),
+            None => command
+                .split_whitespace()
+                .nth(1)
+                .is_some_and(|part| non_session_subcommands.contains(&part)),
+        };
+        !is_non_session_command
+    }
+
     /// Detects the CLI agent from a command string.
     ///
     /// When `escape_char` is provided, full shell parsing is used to skip leading
@@ -346,17 +383,10 @@ impl CLIAgent {
             })
             .unwrap_or(Cow::Borrowed(trimmed));
 
-        let resolved_first_word = Self::extract_first_command(&resolved_command, escape_char)?;
-
+        // Check if resolved command matches any known CLI agent.
         enum_iterator::all::<CLIAgent>()
             .filter(|agent| !matches!(agent, CLIAgent::Unknown))
-            .find(|agent| {
-                resolved_first_word == agent.command_prefix()
-                    || (matches!(agent, CLIAgent::Vibe) && resolved_first_word == "vibe-acp")
-                    || (matches!(agent, CLIAgent::Kiro) && resolved_first_word == "kiro")
-                    || (matches!(agent, CLIAgent::Antigravity)
-                        && resolved_first_word == "antigravity")
-            })
+            .find(|agent| agent.matches_command(&resolved_command, escape_char))
     }
 }
 
