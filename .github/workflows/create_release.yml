@@ -11,7 +11,7 @@ permissions:
 jobs:
   macos-arm64-dmg:
     name: Build signed macOS arm64 DMG
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
