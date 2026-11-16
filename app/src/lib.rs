@@ -38,6 +38,8 @@ mod object_ids;
 mod palette;
 mod persistence;
 mod prefix;
+#[cfg(feature = "local_tty")]
+mod process_environment;
 mod profiling;
 mod projects;
 mod prompt;
@@ -507,6 +509,8 @@ pub fn run_integration_test(driver: TestDriver) -> Result<()> {
 /// Runs the app (or CLI / daemon).
 fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let mut timer = IntervalTimer::new();
+    #[cfg(feature = "local_tty")]
+    let initial_process_environment = process_environment::InitialProcessEnvironment::capture();
 
     // ── Early initialization (pre-AppBuilder) ──────────────────────
     // These steps run before the platform event loop is started.
@@ -606,6 +610,8 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             .detach();
 
         ctx.add_singleton_model(|ctx| AppExecutionMode::new(launch_mode.execution_mode(), ctx));
+        #[cfg(feature = "local_tty")]
+        ctx.add_singleton_model(move |_| initial_process_environment);
         // Add the terminal server singleton to the application.
         #[cfg(feature = "local_tty")]
         ctx.add_singleton_model(move |_ctx| pty_spawner);

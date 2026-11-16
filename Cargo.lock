@@ -147,6 +147,7 @@ dependencies = [
  "arborium",
  "async-channel",
  "async-fs",
+ "async-lock",
  "async-process",
  "async-trait",
  "base16ct",
@@ -2043,6 +2044,7 @@ dependencies = [
  "async-process",
  "futures-lite 1.13.0",
  "libc",
+ "log",
 ]
 
 [[package]]
