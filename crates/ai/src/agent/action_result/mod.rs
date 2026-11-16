@@ -62,6 +62,12 @@ pub enum AIAgentActionResultType {
     TransferShellCommandControlToUser(TransferShellCommandControlToUserResult),
     /// The result of asking the user a question.
     AskUserQuestion(AskUserQuestionResult),
+
+    /// An agent hook denied the action before it ran. Unlike the other variants this is not tied
+    /// to one tool: any action can finish with it. `reason` is shown to the model.
+    DeniedByHook {
+        reason: String,
+    },
 }
 
 impl AIAgentActionResultType {
@@ -107,6 +113,9 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::RequestComputerUse(result) => result.fmt(f),
             AIAgentActionResultType::TransferShellCommandControlToUser(result) => result.fmt(f),
             AIAgentActionResultType::AskUserQuestion(result) => result.fmt(f),
+            AIAgentActionResultType::DeniedByHook { reason } => {
+                write!(f, "Denied by an agent hook: {reason}")
+            }
             AIAgentActionResultType::OpenCodeReview | AIAgentActionResultType::InitProject => {
                 Ok(())
             }
@@ -711,6 +720,9 @@ impl AIAgentActionResultType {
             AIAgentActionResultType::AskUserQuestion(_) => {
                 "The user's answers to clarifying questions"
             }
+            AIAgentActionResultType::DeniedByHook { .. } => {
+                "The reason an agent hook denied the action"
+            }
         }
     }
 
@@ -759,7 +771,8 @@ impl AIAgentActionResultType {
             | Self::AskUserQuestion(AskUserQuestionResult::Error(_))
             | Self::TransferShellCommandControlToUser(
                 TransferShellCommandControlToUserResult::Error(_),
-            ) => true,
+            )
+            | Self::DeniedByHook { .. } => true,
             _ => false,
         }
     }

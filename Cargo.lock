@@ -142,16 +142,20 @@ dependencies = [
 name = "ai"
 version = "0.1.0"
 dependencies = [
+ "ai_types",
  "anyhow",
  "arborium",
  "async-channel",
  "async-fs",
+ "async-lock",
+ "async-process",
  "async-trait",
  "base16ct",
  "bincode",
  "bytes",
  "cfg-if",
  "chrono",
+ "command",
  "computer_use",
  "derivative",
  "dirs",
@@ -196,6 +200,7 @@ dependencies = [
  "warp_terminal",
  "warp_util",
  "warpui",
+ "warpui_core",
  "watcher",
 ]
 
@@ -2039,6 +2044,7 @@ dependencies = [
  "async-process",
  "futures-lite 1.13.0",
  "libc",
+ "log",
 ]
 
 [[package]]

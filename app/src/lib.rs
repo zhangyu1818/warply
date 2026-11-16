@@ -38,6 +38,8 @@ mod object_ids;
 mod palette;
 mod persistence;
 mod prefix;
+#[cfg(feature = "local_tty")]
+mod process_environment;
 mod profiling;
 mod projects;
 mod prompt;
@@ -101,9 +103,11 @@ pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use ::ai::hooks::{HookRegistry, LogOnlyMessenger, UnavailableRunner};
 use ::ai::project_context::model::ProjectContextModel;
 pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation, todos::AIAgentTodoList};
 use ai::agent_conversations_model::AgentConversationsModel;
+use ai::blocklist::hooks::HookRuntime;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -505,6 +509,8 @@ pub fn run_integration_test(driver: TestDriver) -> Result<()> {
 /// Runs the app (or CLI / daemon).
 fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let mut timer = IntervalTimer::new();
+    #[cfg(feature = "local_tty")]
+    let initial_process_environment = process_environment::InitialProcessEnvironment::capture();
 
     // ── Early initialization (pre-AppBuilder) ──────────────────────
     // These steps run before the platform event loop is started.
@@ -604,6 +610,8 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             .detach();
 
         ctx.add_singleton_model(|ctx| AppExecutionMode::new(launch_mode.execution_mode(), ctx));
+        #[cfg(feature = "local_tty")]
+        ctx.add_singleton_model(move |_| initial_process_environment);
         // Add the terminal server singleton to the application.
         #[cfg(feature = "local_tty")]
         ctx.add_singleton_model(move |_ctx| pty_spawner);
@@ -937,6 +945,11 @@ pub(crate) fn initialize_app(
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
     ctx.add_singleton_model(|_| ActiveAgentViewsModel::new());
     ctx.add_singleton_model(BlocklistAIPermissions::new);
+    // The hook runtime reads the registry handle, so the registry is registered first.
+    ctx.add_singleton_model(|_| HookRegistry::new());
+    ctx.add_singleton_model(|ctx| {
+        HookRuntime::new(Arc::new(UnavailableRunner), Arc::new(LogOnlyMessenger), ctx)
+    });
     ctx.add_singleton_model(RepoOutlines::new);
     ctx.add_singleton_model(|_| ObjectActions::new(object_actions));
 
@@ -961,6 +974,9 @@ pub(crate) fn initialize_app(
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
+        // Hook processes want the login shell's PATH, so the runner is installed once
+        // `LocalShellState` is available to capture it.
+        HookRuntime::install_command_runner(ctx);
     }
 
     // Add a singleton model that holds the current prompt configuration.
@@ -1483,6 +1499,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LrcActivitySignal,
         #[cfg(feature = "history_search_ranking_v2")]
         FeatureFlag::HistorySearchRankingV2,
+        #[cfg(feature = "agent_hooks")]
+        FeatureFlag::AgentHooks,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]

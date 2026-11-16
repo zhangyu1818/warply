@@ -13,6 +13,10 @@ pub(super) mod shell_command;
 pub(super) mod use_computer;
 
 use ai::agent::action_result::InsertReviewCommentsResult;
+use ai::hooks::{
+    HookNotice, HookNoticeKind, HookPermissionPolicy, PermissionDecision, PermissionFloors,
+    WarpPermissionResult,
+};
 pub use ask_user_question::AskUserQuestionExecutor;
 use create_documents::CreateDocumentsExecutor;
 use edit_documents::EditDocumentsExecutor;
@@ -39,7 +43,7 @@ use warp_util::file::FileLoadError;
 #[cfg(feature = "local_fs")]
 use warp_util::file_type::is_buffer_binary;
 use warpui::{
-    AppContext, Entity, EntityId, ModelContext, ModelHandle,
+    AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity,
     r#async::{Spawnable, SpawnableOutput},
 };
 
@@ -51,6 +55,8 @@ use crate::util::image::{
 use mime_guess::from_path;
 
 use self::search_codebase::SearchCodebaseExecutor;
+use crate::ai::blocklist::hooks::pre_tool::{self, PendingDispatch, PreToolLookup};
+use crate::ai::blocklist::hooks::{HookRuntime, tool_result};
 #[cfg(feature = "local_fs")]
 use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
 use crate::{
@@ -160,16 +166,13 @@ where
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum NotExecutedReason {
     NotReady,
     NeedsConfirmation,
-}
-
-impl NotExecutedReason {
-    pub fn needs_confirmation(&self) -> bool {
-        matches!(self, Self::NeedsConfirmation)
-    }
+    /// A pre-tool hook is still deciding. The action is re-queued and retried when the verdict
+    /// arrives.
+    WaitingOnHooks,
 }
 
 /// Result type for `BlocklistAIActionExecutor::try_to_execute_action`.
@@ -219,6 +222,8 @@ pub struct BlocklistAIActionExecutor {
     /// We track them per action rather than as a single slot so multiple actions from the same
     /// parallel phase can complete independently.
     async_executing_actions: std::collections::HashMap<AIAgentActionId, AsyncExecutingAction>,
+    /// The session actions run in, used to describe their working directory to hooks.
+    active_session: ModelHandle<ActiveSession>,
 }
 
 impl BlocklistAIActionExecutor {
@@ -278,6 +283,7 @@ impl BlocklistAIActionExecutor {
             request_computer_use_executor,
             async_executing_actions: Default::default(),
             ask_user_question_executor,
+            active_session,
         }
     }
 
@@ -289,6 +295,10 @@ impl BlocklistAIActionExecutor {
 
     pub fn shell_command_executor(&self) -> &ModelHandle<ShellCommandExecutor> {
         &self.shell_command_executor
+    }
+
+    pub(super) fn active_session(&self) -> &ModelHandle<ActiveSession> {
+        &self.active_session
     }
 
     pub fn request_file_edits_executor(&self) -> &ModelHandle<RequestFileEditsExecutor> {
@@ -335,12 +345,64 @@ impl BlocklistAIActionExecutor {
         is_user_initiated: bool,
         ctx: &mut ModelContext<Self>,
     ) -> TryExecuteResult {
+        let hook_effects = match pre_tool::begin_or_lookup(
+            &action,
+            conversation_id,
+            is_user_initiated,
+            &self.active_session,
+            ctx,
+        ) {
+            PreToolLookup::Inactive => None,
+            PreToolLookup::Pending { dispatch } => {
+                if let Some(dispatch) = dispatch {
+                    self.spawn_hook_dispatch(dispatch, ctx);
+                }
+                return TryExecuteResult::NotExecuted {
+                    reason: NotExecutedReason::WaitingOnHooks,
+                    action: Box::new(action),
+                };
+            }
+            PreToolLookup::Resolved(merged) => Some(merged),
+        };
+
         let input = ExecuteActionInput {
             action: &action,
             conversation_id,
         };
         let can_auto_execute = self.should_autoexecute(input, ctx);
-        if !(is_user_initiated || can_auto_execute) {
+        // The fork has no autonomous agent mode, so no action is exempt from confirmation by it.
+        let is_autonomous_shell_exception = false;
+
+        // A hook denial ends the action here. The policy's other outcomes are exactly the checks
+        // below, so they fall through to them.
+        if let Some(merged) = hook_effects
+            && let PermissionDecision::Deny { reason, .. } = HookPermissionPolicy::compose(
+                &merged,
+                WarpPermissionResult {
+                    can_auto_execute,
+                    is_user_initiated,
+                    is_autonomous_shell_exception,
+                },
+                &PermissionFloors::default(),
+            )
+        {
+            let result = AIAgentActionResultType::DeniedByHook {
+                reason: reason.text.clone(),
+            };
+            HookRuntime::as_ref(ctx).messenger().notify(HookNotice {
+                conversation_id,
+                action_id: Some(action.id.clone()),
+                kind: HookNoticeKind::Denied,
+                text: reason.text,
+            });
+            self.finish_sync(action, result, conversation_id, ctx);
+            return TryExecuteResult::ExecutedSync;
+        }
+
+        // The agent cannot auto execute and the action was not user initiated.
+        let needs_confirmation =
+            !(is_user_initiated || can_auto_execute || is_autonomous_shell_exception);
+        if needs_confirmation {
             return TryExecuteResult::NotExecuted {
                 action: Box::new(action),
                 reason: NotExecutedReason::NeedsConfirmation,
@@ -462,6 +524,14 @@ impl BlocklistAIActionExecutor {
                         return;
                     };
                     let result = on_complete(result, ctx);
+                    tool_result::observe_terminal_result(
+                        &running.action,
+                        &result,
+                        None,
+                        running.conversation_id,
+                        &me.active_session,
+                        ctx,
+                    );
                     ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
                         result: Arc::new(AIAgentActionResult {
                             id: action_id,
@@ -475,21 +545,54 @@ impl BlocklistAIActionExecutor {
                 TryExecuteResult::ExecutedAsync
             }
             AnyActionExecution::Sync(action_result) => {
-                ctx.emit(BlocklistAIActionExecutorEvent::ExecutingAction {
-                    action_id: action_id.clone(),
-                });
-                ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
-                    result: Arc::new(AIAgentActionResult {
-                        id: action_id,
-                        task_id: action.task_id,
-                        result: action_result,
-                    }),
-                    conversation_id,
-                    cancellation_reason: None,
-                });
+                self.finish_sync(action_clone, action_result, conversation_id, ctx);
                 TryExecuteResult::ExecutedSync
             }
         }
+    }
+
+    /// Reports a result that is already known, with no asynchronous work to wait for.
+    fn finish_sync(
+        &mut self,
+        action: AIAgentAction,
+        result: AIAgentActionResultType,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        tool_result::observe_terminal_result(
+            &action,
+            &result,
+            None,
+            conversation_id,
+            &self.active_session,
+            ctx,
+        );
+        ctx.emit(BlocklistAIActionExecutorEvent::ExecutingAction {
+            action_id: action.id.clone(),
+        });
+        ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
+            result: Arc::new(AIAgentActionResult {
+                id: action.id,
+                task_id: action.task_id,
+                result,
+            }),
+            conversation_id,
+            cancellation_reason: None,
+        });
+    }
+
+    /// Runs a pre-tool hook dispatch in the background and announces the verdict when it lands.
+    fn spawn_hook_dispatch(&self, dispatch: PendingDispatch, ctx: &mut ModelContext<Self>) {
+        let PendingDispatch { ticket, future } = dispatch;
+        ctx.spawn(future, move |_, outcome, ctx| {
+            if let Some(resumption) = pre_tool::on_resolved(&ticket, outcome, ctx) {
+                ctx.emit(BlocklistAIActionExecutorEvent::HookVerdictResolved {
+                    action_id: ticket.action_id,
+                    conversation_id: resumption.conversation_id,
+                    is_user_initiated: resumption.is_user_initiated,
+                });
+            }
+        });
     }
 
     pub fn can_autoexecute_action(
@@ -523,11 +626,20 @@ impl BlocklistAIActionExecutor {
                     executor.cancel_execution(&running.action.id, ctx);
                 });
             }
+            let result = running.action.action.cancelled_result();
+            tool_result::observe_terminal_result(
+                &running.action,
+                &result,
+                reason,
+                running.conversation_id,
+                &self.active_session,
+                ctx,
+            );
             ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
                 result: Arc::new(AIAgentActionResult {
                     id: running.action.id.clone(),
                     task_id: running.action.task_id,
-                    result: running.action.action.cancelled_result(),
+                    result,
                 }),
                 conversation_id: running.conversation_id,
                 cancellation_reason: reason,
@@ -625,6 +737,12 @@ pub enum BlocklistAIActionExecutorEvent {
         repo_path: PathBuf,
         comments: Vec<ai::agent::action::InsertReviewComment>,
         base_branch: Option<String>,
+    },
+    /// A pre-tool hook dispatch resolved; the action may be retried with its cached verdict.
+    HookVerdictResolved {
+        action_id: AIAgentActionId,
+        conversation_id: AIConversationId,
+        is_user_initiated: bool,
     },
 }
 

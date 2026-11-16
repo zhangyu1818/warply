@@ -184,6 +184,9 @@ pub enum FeatureFlag {
     /// fuzzy-match score against the whole query as a single pattern. Disabling this is a full
     /// return to the pre-APP-5650 history search behavior, not an approximation of it.
     HistorySearchRankingV2,
+
+    /// Runs user-configured agent hooks at fixed points in Warp's agent loop.
+    AgentHooks,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =

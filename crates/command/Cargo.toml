@@ -12,3 +12,4 @@ test-util = []
 async-process = { workspace = true }
 futures-lite.workspace = true
 libc.workspace = true
+log.workspace = true

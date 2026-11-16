@@ -8,6 +8,7 @@ mod controller;
 mod passive_suggestions;
 pub(super) use controller::RequestInput;
 pub mod history_model;
+pub(crate) mod hooks;
 pub mod inline_action;
 mod input_model;
 mod permissions;
