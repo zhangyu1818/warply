@@ -142,6 +142,7 @@ dependencies = [
 name = "ai"
 version = "0.1.0"
 dependencies = [
+ "ai_types",
  "anyhow",
  "arborium",
  "async-channel",
@@ -196,6 +197,7 @@ dependencies = [
  "warp_terminal",
  "warp_util",
  "warpui",
+ "warpui_core",
  "watcher",
 ]
 

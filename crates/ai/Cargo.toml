@@ -12,6 +12,7 @@ local_fs = []
 test-util = []
 
 [dependencies]
+ai_types.workspace = true
 anyhow.workspace = true
 async-channel.workspace = true
 async-fs.workspace = true
@@ -61,6 +62,7 @@ unicode-width.workspace = true
 uuid.workspace = true
 warp_core.workspace = true
 warp_terminal.workspace = true
+warpui_core.workspace = true
 warp_util.workspace = true
 watcher.workspace = true
 warpui.workspace = true

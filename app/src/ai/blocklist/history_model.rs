@@ -43,6 +43,7 @@ use crate::persistence::{database_file_path, establish_ro_connection};
 
 use super::RequestInput;
 use super::controller::response_stream::ResponseStreamId;
+use super::hooks;
 use super::persistence::{PersistedAIInput, PersistedAIInputType};
 
 mod conversation_loader;
@@ -572,6 +573,10 @@ impl BlocklistAIHistoryModel {
             new_conversation_id,
             terminal_view_id,
         });
+
+        // The fork has no shared-session or CLI-transcript conversations; every conversation
+        // this client creates is one it drives.
+        hooks::session::notify_session_start(new_conversation_id, ctx);
 
         new_conversation_id
     }

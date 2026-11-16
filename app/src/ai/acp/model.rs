@@ -25,15 +25,17 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
+use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::RenderableAIError;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::hooks as blocklist_hooks;
 use crate::ai::blocklist::{AcpResponseStreamTarget, BlocklistAIHistoryModel, ResponseStreamId};
 use crate::ai::llms::LLMId;
 use crate::settings::AISettings;
 use crate::terminal::local_shell::LocalShellState;
+use crate::terminal::model::session::active_session::ActiveSession;
 
 use super::backend::{adapter_args, adapter_is_available};
 use super::events::AcpEvent;
@@ -56,6 +58,8 @@ pub enum AcpAgentState {
 pub struct AcpAgentModel {
     state: AcpAgentState,
     session_state_by_conversation: HashMap<AIConversationId, AcpSessionState>,
+    /// The session whose working directory each conversation's hook envelopes describe.
+    active_sessions_by_conversation: HashMap<AIConversationId, ModelHandle<ActiveSession>>,
     conversation_sessions: HashMap<AIConversationId, AcpConversationSessionHandle>,
     pending_permission_responses: HashMap<String, oneshot::Sender<AcpPermissionSelection>>,
     pending_session_cancels: HashMap<AIConversationId, UnboundedSender<()>>,
@@ -116,6 +120,7 @@ impl AcpAgentModel {
         Self {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            active_sessions_by_conversation: HashMap::new(),
             conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
@@ -129,6 +134,7 @@ impl AcpAgentModel {
         Self {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            active_sessions_by_conversation: HashMap::new(),
             conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),
@@ -205,9 +211,20 @@ impl AcpAgentModel {
         content_blocks: Vec<ContentBlock>,
         cwd: PathBuf,
         target: AcpRunTarget,
+        active_session: ModelHandle<ActiveSession>,
         ctx: &mut ModelContext<Self>,
     ) {
+        self.active_sessions_by_conversation
+            .insert(target.conversation_id, active_session);
         self.submit_prompt_internal(display_prompt, content_blocks, cwd, target, ctx);
+    }
+
+    /// The session whose working directory `conversation_id`'s hook envelopes describe.
+    fn active_session_for(
+        &self,
+        conversation_id: &AIConversationId,
+    ) -> Option<&ModelHandle<ActiveSession>> {
+        self.active_sessions_by_conversation.get(conversation_id)
     }
 
     fn submit_prompt_internal(
@@ -475,6 +492,38 @@ impl AcpAgentModel {
         }
     }
 
+    /// Feeds one batch of streamed ACP updates to the agent-hook observers, which fire
+    /// `response.complete` and `reasoning.complete` for every message the batch finished.
+    /// Nothing is copied or dispatched when hooks are inactive or the conversation's session
+    /// is unknown.
+    fn observe_stream_deltas(
+        &self,
+        target: &AcpRunTarget,
+        deltas: Vec<blocklist_hooks::stream::AcpStreamDelta<'_>>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(active_session) = self.active_session_for(&target.conversation_id) else {
+            return;
+        };
+        let observations = blocklist_hooks::stream::observations_for_acp_deltas(
+            &target.response_stream_id,
+            &deltas,
+            target.conversation_id,
+            ctx,
+        );
+        if observations.is_empty() {
+            return;
+        }
+        blocklist_hooks::stream::observe(
+            &target.response_stream_id,
+            target.conversation_id,
+            Some(target.conversation_id),
+            observations,
+            active_session,
+            ctx,
+        );
+    }
+
     fn apply_event_to_history(
         &self,
         event: &AcpEvent,
@@ -512,6 +561,11 @@ impl AcpAgentModel {
                     let history_target = target.response_stream_target();
                     history.append_local_text_delta_to_response_stream(&history_target, text, ctx);
                 });
+                self.observe_stream_deltas(
+                    target,
+                    vec![blocklist_hooks::stream::AcpStreamDelta::AssistantText { text }],
+                    ctx,
+                );
             }
             AcpEvent::AssistantThoughtDelta { text } => {
                 log::info!(
@@ -528,8 +582,14 @@ impl AcpAgentModel {
                         ctx,
                     );
                 });
+                self.observe_stream_deltas(
+                    target,
+                    vec![blocklist_hooks::stream::AcpStreamDelta::AssistantThought { text }],
+                    ctx,
+                );
             }
             AcpEvent::ToolCallStarted { tool_call } => {
+                let tool_call_id = tool_call.id.clone();
                 let mut tool_call = tool_call.clone();
                 if let Some(state) = self
                     .session_state_by_conversation
@@ -554,6 +614,13 @@ impl AcpAgentModel {
                         ctx,
                     );
                 });
+                self.observe_stream_deltas(
+                    target,
+                    vec![blocklist_hooks::stream::AcpStreamDelta::OtherMessage {
+                        tool_call_id: &tool_call_id,
+                    }],
+                    ctx,
+                );
             }
             AcpEvent::ToolCallUpdated { update } => {
                 log::info!(
@@ -683,6 +750,25 @@ impl AcpAgentModel {
                         conversation.cleanup_completed_response_stream(&target.response_stream_id);
                     }
                 });
+                if let Some(active_session) = self.active_session_for(&target.conversation_id) {
+                    self.observe_stream_deltas(
+                        target,
+                        vec![blocklist_hooks::stream::AcpStreamDelta::AssistantThoughtFinished],
+                        ctx,
+                    );
+                    blocklist_hooks::stream::flush_on_stream_end(
+                        &target.response_stream_id,
+                        /*cancelled*/ false,
+                        active_session,
+                        ctx,
+                    );
+                    blocklist_hooks::turn::notify_turn_stop(
+                        ai::hooks::TurnStopStatus::Completed,
+                        target.conversation_id,
+                        active_session,
+                        ctx,
+                    );
+                }
             }
             AcpEvent::Cancelled => {
                 log::info!(
@@ -702,6 +788,14 @@ impl AcpAgentModel {
                         conversation.cleanup_completed_response_stream(&target.response_stream_id);
                     }
                 });
+                if let Some(active_session) = self.active_session_for(&target.conversation_id) {
+                    blocklist_hooks::stream::flush_on_stream_end(
+                        &target.response_stream_id,
+                        /*cancelled*/ true,
+                        active_session,
+                        ctx,
+                    );
+                }
             }
             AcpEvent::AdapterMissing {
                 command,
@@ -731,6 +825,14 @@ impl AcpAgentModel {
         message: String,
         ctx: &mut ModelContext<Self>,
     ) {
+        if let Some(active_session) = self.active_session_for(&target.conversation_id) {
+            blocklist_hooks::stream::flush_on_stream_end(
+                &target.response_stream_id,
+                /*cancelled*/ true,
+                active_session,
+                ctx,
+            );
+        }
         BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
             history.initialize_local_output_for_response_stream(
                 &target.response_stream_id,
@@ -1673,6 +1775,7 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            active_sessions_by_conversation: HashMap::new(),
             conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::from([("request-1".to_string(), tx)]),
             pending_session_cancels: HashMap::new(),
@@ -1698,6 +1801,7 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            active_sessions_by_conversation: HashMap::new(),
             conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::from([(conversation_id, tx)]),
@@ -1721,6 +1825,7 @@ mod tests {
         let mut model = AcpAgentModel {
             state: AcpAgentState::Idle,
             session_state_by_conversation: HashMap::new(),
+            active_sessions_by_conversation: HashMap::new(),
             conversation_sessions: HashMap::new(),
             pending_permission_responses: HashMap::new(),
             pending_session_cancels: HashMap::new(),

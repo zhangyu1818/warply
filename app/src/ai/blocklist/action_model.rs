@@ -32,6 +32,7 @@ use std::{
 };
 
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::hooks::{pre_tool, tool_result};
 use itertools::Itertools;
 use parking_lot::FairMutex;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
@@ -249,6 +250,13 @@ impl BlocklistAIActionModel {
                 cancellation_reason,
             } => {
                 me.handle_action_result(*conversation_id, result.clone(), *cancellation_reason, ctx)
+            }
+            BlocklistAIActionExecutorEvent::HookVerdictResolved {
+                action_id,
+                conversation_id,
+                is_user_initiated,
+            } => {
+                me.resume_action_after_hooks(action_id, *conversation_id, *is_user_initiated, ctx);
             }
             BlocklistAIActionExecutorEvent::InitProject(id) => {
                 ctx.emit(BlocklistAIActionEvent::InitProject(id.clone()))
@@ -582,6 +590,34 @@ impl BlocklistAIActionModel {
         }
     }
 
+    /// Queues the `actions` for the given conversation, to be dispatched in the order in
+    /// which they appear in the iterator.
+    #[cfg(test)]
+    pub(crate) fn queue_actions(
+        &mut self,
+        actions: Vec<AIAgentAction>,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.action_order.insert(
+            conversation_id,
+            actions
+                .iter()
+                .enumerate()
+                .map(|(index, action)| (action.id.clone(), index))
+                .collect(),
+        );
+        for action in actions {
+            let action_id = action.id.clone();
+            self.pending_actions
+                .entry(conversation_id)
+                .or_default()
+                .push_back(action);
+            ctx.emit(BlocklistAIActionEvent::QueuedAction(action_id));
+        }
+        self.try_to_execute_available_actions(conversation_id, ctx);
+    }
+
     /// Attempts to execute the pending action with the given `action_id` for the given conversation.
     pub fn execute_action(
         &mut self,
@@ -624,21 +660,47 @@ impl BlocklistAIActionModel {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
-        if reason.needs_confirmation() {
-            ctx.emit(BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(
-                action.id.clone(),
-            ));
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                let blocked_action_user_friendly_str = action.action.user_friendly_name();
-                history_model.update_conversation_status(
-                    self.terminal_view_id,
-                    conversation_id,
-                    ConversationStatus::Blocked {
-                        blocked_action: format!("{blocked_action_user_friendly_str:?}"),
-                    },
-                    ctx,
-                );
-            });
+        match reason {
+            NotExecutedReason::NeedsConfirmation => {
+                ctx.emit(BlocklistAIActionEvent::ActionBlockedOnUserConfirmation(
+                    action.id.clone(),
+                ));
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    let blocked_action_user_friendly_str = action.action.user_friendly_name();
+                    history_model.update_conversation_status(
+                        self.terminal_view_id,
+                        conversation_id,
+                        ConversationStatus::Blocked {
+                            blocked_action: format!("{blocked_action_user_friendly_str:?}"),
+                        },
+                        ctx,
+                    );
+                });
+            }
+            NotExecutedReason::NotReady | NotExecutedReason::WaitingOnHooks => {}
+        }
+    }
+
+    /// Tries a queued action again now that its pre-tool hook verdict is known. An action that
+    /// was cancelled in the meantime is no longer queued and nothing happens.
+    fn resume_action_after_hooks(
+        &mut self,
+        action_id: &AIAgentActionId,
+        conversation_id: AIConversationId,
+        is_user_initiated: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let is_queued = self
+            .pending_actions
+            .get(&conversation_id)
+            .is_some_and(|queue| queue.iter().any(|action| &action.id == action_id));
+        if !is_queued {
+            return;
+        }
+        if is_user_initiated {
+            self.execute_action(action_id, conversation_id, ctx);
+        } else {
+            self.try_to_execute_available_actions(conversation_id, ctx);
         }
     }
 
@@ -759,6 +821,8 @@ impl BlocklistAIActionModel {
             executor.cancel_all_running_async_actions_for_conversation(conversation_id, reason, ctx)
         });
 
+        pre_tool::cancel_all_for_conversation(conversation_id, ctx);
+
         let Some(actions_to_cancel) = self.pending_actions.get_mut(&conversation_id) else {
             return;
         };
@@ -802,12 +866,22 @@ impl BlocklistAIActionModel {
         reason: Option<CancellationReason>,
         ctx: &mut ModelContext<Self>,
     ) {
+        let cancelled_result = pending_action.action.cancelled_result();
         let result = Arc::new(AIAgentActionResult {
-            id: pending_action.id,
-            task_id: pending_action.task_id,
-            result: pending_action.action.cancelled_result(),
+            id: pending_action.id.clone(),
+            task_id: pending_action.task_id.clone(),
+            result: cancelled_result.clone(),
         });
         self.handle_action_result(conversation_id, result, reason, ctx);
+        let active_session = self.executor.as_ref(ctx).active_session().clone();
+        tool_result::observe_terminal_result(
+            &pending_action,
+            &cancelled_result,
+            reason,
+            conversation_id,
+            &active_session,
+            ctx,
+        );
     }
 
     /// Returns all finished action results from the given conversation, moving them to the
@@ -848,7 +922,7 @@ impl BlocklistAIActionModel {
         ctx: &mut ModelContext<Self>,
     ) {
         // Search through all pending conversations to find the action and conversation ID
-        let mut found_conversation_id = None;
+        let mut found_conversation_id = None::<(AIConversationId, bool)>;
         for (conversation_id, pending_actions_for_conversation) in self.pending_actions.iter_mut() {
             if let Some(action) = pending_actions_for_conversation
                 .iter_mut()
@@ -859,18 +933,23 @@ impl BlocklistAIActionModel {
                     ..
                 } = &mut action.action
                 {
+                    let command_changed = *original_command != command;
                     *original_command = command;
-                    found_conversation_id = Some(*conversation_id);
+                    found_conversation_id = Some((*conversation_id, command_changed));
                     break;
                 }
             }
         }
 
-        let Some(conversation_id) = found_conversation_id else {
+        let Some((conversation_id, command_changed)) = found_conversation_id else {
             log::warn!("Ignoring acceptance for non-pending requested command: {action_id:?}");
             return;
         };
 
+        // A hook verdict for the old command text no longer applies to the new text.
+        if command_changed {
+            pre_tool::invalidate(conversation_id, action_id, ctx);
+        }
         self.execute_action(action_id, conversation_id, ctx);
     }
 
@@ -894,6 +973,7 @@ impl BlocklistAIActionModel {
         }
 
         let action_id = action_result.id.clone();
+        pre_tool::invalidate(conversation_id, &action_id, ctx);
 
         // If a command action entered long-running mode (returned a snapshot), cancel all other
         // pending RequestCommandOutput actions. Only one command can be active at a time for a CLI

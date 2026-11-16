@@ -15,6 +15,7 @@ use super::{
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::{BlocklistAIContextModel, PendingAttachment, PendingFile},
     history_model::BlocklistAIHistoryModel,
+    hooks,
     queued_query::{QueuedQueryId, QueuedQueryModel},
 };
 use crate::ai::acp::model::{AcpAgentModel, AcpRunTarget};
@@ -42,6 +43,7 @@ use agent_client_protocol::schema::{
     BlobResourceContents, ContentBlock, EmbeddedResource, EmbeddedResourceResource, ImageContent,
     ResourceLink, TextContent, TextResourceContents,
 };
+use ai::hooks::TurnStopStatus;
 use anyhow::anyhow;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Local};
@@ -303,6 +305,12 @@ impl BlocklistAIController {
                         .all(|result| result.result.is_successful())
                         || is_lrc_command_completed
                     {
+                        hooks::turn::notify_turn_stop(
+                            TurnStopStatus::Completed,
+                            *conversation_id,
+                            &me.active_session,
+                            ctx,
+                        );
                         ConversationStatus::Success
                     } else {
                         // This is an imperfect heuristic that practically speaking should have no effect.
@@ -403,12 +411,17 @@ impl BlocklistAIController {
             self.cancel_conversation_progress(active_conversation_id, cancellation_reason, ctx);
         }
 
-        let (query, user_query_mode) = extract_user_query_mode(query);
-
-        let should_prepend_finished_action_results = matches!(
+        let is_user_submitted_prompt = matches!(
             input_query.input_query,
             InputQueryType::UserSubmittedQueryFromInput { .. }
         );
+        // Hooks see the prompt as the user typed it, including any mode prefix. The copy is only
+        // made when a hook could fire, so the inactive path adds nothing beyond the check.
+        let submitted_prompt =
+            (is_user_submitted_prompt && hooks::HookRuntime::is_active(ctx)).then(|| query.clone());
+        let (query, user_query_mode) = extract_user_query_mode(query);
+
+        let should_prepend_finished_action_results = is_user_submitted_prompt;
 
         let completed_action_results = self.action_model.update(ctx, |action_model, ctx| {
             action_model.cancel_all_pending_actions(
@@ -418,6 +431,18 @@ impl BlocklistAIController {
             );
             action_model.drain_finished_action_results(conversation_id)
         });
+
+        // After the previous turn's actions are cancelled, so their `tool.failure` precedes this
+        // turn's `prompt.submit`.
+        if let Some(prompt) = &submitted_prompt {
+            hooks::prompt::notify_prompt_submit(
+                prompt,
+                Vec::new(),
+                conversation_id,
+                &self.active_session,
+                ctx,
+            );
+        }
 
         let context = input_context_for_request(
             false,
@@ -1477,6 +1502,7 @@ impl BlocklistAIController {
                     model_id: acp_model_id.clone(),
                     display_name: acp_model_display_name.clone(),
                 },
+                self.active_session.clone(),
                 ctx,
             );
         });

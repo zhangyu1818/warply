@@ -101,9 +101,11 @@ pub mod tab_configs;
 pub mod terminal;
 pub mod themes;
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
+use ::ai::hooks::{HookRegistry, LogOnlyMessenger, UnavailableRunner};
 use ::ai::project_context::model::ProjectContextModel;
 pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation, todos::AIAgentTodoList};
 use ai::agent_conversations_model::AgentConversationsModel;
+use ai::blocklist::hooks::HookRuntime;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use ai::execution_profiles::profiles::AIExecutionProfilesModel;
@@ -937,6 +939,11 @@ pub(crate) fn initialize_app(
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
     ctx.add_singleton_model(|_| ActiveAgentViewsModel::new());
     ctx.add_singleton_model(BlocklistAIPermissions::new);
+    // The hook runtime reads the registry handle, so the registry is registered first.
+    ctx.add_singleton_model(|_| HookRegistry::new());
+    ctx.add_singleton_model(|ctx| {
+        HookRuntime::new(Arc::new(UnavailableRunner), Arc::new(LogOnlyMessenger), ctx)
+    });
     ctx.add_singleton_model(RepoOutlines::new);
     ctx.add_singleton_model(|_| ObjectActions::new(object_actions));
 
@@ -1483,6 +1490,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LrcActivitySignal,
         #[cfg(feature = "history_search_ranking_v2")]
         FeatureFlag::HistorySearchRankingV2,
+        #[cfg(feature = "agent_hooks")]
+        FeatureFlag::AgentHooks,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]
