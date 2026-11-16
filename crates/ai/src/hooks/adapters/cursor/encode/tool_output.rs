@@ -1,7 +1,6 @@
 //! A `kind`-tagged JSON view of every `AIAgentActionResultType`, carried as a string in
 //! `tool_output`.
 
-use chrono::{DateTime, Local};
 use serde_json::{Map, Value, json};
 use warp_terminal::model::BlockId;
 
@@ -398,8 +397,4 @@ fn screenshot_view(screenshot: &computer_use::Screenshot) -> Value {
         "mime_type": screenshot.mime_type,
         "size_bytes": screenshot.data.len(),
     })
-}
-
-fn timestamp(ts: Option<DateTime<Local>>) -> Option<String> {
-    ts.map(|ts| ts.to_rfc3339())
 }
