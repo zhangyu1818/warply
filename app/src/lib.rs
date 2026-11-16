@@ -968,6 +968,9 @@ pub(crate) fn initialize_app(
     {
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
+        // Hook processes want the login shell's PATH, so the runner is installed once
+        // `LocalShellState` is available to capture it.
+        HookRuntime::install_command_runner(ctx);
     }
 
     // Add a singleton model that holds the current prompt configuration.
