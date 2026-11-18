@@ -9,12 +9,10 @@ use instant::Instant;
 use warpui::{App, SingletonEntity};
 
 use super::*;
-use crate::ai::agent::CancellationReason;
 use crate::ai::blocklist::hooks::prompt;
 use crate::ai::blocklist::hooks::test_utils::{hook_test_app, let_background_work_settle, settle};
 use crate::ai::blocklist::{BlocklistAIHistoryModel, RequestInput, ResponseStreamId};
 use crate::ai::llms::LLMId;
-use crate::features::FeatureFlag;
 
 fn session_binding() -> DeclaredBinding {
     test_binding(
@@ -76,7 +74,6 @@ async fn send_prompt_through_prepare(
 #[test]
 fn session_start_fires_once_before_a_new_conversations_first_request() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
 
@@ -133,7 +130,6 @@ fn session_start_fires_once_before_a_new_conversations_first_request() {
 #[test]
 fn the_first_request_waits_for_the_session_hooks_and_then_goes_out() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
         let hold = harness.hooks.runner.hold();
@@ -167,7 +163,6 @@ fn the_first_request_waits_for_the_session_hooks_and_then_goes_out() {
 #[test]
 fn a_session_hook_that_fails_or_times_out_adds_nothing_and_does_not_block_further() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let failing = session_binding();
         harness
@@ -220,7 +215,6 @@ fn a_session_hook_that_fails_or_times_out_adds_nothing_and_does_not_block_furthe
 #[test]
 fn the_session_environment_reaches_every_later_hook_in_the_conversation() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let session = session_binding();
         harness.hooks.runner.script(
@@ -262,7 +256,6 @@ fn the_session_environment_reaches_every_later_hook_in_the_conversation() {
 #[test]
 fn a_conversation_with_exchanges_is_not_a_new_session() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
         // A restored conversation arrives with its exchanges; the same is true of a resumed one.
@@ -307,7 +300,6 @@ fn a_conversation_with_exchanges_is_not_a_new_session() {
 #[test]
 fn a_request_before_finalization_does_not_use_up_the_session_start() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.stage_bindings(vec![session_binding()], ctx));
 
@@ -338,7 +330,6 @@ fn a_request_before_finalization_does_not_use_up_the_session_start() {
 #[test]
 fn a_second_request_while_the_hooks_run_waits_on_the_same_firing() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
         let hold = harness.hooks.runner.hold();
@@ -379,7 +370,6 @@ fn a_second_request_while_the_hooks_run_waits_on_the_same_firing() {
 #[test]
 fn a_newer_prompt_replaces_one_waiting_only_on_the_session_barrier() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         // No prompt hook: the first prompt waits on nothing but the session hooks.
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
@@ -433,7 +423,6 @@ fn a_newer_prompt_replaces_one_waiting_only_on_the_session_barrier() {
 #[test]
 fn cancelling_during_the_session_wait_drops_the_prompt() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![session_binding()], ctx));
         let hold = harness.hooks.runner.hold();

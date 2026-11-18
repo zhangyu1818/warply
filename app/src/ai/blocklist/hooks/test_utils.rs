@@ -1,13 +1,13 @@
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::sync::Arc;
+use std::time::Duration;
 
 use ai::hooks::test_util::{RecordingAdapter, RecordingMessenger, ScriptedRunner};
 use ai::hooks::{ActiveBinding, DeclaredBinding, HookDiagnostic, HookRegistry, HookRunner};
 use async_channel::unbounded;
 use parking_lot::FairMutex;
 use warpui::r#async::Timer;
-use warpui::{App, AppContext, Entity, ModelHandle, SingletonEntity};
+use warpui::{App, AppContext, ModelHandle, SingletonEntity};
 
 use super::HookRuntime;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};

@@ -975,8 +975,11 @@ pub(crate) fn initialize_app(
         ctx.add_singleton_model(LocalShellState::new);
         ctx.add_singleton_model(system::SystemInfo::new);
         // Hook processes want the login shell's PATH, so the runner is installed once
-        // `LocalShellState` is available to capture it.
+        // `LocalShellState` is available to capture it. The fork loads the launch directory's
+        // explicit hook sources right after, so hooks are live when a project configures them.
         HookRuntime::install_command_runner(ctx);
+        #[cfg(feature = "local_fs")]
+        HookRuntime::load_project_hook_sources(ctx);
     }
 
     // Add a singleton model that holds the current prompt configuration.
@@ -1499,8 +1502,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::LrcActivitySignal,
         #[cfg(feature = "history_search_ranking_v2")]
         FeatureFlag::HistorySearchRankingV2,
-        #[cfg(feature = "agent_hooks")]
-        FeatureFlag::AgentHooks,
         #[cfg(feature = "inline_history_menu")]
         FeatureFlag::InlineHistoryMenu,
         #[cfg(feature = "pluggable_notifications")]

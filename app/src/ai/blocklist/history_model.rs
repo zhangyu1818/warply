@@ -43,7 +43,6 @@ use crate::persistence::{database_file_path, establish_ro_connection};
 
 use super::RequestInput;
 use super::controller::response_stream::ResponseStreamId;
-use super::hooks;
 use super::persistence::{PersistedAIInput, PersistedAIInputType};
 
 mod conversation_loader;

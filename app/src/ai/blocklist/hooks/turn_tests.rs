@@ -6,16 +6,11 @@ use instant::Instant;
 use warpui::{App, SingletonEntity};
 
 use super::*;
-use crate::ai::agent::conversation::ConversationStatus;
-use crate::ai::agent::{AIAgentInput, CancellationReason, UserQueryMode};
-use crate::ai::blocklist::hooks::prompt::is_pending;
-use crate::ai::blocklist::hooks::test_utils::{
-    HookTestApp, hook_test_app, let_background_work_settle, settle,
-};
+use crate::ai::agent::{AIAgentInput, UserQueryMode};
+use crate::ai::blocklist::hooks::test_utils::{HookTestApp, hook_test_app};
 use crate::ai::blocklist::{
     BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel, QueuedQueryOrigin,
 };
-use crate::features::FeatureFlag;
 
 fn stop_binding(loop_limit: Option<u32>) -> DeclaredBinding {
     let mut binding = test_binding(test_source_id("stop"), HookBoundary::TurnStop, 0, None);
@@ -91,7 +86,6 @@ fn start_turn(app: &mut App, conversation_id: AIConversationId) -> HookTurnId {
 #[test]
 fn a_follow_up_is_queued_behind_a_persons_prompt_with_the_hooks_provenance() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = stop_binding(None);
         harness
@@ -159,7 +153,6 @@ fn a_follow_up_is_queued_behind_a_persons_prompt_with_the_hooks_provenance() {
 #[test]
 fn a_bindings_loop_limit_ends_its_follow_ups_with_a_diagnostic() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = stop_binding(Some(2));
         harness
@@ -206,7 +199,6 @@ fn a_bindings_loop_limit_ends_its_follow_ups_with_a_diagnostic() {
 #[test]
 fn the_host_cap_applies_to_the_whole_chain_across_bindings() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         // Two definitions with no limit of their own. The dispatcher keeps the first binding's
         // continuation, so the two are alternated by turning one off at a time.
@@ -263,7 +255,6 @@ fn the_host_cap_applies_to_the_whole_chain_across_bindings() {
 #[test]
 fn a_stop_hook_without_a_follow_up_finalizes_and_its_verdicts_are_ignored() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = stop_binding(None);
         harness
@@ -290,7 +281,6 @@ fn a_stop_hook_without_a_follow_up_finalizes_and_its_verdicts_are_ignored() {
 #[test]
 fn nothing_is_held_without_a_stop_binding() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| {
             harness.hooks.install_bindings(
@@ -317,7 +307,6 @@ fn nothing_is_held_without_a_stop_binding() {
 #[test]
 fn an_answer_for_a_cancelled_hold_is_dropped() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = stop_binding(None);
         harness
@@ -345,7 +334,6 @@ fn an_answer_for_a_cancelled_hold_is_dropped() {
 #[test]
 fn a_hold_that_times_out_finalizes_without_the_hooks() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let mut binding = stop_binding(None);
         binding.timeout = Duration::from_millis(100);

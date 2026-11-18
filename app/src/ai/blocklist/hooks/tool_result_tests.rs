@@ -5,13 +5,12 @@ use warpui::{App, ModelHandle, SingletonEntity};
 
 use super::*;
 use crate::ai::agent::task::TaskId;
-use crate::ai::agent::{AIAgentActionId, AIAgentActionResult, AIAgentPtyWriteMode};
+use crate::ai::agent::{AIAgentActionId, AIAgentPtyWriteMode};
 use crate::ai::blocklist::BlocklistAIActionModel;
 use crate::ai::blocklist::hooks::test_utils::{
     HookTestApp, action_model, hook_test_app, init_project_action, read_nothing_action, settle,
     shell_action,
 };
-use crate::features::FeatureFlag;
 use crate::terminal::model::block::BlockId;
 
 fn observe(
@@ -126,7 +125,6 @@ fn has_result(
 #[test]
 fn a_synchronous_completion_is_observed_once_as_a_result() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let model = action_model(&mut app, &harness);
@@ -151,7 +149,6 @@ fn a_synchronous_completion_is_observed_once_as_a_result() {
 #[test]
 fn an_asynchronous_completion_is_observed_once_as_a_result() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let model = action_model(&mut app, &harness);
@@ -175,7 +172,6 @@ fn an_asynchronous_completion_is_observed_once_as_a_result() {
 #[test]
 fn a_hook_denial_is_observed_once_as_a_failure() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let deny = test_binding(
             test_source_id("policy"),
@@ -218,7 +214,6 @@ fn a_hook_denial_is_observed_once_as_a_failure() {
 #[test]
 fn cancelling_a_running_action_is_observed_once_as_a_failure() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let model = action_model(&mut app, &harness);
@@ -267,7 +262,6 @@ fn cancelling_a_running_action_is_observed_once_as_a_failure() {
 #[test]
 fn cancelling_a_pending_action_is_observed_once_as_a_failure() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let model = action_model(&mut app, &harness);
@@ -307,7 +301,6 @@ fn cancelling_a_pending_action_is_observed_once_as_a_failure() {
 #[test]
 fn an_unknown_conversation_does_not_observe_results() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let action = shell_action("mirrored", "sleep 100");
@@ -341,7 +334,6 @@ fn an_unknown_conversation_does_not_observe_results() {
 #[test]
 fn a_tool_that_ran_is_a_result_whatever_it_returned_and_one_that_did_not_is_a_failure() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let block = BlockId::new();
@@ -413,7 +405,6 @@ fn a_tool_that_ran_is_a_result_whatever_it_returned_and_one_that_did_not_is_a_fa
 #[test]
 fn a_long_running_commands_real_exit_is_reported_again_on_its_own_action() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let block = BlockId::new();
@@ -497,7 +488,6 @@ fn a_long_running_commands_real_exit_is_reported_again_on_its_own_action() {
 #[test]
 fn a_write_that_sees_the_exit_reports_it_and_a_plain_command_is_reported_once() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let block = BlockId::new();
@@ -550,7 +540,6 @@ fn a_write_that_sees_the_exit_reports_it_and_a_plain_command_is_reported_once() 
 #[test]
 fn a_command_still_waiting_for_its_exit_is_forgotten_with_its_conversation() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(observing_bindings(), ctx));
         let block = BlockId::new();
@@ -575,7 +564,6 @@ fn a_command_still_waiting_for_its_exit_is_forgotten_with_its_conversation() {
 #[test]
 fn nothing_is_observed_when_no_binding_is_active() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let model = action_model(&mut app, &harness);
         let action = init_project_action("init");

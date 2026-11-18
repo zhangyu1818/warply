@@ -1,8 +1,8 @@
 //! Interception points for agent hooks. Each submodule owns one boundary (or a group of related
 //! boundaries) and exposes the function the agent loop calls at that moment. Every entry point
-//! starts with [`HookRuntime::is_active`], or [`HookRuntime::is_installed`] when it only clears
-//! state, and returns early when hooks are off or nothing is configured, so the inactive path
-//! adds no work beyond that check.
+//! that can run a hook starts with [`HookRuntime::is_active`] and returns early when no binding is
+//! active. Entry points that only clear state check [`HookRuntime::is_installed`] and then find
+//! nothing to clear, since only an active path records anything.
 
 pub(crate) mod envelope;
 pub(crate) mod pre_tool;
@@ -28,8 +28,14 @@ use ai::hooks::{
     RegistrySnapshot, RunMetadata,
 };
 #[cfg(feature = "local_tty")]
+use futures::FutureExt as _;
+#[cfg(feature = "local_tty")]
+use futures::future::{BoxFuture, Shared};
+#[cfg(feature = "local_tty")]
 use parking_lot::Mutex;
 use warp_core::execution_mode::AppExecutionMode;
+#[cfg(feature = "local_tty")]
+use warpui::r#async::TimeoutError;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use self::pre_tool::PreToolVerdictCache;
@@ -42,7 +48,6 @@ use crate::ai::agent::AIAgentActionId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::history_model::BlocklistAIHistoryEvent;
-use crate::features::FeatureFlag;
 #[cfg(feature = "local_tty")]
 use crate::process_environment::InitialProcessEnvironment;
 #[cfg(feature = "local_tty")]
@@ -63,6 +68,22 @@ impl RunSurface {
             Self::CommandLine => HookSurface::CliRun,
         }
     }
+}
+
+/// The login shell's PATH for the command runner, and the capture that reads it.
+#[cfg(feature = "local_tty")]
+struct LoginShellPath {
+    /// What the command runner reads for each invocation. It is set once, when the capture is
+    /// settled, so every hook in a run sees the same PATH.
+    slot: Arc<Mutex<Option<OsString>>>,
+    capture: LoginShellPathCapture,
+}
+
+#[cfg(feature = "local_tty")]
+enum LoginShellPathCapture {
+    NotStarted,
+    Running(Shared<BoxFuture<'static, Option<String>>>),
+    Settled,
 }
 
 /// The run this process belongs to and the surface its envelopes report.
@@ -91,6 +112,11 @@ pub enum HookRuntimeEvent {
     },
 }
 
+/// How long the fork's startup waits for the login shell's PATH before hooks keep this
+/// process's PATH.
+#[cfg(feature = "local_tty")]
+const LOGIN_SHELL_PATH_WAIT: Duration = Duration::from_secs(10);
+
 /// Process-wide hook state shared by every conversation and surface.
 pub struct HookRuntime {
     registry: ModelHandle<HookRegistry>,
@@ -105,6 +131,9 @@ pub struct HookRuntime {
     turn_stops: TurnStops,
     pending_prompts: PendingPrompts,
     shell_completions: ShellCompletions,
+    /// Present once the command runner is installed.
+    #[cfg(feature = "local_tty")]
+    login_shell_path: Option<LoginShellPath>,
     #[cfg(test)]
     observed_terminal_results: Vec<tool_result::ObservedTerminalResult>,
 }
@@ -128,6 +157,8 @@ impl HookRuntime {
             turn_stops: TurnStops::default(),
             pending_prompts: PendingPrompts::default(),
             shell_completions: ShellCompletions::default(),
+            #[cfg(feature = "local_tty")]
+            login_shell_path: None,
             #[cfg(test)]
             observed_terminal_results: Vec::new(),
         }
@@ -217,9 +248,9 @@ impl HookRuntime {
         AppExecutionMode::as_ref(ctx).is_headless()
     }
 
-    /// Whether the flag is on and the runtime is registered. True even when no binding is active.
+    /// Whether the runtime is registered. True even when no binding is active.
     pub fn is_installed(ctx: &AppContext) -> bool {
-        FeatureFlag::AgentHooks.is_enabled() && ctx.has_singleton_model::<HookRuntime>()
+        ctx.has_singleton_model::<HookRuntime>()
     }
 
     /// Whether any hook can fire right now: the runtime is installed and at least one binding is
@@ -252,38 +283,221 @@ impl HookRuntime {
         self.dispatcher = Arc::new(HookDispatcher::new(runner, self.messenger.clone()));
     }
 
-    /// Installs the runner that spawns hook processes. Hooks get the login shell's PATH once it
-    /// has been captured; until then they inherit this process's PATH.
+    /// Installs the runner that spawns hook processes. Hooks get the login shell's PATH once its
+    /// capture is settled with a result, and this process's PATH otherwise. Installing starts
+    /// nothing, so a launch that never loads hooks pays nothing.
     #[cfg(feature = "local_tty")]
     pub fn install_command_runner(ctx: &mut AppContext) {
-        let login_shell_path: Arc<Mutex<Option<OsString>>> = Arc::default();
-        let captured = login_shell_path.clone();
+        let slot: Arc<Mutex<Option<OsString>>> = Arc::default();
+        let captured = slot.clone();
         let initial_environment = InitialProcessEnvironment::as_ref(ctx).variables().to_vec();
         let runner = CommandHookRunner::new(
             Arc::new(move || captured.lock().clone()),
             initial_environment,
         );
-        Self::handle(ctx).update(ctx, |runtime, ctx| {
+        Self::handle(ctx).update(ctx, |runtime, _| {
             runtime.set_runner(Arc::new(runner));
-            Self::capture_login_shell_path(login_shell_path, ctx);
+            runtime.login_shell_path = Some(LoginShellPath {
+                slot,
+                capture: LoginShellPathCapture::NotStarted,
+            });
         });
     }
 
-    /// Starts the interactive shell capture, which is only worth its cost when hooks can run.
-    #[cfg(feature = "local_tty")]
-    fn capture_login_shell_path(
-        login_shell_path: Arc<Mutex<Option<OsString>>>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if !FeatureFlag::AgentHooks.is_enabled() || !ctx.has_singleton_model::<LocalShellState>() {
+    /// Loads the explicit hook sources this process's agent hooks run from: a `.cursor/hooks.json`
+    /// under the process's working directory, the local counterpart of a run's configured hook
+    /// list. A launch with no hook file finalizes an empty registry, so hooks stay inert. When a
+    /// source loads, the login-shell PATH read starts and settles in the background, so every
+    /// hook in the process sees the same PATH.
+    #[cfg(all(feature = "local_tty", feature = "local_fs"))]
+    pub fn load_project_hook_sources(ctx: &mut AppContext) {
+        use ai::hooks::adapters::HookDirectory;
+        use ai::hooks::{
+            ExplicitHookSource, HookFormat, HookSourceKind, HookSourcePolicy, load_explicit_sources,
+        };
+
+        let working_directory =
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let config_file = working_directory.join(".cursor").join("hooks.json");
+        let sources = if config_file.is_file() {
+            vec![ExplicitHookSource::from_directory(
+                HookFormat::Cursor,
+                &HookDirectory::Worker {
+                    directory: working_directory.clone(),
+                },
+                HookSourceKind::FactoryWide,
+                HookSourcePolicy::default(),
+            )]
+        } else {
+            Vec::new()
+        };
+        HookRegistry::handle(ctx).update(ctx, |registry, _| {
+            match load_explicit_sources(&sources, registry) {
+                Ok(failures) => {
+                    for failure in &failures {
+                        log::warn!(
+                            "hook source {}: {}",
+                            failure.diagnostic.source,
+                            failure.diagnostic.message
+                        );
+                    }
+                }
+                Err(error) => log::warn!("hook sources could not be loaded: {error}"),
+            }
+            if let Err(error) = registry.finalize() {
+                log::warn!("hook registry could not be finalized: {error}");
+            }
+        });
+        if sources.is_empty() {
             return;
         }
-        let capture = LocalShellState::handle(ctx).update(ctx, |shell_state, ctx| {
-            shell_state.get_interactive_path_env_var(ctx)
+        HookRuntime::handle(ctx).update(ctx, |runtime, ctx| {
+            runtime.start_login_shell_path_capture(ctx);
         });
-        ctx.spawn(capture, move |_, path, _| {
-            *login_shell_path.lock() = path.map(OsString::from);
+        Self::wait_for_login_shell_path(ctx, LOGIN_SHELL_PATH_WAIT);
+    }
+
+    /// Waits up to `within` for the login shell's PATH when a hook is active, and fixes the PATH
+    /// every hook in the process gets. When the PATH cannot be read in time, hooks keep this
+    /// process's PATH and the log says so; the launch goes on.
+    #[cfg(feature = "local_tty")]
+    fn wait_for_login_shell_path(ctx: &mut AppContext, within: Duration) {
+        use ai::hooks::model::DiagnosticSeverity;
+        use ai::hooks::{HookDiagnostic, HookSourceId, HookSourceKind, HookSourceLocation};
+        use warpui::r#async::FutureExt as _;
+
+        HookRuntime::handle(ctx).update(ctx, |runtime, ctx| {
+            let capture = if Self::is_active(ctx) {
+                runtime.login_shell_path_capture(ctx)
+            } else {
+                None
+            };
+            let Some(capture) = capture else {
+                return;
+            };
+            ctx.spawn(
+                async move { capture.with_timeout(within).await },
+                move |_, outcome, ctx| {
+                    let unread = HookRuntime::handle(ctx).update(ctx, |runtime, _| {
+                        runtime.settle_login_shell_path(outcome, within)
+                    });
+                    if let Some(message) = unread {
+                        log::warn!("{message}");
+                        HookRuntime::as_ref(ctx)
+                            .messenger()
+                            .diagnostic(HookDiagnostic {
+                                source: HookSourceId {
+                                    kind: HookSourceKind::FactoryWide,
+                                    location: HookSourceLocation::Named("login shell".to_owned()),
+                                },
+                                severity: DiagnosticSeverity::Warning,
+                                message,
+                            });
+                    }
+                },
+            );
         });
+    }
+
+    /// Starts reading the login shell's PATH for the command runner, at most once per process.
+    /// The read starts an interactive shell, so it is only worth its cost when hooks will run. It
+    /// is a fresh read rather than the value other features cached earlier in the process, so it
+    /// sees what the environment's setup commands added to the shell's startup files.
+    #[cfg(feature = "local_tty")]
+    pub(crate) fn start_login_shell_path_capture(&mut self, ctx: &mut ModelContext<Self>) {
+        let Some(login_shell_path) = self.login_shell_path.as_mut() else {
+            return;
+        };
+        let LoginShellPathCapture::NotStarted = login_shell_path.capture else {
+            return;
+        };
+        if !ctx.has_singleton_model::<LocalShellState>() {
+            login_shell_path.capture =
+                LoginShellPathCapture::Running(futures::future::ready(None).boxed().shared());
+            return;
+        }
+        let read = LocalShellState::as_ref(ctx).read_interactive_path_env_var_now();
+        let (sender, receiver) = futures::channel::oneshot::channel();
+        ctx.spawn(read, move |_, path, _| {
+            let _ = sender.send(path);
+        });
+        login_shell_path.capture = LoginShellPathCapture::Running(
+            async move { receiver.await.ok().flatten() }
+                .boxed()
+                .shared(),
+        );
+    }
+
+    /// The login-shell PATH capture to wait for before the run's first hook, started if it was
+    /// not yet. `None` when there is no command runner or the capture is already settled.
+    #[cfg(feature = "local_tty")]
+    pub(crate) fn login_shell_path_capture(
+        &mut self,
+        ctx: &mut ModelContext<Self>,
+    ) -> Option<Shared<BoxFuture<'static, Option<String>>>> {
+        self.start_login_shell_path_capture(ctx);
+        match &self.login_shell_path.as_ref()?.capture {
+            LoginShellPathCapture::Running(capture) => Some(capture.clone()),
+            LoginShellPathCapture::NotStarted | LoginShellPathCapture::Settled => None,
+        }
+    }
+
+    /// Fixes the PATH every hook in the run gets from the capture's `outcome`. A capture that
+    /// failed or did not finish within `waited` leaves this process's PATH in place, and a result
+    /// that arrives later is ignored. Returns what to report when the login shell's PATH is not
+    /// used.
+    #[cfg(feature = "local_tty")]
+    pub(crate) fn settle_login_shell_path(
+        &mut self,
+        outcome: Result<Option<String>, TimeoutError>,
+        waited: Duration,
+    ) -> Option<String> {
+        let login_shell_path = self.login_shell_path.as_mut()?;
+        login_shell_path.capture = LoginShellPathCapture::Settled;
+        match outcome {
+            Ok(Some(path)) => {
+                *login_shell_path.slot.lock() = Some(OsString::from(path));
+                None
+            }
+            Ok(None) => Some(
+                "hooks run with the worker's PATH because the login shell's PATH could not be read"
+                    .to_owned(),
+            ),
+            Err(TimeoutError) => Some(format!(
+                "hooks run with the worker's PATH because the login shell's PATH could not be \
+                 read within {} seconds",
+                waited.as_secs()
+            )),
+        }
+    }
+
+    /// Whether the command runner is installed and its login-shell PATH capture has not started.
+    #[cfg(all(test, feature = "local_tty"))]
+    pub(crate) fn login_shell_path_capture_is_pending(&self) -> bool {
+        self.login_shell_path
+            .as_ref()
+            .is_some_and(|login_shell_path| {
+                matches!(login_shell_path.capture, LoginShellPathCapture::NotStarted)
+            })
+    }
+
+    /// Replaces the capture with `capture`, for tests that control when and how it finishes.
+    #[cfg(all(test, unix, feature = "local_tty"))]
+    pub(crate) fn set_login_shell_path_capture_for_test(
+        &mut self,
+        capture: BoxFuture<'static, Option<String>>,
+    ) {
+        if let Some(login_shell_path) = self.login_shell_path.as_mut() {
+            login_shell_path.capture = LoginShellPathCapture::Running(capture.shared());
+        }
+    }
+
+    /// The PATH the command runner gives hooks, when it is not this process's own.
+    #[cfg(all(test, unix, feature = "local_tty"))]
+    pub(crate) fn login_shell_path_for_test(&self) -> Option<OsString> {
+        self.login_shell_path
+            .as_ref()
+            .and_then(|login_shell_path| login_shell_path.slot.lock().clone())
     }
 
     /// Records the run this process belongs to. Envelopes built afterwards carry it and report

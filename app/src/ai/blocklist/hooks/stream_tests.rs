@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use ai::hooks::test_util::{test_binding, test_source_id};
 use ai::hooks::{HookBoundary, HookPayload};
 use warpui::App;
 
 use super::*;
 use crate::ai::blocklist::hooks::test_utils::{hook_test_app, settle};
-use crate::features::FeatureFlag;
 
 fn stream_id() -> ResponseStreamId {
     ResponseStreamId::new_for_test()
@@ -237,7 +234,6 @@ fn reasoning_completes_once_on_the_first_update_that_carries_a_duration() {
 #[test]
 fn acp_deltas_map_to_observations_and_respect_activity() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let stream = stream_id();
         let deltas = vec![

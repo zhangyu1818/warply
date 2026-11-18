@@ -453,7 +453,6 @@ lrc_activity_signal = []
 history_search_ranking_v2 = []
 # Off by default, matching upstream's off-on-every-channel Phase 1 state; enable explicitly to
 # exercise agent hooks in local builds.
-agent_hooks = []
 inline_history_menu = []
 new_tab_styling = []
 incremental_auto_reload = []

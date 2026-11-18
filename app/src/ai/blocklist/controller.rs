@@ -5,8 +5,6 @@
 pub mod input_context;
 pub mod response_stream;
 mod slash_command;
-use std::time::Duration;
-
 use ai::hooks::PromptProvenance;
 
 use input_context::{input_context_for_request, parse_context_attachments};

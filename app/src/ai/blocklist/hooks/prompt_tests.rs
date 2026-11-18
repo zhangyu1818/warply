@@ -3,11 +3,9 @@ use ai::hooks::{DeclaredBinding, HookBoundary, HookNoticeKind, HookPayload, Prom
 use warpui::{App, SingletonEntity};
 
 use super::*;
-use crate::ai::agent::CancellationReason;
 use crate::ai::blocklist::hooks::test_utils::{
     HookTestApp, hook_test_app, let_background_work_settle, settle,
 };
-use crate::features::FeatureFlag;
 
 fn prompt_binding() -> DeclaredBinding {
     test_binding(
@@ -54,7 +52,6 @@ async fn send_prompt_through_prepare(
 #[test]
 fn prompt_submit_reaches_the_adapter_with_the_text_and_conversation() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![prompt_binding()], ctx));
 
@@ -99,7 +96,6 @@ fn prompt_submit_reaches_the_adapter_with_the_text_and_conversation() {
 #[test]
 fn prompt_submit_does_not_fire_for_an_unknown_conversation() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         app.update(|ctx| harness.hooks.install_bindings(vec![prompt_binding()], ctx));
         // The fork has no shared-session viewers, so the upstream mirrored-conversation
@@ -123,7 +119,6 @@ fn prompt_submit_does_not_fire_for_an_unknown_conversation() {
 #[test]
 fn every_prompt_starts_a_new_turn_and_the_turns_envelopes_carry_its_id() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         // Only a tool binding is active, so a prompt starts a turn without waiting on anything.
         app.update(|ctx| {
@@ -169,7 +164,6 @@ fn every_prompt_starts_a_new_turn_and_the_turns_envelopes_carry_its_id() {
 #[test]
 fn a_halting_hook_stops_the_prompt_and_tells_the_person_why() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = prompt_binding();
         harness.hooks.runner.script(
@@ -197,7 +191,6 @@ fn a_halting_hook_stops_the_prompt_and_tells_the_person_why() {
 #[test]
 fn a_denying_or_asking_hook_halts_the_prompt_too() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = prompt_binding();
         app.update(|ctx| harness.hooks.install_bindings(vec![binding.clone()], ctx));
@@ -230,7 +223,6 @@ fn a_denying_or_asking_hook_halts_the_prompt_too() {
 #[test]
 fn a_hook_with_no_opinion_lets_the_prompt_through_after_it_answers() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = prompt_binding();
         app.update(|ctx| harness.hooks.install_bindings(vec![binding], ctx));
@@ -263,7 +255,6 @@ fn a_hook_with_no_opinion_lets_the_prompt_through_after_it_answers() {
 #[test]
 fn a_newer_prompt_for_the_same_conversation_replaces_one_still_waiting() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = prompt_binding();
         app.update(|ctx| harness.hooks.install_bindings(vec![binding], ctx));
@@ -308,7 +299,6 @@ fn a_newer_prompt_for_the_same_conversation_replaces_one_still_waiting() {
 #[test]
 fn cancelling_the_conversation_drops_a_waiting_prompt() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let binding = prompt_binding();
         app.update(|ctx| harness.hooks.install_bindings(vec![binding], ctx));
@@ -336,10 +326,10 @@ fn cancelling_the_conversation_drops_a_waiting_prompt() {
 }
 
 #[test]
-fn with_hooks_off_a_prompt_is_sent_on_the_same_call() {
+fn before_the_registry_is_finalized_a_prompt_is_sent_on_the_same_call() {
     App::test((), |mut app| async move {
         let harness = hook_test_app(&mut app);
-        app.update(|ctx| harness.hooks.install_bindings(vec![prompt_binding()], ctx));
+        app.update(|ctx| harness.hooks.stage_bindings(vec![prompt_binding()], ctx));
         let conversation_id = harness.conversation_id;
         let preparation = app.update(|ctx| {
             prepare_turn(
