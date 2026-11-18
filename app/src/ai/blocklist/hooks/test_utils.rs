@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,10 +15,12 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentAction, AIAgentActionId, AIAgentActionType, ReadFilesRequest};
 use crate::ai::blocklist::{BlocklistAIActionModel, BlocklistAIHistoryModel};
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
+use crate::terminal::event::BlockMetadataReceivedEvent;
+use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::session::Sessions;
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::terminal::model::terminal_model::TerminalModel;
-use crate::terminal::model_events::ModelEventDispatcher;
+use crate::terminal::model::terminal_model::{BlockIndex, TerminalModel};
+use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 
 /// A terminal-view-sized app with the hook doubles installed and one native conversation.
@@ -32,10 +35,7 @@ pub(crate) struct HookTestApp {
 pub(crate) fn hook_test_app(app: &mut App) -> HookTestApp {
     initialize_app_for_terminal_view(app);
     let hooks = app.update(install_test_hooks);
-    let sessions = app.add_model(|_| Sessions::new_for_test());
-    let (_tx, rx) = unbounded();
-    let dispatcher = app.add_model(|ctx| ModelEventDispatcher::new(rx, sessions.clone(), ctx));
-    let active_session = app.add_model(|ctx| ActiveSession::new(sessions, dispatcher.clone(), ctx));
+    let (active_session, dispatcher) = mock_session(app);
     let terminal_view_id = warpui::EntityId::new();
     let conversation = AIConversation::new();
     let conversation_id = conversation.id();
@@ -51,6 +51,56 @@ pub(crate) fn hook_test_app(app: &mut App) -> HookTestApp {
         conversation_id,
         terminal_view_id,
     }
+}
+
+/// A session over a mock terminal, with the dispatcher that feeds it, for envelopes that
+/// need a working directory to read.
+fn mock_session(
+    app: &mut App,
+) -> (
+    ModelHandle<ActiveSession>,
+    ModelHandle<ModelEventDispatcher>,
+) {
+    let sessions = app.add_model(|_| Sessions::new_for_test());
+    let (_tx, rx) = unbounded();
+    let dispatcher = app.add_model(|ctx| ModelEventDispatcher::new(rx, sessions.clone(), ctx));
+    let active_session = app.add_model(|ctx| ActiveSession::new(sessions, dispatcher.clone(), ctx));
+    (active_session, dispatcher)
+}
+
+pub(crate) fn mock_active_session(app: &mut App) -> ModelHandle<ActiveSession> {
+    mock_session(app).0
+}
+
+/// Adds a fresh native conversation to the harness's terminal view, the way starting one
+/// would, so a test can drive a second conversation with its own session.
+pub(crate) fn new_conversation(
+    app: &mut App,
+    terminal_view_id: warpui::EntityId,
+) -> AIConversationId {
+    let conversation = AIConversation::new();
+    let conversation_id = conversation.id();
+    app.update(|ctx| {
+        BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, ctx| {
+            model.restore_conversations(terminal_view_id, vec![conversation], ctx);
+        });
+    });
+    conversation_id
+}
+
+/// Moves the harness's session to `cwd`, the way a shell's prompt would report it.
+pub(crate) fn set_working_directory(app: &mut App, harness: &HookTestApp, cwd: &Path) {
+    let cwd = cwd.display().to_string();
+    harness.dispatcher.update(app, |_, ctx| {
+        ctx.emit(ModelEvent::BlockMetadataReceived(
+            BlockMetadataReceivedEvent {
+                block_metadata: BlockMetadata::new(None, Some(cwd)),
+                block_index: BlockIndex::zero(),
+                is_after_in_band_command: false,
+                is_done_bootstrapping: true,
+            },
+        ));
+    });
 }
 
 pub(crate) fn shell_action(id: &str, command: &str) -> AIAgentAction {
@@ -142,14 +192,27 @@ pub(crate) struct TestHooks {
 impl TestHooks {
     /// Replaces the active snapshot with `bindings`, all using this adapter.
     pub(crate) fn install_bindings(&self, bindings: Vec<DeclaredBinding>, ctx: &mut AppContext) {
-        let adapter: Arc<dyn ai::hooks::HookFormatAdapter> = self.adapter.clone();
-        let active = bindings
-            .into_iter()
-            .map(|binding| ai::hooks::test_util::active_binding(binding, adapter.clone()))
-            .collect::<Vec<ActiveBinding>>();
+        let active = self.active_bindings(bindings);
         HookRegistry::handle(ctx).update(ctx, |registry, _| {
             registry.install_snapshot_for_test(active, Vec::<HookDiagnostic>::new());
         });
+    }
+
+    /// Puts `bindings` in the registry without finalizing it, as if the loader were still
+    /// running.
+    pub(crate) fn stage_bindings(&self, bindings: Vec<DeclaredBinding>, ctx: &mut AppContext) {
+        let active = self.active_bindings(bindings);
+        HookRegistry::handle(ctx).update(ctx, |registry, _| {
+            registry.stage_snapshot_for_test(active, Vec::<HookDiagnostic>::new());
+        });
+    }
+
+    fn active_bindings(&self, bindings: Vec<DeclaredBinding>) -> Vec<ActiveBinding> {
+        let adapter: Arc<dyn ai::hooks::HookFormatAdapter> = self.adapter.clone();
+        bindings
+            .into_iter()
+            .map(|binding| ai::hooks::test_util::active_binding(binding, adapter.clone()))
+            .collect()
     }
 }
 

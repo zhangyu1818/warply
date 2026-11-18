@@ -11,7 +11,7 @@ use warp_core::channel::ChannelState;
 use warp_core::execution_mode::AppExecutionMode;
 use warpui::{AppContext, ModelHandle, SingletonEntity};
 
-use super::HookRuntime;
+use super::{HookRuntime, RunSurface};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentAction, AIAgentActionResultType, CancellationReason};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
@@ -20,11 +20,8 @@ use crate::terminal::model::session::active_session::ActiveSession;
 /// Where the boundary fired from, as far as the envelope builders need to know.
 pub(crate) struct EnvelopeSite<'a> {
     pub conversation_id: AIConversationId,
-    /// The session whose working directory the operation runs in, when the caller has one.
-    pub active_session: Option<&'a ModelHandle<ActiveSession>>,
-    /// Whether the conversation's latest exchange may be read from the history model. False when
-    /// the caller is inside a history-model update, where that read would re-borrow the model.
-    read_conversation: bool,
+    /// The session whose working directory the operation runs in.
+    pub active_session: &'a ModelHandle<ActiveSession>,
 }
 
 impl<'a> EnvelopeSite<'a> {
@@ -34,24 +31,15 @@ impl<'a> EnvelopeSite<'a> {
     ) -> Self {
         Self {
             conversation_id,
-            active_session: Some(active_session),
-            read_conversation: true,
-        }
-    }
-
-    /// A site for a conversation that is still being created: no session is attached yet and the
-    /// history model cannot be read.
-    pub fn for_new_conversation(conversation_id: AIConversationId) -> Self {
-        Self {
-            conversation_id,
-            active_session: None,
-            read_conversation: false,
+            active_session,
         }
     }
 
     pub fn cwd(&self, ctx: &AppContext) -> Option<PathBuf> {
         self.active_session
-            .and_then(|session| session.as_ref(ctx).current_working_directory().cloned())
+            .as_ref(ctx)
+            .current_working_directory()
+            .cloned()
             .map(PathBuf::from)
     }
 }
@@ -63,26 +51,18 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
         .and_then(|cwd| repository_root(cwd, ctx))
         .into_iter()
         .collect();
-    let (exchange_id, model_id) = if site.read_conversation {
-        latest_exchange_facts(site.conversation_id, ctx)
-    } else {
-        (None, None)
-    };
+    let (exchange_id, model_id) = latest_exchange_facts(site.conversation_id, ctx);
     let user_email = None;
     let runtime = HookRuntime::as_ref(ctx);
     let run = runtime.run_metadata().cloned();
-    let surface = if site.read_conversation {
-        surface_for_conversation(site.conversation_id, run.is_some(), ctx)
-    } else {
-        surface(run.is_some(), ctx)
-    };
+    let surface = surface_for_conversation(site.conversation_id, runtime.run_surface(), ctx);
 
     HookEnvelope {
         schema_version: ENVELOPE_SCHEMA_VERSION,
         occurrence_id: Uuid::new_v4(),
         invocation_id: Uuid::nil(),
         conversation_id: site.conversation_id,
-        turn_id: None,
+        turn_id: runtime.turn_id_for(site.conversation_id),
         exchange_id,
         action_id: None,
         surface,
@@ -96,20 +76,21 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
         warp_version: ChannelState::app_version().unwrap_or("unknown").to_owned(),
         protocol_version: HOOK_PROTOCOL_VERSION,
         permission_facts: PermissionFacts::default(),
-        session_env: Vec::new(),
+        session_env: runtime.session_env_for(site.conversation_id),
         payload,
     }
 }
 
-/// The surface this process fires boundaries from. The fork has no cloud runs and no TUI, so a
-/// process is either the desktop app or a headless local run; run metadata, when it arrives,
-/// still describes a local run rather than a cloud one.
-pub(super) fn surface(has_run_metadata: bool, ctx: &AppContext) -> HookSurface {
+/// The surface this process fires boundaries from. `run_surface` distinguishes headless runs;
+/// the fork has no server-dispatched ones, so every recorded run is a command-line run.
+pub(super) fn surface(run_surface: Option<RunSurface>, ctx: &AppContext) -> HookSurface {
     if !ctx.has_singleton_model::<AppExecutionMode>() {
         return HookSurface::CliRun;
     }
-    if has_run_metadata || !AppExecutionMode::as_ref(ctx).allows_active_ai() {
-        HookSurface::CliRun
+    if AppExecutionMode::as_ref(ctx).is_headless() {
+        run_surface
+            .unwrap_or(RunSurface::CommandLine)
+            .hook_surface()
     } else {
         HookSurface::Gui
     }
@@ -119,10 +100,10 @@ pub(super) fn surface(has_run_metadata: bool, ctx: &AppContext) -> HookSurface {
 /// conversations, so every conversation fires from its process's surface.
 pub(super) fn surface_for_conversation(
     _conversation_id: AIConversationId,
-    has_run_metadata: bool,
+    run_surface: Option<RunSurface>,
     ctx: &AppContext,
 ) -> HookSurface {
-    surface(has_run_metadata, ctx)
+    surface(run_surface, ctx)
 }
 
 fn repository_root(cwd: &Path, ctx: &AppContext) -> Option<PathBuf> {
@@ -216,6 +197,7 @@ pub(crate) fn cancellation_reason_name(reason: CancellationReason) -> &'static s
         CancellationReason::Reverted => "reverted",
         CancellationReason::Deleted => "conversation_deleted",
         CancellationReason::OptimisticCLISubagentCompletion => "command_finished",
+        CancellationReason::HookEndedRun => "hook_ended_run",
     }
 }
 

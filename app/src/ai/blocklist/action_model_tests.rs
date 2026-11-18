@@ -105,16 +105,13 @@ mod hooks {
     use ai::hooks::{DeclaredBinding, HookBoundary, HookPayload};
     use warpui::App;
 
-    use crate::ai::agent::task::TaskId;
     use crate::ai::agent::{
-        AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType,
-        CancellationReason,
+        AIAgentAction, AIAgentActionResultType, AIAgentActionType, CancellationReason,
     };
     use crate::ai::blocklist::hooks::pre_tool::{PreToolHookState, cached_state};
     use crate::ai::blocklist::hooks::test_utils::{
         HookTestApp, action_model, hook_test_app, let_background_work_settle, settle, shell_action,
     };
-    use crate::features::FeatureFlag;
 
     fn install_hook(
         harness: &HookTestApp,
@@ -163,7 +160,6 @@ mod hooks {
     #[test]
     fn a_queued_shell_action_waits_for_its_verdict_and_is_denied_through_the_queue() {
         App::test((), |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_hook(&harness, &mut app, 2, "policy says no");
             let model = action_model(&mut app, &harness);
@@ -235,7 +231,6 @@ mod hooks {
     #[test]
     fn accepting_an_edited_command_runs_the_hook_again_on_the_new_text() {
         App::test((), |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_hook(&harness, &mut app, 0, r#"{"verdict":"allow"}"#);
             let model = action_model(&mut app, &harness);
@@ -266,7 +261,6 @@ mod hooks {
     #[test]
     fn accepting_an_unedited_command_reuses_the_verdict() {
         App::test((), |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_hook(&harness, &mut app, 0, r#"{"verdict":"allow"}"#);
             let model = action_model(&mut app, &harness);
@@ -295,7 +289,6 @@ mod hooks {
     #[test]
     fn cancelling_the_conversation_while_a_verdict_is_pending_drops_it() {
         App::test((), |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_hook(&harness, &mut app, 2, "denied");
             let hold = harness.hooks.runner.hold();

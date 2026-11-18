@@ -43,7 +43,6 @@ use crate::persistence::{database_file_path, establish_ro_connection};
 
 use super::RequestInput;
 use super::controller::response_stream::ResponseStreamId;
-use super::hooks;
 use super::persistence::{PersistedAIInput, PersistedAIInputType};
 
 mod conversation_loader;
@@ -387,6 +386,22 @@ impl BlocklistAIHistoryModel {
 
     /// Add a new [`AIAgentExchange`] to the [`AIConversation`] with the given [`AIConversationId`].
     /// Emits an event with the new exchange.
+    #[cfg(test)]
+    pub(crate) fn update_conversation_for_new_request_input_for_test(
+        &mut self,
+        request_input: RequestInput,
+        stream_id: ResponseStreamId,
+        terminal_view_id: EntityId,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<(), UpdateHistoryError> {
+        self.update_conversation_for_new_request_input(
+            request_input,
+            stream_id,
+            terminal_view_id,
+            ctx,
+        )
+    }
+
     pub(super) fn update_conversation_for_new_request_input(
         &mut self,
         request_input: RequestInput,
@@ -573,10 +588,6 @@ impl BlocklistAIHistoryModel {
             new_conversation_id,
             terminal_view_id,
         });
-
-        // The fork has no shared-session or CLI-transcript conversations; every conversation
-        // this client creates is one it drives.
-        hooks::session::notify_session_start(new_conversation_id, ctx);
 
         new_conversation_id
     }
@@ -1005,12 +1016,16 @@ impl BlocklistAIHistoryModel {
         conversation_id: AIConversationId,
         terminal_view_id: EntityId,
         ctx: &mut ModelContext<Self>,
-    ) {
+    ) -> bool {
         let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) else {
-            return;
+            return false;
         };
-        if let Err(e) = conversation.mark_request_completed(stream_id, terminal_view_id, ctx) {
-            log::warn!("Failed to mark exchange as completed: {e}");
+        match conversation.mark_request_completed(stream_id, terminal_view_id, ctx) {
+            Ok(turn_ended) => turn_ended,
+            Err(e) => {
+                log::warn!("Failed to mark exchange as completed: {e}");
+                false
+            }
         }
     }
 

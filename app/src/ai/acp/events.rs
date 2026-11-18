@@ -1,3 +1,4 @@
+use crate::ai::agent::conversation::AIConversationId;
 use agent_client_protocol::schema::{
     AvailableCommand, ConfigOptionUpdate, CurrentModeUpdate, Plan, SessionInfoUpdate,
     ToolCallUpdate,
@@ -50,8 +51,12 @@ pub enum AcpEvent {
     PermissionRequested {
         request: AcpPermissionRequest,
     },
-    Cancelled,
-    Completed,
+    Cancelled {
+        conversation_id: AIConversationId,
+    },
+    Completed {
+        conversation_id: AIConversationId,
+    },
     Failed {
         message: String,
     },

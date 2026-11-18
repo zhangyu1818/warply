@@ -157,9 +157,10 @@ mod hooks {
     use std::sync::Arc;
 
     use ai::hooks::test_util::{ScriptedRunner, test_binding, test_source_id};
-    use ai::hooks::{HookBoundary, HookNoticeKind};
+    use ai::hooks::{APPROVAL_UNAVAILABLE_PREFIX, HookBoundary, HookNoticeKind, HookRegistry};
     use parking_lot::FairMutex;
-    use warpui::{App, ModelHandle};
+    use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
+    use warpui::{App, ModelHandle, SingletonEntity};
 
     use super::super::{
         BlocklistAIActionExecutor, BlocklistAIActionExecutorEvent, NotExecutedReason,
@@ -174,7 +175,6 @@ mod hooks {
     };
     use crate::ai::blocklist::hooks::{pre_tool, tool_result};
     use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
-    use crate::features::FeatureFlag;
     use crate::terminal::model::terminal_model::TerminalModel;
 
     /// Executor events in the order they were emitted, reduced to strings so sequences can be
@@ -285,10 +285,18 @@ mod hooks {
     }
 
     #[test]
-    fn with_the_flag_off_hooks_are_never_consulted() {
+    /// Until the hook sources are finalized nothing consults them, even bindings already staged
+    /// in the registry.
+    fn hooks_are_never_consulted_before_the_registry_is_finalized() {
         App::test((), |mut app| async move {
             let harness = hook_test_app(&mut app);
-            install_shell_binding(&harness, &mut app, "denied", 2);
+            let binding =
+                test_binding(test_source_id("s"), HookBoundary::ToolPre, 0, Some("Shell"));
+            harness
+                .hooks
+                .runner
+                .script(binding.id.clone(), ScriptedRunner::exit_with(2, "denied"));
+            app.update(|ctx| harness.hooks.stage_bindings(vec![binding], ctx));
             let (executor, events) = build_executor(&mut app, &harness);
 
             let shell = shell_action("id-shell", "ls");
@@ -322,51 +330,72 @@ mod hooks {
     }
 
     #[test]
-    fn with_the_flag_on_and_an_empty_registry_events_match_the_flag_off_run() {
+    fn a_finalized_empty_registry_behaves_like_one_never_finalized() {
         App::test((), |mut app| async move {
             let harness = hook_test_app(&mut app);
             let (executor, events) = build_executor(&mut app, &harness);
 
-            let init_off = init_project_action("id-init-off");
-            let shell_off = shell_action("id-shell-off", "ls");
-            let init_off_result = try_execute(
+            let init_never_finalized = init_project_action("id-init-never-finalized");
+            let shell_never_finalized = shell_action("id-shell-never-finalized", "ls");
+            let init_never_finalized_result = try_execute(
                 &mut app,
                 &executor,
-                &init_off,
+                &init_never_finalized,
                 harness.conversation_id,
                 false,
             );
-            let shell_off_result = try_execute(
+            let shell_never_finalized_result = try_execute(
                 &mut app,
                 &executor,
-                &shell_off,
-                harness.conversation_id,
-                false,
-            );
-
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
-            let init_on = init_project_action("id-init-on");
-            let shell_on = shell_action("id-shell-on", "ls");
-            let init_on_result = try_execute(
-                &mut app,
-                &executor,
-                &init_on,
-                harness.conversation_id,
-                false,
-            );
-            let shell_on_result = try_execute(
-                &mut app,
-                &executor,
-                &shell_on,
+                &shell_never_finalized,
                 harness.conversation_id,
                 false,
             );
 
-            assert!(matches!(init_off_result, TryExecuteResult::ExecutedSync));
-            assert!(matches!(init_on_result, TryExecuteResult::ExecutedSync));
-            assert_eq!(shapes(&events, &init_off), shapes(&events, &init_on));
-            assert_eq!(reason_of(&shell_off_result), reason_of(&shell_on_result));
-            assert_eq!(shapes(&events, &shell_off), shapes(&events, &shell_on));
+            // A run with no hooks finalizes an empty registry; a launch that loads no hook file
+            // never finalizes it. Both must behave as if hooks did not exist.
+            app.update(|ctx| {
+                HookRegistry::handle(ctx).update(ctx, |registry, _| {
+                    registry.finalize().expect("finalizes once");
+                })
+            });
+            let init_finalized_empty = init_project_action("id-init-finalized-empty");
+            let shell_finalized_empty = shell_action("id-shell-finalized-empty", "ls");
+            let init_finalized_empty_result = try_execute(
+                &mut app,
+                &executor,
+                &init_finalized_empty,
+                harness.conversation_id,
+                false,
+            );
+            let shell_finalized_empty_result = try_execute(
+                &mut app,
+                &executor,
+                &shell_finalized_empty,
+                harness.conversation_id,
+                false,
+            );
+
+            assert!(matches!(
+                init_never_finalized_result,
+                TryExecuteResult::ExecutedSync
+            ));
+            assert!(matches!(
+                init_finalized_empty_result,
+                TryExecuteResult::ExecutedSync
+            ));
+            assert_eq!(
+                shapes(&events, &init_never_finalized),
+                shapes(&events, &init_finalized_empty)
+            );
+            assert_eq!(
+                reason_of(&shell_never_finalized_result),
+                reason_of(&shell_finalized_empty_result)
+            );
+            assert_eq!(
+                shapes(&events, &shell_never_finalized),
+                shapes(&events, &shell_finalized_empty)
+            );
 
             let_background_work_settle(&mut app).await;
             assert_eq!(harness.hooks.adapter.encoded_count(), 0);
@@ -376,7 +405,6 @@ mod hooks {
 
     fn run_scripted_deny(is_user_initiated: bool) {
         App::test((), move |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_binding(&harness, &mut app, "rm is not allowed here", 2);
             let (executor, events) = build_executor(&mut app, &harness);
@@ -475,7 +503,6 @@ mod hooks {
                 TryExecuteResult::ExecutedSync
             ));
 
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let source = test_source_id("s");
             let allow_shell = test_binding(source.clone(), HookBoundary::ToolPre, 0, Some("Shell"));
             let silent_all = test_binding(source, HookBoundary::ToolPre, 1, None);
@@ -528,10 +555,127 @@ mod hooks {
         });
     }
 
+    /// Runs `action` through the pre-tool hook once: the first attempt waits, the verdict lands,
+    /// and the second attempt's outcome is returned.
+    async fn execute_through_hooks(
+        app: &mut App,
+        executor: &ModelHandle<BlocklistAIActionExecutor>,
+        events: &EventLog,
+        action: &AIAgentAction,
+        conversation_id: AIConversationId,
+        is_user_initiated: bool,
+    ) -> TryExecuteResult {
+        let first = try_execute(app, executor, action, conversation_id, is_user_initiated);
+        assert_eq!(reason_of(&first), Some(NotExecutedReason::WaitingOnHooks));
+        let verdict_line = format!("verdict:{}:{is_user_initiated}", action.id);
+        settle(app, |_| events.borrow().iter().any(|l| l == &verdict_line)).await;
+        try_execute(app, executor, action, conversation_id, is_user_initiated)
+    }
+
+    #[test]
+    fn a_hook_ask_adds_a_confirmation_step_that_the_users_approval_satisfies() {
+        App::test((), |mut app| async move {
+            let harness = hook_test_app(&mut app);
+            let binding = test_binding(
+                test_source_id("s"),
+                HookBoundary::ToolPre,
+                0,
+                Some("InitProject"),
+            );
+            harness.hooks.runner.script(
+                binding.id.clone(),
+                ScriptedRunner::exit_with(0, r#"{"verdict":"ask","reason":"check first"}"#),
+            );
+            app.update(|ctx| harness.hooks.install_bindings(vec![binding], ctx));
+            let (executor, events) = build_executor(&mut app, &harness);
+
+            // Warp would run project initialization on its own; the hook holds it for the user.
+            let init = init_project_action("id-init");
+            let held = execute_through_hooks(
+                &mut app,
+                &executor,
+                &events,
+                &init,
+                harness.conversation_id,
+                false,
+            )
+            .await;
+            assert_eq!(reason_of(&held), Some(NotExecutedReason::NeedsConfirmation));
+            let notices = harness.hooks.messenger.notices();
+            assert_eq!(notices.len(), 1, "the user is told why the card appeared");
+            assert_eq!(notices[0].kind, HookNoticeKind::Warning);
+            assert_eq!(notices[0].text, "check first");
+
+            // A second try while the card is up does not repeat the notice.
+            let held_again =
+                try_execute(&mut app, &executor, &init, harness.conversation_id, false);
+            assert_eq!(
+                reason_of(&held_again),
+                Some(NotExecutedReason::NeedsConfirmation)
+            );
+            assert_eq!(harness.hooks.messenger.notices().len(), 1);
+
+            // The user's approval of this revision satisfies the ask; the verdict is reused.
+            let approved = try_execute(&mut app, &executor, &init, harness.conversation_id, true);
+            assert!(matches!(approved, TryExecuteResult::ExecutedSync));
+            assert!(
+                events
+                    .borrow()
+                    .iter()
+                    .any(|l| l == &format!("finished:{}:init_project", init.id))
+            );
+            assert_eq!(harness.hooks.adapter.encoded_count(), 1);
+        });
+    }
+
+    #[test]
+    fn a_hook_ask_in_a_headless_launch_is_denied_by_hook_with_approval_unavailable() {
+        App::test((), |mut app| async move {
+            let harness = hook_test_app(&mut app);
+            let headless_mode = app.add_model(|ctx| {
+                AppExecutionMode::new_with_headlessness(ExecutionMode::App, true, ctx)
+            });
+            AppExecutionMode::handle(&app).update(&mut app, |mode, ctx| {
+                *mode = headless_mode.as_ref(ctx).clone();
+            });
+            install_shell_binding(
+                &harness,
+                &mut app,
+                r#"{"verdict":"ask","reason":"this touches production"}"#,
+                0,
+            );
+            let (executor, events) = build_executor(&mut app, &harness);
+            let shell = shell_action("id-shell", "ls");
+
+            let outcome = execute_through_hooks(
+                &mut app,
+                &executor,
+                &events,
+                &shell,
+                harness.conversation_id,
+                false,
+            )
+            .await;
+            assert!(matches!(outcome, TryExecuteResult::ExecutedSync));
+            let finished = events
+                .borrow()
+                .iter()
+                .find(|l| l.starts_with(&format!("finished:{}:denied_by_hook(", shell.id)))
+                .cloned()
+                .expect("the command finishes denied");
+            assert!(finished.contains(APPROVAL_UNAVAILABLE_PREFIX), "{finished}");
+            assert!(finished.contains("this touches production"), "{finished}");
+
+            let notices = harness.hooks.messenger.notices();
+            assert_eq!(notices.len(), 1);
+            assert_eq!(notices[0].kind, HookNoticeKind::Denied);
+            assert!(notices[0].text.starts_with(APPROVAL_UNAVAILABLE_PREFIX));
+        });
+    }
+
     #[test]
     fn cancelling_the_conversation_drops_a_verdict_that_arrives_afterwards() {
         App::test((), |mut app| async move {
-            let _flag = FeatureFlag::AgentHooks.override_enabled(true);
             let harness = hook_test_app(&mut app);
             install_shell_binding(&harness, &mut app, "denied", 2);
             let (executor, events) = build_executor(&mut app, &harness);
@@ -579,13 +723,11 @@ mod hooks {
         use super::{build_executor, reason_of, shapes, try_execute};
         use crate::ai::blocklist::hooks::HookRuntime;
         use crate::ai::blocklist::hooks::test_utils::{hook_test_app, settle, shell_action};
-        use crate::features::FeatureFlag;
         use crate::process_environment::InitialProcessEnvironment;
 
         #[test]
         fn a_real_script_denies_a_real_shell_command() {
             App::test((), |mut app| async move {
-                let _flag = FeatureFlag::AgentHooks.override_enabled(true);
                 let harness = hook_test_app(&mut app);
 
                 let dir = TempDir::new().expect("tempdir");

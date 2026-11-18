@@ -10,6 +10,7 @@ use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::code_review::git_status_update::GitStatusUpdateModel;
+use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use warpui::{App, ViewHandle, WindowId, platform::WindowStyle};
@@ -68,6 +69,7 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(UndoCloseStack::new);
 
     app.add_singleton_model(|_| KeybindingChangedNotifier::new());
+    app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| LocalIdentityProvider::new_for_test());

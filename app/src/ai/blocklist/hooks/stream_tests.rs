@@ -4,7 +4,6 @@ use warpui::App;
 
 use super::*;
 use crate::ai::blocklist::hooks::test_utils::{hook_test_app, settle};
-use crate::features::FeatureFlag;
 
 fn stream_id() -> ResponseStreamId {
     ResponseStreamId::new_for_test()
@@ -203,9 +202,38 @@ fn a_conversation_split_attributes_messages_to_the_right_conversation() {
 }
 
 #[test]
+fn reasoning_completes_once_on_the_first_update_that_carries_a_duration() {
+    let mut state = StreamObserverState::default();
+    let stream = stream_id();
+    let conversation = AIConversationId::new();
+    let completed = state.apply_batch(
+        &stream,
+        conversation,
+        Some(conversation),
+        vec![
+            reasoning("r1", TextUpdate::Set("first ".to_owned()), None),
+            reasoning(
+                "r1",
+                TextUpdate::Append("thought".to_owned()),
+                Some(Duration::from_secs(1)),
+            ),
+            // A later replacement of the same message, as the server sometimes sends, is not
+            // a second completion.
+            reasoning(
+                "r1",
+                TextUpdate::Set("first thought, revised".to_owned()),
+                Some(Duration::from_secs(1)),
+            ),
+            reasoning("r1", TextUpdate::Append(" more".to_owned()), None),
+        ],
+    );
+    assert_eq!(completed_ids(&completed), vec![("r1", "first thought")]);
+    assert!(state.finish(&stream, false).is_empty());
+}
+
+#[test]
 fn acp_deltas_map_to_observations_and_respect_activity() {
     App::test((), |mut app| async move {
-        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
         let harness = hook_test_app(&mut app);
         let stream = stream_id();
         let deltas = vec![

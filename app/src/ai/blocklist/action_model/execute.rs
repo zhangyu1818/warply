@@ -13,10 +13,7 @@ pub(super) mod shell_command;
 pub(super) mod use_computer;
 
 use ai::agent::action_result::InsertReviewCommentsResult;
-use ai::hooks::{
-    HookNotice, HookNoticeKind, HookPermissionPolicy, PermissionDecision, PermissionFloors,
-    WarpPermissionResult,
-};
+use ai::hooks::{PermissionDecision, PermissionFloors, WarpPermissionResult};
 pub use ask_user_question::AskUserQuestionExecutor;
 use create_documents::CreateDocumentsExecutor;
 use edit_documents::EditDocumentsExecutor;
@@ -43,7 +40,7 @@ use warp_util::file::FileLoadError;
 #[cfg(feature = "local_fs")]
 use warp_util::file_type::is_buffer_binary;
 use warpui::{
-    AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity,
+    AppContext, Entity, EntityId, ModelContext, ModelHandle,
     r#async::{Spawnable, SpawnableOutput},
 };
 
@@ -56,7 +53,7 @@ use mime_guess::from_path;
 
 use self::search_codebase::SearchCodebaseExecutor;
 use crate::ai::blocklist::hooks::pre_tool::{self, PendingDispatch, PreToolLookup};
-use crate::ai::blocklist::hooks::{HookRuntime, tool_result};
+use crate::ai::blocklist::hooks::tool_result;
 #[cfg(feature = "local_fs")]
 use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
 use crate::{
@@ -224,6 +221,7 @@ pub struct BlocklistAIActionExecutor {
     async_executing_actions: std::collections::HashMap<AIAgentActionId, AsyncExecutingAction>,
     /// The session actions run in, used to describe their working directory to hooks.
     active_session: ModelHandle<ActiveSession>,
+    terminal_view_id: EntityId,
 }
 
 impl BlocklistAIActionExecutor {
@@ -284,6 +282,7 @@ impl BlocklistAIActionExecutor {
             async_executing_actions: Default::default(),
             ask_user_question_executor,
             active_session,
+            terminal_view_id,
         }
     }
 
@@ -373,30 +372,38 @@ impl BlocklistAIActionExecutor {
         // The fork has no autonomous agent mode, so no action is exempt from confirmation by it.
         let is_autonomous_shell_exception = false;
 
-        // A hook denial ends the action here. The policy's other outcomes are exactly the checks
-        // below, so they fall through to them.
-        if let Some(merged) = hook_effects
-            && let PermissionDecision::Deny { reason, .. } = HookPermissionPolicy::compose(
+        // A hook denial ends the action here and a hook's request for confirmation holds it;
+        // execution falls through to the checks below, which are what the policy started from.
+        if let Some(merged) = hook_effects {
+            let floors = self.permission_floors(input, can_auto_execute, ctx);
+            let decision = pre_tool::decide(
                 &merged,
                 WarpPermissionResult {
                     can_auto_execute,
                     is_user_initiated,
                     is_autonomous_shell_exception,
                 },
-                &PermissionFloors::default(),
-            )
-        {
-            let result = AIAgentActionResultType::DeniedByHook {
-                reason: reason.text.clone(),
-            };
-            HookRuntime::as_ref(ctx).messenger().notify(HookNotice {
+                floors,
+                &action,
                 conversation_id,
-                action_id: Some(action.id.clone()),
-                kind: HookNoticeKind::Denied,
-                text: reason.text,
-            });
-            self.finish_sync(action, result, conversation_id, ctx);
-            return TryExecuteResult::ExecutedSync;
+                ctx,
+            );
+            match decision {
+                PermissionDecision::Deny { reason, .. } => {
+                    let result = AIAgentActionResultType::DeniedByHook {
+                        reason: reason.text,
+                    };
+                    self.finish_sync(action, result, conversation_id, ctx);
+                    return TryExecuteResult::ExecutedSync;
+                }
+                PermissionDecision::RequireConfirmation { .. } => {
+                    return TryExecuteResult::NotExecuted {
+                        action: Box::new(action),
+                        reason: NotExecutedReason::NeedsConfirmation,
+                    };
+                }
+                PermissionDecision::Execute => {}
+            }
         }
 
         // The agent cannot auto execute and the action was not user initiated.
@@ -663,6 +670,23 @@ impl BlocklistAIActionExecutor {
         for action_id in action_ids {
             self.cancel_running_async_action(&action_id, reason, ctx);
         }
+    }
+
+    /// The facts behind Warp's own permission answer for `input` that no hook may loosen.
+    fn permission_floors(
+        &self,
+        input: ExecuteActionInput,
+        can_auto_execute: bool,
+        ctx: &ModelContext<Self>,
+    ) -> PermissionFloors {
+        pre_tool::permission_floors(
+            &input.action.action,
+            &input.conversation_id,
+            can_auto_execute,
+            &self.active_session,
+            self.terminal_view_id,
+            ctx,
+        )
     }
 
     fn should_autoexecute(&self, input: ExecuteActionInput, ctx: &mut ModelContext<Self>) -> bool {
