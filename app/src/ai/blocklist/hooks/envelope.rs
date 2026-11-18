@@ -104,11 +104,11 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
 /// The surface this process fires boundaries from. The fork has no cloud runs and no TUI, so a
 /// process is either the desktop app or a headless local run; run metadata, when it arrives,
 /// still describes a local run rather than a cloud one.
-pub(super) fn surface(has_run_metadata: bool, ctx: &AppContext) -> HookSurface {
+pub(super) fn surface(_has_run_metadata: bool, ctx: &AppContext) -> HookSurface {
     if !ctx.has_singleton_model::<AppExecutionMode>() {
         return HookSurface::CliRun;
     }
-    if has_run_metadata || !AppExecutionMode::as_ref(ctx).allows_active_ai() {
+    if AppExecutionMode::as_ref(ctx).is_headless() {
         HookSurface::CliRun
     } else {
         HookSurface::Gui

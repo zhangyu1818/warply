@@ -12,6 +12,16 @@ pub fn initialize_settings_for_tests_with_mode(
     app: &mut App,
     mode: warp_core::execution_mode::ExecutionMode,
 ) {
+    let is_headless = matches!(mode, warp_core::execution_mode::ExecutionMode::Headless);
+    initialize_settings_for_tests_with_mode_and_headlessness(app, mode, is_headless);
+}
+
+#[cfg(test)]
+pub fn initialize_settings_for_tests_with_mode_and_headlessness(
+    app: &mut App,
+    mode: warp_core::execution_mode::ExecutionMode,
+    is_headless: bool,
+) {
     use crate::{
         search::command_search::settings::CommandSearchSettings,
         settings::{
@@ -33,7 +43,7 @@ pub fn initialize_settings_for_tests_with_mode(
         workspace::tab_settings::TabSettings,
     };
     use warp_core::{execution_mode::AppExecutionMode, semantic_selection::SemanticSelection};
-    app.add_singleton_model(|ctx| AppExecutionMode::new(mode, ctx));
+    app.add_singleton_model(|ctx| AppExecutionMode::new_with_headlessness(mode, is_headless, ctx));
 
     app.update(init_and_register_user_preferences);
     app.add_singleton_model(|_ctx| SettingsManager::default());

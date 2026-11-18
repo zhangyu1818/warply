@@ -15,12 +15,23 @@ pub enum ExecutionMode {
 #[derive(Clone, Debug)]
 pub struct AppExecutionMode {
     mode: ExecutionMode,
+    is_headless: bool,
 }
 
 impl AppExecutionMode {
     /// Create an `AppExecutionMode` model with the execution mode set.
     pub fn new(mode: ExecutionMode, _ctx: &mut ModelContext<Self>) -> Self {
-        Self { mode }
+        let is_headless = matches!(mode, ExecutionMode::Headless);
+        Self { mode, is_headless }
+    }
+
+    /// Create an `AppExecutionMode` with the launch's interactive capability set explicitly.
+    pub fn new_with_headlessness(
+        mode: ExecutionMode,
+        is_headless: bool,
+        _ctx: &mut ModelContext<Self>,
+    ) -> Self {
+        Self { mode, is_headless }
     }
 
     /// True if running as the full desktop app.
@@ -39,6 +50,11 @@ impl AppExecutionMode {
     /// Whether the app can save and restore sessions.
     pub fn can_save_session(&self) -> bool {
         self.is_app()
+    }
+
+    /// Whether this launch has no interactive surface where a user can respond.
+    pub fn is_headless(&self) -> bool {
+        self.is_headless
     }
 }
 

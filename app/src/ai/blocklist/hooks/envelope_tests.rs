@@ -7,7 +7,10 @@ use super::*;
 use crate::ai::agent::CancellationReason;
 use crate::ai::blocklist::hooks::test_utils::{hook_test_app, install_test_hooks, shell_action};
 use crate::features::FeatureFlag;
-use crate::test_util::settings::initialize_settings_for_tests_with_mode;
+use crate::test_util::settings::{
+    initialize_settings_for_tests_with_mode,
+    initialize_settings_for_tests_with_mode_and_headlessness,
+};
 
 #[test]
 fn tool_pre_envelope_carries_the_action_and_common_fields() {
@@ -40,6 +43,28 @@ fn tool_pre_envelope_carries_the_action_and_common_fields() {
             panic!("expected a tool.pre payload");
         };
         assert_eq!(payload_action, &action.action);
+    });
+}
+
+#[test]
+fn an_interactive_sdk_launch_uses_the_gui_surface() {
+    App::test((), |mut app| async move {
+        let _flag = FeatureFlag::AgentHooks.override_enabled(true);
+        initialize_settings_for_tests_with_mode_and_headlessness(
+            &mut app,
+            ExecutionMode::Headless,
+            false,
+        );
+        app.update(install_test_hooks);
+        let envelope = app.read(|ctx| {
+            envelope_for_session_start(
+                true,
+                &EnvelopeSite::for_new_conversation(AIConversationId::new()),
+                ctx,
+            )
+        });
+
+        assert_eq!(envelope.surface, HookSurface::Gui);
     });
 }
 
@@ -129,7 +154,7 @@ fn a_new_conversation_site_builds_without_a_session_or_history_lookup() {
 fn run_metadata_reaches_the_envelope_without_a_cloud_surface() {
     App::test((), |mut app| async move {
         let _flag = FeatureFlag::AgentHooks.override_enabled(true);
-        initialize_settings_for_tests_with_mode(&mut app, ExecutionMode::App);
+        initialize_settings_for_tests_with_mode(&mut app, ExecutionMode::Headless);
         app.update(install_test_hooks);
         let conversation_id = AIConversationId::new();
 
@@ -141,7 +166,7 @@ fn run_metadata_reaches_the_envelope_without_a_cloud_surface() {
             )
         });
         assert_eq!(before.run, None);
-        assert_eq!(before.surface, HookSurface::Gui);
+        assert_eq!(before.surface, HookSurface::CliRun);
 
         let run = RunMetadata {
             run_id: "run-1".to_owned(),

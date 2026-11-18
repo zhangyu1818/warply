@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,10 +15,12 @@ use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{AIAgentAction, AIAgentActionId, AIAgentActionType, ReadFilesRequest};
 use crate::ai::blocklist::{BlocklistAIActionModel, BlocklistAIHistoryModel};
 use crate::ai::get_relevant_files::controller::GetRelevantFilesController;
+use crate::terminal::event::BlockMetadataReceivedEvent;
+use crate::terminal::model::block::BlockMetadata;
 use crate::terminal::model::session::Sessions;
 use crate::terminal::model::session::active_session::ActiveSession;
-use crate::terminal::model::terminal_model::TerminalModel;
-use crate::terminal::model_events::ModelEventDispatcher;
+use crate::terminal::model::terminal_model::{BlockIndex, TerminalModel};
+use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 
 /// A terminal-view-sized app with the hook doubles installed and one native conversation.
@@ -51,6 +54,21 @@ pub(crate) fn hook_test_app(app: &mut App) -> HookTestApp {
         conversation_id,
         terminal_view_id,
     }
+}
+
+/// Moves the harness's session to `cwd`, the way a shell's prompt would report it.
+pub(crate) fn set_working_directory(app: &mut App, harness: &HookTestApp, cwd: &Path) {
+    let cwd = cwd.display().to_string();
+    harness.dispatcher.update(app, |_, ctx| {
+        ctx.emit(ModelEvent::BlockMetadataReceived(
+            BlockMetadataReceivedEvent {
+                block_metadata: BlockMetadata::new(None, Some(cwd)),
+                block_index: BlockIndex::zero(),
+                is_after_in_band_command: false,
+                is_done_bootstrapping: true,
+            },
+        ));
+    });
 }
 
 pub(crate) fn shell_action(id: &str, command: &str) -> AIAgentAction {
