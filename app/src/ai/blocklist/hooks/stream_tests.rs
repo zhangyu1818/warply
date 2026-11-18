@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ai::hooks::test_util::{test_binding, test_source_id};
 use ai::hooks::{HookBoundary, HookPayload};
 use warpui::App;
@@ -200,6 +202,36 @@ fn a_conversation_split_attributes_messages_to_the_right_conversation() {
     let completed = state.finish(&stream, false);
     assert_eq!(completed_ids(&completed), vec![("new2", "also new")]);
     assert_eq!(completed[0].conversation_id, Some(after));
+}
+
+#[test]
+fn reasoning_completes_once_on_the_first_update_that_carries_a_duration() {
+    let mut state = StreamObserverState::default();
+    let stream = stream_id();
+    let conversation = AIConversationId::new();
+    let completed = state.apply_batch(
+        &stream,
+        conversation,
+        Some(conversation),
+        vec![
+            reasoning("r1", TextUpdate::Set("first ".to_owned()), None),
+            reasoning(
+                "r1",
+                TextUpdate::Append("thought".to_owned()),
+                Some(Duration::from_secs(1)),
+            ),
+            // A later replacement of the same message, as the server sometimes sends, is not
+            // a second completion.
+            reasoning(
+                "r1",
+                TextUpdate::Set("first thought, revised".to_owned()),
+                Some(Duration::from_secs(1)),
+            ),
+            reasoning("r1", TextUpdate::Append(" more".to_owned()), None),
+        ],
+    );
+    assert_eq!(completed_ids(&completed), vec![("r1", "first thought")]);
+    assert!(state.finish(&stream, false).is_empty());
 }
 
 #[test]

@@ -416,8 +416,8 @@ impl AcpAgentModel {
             | AcpEvent::ConfigOptionsUpdated { .. }
             | AcpEvent::SessionInfoUpdated { .. }
             | AcpEvent::PermissionRequested { .. } => AcpAgentState::Running,
-            AcpEvent::Completed => AcpAgentState::Ready,
-            AcpEvent::Cancelled => AcpAgentState::Ready,
+            AcpEvent::Completed { .. } => AcpAgentState::Ready,
+            AcpEvent::Cancelled { .. } => AcpAgentState::Ready,
             AcpEvent::Failed { message } => AcpAgentState::Failed(message.clone()),
         };
         log::info!(
@@ -430,8 +430,8 @@ impl AcpAgentModel {
         self.apply_event_to_history(&event, target, ctx);
         if matches!(
             event,
-            AcpEvent::Completed
-                | AcpEvent::Cancelled
+            AcpEvent::Completed { .. }
+                | AcpEvent::Cancelled { .. }
                 | AcpEvent::Failed { .. }
                 | AcpEvent::AdapterMissing { .. }
         ) {
@@ -733,7 +733,7 @@ impl AcpAgentModel {
                     );
                 });
             }
-            AcpEvent::Completed => {
+            AcpEvent::Completed { .. } => {
                 log::info!(
                     "ACP: completing AI history output stream={:?} conversation={:?}",
                     target.response_stream_id,
@@ -762,15 +762,9 @@ impl AcpAgentModel {
                         active_session,
                         ctx,
                     );
-                    blocklist_hooks::turn::notify_turn_stop(
-                        ai::hooks::TurnStopStatus::Completed,
-                        target.conversation_id,
-                        active_session,
-                        ctx,
-                    );
                 }
             }
-            AcpEvent::Cancelled => {
+            AcpEvent::Cancelled { .. } => {
                 log::info!(
                     "ACP: cancelling AI history output stream={:?} conversation={:?}",
                     target.response_stream_id,
@@ -1259,9 +1253,13 @@ async fn run_conversation_session(
                 );
 
                 let event = if prompt_response.stop_reason == StopReason::Cancelled {
-                    AcpEvent::Cancelled
+                    AcpEvent::Cancelled {
+                        conversation_id: prompt.target.conversation_id,
+                    }
                 } else {
-                    AcpEvent::Completed
+                    AcpEvent::Completed {
+                        conversation_id: prompt.target.conversation_id,
+                    }
                 };
                 publish_runtime_event(&events, &prompt.target, event);
                 *active_prompt_target.lock().await = None;
@@ -1401,8 +1399,8 @@ fn acp_event_summary(event: &AcpEvent) -> String {
             request.request_id,
             request.options.len()
         ),
-        AcpEvent::Cancelled => "cancelled".to_owned(),
-        AcpEvent::Completed => "completed".to_owned(),
+        AcpEvent::Cancelled { .. } => "cancelled".to_owned(),
+        AcpEvent::Completed { .. } => "completed".to_owned(),
         AcpEvent::Failed { message } => format!("failed message={message}"),
     }
 }
@@ -2247,7 +2245,7 @@ for line in sys.stdin:
             events
                 .iter()
                 .any(|(stream_id, event)| stream_id == &first_stream_id
-                    && matches!(event, AcpEvent::Completed))
+                    && matches!(event, AcpEvent::Completed { .. }))
         );
         assert!(
             !events
