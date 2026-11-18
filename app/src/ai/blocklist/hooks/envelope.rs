@@ -11,7 +11,7 @@ use warp_core::channel::ChannelState;
 use warp_core::execution_mode::AppExecutionMode;
 use warpui::{AppContext, ModelHandle, SingletonEntity};
 
-use super::HookRuntime;
+use super::{HookRuntime, RunSurface};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentAction, AIAgentActionResultType, CancellationReason};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
@@ -55,7 +55,7 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
     let user_email = None;
     let runtime = HookRuntime::as_ref(ctx);
     let run = runtime.run_metadata().cloned();
-    let surface = surface_for_conversation(site.conversation_id, run.is_some(), ctx);
+    let surface = surface_for_conversation(site.conversation_id, runtime.run_surface(), ctx);
 
     HookEnvelope {
         schema_version: ENVELOPE_SCHEMA_VERSION,
@@ -81,15 +81,16 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
     }
 }
 
-/// The surface this process fires boundaries from. The fork has no cloud runs and no TUI, so a
-/// process is either the desktop app or a headless local run; run metadata, when it arrives,
-/// still describes a local run rather than a cloud one.
-pub(super) fn surface(_has_run_metadata: bool, ctx: &AppContext) -> HookSurface {
+/// The surface this process fires boundaries from. `run_surface` distinguishes headless runs;
+/// the fork has no server-dispatched ones, so every recorded run is a command-line run.
+pub(super) fn surface(run_surface: Option<RunSurface>, ctx: &AppContext) -> HookSurface {
     if !ctx.has_singleton_model::<AppExecutionMode>() {
         return HookSurface::CliRun;
     }
     if AppExecutionMode::as_ref(ctx).is_headless() {
-        HookSurface::CliRun
+        run_surface
+            .unwrap_or(RunSurface::CommandLine)
+            .hook_surface()
     } else {
         HookSurface::Gui
     }
@@ -99,10 +100,10 @@ pub(super) fn surface(_has_run_metadata: bool, ctx: &AppContext) -> HookSurface 
 /// conversations, so every conversation fires from its process's surface.
 pub(super) fn surface_for_conversation(
     _conversation_id: AIConversationId,
-    has_run_metadata: bool,
+    run_surface: Option<RunSurface>,
     ctx: &AppContext,
 ) -> HookSurface {
-    surface(has_run_metadata, ctx)
+    surface(run_surface, ctx)
 }
 
 fn repository_root(cwd: &Path, ctx: &AppContext) -> Option<PathBuf> {
@@ -196,6 +197,7 @@ pub(crate) fn cancellation_reason_name(reason: CancellationReason) -> &'static s
         CancellationReason::Reverted => "reverted",
         CancellationReason::Deleted => "conversation_deleted",
         CancellationReason::OptimisticCLISubagentCompletion => "command_finished",
+        CancellationReason::HookEndedRun => "hook_ended_run",
     }
 }
 

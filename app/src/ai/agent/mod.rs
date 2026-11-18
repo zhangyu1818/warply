@@ -67,6 +67,32 @@ pub enum CancellationReason {
     /// The long-running command completed while the agent was still streaming.
     /// This should be treated as a successful completion, not a cancellation.
     OptimisticCLISubagentCompletion,
+
+    /// An agent hook asked to stop the run (a hook's `ask` in a run configured to fail when no
+    /// one can answer). The in-flight work is cancelled to stop it and the controller
+    /// finalizes the conversation as a terminal `Error`.
+    HookEndedRun,
+}
+
+/// How a [`CancellationReason`] maps to the conversation's resulting status.
+/// This is the single source of truth consumed by the stream- and
+/// action-cancellation machinery; see [`CancellationReason::conversation_outcome`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CancellationOutcome {
+    /// Leave the conversation `InProgress`; it will continue on its own (a
+    /// follow-up request or a resumed long-running command) without further user
+    /// input.
+    KeepInProgress,
+    /// Finalize the conversation as a successful completion (`Success`).
+    Succeeded,
+    /// Finalize the conversation as a user cancellation (`Cancelled`).
+    Cancelled,
+    /// Terminal, but a dedicated path (not the cancellation machinery) writes the
+    /// status — the cancellation is only a stop signal and must not stamp a status.
+    /// Currently used for a hook ending the run, which is finalized as `Error` by
+    /// `fail_conversation_due_to_hook`. Unlike `KeepInProgress`, the conversation is
+    /// ending; only the status write is suppressed.
+    FinalizedExternally,
 }
 
 impl Display for CancellationReason {
@@ -80,6 +106,7 @@ impl Display for CancellationReason {
             CancellationReason::OptimisticCLISubagentCompletion => {
                 write!(f, "LRC command completed")
             }
+            CancellationReason::HookEndedRun => write!(f, "agent hook ended the run"),
         }
     }
 }
@@ -106,6 +133,37 @@ impl CancellationReason {
 
     pub fn is_lrc_command_completed(&self) -> bool {
         matches!(self, CancellationReason::OptimisticCLISubagentCompletion)
+    }
+
+    /// How a cancellation reason maps to the
+    /// conversation's resulting status. Every site that finalizes a cancelled
+    /// stream or action consults this instead of re-deriving the disposition,
+    /// so the reason -> status mapping lives in one exhaustive place.
+    /// Note that sometimes the action result is treated as authoritative for determining
+    /// conversation status even when there is a cancellation reason (taking priority over this)
+    pub fn conversation_outcome(&self) -> CancellationOutcome {
+        match self {
+            // The conversation continues without further user input (a follow-up
+            // request or a resumed long-running command drives it forward), so
+            // its status must stay InProgress.
+            CancellationReason::FollowUpSubmitted {
+                is_for_same_conversation: true,
+            } => CancellationOutcome::KeepInProgress,
+            // A long-running command finishing (optimistically) or a revert are
+            // successful completions rather than cancellations.
+            CancellationReason::OptimisticCLISubagentCompletion | CancellationReason::Reverted => {
+                CancellationOutcome::Succeeded
+            }
+            // A hook ended the run; a dedicated path finalizes this as a terminal `Error`, so
+            // the cancellation machinery must not stamp a status.
+            CancellationReason::HookEndedRun => CancellationOutcome::FinalizedExternally,
+            CancellationReason::ManuallyCancelled
+            | CancellationReason::UserCommandExecuted
+            | CancellationReason::Deleted
+            | CancellationReason::FollowUpSubmitted {
+                is_for_same_conversation: false,
+            } => CancellationOutcome::Cancelled,
+        }
     }
 }
 

@@ -5,6 +5,7 @@ use warpui::App;
 
 use super::*;
 use crate::ai::agent::CancellationReason;
+use crate::ai::blocklist::hooks::RunIdentity;
 use crate::ai::blocklist::hooks::test_utils::{
     hook_test_app, install_test_hooks, mock_active_session, shell_action,
 };
@@ -131,6 +132,7 @@ fn cancellation_reason_names_are_stable() {
             CancellationReason::OptimisticCLISubagentCompletion,
             "command_finished",
         ),
+        (CancellationReason::HookEndedRun, "hook_ended_run"),
     ];
     for (reason, name) in expected {
         assert_eq!(cancellation_reason_name(reason), name, "{reason:?}");
@@ -193,20 +195,25 @@ fn run_metadata_reaches_the_envelope_without_a_cloud_surface() {
             parent_run_id: None,
             task_id: Some("task-1".to_owned()),
         };
-        app.update(|ctx| {
-            HookRuntime::handle(ctx).update(ctx, |runtime, _| {
-                runtime.set_run_metadata(Some(run.clone()));
+        // The fork has no server-dispatched runs, so a recorded run is a command-line one.
+        for (surface, expected) in [(RunSurface::CommandLine, HookSurface::CliRun)] {
+            app.update(|ctx| {
+                HookRuntime::handle(ctx).update(ctx, |runtime, _| {
+                    runtime.set_run(Some(RunIdentity {
+                        metadata: run.clone(),
+                        surface,
+                    }));
+                });
             });
-        });
-        let after = app.read(|ctx| {
-            envelope_for_session_start(
-                true,
-                &EnvelopeSite::new(conversation_id, &active_session),
-                ctx,
-            )
-        });
-        assert_eq!(after.run, Some(run));
-        // The fork has no cloud runs; run metadata keeps the local run surface.
-        assert_eq!(after.surface, HookSurface::CliRun);
+            let after = app.read(|ctx| {
+                envelope_for_session_start(
+                    true,
+                    &EnvelopeSite::new(conversation_id, &active_session),
+                    ctx,
+                )
+            });
+            assert_eq!(after.run.as_ref(), Some(&run));
+            assert_eq!(after.surface, expected);
+        }
     });
 }

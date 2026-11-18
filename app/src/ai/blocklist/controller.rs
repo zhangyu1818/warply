@@ -27,8 +27,8 @@ use crate::ai::agent::conversation::{AIConversation, AIConversationId, Conversat
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
-    AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, CancellationReason, RunningCommand,
-    StaticQueryType, UserQueryMode, extract_user_query_mode,
+    AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, CancellationOutcome, CancellationReason,
+    RenderableAIError, RunningCommand, StaticQueryType, UserQueryMode, extract_user_query_mode,
 };
 use crate::ai::agent::{AnyFileContent, DocumentContentAttachmentSource, FileContext};
 use crate::ai::document::ai_document_model::{
@@ -261,6 +261,27 @@ impl BlocklistAIController {
             }
         });
 
+        // The fork's controller is the run owner, so it consumes the hook runtime's
+        // unanswerable-ask event the way upstream's run driver does: the run ends in a
+        // terminal Error naming the action nobody could confirm.
+        if ctx.has_singleton_model::<hooks::HookRuntime>() {
+            ctx.subscribe_to_model(&hooks::HookRuntime::handle(ctx), move |me, event, ctx| {
+                let hooks::HookRuntimeEvent::ApprovalUnavailable {
+                    conversation_id,
+                    action_id,
+                    reason,
+                } = event
+                else {
+                    return;
+                };
+                let message = format!(
+                    "The run was ended because an agent hook asked for confirmation on action \
+                     {action_id}, and this run is set to fail when nobody can answer. {reason}"
+                );
+                me.fail_conversation_due_to_hook(*conversation_id, message, ctx);
+            });
+        }
+
         ctx.subscribe_to_model(&action_model, move |me, event, ctx| {
             let BlocklistAIActionEvent::FinishedAction {
                 conversation_id,
@@ -276,13 +297,25 @@ impl BlocklistAIController {
             }
 
             let history_model = BlocklistAIHistoryModel::handle(ctx);
-            let Some(is_entirely_passive_code_diff) = history_model
+            let Some((is_entirely_passive_code_diff, has_failed)) = history_model
                 .as_ref(ctx)
                 .conversation(conversation_id)
-                .map(|conversation| conversation.is_entirely_passive_code_diff())
+                .map(|conversation| {
+                    (
+                        conversation.is_entirely_passive_code_diff(),
+                        matches!(conversation.status(), ConversationStatus::Error),
+                    )
+                })
             else {
                 return;
             };
+
+            // An action that finishes after its conversation was failed (by an agent hook that
+            // ended the run while the action was being decided) must not send its result or
+            // move the conversation out of `Error`.
+            if has_failed {
+                return;
+            }
 
             let Some(finished_action_results) =
                 action_model.get_finished_action_results(*conversation_id)
@@ -1820,6 +1853,98 @@ impl BlocklistAIController {
                     );
                 });
             }
+        }
+    }
+
+    /// Finalizes `conversation_id` as a terminal `Error` with `message` because an agent hook
+    /// ended the run.
+    pub fn fail_conversation_due_to_hook(
+        &mut self,
+        conversation_id: AIConversationId,
+        message: String,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.fail_conversation(
+            conversation_id,
+            RenderableAIError::Other {
+                error_message: message,
+            },
+            CancellationReason::HookEndedRun,
+            ctx,
+        );
+    }
+
+    /// Moves a running conversation to a terminal `Error`. `reason` must be one whose
+    /// cancellation outcome is `FinalizedExternally`, so cancelling the in-flight work does not
+    /// overwrite the failure.
+    fn fail_conversation(
+        &mut self,
+        conversation_id: AIConversationId,
+        failure: RenderableAIError,
+        reason: CancellationReason,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        debug_assert!(matches!(
+            reason.conversation_outcome(),
+            CancellationOutcome::FinalizedExternally
+        ));
+        let terminal_view_id = self.terminal_view_id;
+        let history_model = BlocklistAIHistoryModel::handle(ctx);
+
+        // Only act on conversations that are still running. A finished
+        // conversation (e.g. the agent already completed) must not be
+        // retroactively marked as failed.
+        let is_in_progress = history_model
+            .as_ref(ctx)
+            .conversation(&conversation_id)
+            .is_some_and(|conversation| conversation.status().is_in_progress());
+        if !is_in_progress {
+            return;
+        }
+
+        // Finish any in-flight response stream(s) with the failure. This marks the streaming
+        // exchange(s) as errored, sets the conversation to `Error` (with a message), and renders
+        // the failure inline. We then cancel the underlying request so it stops streaming; the
+        // cancellation does not overwrite the status because the ACP session cancel and the
+        // action cancellation below leave a finalized-externally conversation alone.
+        let stream_ids = history_model
+            .as_ref(ctx)
+            .conversation(&conversation_id)
+            .map(|conversation| conversation.response_stream_ids_being_processed())
+            .unwrap_or_default();
+        let had_in_flight_stream = !stream_ids.is_empty();
+        for stream_id in &stream_ids {
+            let error = failure.clone();
+            history_model.update(ctx, |history_model, ctx| {
+                history_model.mark_response_stream_completed_with_error(
+                    error,
+                    stream_id,
+                    conversation_id,
+                    terminal_view_id,
+                    ctx,
+                );
+            });
+            self.try_cancel_pending_response_stream(stream_id, reason, ctx);
+        }
+
+        // Stop any pending or mid-execution actions so a queued action result
+        // can't subsequently move the conversation back to Success/Cancelled.
+        self.action_model.update(ctx, |action_model, ctx| {
+            action_model.cancel_all_pending_actions(conversation_id, Some(reason), ctx);
+        });
+
+        // If there was no in-flight stream to attach the error to, set the terminal
+        // `Error` status directly.
+        if !had_in_flight_stream {
+            history_model.update(ctx, |history_model, ctx| {
+                history_model.update_conversation_status_with_error_message(
+                    terminal_view_id,
+                    conversation_id,
+                    ConversationStatus::Error,
+                    Some(failure.to_string()),
+                    ctx,
+                );
+            });
         }
     }
 

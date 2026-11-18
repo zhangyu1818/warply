@@ -636,6 +636,11 @@ impl AIConversation {
         self.added_exchanges_by_response.contains_key(stream_id)
     }
 
+    /// The response streams this conversation is still processing.
+    pub fn response_stream_ids_being_processed(&self) -> Vec<ResponseStreamId> {
+        self.added_exchanges_by_response.keys().cloned().collect()
+    }
+
     /// Removes the response stream tracking entry after the stream has fully completed.
     pub fn cleanup_completed_response_stream(&mut self, stream_id: &ResponseStreamId) {
         self.added_exchanges_by_response.remove(stream_id);
