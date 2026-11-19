@@ -1,15 +1,46 @@
 //! The `tool_input` object for the tool events: the action's arguments as the model gave them, one
-//! hand-written JSON view per `AIAgentActionType`.
+//! hand-written JSON view per `AIAgentActionType`. Where Warp's action maps onto one of Cursor's
+//! tools, the view uses Cursor's field names (`file_path`, `old_string`, `new_string`) so a
+//! script written for Cursor reads it unchanged.
 
 use serde_json::{Map, Value, json};
 
 use super::{insert_some, range_view, serialized};
+use crate::agent::FileLocations;
 use crate::agent::action::{
     AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
     ShellCommandDelay,
 };
 use crate::diff_validation::ParsedDiff;
+use crate::hooks::adapters::cursor::parts::ToolPart;
 use crate::hooks::model::HookEnvelope;
+
+/// The `tool_input` object for one part of an action: Cursor's single-file `Read` shape for one
+/// file of a read, the edits of one file for a split edit batch, and the whole action's input
+/// otherwise.
+pub(super) fn part_tool_input(part: &ToolPart<'_>, envelope: &HookEnvelope) -> Value {
+    match part {
+        ToolPart::Whole(action) => tool_input(action, envelope),
+        ToolPart::ReadFile(location) => read_file_input(location),
+        ToolPart::EditFile { file, title, edits } => {
+            let mut fields = Map::new();
+            insert_some(&mut fields, "file_path", *file);
+            insert_some(&mut fields, "title", *title);
+            fields.insert(
+                "edits".to_owned(),
+                Value::Array(edits.iter().map(|edit| file_edit_view(edit)).collect()),
+            );
+            Value::Object(fields)
+        }
+    }
+}
+
+fn read_file_input(location: &FileLocations) -> Value {
+    json!({
+        "file_path": location.name,
+        "lines": location.lines.iter().map(range_view).collect::<Vec<_>>(),
+    })
+}
 
 /// The `tool_input` object for `preToolUse` and the post-tool events: the action's arguments as
 /// the model gave them. Shell commands carry the working directory beside the command, as
@@ -80,6 +111,7 @@ pub(super) fn tool_input(action: &AIAgentActionType, envelope: &HookEnvelope) ->
         }
         AIAgentActionType::RequestFileEdits { file_edits, title } => {
             let mut fields = Map::new();
+            insert_some(&mut fields, "file_path", single_file(file_edits));
             insert_some(&mut fields, "title", title.as_deref());
             fields.insert(
                 "edits".to_owned(),
@@ -182,29 +214,42 @@ pub(super) fn tool_input(action: &AIAgentActionType, envelope: &HookEnvelope) ->
     }
 }
 
+/// The one file a batch of edits touches, when every edit names the same file. Cursor's `Write`
+/// and `Delete` edit one file, so a script reads the path from `file_path`.
+fn single_file(file_edits: &[FileEdit]) -> Option<&str> {
+    let mut files = file_edits.iter().map(FileEdit::file);
+    let first = files.next()??;
+    files.all(|file| file == Some(first)).then_some(first)
+}
+
 fn file_edit_view(edit: &FileEdit) -> Value {
     match edit {
         FileEdit::Edit(ParsedDiff::StrReplaceEdit {
             file,
             search,
             replace,
-        }) => json!({ "kind": "edit", "file": file, "search": search, "replace": replace }),
+        }) => json!({
+            "kind": "edit",
+            "file_path": file,
+            "old_string": search,
+            "new_string": replace,
+        }),
         FileEdit::Edit(ParsedDiff::V4AEdit {
             file,
             move_to,
             hunks,
         }) => json!({
             "kind": "edit",
-            "file": file,
+            "file_path": file,
             "move_to": move_to,
             "hunks": serialized("hunks", hunks),
         }),
         FileEdit::Create { file, content } => json!({
             "kind": "create",
-            "file": file,
+            "file_path": file,
             "content": content,
         }),
-        FileEdit::Delete { file } => json!({ "kind": "delete", "file": file }),
+        FileEdit::Delete { file } => json!({ "kind": "delete", "file_path": file }),
     }
 }
 

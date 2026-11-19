@@ -479,11 +479,8 @@ impl BlocklistAIController {
         );
         // Hooks see the prompt as it was typed, including any mode prefix. The copy is only made
         // when a hook could fire, so the inactive path adds nothing beyond the check.
-        let submitted_prompt = (is_user_submitted_prompt && hooks::HookRuntime::is_active(ctx))
-            .then(|| hooks::prompt::SubmittedPrompt {
-                text: query.clone(),
-                provenance,
-            });
+        let prompt_text =
+            (is_user_submitted_prompt && hooks::HookRuntime::is_active(ctx)).then(|| query.clone());
         let (query, user_query_mode) = if is_hook_follow_up {
             (query, UserQueryMode::Normal)
         } else {
@@ -570,6 +567,11 @@ impl BlocklistAIController {
             }
             InputQueryType::AIInputType { ai_input } => ai_input,
         };
+        let submitted_prompt = prompt_text.map(|text| hooks::prompt::SubmittedPrompt {
+            text,
+            attachments: hooks::prompt::attachments_in(&ai_input),
+            provenance,
+        });
         inputs.push(ai_input);
 
         let prepared = PreparedQuery {
@@ -580,8 +582,11 @@ impl BlocklistAIController {
         };
         // After the previous turn's actions are cancelled, so their `tool.failure` precedes this
         // turn's `prompt.submit`. With no hook to wait for, the request goes out right here.
+        // The model belongs to ACP adapter configuration, so a boundary that fires before the
+        // request knows no model.
         match hooks::prompt::prepare_turn(
             submitted_prompt,
+            None,
             conversation_id,
             &self.active_session,
             ctx,

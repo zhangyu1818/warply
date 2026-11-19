@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::agent::action::AIAgentActionType;
 use crate::agent::action_result::{AIAgentActionResultType, RequestCommandOutputResult};
-use crate::hooks::model::HookPayload;
+use crate::hooks::model::{HookPayload, SubagentLaunch};
 
 pub(super) fn pending_shell_command(payload: &HookPayload) -> Option<&str> {
     match payload {
@@ -16,6 +16,22 @@ pub(super) fn pending_shell_command(payload: &HookPayload) -> Option<&str> {
             action: AIAgentActionType::RequestCommandOutput { command, .. },
             ..
         } => Some(command),
+        HookPayload::ToolPre { .. }
+        | HookPayload::SessionStart { .. }
+        | HookPayload::PromptSubmit { .. }
+        | HookPayload::ToolResult { .. }
+        | HookPayload::ToolFailure { .. }
+        | HookPayload::SubagentStart { .. }
+        | HookPayload::TurnStop { .. }
+        | HookPayload::ResponseComplete { .. }
+        | HookPayload::ReasoningComplete { .. } => None,
+    }
+}
+
+/// The child about to be launched, on the subagent boundaries.
+pub(super) fn subagent_launch(payload: &HookPayload) -> Option<&SubagentLaunch> {
+    match payload {
+        HookPayload::SubagentStart { launch } => Some(launch),
         HookPayload::ToolPre { .. }
         | HookPayload::SessionStart { .. }
         | HookPayload::PromptSubmit { .. }
@@ -48,6 +64,7 @@ pub(super) fn finished_shell_command(payload: &HookPayload) -> Option<FinishedSh
         HookPayload::ToolPre { .. }
         | HookPayload::SessionStart { .. }
         | HookPayload::PromptSubmit { .. }
+        | HookPayload::SubagentStart { .. }
         | HookPayload::TurnStop { .. }
         | HookPayload::ResponseComplete { .. }
         | HookPayload::ReasoningComplete { .. } => return None,

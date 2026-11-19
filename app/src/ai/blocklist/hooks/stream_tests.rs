@@ -322,6 +322,7 @@ fn acp_deltas_map_to_observations_and_respect_activity() {
                 | HookPayload::ToolPre { .. }
                 | HookPayload::ToolResult { .. }
                 | HookPayload::ToolFailure { .. }
+                | HookPayload::SubagentStart { .. }
                 | HookPayload::TurnStop { .. } => "other".to_owned(),
             })
             .collect::<HashSet<_>>();
