@@ -149,6 +149,7 @@ pub(crate) fn envelope_for_tool_pre(
 pub(crate) fn envelope_for_tool_result(
     action: &AIAgentAction,
     result: &AIAgentActionResultType,
+    duration: Option<Duration>,
     site: &EnvelopeSite<'_>,
     ctx: &AppContext,
 ) -> HookEnvelope {
@@ -157,7 +158,7 @@ pub(crate) fn envelope_for_tool_result(
         HookPayload::ToolResult {
             action: action.action.clone(),
             result: result.clone(),
-            duration: None,
+            duration,
         },
         ctx,
     );
@@ -169,6 +170,7 @@ pub(crate) fn envelope_for_tool_failure(
     action: &AIAgentAction,
     result: &AIAgentActionResultType,
     cancellation_reason: Option<CancellationReason>,
+    duration: Option<Duration>,
     site: &EnvelopeSite<'_>,
     ctx: &AppContext,
 ) -> HookEnvelope {
@@ -179,7 +181,7 @@ pub(crate) fn envelope_for_tool_failure(
             result: result.clone(),
             cancellation_reason: cancellation_reason
                 .map(|reason| cancellation_reason_name(reason).to_owned()),
-            duration: None,
+            duration,
         },
         ctx,
     );
