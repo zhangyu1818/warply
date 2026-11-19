@@ -11,6 +11,7 @@ use crate::agent::action_result::{
     AIAgentActionResultType, AnyFileContent, FileContext, ReadFilesResult,
     RequestCommandOutputResult,
 };
+use crate::diff_validation::ParsedDiff;
 use crate::hooks::adapters::cursor::test_support::{
     EVENT_FIXTURES, FIXTURE_CONVERSATION_ID, completed_shell, fixture_envelope, json, shell_action,
     tool_failure, tool_pre, tool_result,
@@ -285,10 +286,60 @@ fn tool_input_describes_non_shell_actions() {
         json!({
             "title": "Replace old.rs",
             "edits": [
-                { "kind": "create", "file": "new.rs", "content": "fn main() {}" },
-                { "kind": "delete", "file": "old.rs" }
+                { "kind": "create", "file_path": "new.rs", "content": "fn main() {}" },
+                { "kind": "delete", "file_path": "old.rs" }
             ]
-        })
+        }),
+        "a batch over two files names no single file_path"
+    );
+}
+
+#[test]
+fn edits_to_one_file_name_it_with_cursors_field_names() {
+    let edit = tool_pre(AIAgentActionType::RequestFileEdits {
+        file_edits: vec![
+            FileEdit::Edit(ParsedDiff::StrReplaceEdit {
+                file: Some("src/lib.rs".to_owned()),
+                search: Some("a".to_owned()),
+                replace: Some("b".to_owned()),
+            }),
+            FileEdit::Edit(ParsedDiff::StrReplaceEdit {
+                file: Some("src/lib.rs".to_owned()),
+                search: Some("c".to_owned()),
+                replace: Some("d".to_owned()),
+            }),
+        ],
+        title: None,
+    });
+    let input = encode(CursorEvent::PreToolUse, edit);
+    assert_eq!(input["tool_name"], "Write");
+    assert_eq!(input["tool_input"]["file_path"], "src/lib.rs");
+    assert_eq!(
+        input["tool_input"]["edits"][1],
+        json!({ "kind": "edit", "file_path": "src/lib.rs", "old_string": "c", "new_string": "d" })
+    );
+
+    let delete = tool_pre(AIAgentActionType::RequestFileEdits {
+        file_edits: vec![FileEdit::Delete {
+            file: Some("old.rs".to_owned()),
+        }],
+        title: None,
+    });
+    let input = encode(CursorEvent::PreToolUse, delete);
+    assert_eq!(input["tool_name"], "Delete");
+    assert_eq!(input["tool_input"]["file_path"], "old.rs");
+
+    let nameless = tool_pre(AIAgentActionType::RequestFileEdits {
+        file_edits: vec![FileEdit::Create {
+            file: None,
+            content: None,
+        }],
+        title: None,
+    });
+    let input = encode(CursorEvent::PreToolUse, nameless);
+    assert!(
+        input["tool_input"].get("file_path").is_none(),
+        "an edit with no file names none"
     );
 }
 

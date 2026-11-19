@@ -19,6 +19,7 @@ use self::tool_output::result_view;
 use super::events::{CursorEvent, CursorEventSpec};
 use super::facets::{McpCallOutcome, finished_shell_command, mcp_tool_call, pending_shell_command};
 use super::tool_names::tool_name;
+use crate::agent::action::AIAgentActionType;
 use crate::agent::action_result::{AIAgentActionResultType, RequestCommandOutputResult};
 use crate::hooks::model::{HookEnvelope, HookPayload, TurnStopStatus};
 
@@ -116,6 +117,17 @@ fn insert_duration_ms(key: &str, duration: Option<Duration>, input: &mut Map<Str
     }
 }
 
+/// The generic tool events' fields for the action: Cursor's `tool_name` and `tool_input`. The
+/// fork has no MCP actions, so there is no server to name beside them.
+fn insert_tool_fields(
+    action: &AIAgentActionType,
+    envelope: &HookEnvelope,
+    input: &mut Map<String, Value>,
+) {
+    input.insert("tool_name".to_owned(), json!(tool_name(action)));
+    input.insert("tool_input".to_owned(), tool_input(action, envelope));
+}
+
 fn encode_session_start(envelope: &HookEnvelope, input: &mut Map<String, Value>) {
     let HookPayload::SessionStart {
         is_background_agent,
@@ -137,8 +149,7 @@ fn encode_pre_tool_use(envelope: &HookEnvelope, input: &mut Map<String, Value>) 
     let HookPayload::ToolPre { action } = &envelope.payload else {
         return;
     };
-    input.insert("tool_name".to_owned(), json!(tool_name(action)));
-    input.insert("tool_input".to_owned(), tool_input(action, envelope));
+    insert_tool_fields(action, envelope, input);
     insert_tool_use_id(envelope, input);
     insert_cwd(envelope, input);
 }
@@ -152,8 +163,7 @@ fn encode_post_tool_use(envelope: &HookEnvelope, input: &mut Map<String, Value>)
     else {
         return;
     };
-    input.insert("tool_name".to_owned(), json!(tool_name(action)));
-    input.insert("tool_input".to_owned(), tool_input(action, envelope));
+    insert_tool_fields(action, envelope, input);
     input.insert(
         "tool_output".to_owned(),
         json!(result_view(result).to_string()),
@@ -173,8 +183,7 @@ fn encode_post_tool_use_failure(envelope: &HookEnvelope, input: &mut Map<String,
     else {
         return;
     };
-    input.insert("tool_name".to_owned(), json!(tool_name(action)));
-    input.insert("tool_input".to_owned(), tool_input(action, envelope));
+    insert_tool_fields(action, envelope, input);
     insert_tool_use_id(envelope, input);
     insert_cwd(envelope, input);
     input.insert("error_message".to_owned(), json!(result.to_string()));

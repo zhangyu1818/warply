@@ -1,5 +1,7 @@
 //! The `tool_input` object for the tool events: the action's arguments as the model gave them, one
-//! hand-written JSON view per `AIAgentActionType`.
+//! hand-written JSON view per `AIAgentActionType`. Where Warp's action maps onto one of Cursor's
+//! tools, the view uses Cursor's field names (`file_path`, `old_string`, `new_string`) so a
+//! script written for Cursor reads it unchanged.
 
 use serde_json::{Map, Value, json};
 
@@ -80,6 +82,7 @@ pub(super) fn tool_input(action: &AIAgentActionType, envelope: &HookEnvelope) ->
         }
         AIAgentActionType::RequestFileEdits { file_edits, title } => {
             let mut fields = Map::new();
+            insert_some(&mut fields, "file_path", single_file(file_edits));
             insert_some(&mut fields, "title", title.as_deref());
             fields.insert(
                 "edits".to_owned(),
@@ -182,29 +185,42 @@ pub(super) fn tool_input(action: &AIAgentActionType, envelope: &HookEnvelope) ->
     }
 }
 
+/// The one file a batch of edits touches, when every edit names the same file. Cursor's `Write`
+/// and `Delete` edit one file, so a script reads the path from `file_path`.
+fn single_file(file_edits: &[FileEdit]) -> Option<&str> {
+    let mut files = file_edits.iter().map(FileEdit::file);
+    let first = files.next()??;
+    files.all(|file| file == Some(first)).then_some(first)
+}
+
 fn file_edit_view(edit: &FileEdit) -> Value {
     match edit {
         FileEdit::Edit(ParsedDiff::StrReplaceEdit {
             file,
             search,
             replace,
-        }) => json!({ "kind": "edit", "file": file, "search": search, "replace": replace }),
+        }) => json!({
+            "kind": "edit",
+            "file_path": file,
+            "old_string": search,
+            "new_string": replace,
+        }),
         FileEdit::Edit(ParsedDiff::V4AEdit {
             file,
             move_to,
             hunks,
         }) => json!({
             "kind": "edit",
-            "file": file,
+            "file_path": file,
             "move_to": move_to,
             "hunks": serialized("hunks", hunks),
         }),
         FileEdit::Create { file, content } => json!({
             "kind": "create",
-            "file": file,
+            "file_path": file,
             "content": content,
         }),
-        FileEdit::Delete { file } => json!({ "kind": "delete", "file": file }),
+        FileEdit::Delete { file } => json!({ "kind": "delete", "file_path": file }),
     }
 }
 
