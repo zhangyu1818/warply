@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use ai::hooks::{
     ENVELOPE_SCHEMA_VERSION, HOOK_PROTOCOL_VERSION, HookEnvelope, HookExecutionHost, HookPayload,
-    HookSurface, PermissionFacts, PromptProvenance, TurnStopStatus,
+    HookSurface, PermissionFacts, PromptAttachment, PromptProvenance, TurnStopStatus,
 };
 use repo_metadata::repositories::DetectedRepositories;
 use uuid::Uuid;
@@ -15,6 +15,7 @@ use super::{HookRuntime, RunSurface};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentAction, AIAgentActionResultType, CancellationReason};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::llms::LLMId;
 use crate::terminal::model::session::active_session::ActiveSession;
 
 /// Where the boundary fired from, as far as the envelope builders need to know.
@@ -22,6 +23,9 @@ pub(crate) struct EnvelopeSite<'a> {
     pub conversation_id: AIConversationId,
     /// The session whose working directory the operation runs in.
     pub active_session: &'a ModelHandle<ActiveSession>,
+    /// The model the request this boundary belongs to uses, for a boundary that fires before
+    /// the request exists. Otherwise the model is read from the conversation's latest exchange.
+    pub model_id: Option<LLMId>,
 }
 
 impl<'a> EnvelopeSite<'a> {
@@ -32,6 +36,22 @@ impl<'a> EnvelopeSite<'a> {
         Self {
             conversation_id,
             active_session,
+            model_id: None,
+        }
+    }
+
+    /// A site for a boundary that fires before the request using `model_id` goes out. The model
+    /// is optional because the fork's ACP adapter configuration owns model choice, so a
+    /// pre-request boundary may know no model.
+    pub fn before_request(
+        conversation_id: AIConversationId,
+        model_id: Option<LLMId>,
+        active_session: &'a ModelHandle<ActiveSession>,
+    ) -> Self {
+        Self {
+            conversation_id,
+            active_session,
+            model_id,
         }
     }
 
@@ -51,7 +71,8 @@ fn build(site: &EnvelopeSite<'_>, payload: HookPayload, ctx: &AppContext) -> Hoo
         .and_then(|cwd| repository_root(cwd, ctx))
         .into_iter()
         .collect();
-    let (exchange_id, model_id) = latest_exchange_facts(site.conversation_id, ctx);
+    let (exchange_id, exchange_model_id) = latest_exchange_facts(site.conversation_id, ctx);
+    let model_id = site.model_id.clone().or(exchange_model_id);
     let user_email = None;
     let runtime = HookRuntime::as_ref(ctx);
     let run = runtime.run_metadata().cloned();
@@ -205,7 +226,7 @@ pub(crate) fn cancellation_reason_name(reason: CancellationReason) -> &'static s
 
 pub(crate) fn envelope_for_prompt_submit(
     text: String,
-    attachments_summary: Vec<String>,
+    attachments: Vec<PromptAttachment>,
     provenance: PromptProvenance,
     site: &EnvelopeSite<'_>,
     ctx: &AppContext,
@@ -214,7 +235,7 @@ pub(crate) fn envelope_for_prompt_submit(
         site,
         HookPayload::PromptSubmit {
             text,
-            attachments_summary,
+            attachments,
             provenance,
         },
         ctx,

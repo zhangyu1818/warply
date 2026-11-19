@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -16,7 +17,9 @@ use crate::hooks::adapters::cursor::test_support::{
     EVENT_FIXTURES, FIXTURE_CONVERSATION_ID, completed_shell, fixture_envelope, json, shell_action,
     tool_failure, tool_pre, tool_result,
 };
-use crate::hooks::model::{HookTurnId, PromptProvenance, TurnStopStatus};
+use crate::hooks::model::{
+    HookTurnId, PromptAttachment, PromptAttachmentKind, PromptProvenance, TurnStopStatus,
+};
 
 /// The payload each `stdin.json` fixture was written for.
 fn fixture_payload(event: CursorEvent) -> HookPayload {
@@ -58,7 +61,16 @@ fn fixture_payload(event: CursorEvent) -> HookPayload {
         }
         CursorEvent::BeforeSubmitPrompt => HookPayload::PromptSubmit {
             text: "Fix the failing test".to_owned(),
-            attachments_summary: vec!["/work/repo/src/lib.rs".to_owned()],
+            attachments: vec![
+                PromptAttachment {
+                    kind: PromptAttachmentKind::File,
+                    path: PathBuf::from("/work/repo/src/lib.rs"),
+                },
+                PromptAttachment {
+                    kind: PromptAttachmentKind::Rule,
+                    path: PathBuf::from("/work/repo/AGENTS.md"),
+                },
+            ],
             provenance: PromptProvenance::User,
         },
         CursorEvent::Stop => HookPayload::TurnStop {

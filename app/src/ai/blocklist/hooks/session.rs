@@ -20,6 +20,7 @@ use super::envelope::{EnvelopeSite, envelope_for_session_start};
 use super::{HookRuntime, longest_matching_timeout, owns_turn_lifecycle};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::llms::LLMId;
 use crate::terminal::model::session::active_session::ActiveSession;
 
 /// The variables a conversation's `session.start` hooks set.
@@ -80,9 +81,10 @@ impl SessionStarts {
 /// conversation's first request must wait for: the hook-session environment, available once the
 /// hooks finish or the longest matching timeout passes, whichever comes first. `None` means there
 /// is nothing to wait for: no binding is active, no session hook applies, the hooks already ran,
-/// or the conversation is not new.
+/// or the conversation is not new. `model_id` is the model that first request uses.
 pub(crate) fn barrier(
     conversation_id: AIConversationId,
+    model_id: Option<LLMId>,
     active_session: &ModelHandle<ActiveSession>,
     ctx: &mut AppContext,
 ) -> Option<BoxFuture<'static, SessionEnv>> {
@@ -127,7 +129,7 @@ pub(crate) fn barrier(
     }
     // The fork has no autonomous background agents; every conversation is interactive.
     let is_background_agent = false;
-    let site = EnvelopeSite::new(conversation_id, active_session);
+    let site = EnvelopeSite::before_request(conversation_id, model_id, active_session);
     let envelope = envelope_for_session_start(is_background_agent, &site, ctx);
     let Some(timeout) = longest_matching_timeout(&snapshot, &envelope) else {
         mark_done(ctx);
