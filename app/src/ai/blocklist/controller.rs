@@ -16,7 +16,7 @@ use super::{
     action_model::{BlocklistAIActionEvent, BlocklistAIActionModel},
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::{BlocklistAIContextModel, PendingAttachment, PendingFile},
-    history_model::BlocklistAIHistoryModel,
+    history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate},
     hooks,
     queued_query::{AutofireAction, QueuedQueryId, QueuedQueryModel},
 };
@@ -255,8 +255,11 @@ impl BlocklistAIController {
             };
             if !me.turn_in_flight(*conversation_id, ctx) {
                 me.hold_or_finalize_turn(*conversation_id, ctx);
-                me.start_held_turn_stop(*conversation_id, ctx);
+                me.start_held_turn_stop_hooks(*conversation_id, ctx);
             }
+            // A turn this stream ended as failed or cancelled set its status before the stream
+            // was cleaned up, so its stop hooks waited for this point.
+            me.start_ended_turn_stop_hooks(*conversation_id, ctx);
         });
 
         // The fork's controller is the run owner, so it consumes the hook runtime's
@@ -363,7 +366,7 @@ impl BlocklistAIController {
                         || is_lrc_command_completed
                     {
                         me.hold_or_finalize_turn(*conversation_id, ctx);
-                        me.start_held_turn_stop(*conversation_id, ctx);
+                        me.start_held_turn_stop_hooks(*conversation_id, ctx);
                     } else {
                         // This is an imperfect heuristic that practically speaking should have no effect.
                         //
@@ -413,6 +416,25 @@ impl BlocklistAIController {
                     CancellationReason::ManuallyCancelled,
                     ctx,
                 );
+            }
+        });
+
+        // A turn ends as cancelled or failed from many places (a cancelled or errored stream,
+        // actions cancelled with nothing to send back, a shell exit, a hook that ended the run),
+        // all of which set the status; the status change is the one place that sees them all.
+        let history_model = BlocklistAIHistoryModel::handle(ctx);
+        ctx.subscribe_to_model(&history_model, |me, event, ctx| {
+            let BlocklistAIHistoryEvent::UpdatedConversationStatus {
+                conversation_id,
+                terminal_view_id,
+                update: ConversationStatusUpdate::Changed { prev_status },
+                new_status,
+            } = event
+            else {
+                return;
+            };
+            if *terminal_view_id == me.terminal_view_id {
+                me.stop_ended_turn(*conversation_id, prev_status, new_status, ctx);
             }
         });
 
@@ -615,7 +637,7 @@ impl BlocklistAIController {
         if outcome.send {
             self.send_prepared_query(prepared, ctx);
         } else if outcome.owes_earlier_turn {
-            self.settle_turn_after_stop(conversation_id, ctx);
+            self.settle_turn_after_stop_hooks(conversation_id, ctx);
         }
     }
 
@@ -647,8 +669,8 @@ impl BlocklistAIController {
     }
 
     /// Ends a turn that completed: marks the conversation successful, unless a stop hook applies,
-    /// in which case the status is held until [`Self::start_held_turn_stop`] has run the hooks
-    /// and they have answered.
+    /// in which case the status is held until [`Self::start_held_turn_stop_hooks`] has run the
+    /// hooks and they have answered.
     fn hold_or_finalize_turn(
         &mut self,
         conversation_id: AIConversationId,
@@ -661,7 +683,7 @@ impl BlocklistAIController {
 
     /// Runs the stop hooks of a turn [`Self::hold_or_finalize_turn`] held, once the turn's own
     /// stream is out of the way so a follow-up can be sent.
-    fn start_held_turn_stop(
+    fn start_held_turn_stop_hooks(
         &mut self,
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
@@ -679,10 +701,48 @@ impl BlocklistAIController {
                         me.finalize_held_turn(conversation_id, ctx)
                     }
                     hooks::turn::TurnStopResolution::FollowUpQueued => {
-                        me.settle_turn_after_stop(conversation_id, ctx)
+                        me.settle_turn_after_stop_hooks(conversation_id, ctx)
                     }
                 },
             );
+        }
+    }
+
+    /// Runs the stop hooks of a turn that a status change ended as cancelled or failed, once the
+    /// stream that ended it is out of the way. Nothing here waits for their answer.
+    fn stop_ended_turn(
+        &mut self,
+        conversation_id: AIConversationId,
+        prev_status: &ConversationStatus,
+        new_status: &ConversationStatus,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if hooks::turn::hold_ended_turn(
+            conversation_id,
+            prev_status,
+            new_status,
+            &self.active_session,
+            ctx,
+        ) {
+            self.start_ended_turn_stop_hooks(conversation_id, ctx);
+        }
+    }
+
+    /// Starts the stop hooks of `conversation_id`'s ended turns that are waiting to start, unless
+    /// the stream that ended one of them is still being cleaned up, in which case the stream's end
+    /// starts them.
+    fn start_ended_turn_stop_hooks(
+        &mut self,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if self.has_active_stream_for_conversation(conversation_id, ctx) {
+            return;
+        }
+        for stop in hooks::turn::start_ended_turn_stops(conversation_id, ctx) {
+            ctx.spawn(stop, move |_, outcome, ctx| {
+                hooks::turn::finish_ended_turn_stop(conversation_id, outcome, ctx);
+            });
         }
     }
 
@@ -690,7 +750,7 @@ impl BlocklistAIController {
     /// turn successful if nothing took the conversation over. A conversation that is not the one
     /// this surface is working in keeps its queue for the next drain: sending from here would go
     /// through the surface's own prompt path and cancel the conversation the person is in.
-    fn settle_turn_after_stop(
+    fn settle_turn_after_stop_hooks(
         &mut self,
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,

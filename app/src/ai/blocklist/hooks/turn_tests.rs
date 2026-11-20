@@ -1,16 +1,21 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use ai::hooks::test_util::{ScriptedRunner, test_binding, test_source_id};
 use ai::hooks::{DeclaredBinding, HookBoundary, HookPayload, HookTurnId, PromptProvenance};
+use chrono::Local;
 use instant::Instant;
 use warpui::{App, SingletonEntity};
 
 use super::*;
-use crate::ai::agent::{AIAgentInput, UserQueryMode};
+use crate::ai::agent::{
+    AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, UserQueryMode,
+};
 use crate::ai::blocklist::hooks::test_utils::{HookTestApp, hook_test_app};
 use crate::ai::blocklist::{
-    BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel, QueuedQueryOrigin,
+    BlocklistAIHistoryModel, QueuedQuery, QueuedQueryModel, QueuedQueryOrigin, ResponseStreamId,
 };
+use crate::ai::llms::LLMId;
 
 fn stop_binding(loop_limit: Option<u32>) -> DeclaredBinding {
     let mut binding = test_binding(test_source_id("stop"), HookBoundary::TurnStop, 0, None);
@@ -81,6 +86,32 @@ fn start_turn(app: &mut App, conversation_id: AIConversationId) -> HookTurnId {
     app.update(|ctx| {
         HookRuntime::handle(ctx).update(ctx, |runtime, _| runtime.start_turn(conversation_id))
     })
+}
+
+/// How many stops of ended turns are waiting to start or running for `conversation_id`.
+fn ended_stop_count(app: &App, conversation_id: AIConversationId) -> usize {
+    app.read(|ctx| {
+        HookRuntime::as_ref(ctx)
+            .turn_stops
+            .ended_stop_count(conversation_id)
+    })
+}
+
+/// A streaming exchange, the fixture shape the history model's streamed requests append.
+fn streaming_exchange() -> AIAgentExchange {
+    AIAgentExchange {
+        id: AIAgentExchangeId::new(),
+        input: vec![],
+        output_status: AIAgentOutputStatus::Streaming { output: None },
+        added_message_ids: HashSet::new(),
+        start_time: Local::now(),
+        finish_time: None,
+        working_directory: None,
+        model_id: LLMId::from("test-model"),
+        coding_model_id: LLMId::from("test-coding-model"),
+        cli_agent_model_id: LLMId::from("test-cli-agent-model"),
+        computer_use_model_id: LLMId::from("test-computer-use-model"),
+    }
 }
 
 #[test]
@@ -351,5 +382,216 @@ fn a_hold_that_times_out_finalizes_without_the_hooks() {
         );
         assert!(started.elapsed() >= Duration::from_millis(100));
         assert!(queued_texts(&app, harness.conversation_id).is_empty());
+    });
+}
+
+#[test]
+fn a_status_change_ends_a_turn_only_from_a_status_that_had_not_finished() {
+    use ConversationStatus::*;
+    let blocked = Blocked {
+        blocked_action: "ls".to_owned(),
+    };
+    assert_eq!(
+        ended_turn_status(&InProgress, &Cancelled),
+        Some(TurnStopStatus::Cancelled)
+    );
+    assert_eq!(
+        ended_turn_status(&InProgress, &Error),
+        Some(TurnStopStatus::Error)
+    );
+    assert_eq!(
+        ended_turn_status(&blocked, &Cancelled),
+        Some(TurnStopStatus::Cancelled)
+    );
+    assert_eq!(
+        ended_turn_status(&Error, &Cancelled),
+        None,
+        "cancelling a conversation that already failed ends no turn"
+    );
+    assert_eq!(ended_turn_status(&Cancelled, &Cancelled), None);
+    assert_eq!(ended_turn_status(&Success, &Cancelled), None);
+    assert_eq!(
+        ended_turn_status(&InProgress, &Success),
+        None,
+        "a completed turn is held, not ended"
+    );
+    assert_eq!(ended_turn_status(&InProgress, &blocked), None);
+}
+
+#[test]
+fn a_cancelled_turn_fires_stop_as_aborted_and_its_follow_up_is_refused() {
+    App::test((), |mut app| async move {
+        let harness = hook_test_app(&mut app);
+        let stop = stop_binding(None);
+        harness
+            .hooks
+            .runner
+            .script(stop.id.clone(), continuation("keep going"));
+        app.update(|ctx| harness.hooks.install_bindings(vec![stop], ctx));
+        let turn = start_turn(&mut app, harness.conversation_id);
+
+        assert!(app.update(|ctx| {
+            hold_ended_turn(
+                harness.conversation_id,
+                &ConversationStatus::InProgress,
+                &ConversationStatus::Cancelled,
+                &harness.active_session,
+                ctx,
+            )
+        }));
+        let stops = app.update(|ctx| start_ended_turn_stops(harness.conversation_id, ctx));
+        assert_eq!(stops.len(), 1);
+        let outcome = stops.into_iter().next().unwrap().await;
+        app.update(|ctx| finish_ended_turn_stop(harness.conversation_id, outcome, ctx));
+
+        let envelope = &harness.hooks.adapter.encoded_envelopes()[0];
+        assert!(matches!(
+            &envelope.payload,
+            HookPayload::TurnStop {
+                status: TurnStopStatus::Cancelled,
+                continuation_count: 0
+            }
+        ));
+        assert_eq!(envelope.turn_id, Some(turn));
+        assert!(
+            queued_texts(&app, harness.conversation_id).is_empty(),
+            "a follow-up is only sent after a turn that completed"
+        );
+        let diagnostics = harness.hooks.messenger.diagnostics();
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("after a turn that was cancelled or failed")
+            }),
+            "{diagnostics:?}"
+        );
+    });
+}
+
+#[test]
+fn a_failed_turn_fires_stop_as_error_once_its_dispatch_starts() {
+    App::test((), |mut app| async move {
+        let harness = hook_test_app(&mut app);
+        let stop = stop_binding(None);
+        app.update(|ctx| harness.hooks.install_bindings(vec![stop], ctx));
+        let turn = start_turn(&mut app, harness.conversation_id);
+
+        assert!(app.update(|ctx| {
+            hold_ended_turn(
+                harness.conversation_id,
+                &ConversationStatus::InProgress,
+                &ConversationStatus::Error,
+                &harness.active_session,
+                ctx,
+            )
+        }));
+        assert_eq!(
+            ended_stop_count(&app, harness.conversation_id),
+            1,
+            "the stop waits to be started"
+        );
+        assert_eq!(harness.hooks.runner.invocation_count(), 0);
+
+        let stops = app.update(|ctx| start_ended_turn_stops(harness.conversation_id, ctx));
+        let outcome = stops.into_iter().next().unwrap().await;
+        app.update(|ctx| finish_ended_turn_stop(harness.conversation_id, outcome, ctx));
+
+        let envelope = &harness.hooks.adapter.encoded_envelopes()[0];
+        assert!(matches!(
+            &envelope.payload,
+            HookPayload::TurnStop {
+                status: TurnStopStatus::Error,
+                continuation_count: 0
+            }
+        ));
+        assert_eq!(envelope.turn_id, Some(turn));
+        assert_eq!(ended_stop_count(&app, harness.conversation_id), 0);
+    });
+}
+
+#[test]
+fn a_turn_cancelled_under_its_completed_stop_fires_no_second_stop() {
+    App::test((), |mut app| async move {
+        let harness = hook_test_app(&mut app);
+        let stop = stop_binding(None);
+        harness
+            .hooks
+            .runner
+            .script(stop.id.clone(), ScriptedRunner::deny_with("no more"));
+        app.update(|ctx| harness.hooks.install_bindings(vec![stop], ctx));
+
+        // The turn's completed stop ran for the conversation's first and only exchange count.
+        assert_eq!(
+            stop_round(&mut app, &harness).await,
+            TurnStopResolution::Finalize
+        );
+        assert_eq!(harness.hooks.runner.invocation_count(), 1);
+
+        // The turn is then cancelled: the same exchange count fires no second stop.
+        assert!(!app.update(|ctx| {
+            hold_ended_turn(
+                harness.conversation_id,
+                &ConversationStatus::InProgress,
+                &ConversationStatus::Cancelled,
+                &harness.active_session,
+                ctx,
+            )
+        }));
+        assert_eq!(ended_stop_count(&app, harness.conversation_id), 0);
+
+        // The next turn is a turn of its own and fires its stop when it is cancelled.
+        app.update(|ctx| {
+            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
+                history
+                    .conversation_mut(&harness.conversation_id)
+                    .expect("the conversation exists")
+                    .append_reassigned_exchange(
+                        &ResponseStreamId::new(),
+                        streaming_exchange(),
+                        harness.terminal_view_id,
+                        ctx,
+                    )
+                    .expect("the exchange is appended");
+            });
+        });
+        let turn = start_turn(&mut app, harness.conversation_id);
+        assert!(app.update(|ctx| {
+            hold_ended_turn(
+                harness.conversation_id,
+                &ConversationStatus::InProgress,
+                &ConversationStatus::Cancelled,
+                &harness.active_session,
+                ctx,
+            )
+        }));
+        let stops = app.update(|ctx| start_ended_turn_stops(harness.conversation_id, ctx));
+        let outcome = stops.into_iter().next().unwrap().await;
+        app.update(|ctx| finish_ended_turn_stop(harness.conversation_id, outcome, ctx));
+
+        let payloads = harness
+            .hooks
+            .adapter
+            .encoded_envelopes()
+            .iter()
+            .map(|envelope| envelope.payload.clone())
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            payloads.as_slice(),
+            [
+                HookPayload::TurnStop {
+                    status: TurnStopStatus::Completed,
+                    ..
+                },
+                HookPayload::TurnStop {
+                    status: TurnStopStatus::Cancelled,
+                    ..
+                }
+            ]
+        ));
+        assert_eq!(
+            harness.hooks.adapter.encoded_envelopes()[1].turn_id,
+            Some(turn)
+        );
     });
 }
