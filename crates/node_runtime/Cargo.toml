@@ -25,4 +25,14 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tar = "0.4"
 warp_core = { workspace = true }
-zip = "2.1"
+# zip 9 defaults enable bzip2 -> libbz2-rs-sys (license bzip2-1.0.6), which cargo-deny rejects.
+zip = { version = "9.0.5", default-features = false, features = [
+    "aes-crypto",
+    "deflate",
+    "deflate64",
+    "lzma",
+    "ppmd",
+    "time",
+    "xz",
+    "zstd",
+] }
